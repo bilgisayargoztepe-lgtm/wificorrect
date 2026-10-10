@@ -75,7 +75,13 @@ yaz() {
 }
 
 ek_metni() { printf "\n[[allow]]\nmac = '%s'\nname = '%s'\n" "$MAC" "$AD"; }
-ayar_ekli() { cat "$AYAR" && ek_metni; }
+# Panelin yazdığı dosyada üst düzey `allow = []` olabilir; yanına [[allow]] tablosu eklemek anahtarı yeniden tanımlar
+# (geçersiz TOML). Boş dizi satırı çıkarılır (Config #[serde(default)]: anahtar yoksa boş liste).
+# $1 dosyanın test bloğu eklenmiş hâli
+ekli_hali() { awk '!/^allow = \[\][[:space:]]*$/' "$1" && ek_metni; }
+ayar_ekli() { ekli_hali "$AYAR"; }
+# Dolu satır içi dizi (`allow = [ {...} ]`) elle düzenlenmez
+inline_allow_dolu() { grep -v '^allow = \[\][[:space:]]*$' "$AYAR" | grep -Eq '^[[:space:]]*allow[[:space:]]*='; }
 
 # ayarlar.toml'dan test MAC'inin [[allow]] tablosu çıkmış hâli (panel dosyayı yeniden yazmış olsa da)
 ayar_temiz_hali() {
@@ -89,7 +95,7 @@ ayar_temiz_hali() {
 
 # Yedek + eklediğimiz blok dışında değişiklik yoksa yedeği aynen geri koyar; varsa yalnızca bloğu çıkarır
 ayar_geri() {
-    if [ -f "$YEDEK" ] && cmp -s <(cat "$YEDEK"; ek_metni) "$AYAR"; then
+    if [ -f "$YEDEK" ] && cmp -s <(ekli_hali "$YEDEK") "$AYAR"; then
         yaz "$AYAR" cat "$YEDEK"
     else
         echo "UYARI: $AYAR deneme sırasında değişmiş; yalnızca test bloğu çıkarılıyor (yedek: $YEDEK)" >&2
@@ -319,6 +325,7 @@ grep -qi "$MAC" "$KIRA" || hata "$KIRA içinde $MAC kirası yok"
 echo "  IP: $IP"
 
 # --- Geçici izin: ayarlar.toml (tabloda görünsün) + allow_mac ---
+inline_allow_dolu && hata "$AYAR içinde dolu satır içi 'allow = [...]' var; test bloğu eklenemez (önce panelden kaydedin ya da elle [[allow]] tablolarına çevirin)"
 cp -p "$AYAR" "$YEDEK"
 yaz "$AYAR" ayar_ekli
 ayar_gecerli || hata "test bloğu eklenince $AYAR okunamadı"

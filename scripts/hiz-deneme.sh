@@ -8,6 +8,7 @@
 # trafiği gerçek olduğu için kayıtlarda MAC'iyle görünür. Çıkışta (trap) ad alanı, izin ve sınır geri alınır;
 # yarıda kalmış bir önceki denemenin artıkları da başta temizlenir.
 # DİKKAT: netns süreçleri ayırmaz — ad alanında pkill kullanılmaz (bkz. sahte-istemci.sh); süreçler `ip netns pids` ile.
+# Sessiz bir saatte çalıştırın: WAN'ı toplam ~100 sn doldurur (30 sn sınırsız + 40 sn 5 Mb/sn + 30 sn sınırsız).
 # Çıkış kodu: hepsi PASS → 0, en az bir FAIL → 1, kurulum hatası → 2.
 set -euo pipefail
 export LC_ALL=C.UTF-8 # awk ondalık noktası
@@ -25,8 +26,12 @@ TRAFIK=/run/wificorrect/trafik.json
 WFC=/usr/local/bin/wificorrect
 URL='https://speed.cloudflare.com/__down?bytes='
 SINIR_MB=5
-# trafik.json hızı ≈ son 10 sn'nin ortalaması (5 sn'lik örnekler, 9 sn budama; bkz. src/trafik.rs PENCERE_SN)
-PENCERE=10
+# Aşama süreleri (sn). trafik.json hızı ≈ son 10 sn'nin ortalaması (5 sn'lik örnekler, 9 sn budama;
+# bkz. src/trafik.rs PENCERE_SN); "kararlı" pencere indirmenin ilk KARARLI sn'sinden sonra başlar.
+SURE1=30
+SURE2=40
+SURE3=30
+KARARLI=10
 GECICI=$(mktemp -d /tmp/hiz-deneme.XXXXXX)
 GUNLUK=/root/hiz-deneme.log
 
@@ -154,6 +159,7 @@ temizle() {
     [ "$TEMIZLENDI" = 1 ] && return 0
     set +e
     local yeniden=0
+    if [ -n "${INDIR_PID:-}" ]; then kill "$INDIR_PID" 2>/dev/null; fi
     if ip netns list | grep -qw "$NS"; then
         ip netns pids "$NS" | xargs -r kill 2>/dev/null
         sleep 1
@@ -229,49 +235,113 @@ yenilenme_bekle() {
     done
 }
 
-# $1 etiket, $2 bayt, $3 süre sınırı (sn). curl arka planda; trafik.json her yenilendiğinde bir örnek.
-# Sonuç: CURL_MB, CURL_BAYT, BASLA, BITIS, ORNEK (satır: zaman indir_bps diğer_bps diğer_mac), DIGER_EN
+# Köprü ucunun sayaçları: "tx rx" (tx = istemcinin indirdiği, rx = yüklediği; Ethernet başlığı dahil).
+# trafik.json'dan bağımsız ikinci bayt sayımı.
+veth() {
+    local tx rx
+    tx=$(cat "/sys/class/net/$VH/statistics/tx_bytes" 2>/dev/null) || tx=0
+    rx=$(cat "/sys/class/net/$VH/statistics/rx_bytes" 2>/dev/null) || rx=0
+    echo "${tx:-0} ${rx:-0}"
+}
+
+# $1 etiket, $2 süre bütçesi (sn). 99 MB'lık istekler arka arkaya (Cloudflare ≥100 MB'ı 403'le reddediyor).
+# trafik.json her yenilendiğinde bir satır: z o indir_bps veth_tx veth_rx diğer_bps diğer_mac (z: ölçüm, o: okuma zamanı)
+# Sonuç: ORNEK, BASLA, BITIS, CURL_BAYT, CURL_MB (toplam bayt × 8 / toplam süre; yalnızca bilgi)
+INDIR_PID=
 indir() {
-    local cikti="$GECICI/curl.$1" pid rc=0 son="" z j d hiz bayt
+    local istek="$GECICI/istek.$1" son="" z j d v o bitis
     ORNEK="$GECICI/ornek.$1"
     : >"$ORNEK"
-    echo "== $1: $(mb "$2") MB indiriliyor (en çok $3 sn) =="
+    : >"$istek"
+    echo "== $1: $2 sn indirme (99 MB'lık istekler) =="
     BASLA=$(date +%s.%N)
-    ip netns exec "$NS" curl -4 -s -o /dev/null --max-time "$3" -w '%{speed_download} %{size_download}\n' "$URL$2" >"$cikti" &
-    pid=$!
-    while kill -0 "$pid" 2>/dev/null; do
-        sleep 1
+    bitis=$(awk -v b="$BASLA" -v s="$2" 'BEGIN { printf "%.3f", b + s }')
+    (
+        while :; do
+            kalan=$(awk -v s="$bitis" -v n="$(date +%s.%N)" 'BEGIN { printf "%d", s - n }')
+            [ "$kalan" -ge 3 ] || break
+            rc=0
+            r=$(ip netns exec "$NS" curl -4 -s -o /dev/null --max-time "$kalan" \
+                -w '%{http_code} %{size_download} %{time_total}' "${URL}99000000") || rc=$?
+            echo "${r:-000 0 0} $rc" >>"$istek"
+            [ "$rc" = 0 ] || break
+        done
+    ) &
+    INDIR_PID=$!
+    while kill -0 "$INDIR_PID" 2>/dev/null; do
+        sleep 0.5
         j=$(trafik)
         z=$(zaman_of "$j")
         if [ -z "$z" ] || [ "$z" = "$son" ]; then continue; fi
         son=$z
+        o=$(date +%s.%N)
+        v=$(veth)
         d=$(diger_en "$j")
-        echo "$z $(alan "$j" indir_bps) $d" >>"$ORNEK"
+        echo "$z $o $(alan "$j" indir_bps) $v $d" >>"$ORNEK"
         printf '  %s  test ↓ %6s Mb/sn | diğerlerinin en yükseği %s Mb/sn (%s)\n' \
             "$(date +%T)" "$(mb "$(alan "$j" indir_bps)")" "$(mb "${d%% *}")" "${d#* }"
     done
-    wait "$pid" || rc=$?
+    wait "$INDIR_PID" || true
+    INDIR_PID=
     BITIS=$(date +%s.%N)
-    # 28 = süre sınırı: kısmi indirme, ölçülen hız yine geçerli
-    [ "$rc" -eq 0 ] || [ "$rc" -eq 28 ] || hata "curl başarısız (çıkış $rc)"
-    read -r hiz bayt <"$cikti"
-    CURL_MB=$(awk -v h="$hiz" 'BEGIN { printf "%.1f", h * 8 / 1e6 }')
-    CURL_BAYT=${bayt%.*}
-    DIGER_EN=$(awk '$3 > m { m = $3; a = $4 } END { printf "%.1f %s", m / 1e6, (a ? a : "-") }' "$ORNEK")
-    echo "  curl: $CURL_MB Mb/sn, $(mb "$CURL_BAYT") MB$([ "$rc" -eq 28 ] && echo ' (süre sınırında kesildi)')"
+    d=$(istek_hatasi "$istek")
+    [ -z "$d" ] || hata "$1: indirme isteği başarısız ($d)"
+    read -r CURL_BAYT CURL_MB < <(curl_ozet "$istek")
+    [ "$CURL_BAYT" -gt 0 ] || hata "$1: hiç bayt indirilmedi"
+    echo "  curl: $(wc -l <"$istek") istek, $(mb "$CURL_BAYT") MB, ortalama $CURL_MB Mb/sn"
 }
 
-# Örnek ortalaması (Mb/sn): penceresi tamamen indirme içinde kalan örnekler; hiç yoksa ilk örnek hariç hepsi.
-# Çıktı: "ort adet kural"
-ortalama() {
-    awk -v b="$BASLA" -v p="$PENCERE" '
-        { z[NR] = $1; v[NR] = $2 }
+# istek satırları "http_kodu bayt süre curl_çıkışı" → ilk hatalı istek (yoksa boş). Bütçe sonundaki süre aşımı (28)
+# hata sayılmaz; başlık gelmeden kesildiyse kod 000 olur.
+istek_hatasi() {
+    awk '!($4 == 0 && $1 == 200) && !($4 == 28 && ($1 == 200 || $1 == "000")) { print "HTTP " $1 ", curl çıkışı " $4; exit }' "$1"
+}
+# istek satırları → "toplam_bayt Mb/sn"
+curl_ozet() { awk '{ b += $2; t += $3 } END { printf "%d %.1f\n", b, (t > 0 ? b * 8 / t / 1e6 : 0) }' "$1"; }
+
+# $1 örnek dosyası, $2 pencere indirme başından en az kaç sn sonra başlasın.
+# trafik.json hızı ≈ son iki adımın (≈10 sn) ortalaması: her örnek iki önceki örnekle eşlenir; veth tx hızı aynı
+# aralıkta, kendi okuma zamanlarımızla hesaplanır. Yalnızca [BASLA+$2, BITIS] içinde kalan pencereler sayılır;
+# atlanmış yenilemeli çift (aralık 9–11 sn dışında) eşlenmez. Çıktı: "adet trafik_Mb veth_Mb ort_mutlak_fark_%"
+analiz() {
+    awk -v b="$BASLA" -v e="$BITIS" -v ofs="$2" '
+        { z[NR] = $1; o[NR] = $2; t[NR] = $3; tx[NR] = $4 }
         END {
-            for (i = 1; i <= NR; i++) if (z[i] - p >= b) { s += v[i]; n++ }
-            k = "tam-pencere"
-            if (!n) { for (i = 2; i <= NR; i++) { s += v[i]; n++ }; k = "ilki-haric" }
-            if (n) printf "%.1f %d %s\n", s / n / 1e6, n, k; else print "0 0 yok"
-        }' "$ORNEK"
+            for (i = 3; i <= NR; i++) {
+                k = i - 2
+                if (z[k] < b + ofs || z[i] > e || z[i] - z[k] < 9 || z[i] - z[k] > 11 || o[i] <= o[k]) continue
+                vr = (tx[i] - tx[k]) * 8 / (o[i] - o[k])
+                if (vr <= 0) continue
+                d = (t[i] - vr) / vr * 100
+                if (d < 0) d = -d
+                st += t[i]; sv += vr; sd += d; n++
+            }
+            if (n) printf "%d %.1f %.1f %.1f\n", n, st / n / 1e6, sv / n / 1e6, sd / n
+            else print "0 0 0 0"
+        }' "$1"
+}
+
+# awk koşulu, değişkenler a=… biçiminde → 1/0. Boş ya da sayı olmayan girdi → 0 (awk sözdizimi hatası olmaz).
+kosul() {
+    local ifade=$1 x
+    local -a arg=()
+    shift
+    for x in "$@"; do
+        [[ ${x#*=} =~ ^-?[0-9]+([.][0-9]+)?$ ]] || { echo 0; return 0; }
+        arg+=(-v "$x")
+    done
+    awk "${arg[@]}" "BEGIN { print (($ifade) ? 1 : 0) }"
+}
+# awk ifadesinin değeri (%.3f); girdi sayı değilse "-"
+hesap() {
+    local ifade=$1 x
+    local -a arg=()
+    shift
+    for x in "$@"; do
+        [[ ${x#*=} =~ ^-?[0-9]+([.][0-9]+)?$ ]] || { echo -; return 0; }
+        arg+=(-v "$x")
+    done
+    awk "${arg[@]}" "BEGIN { printf \"%.3f\", $ifade }"
 }
 
 # Yavaşlatma sınıflandırması: "yön ip hız" satırları, sıralı (lan = indirme, wan = yükleme).
@@ -340,22 +410,14 @@ j=$(trafik)
 grep -q "\"$MAC\"" <<<"$j" || hata "test MAC'i $TRAFIK içinde görünmüyor"
 if grep -q '"hiz_hata":"' <<<"$j"; then echo "  UYARI: $(grep -o '"hiz_hata":"[^"]*"' <<<"$j")"; fi
 
-# --- 1. Sınırsız indirme: ölçüm doğruluğu ve bugün MB ---
+# --- 1. Sınırsız indirme: ölçüm doğruluğu ---
 ONCE_BAYT=$(alan "$j" bugun_bayt)
+read -r V0_TX V0_RX < <(veth)
 echo "  bugün (önce): $(mb "$ONCE_BAYT") MB"
-indir "1-sinirsiz" 200000000 40
-read -r T1_ORT T1_N T1_KURAL < <(ortalama)
+indir "1-sinirsiz" "$SURE1"
+read -r A1_N A1_T A1_V A1_FARK < <(analiz "$ORNEK" 0)
+read -r K1_N K1_T _ _ < <(analiz "$ORNEK" "$KARARLI")
 C1_MB=$CURL_MB
-C1_BAYT=$CURL_BAYT
-B1=$BITIS
-# indirme bittikten sonraki bir okuma, sayaçların tamamını içerir
-for ((t = 0; t < 30; t++)); do
-    j=$(trafik)
-    awk -v z="$(zaman_of "$j")" -v b="$B1" 'BEGIN { exit !(z > b + 1) }' && break
-    sleep 1
-done
-SONRA_BAYT=$(alan "$j" bugun_bayt)
-echo "  bugün (sonra): $(mb "$SONRA_BAYT") MB"
 
 # --- 2. 5 Mb/sn sınır ---
 echo "== $SINIR_MB Mb/sn sınır yazılıyor =="
@@ -371,11 +433,11 @@ else
     echo "  UYARI: $KOPRU üzerinde ${SINIR_MB}Mbit sınıfı görünmüyor"
 fi
 sleep 2
-indir "2-sinirli" 25000000 60
-read -r T2_ORT T2_N _ < <(ortalama)
+indir "2-sinirli" "$SURE2"
+read -r K2_N K2_T K2_V _ < <(analiz "$ORNEK" "$KARARLI")
 siniflar >"$GECICI/s2b"
 C2_MB=$CURL_MB
-D2=$DIGER_EN
+D2=$(awk '$6 > m { m = $6; a = $7 } END { printf "%.1f %s", m / 1e6, (a ? a : "-") }' "$ORNEK")
 
 # --- 3. Sınır kaldırıldı ---
 echo "== Sınır kaldırılıyor =="
@@ -383,31 +445,51 @@ sinir_kaldir
 "$WFC" ctl hiz-uygula
 siniflar >"$GECICI/s3"
 sleep 2
-indir "3-kaldirildi" 50000000 20
+indir "3-kaldirildi" "$SURE3"
+read -r K3_N K3_T _ _ < <(analiz "$ORNEK" "$KARARLI")
 C3_MB=$CURL_MB
+B3=$BITIS
+
+# Bugün MB: indirmeler bittikten sonraki ilk trafik.json okuması tüm baytları içerir
+for ((t = 0; t < 30; t++)); do
+    j=$(trafik)
+    [ "$(kosul 'z > b + 1' z="$(zaman_of "$j")" b="$B3")" = 1 ] && break
+    sleep 1
+done
+SONRA_BAYT=$(alan "$j" bugun_bayt)
+read -r V1_TX V1_RX < <(veth)
+echo "  bugün (sonra): $(mb "$SONRA_BAYT") MB"
 
 # --- Özet ---
 SONUC=0
-sonuc() { # $1 açıklama, $2 awk koşulu (doğruysa PASS)
-    if awk "BEGIN { exit !($2) }"; then echo "PASS  $1"; else echo "FAIL  $1"; SONUC=1; fi
+sonuc() { # $1 açıklama, $2 1 = PASS
+    if [ "$2" = 1 ]; then echo "PASS  $1"; else echo "FAIL  $1"; SONUC=1; fi
 }
 echo
-echo "== Özet =="
-if [ "$T1_N" -gt 0 ]; then
-    FARK=$(awk -v c="$C1_MB" -v t="$T1_ORT" 'BEGIN { d = (t - c) / c * 100; printf "%.1f", d < 0 ? -d : d }')
-    sonuc "1. Ölçüm: curl $C1_MB Mb/sn, trafik.json ort. $T1_ORT Mb/sn ($T1_N örnek, $T1_KURAL), fark %$FARK (≤%10)" "$FARK <= 10"
-else
-    sonuc "1. Ölçüm: indirme sırasında trafik.json örneği yok" "0"
+echo "== Özet (Mb/sn; kararlı = penceresi indirmenin ilk $KARARLI sn'sinden sonra başlayan örnekler) =="
+sonuc "1. Ölçüm: trafik.json $A1_T, aynı pencerelerde veth $A1_V, ort. mutlak fark %$A1_FARK ($A1_N pencere; ≤%10)" \
+    "$(kosul 'n >= 1 && f <= 10' n="$A1_N" f="$A1_FARK")"
+if [ "$(kosul 'n >= 1 && t < 2 * s' n="$K1_N" t="$K1_T" s="$SINIR_MB")" = 1 ]; then
+    echo "UYARI: sınırsız hız ($K1_T Mb/sn) sınırın iki katından düşük; yavaşlatma denemesi anlamlı değil"
 fi
-awk -v c="$C1_MB" -v s="$SINIR_MB" 'BEGIN { exit !(c < 2 * s) }' &&
-    echo "UYARI: sınırsız hız ($C1_MB Mb/sn) sınırın iki katından düşük; yavaşlatma denemesi anlamlı değil"
-sonuc "2. Yavaşlatma: curl $C2_MB Mb/sn, hedef $SINIR_MB (±%15); trafik.json ort. $T2_ORT Mb/sn ($T2_N örnek)" \
-    "$C2_MB >= $SINIR_MB * 0.85 && $C2_MB <= $SINIR_MB * 1.15"
-sonuc "3. Kaldırınca: curl $C3_MB Mb/sn (> $((SINIR_MB * 2)))" "$C3_MB > $SINIR_MB * 2"
-ARTIS=$((SONRA_BAYT - ONCE_BAYT))
-ORAN=$(awk -v a="$ARTIS" -v b="$C1_BAYT" 'BEGIN { printf "%.3f", b > 0 ? a / b : 0 }')
-# sayaç IP başlıklarını ve yükleme yönündeki ACK'leri de içerir → biraz fazla
-sonuc "4. Bugün MB: +$(mb "$ARTIS") MB, indirilen $(mb "$C1_BAYT") MB, oran $ORAN (0,97–1,15)" "$ORAN >= 0.97 && $ORAN <= 1.15"
+sonuc "2. Yavaşlatma: kararlı trafik.json $K2_T, veth $K2_V ($K2_N pencere), hedef $SINIR_MB ±%15" \
+    "$(kosul 'n >= 1 && t >= s * 0.85 && t <= s * 1.15 && v >= s * 0.85 && v <= s * 1.15' n="$K2_N" t="$K2_T" v="$K2_V" s="$SINIR_MB")"
+sonuc "3. Kaldırınca: kararlı trafik.json $K3_T ($K3_N pencere) ≥ 0,8 × sınırsız $K1_T ($K1_N pencere) ve > $((SINIR_MB * 2))" \
+    "$(kosul 'n3 >= 1 && n1 >= 1 && t3 >= 0.8 * t1 && t3 > 2 * s' n3="$K3_N" n1="$K1_N" t3="$K3_T" t1="$K1_T" s="$SINIR_MB")"
+# veth Ethernet başlığını da sayar, trafik.json IP baytını → oran 1'in biraz altında olabilir
+ORAN=-
+VARTIS=$(hesap 'c + r - d - x' c="$V1_TX" r="$V1_RX" d="$V0_TX" x="$V0_RX")
+if [ "$(kosul 'v > 0' v="$VARTIS")" = 1 ]; then
+    ORAN=$(hesap '(a - b) / v' a="$SONRA_BAYT" b="$ONCE_BAYT" v="$VARTIS")
+fi
+BARTIS=$(hesap 'a - b' a="$SONRA_BAYT" b="$ONCE_BAYT")
+if [ "$ORAN" = - ]; then
+    sonuc "4. Bugün MB: girdi eksik (bugün önce='$ONCE_BAYT' sonra='$SONRA_BAYT', veth artışı='$VARTIS')" 0
+else
+    sonuc "4. Bugün MB: +$(mb "$BARTIS") MB, veth (indir+yükle) +$(mb "$VARTIS") MB, oran $ORAN (0,97–1,15)" \
+        "$(kosul 'o >= 0.97 && o <= 1.15' o="$ORAN")"
+fi
+echo "Bilgi: curl ortalaması (TCP/TLS açılışı dahil) — sınırsız $C1_MB, sınırlı $C2_MB, kaldırınca $C3_MB Mb/sn"
 # 5. Diğer müşteriler: sınırlı küme yalnızca test IP'si kadar büyür, önceden sınırlıların hızı aynı kalır, kaldırınca eskiye döner
 K5=1
 grep -q " $IP " "$GECICI/s0" && K5=0

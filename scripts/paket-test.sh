@@ -12,6 +12,7 @@ docker run --rm -v "$PWD/$(dirname "$deb"):/p:ro" debian:trixie sh -euc "
   test -d /srv/5651 && test \"\$(stat -c %a /srv/5651)\" = 700
   test -L /etc/systemd/system/multi-user.target.wants/wificorrect-panel.service
   ! dpkg -L wificorrect | grep -E 'interfaces.d/wificorrect|arayuzler.nft|issue.d/wificorrect.issue|yasak-siteler.conf'
+  dpkg -L wificorrect | grep -q /etc/wificorrect/hiz.nft
   test -x /usr/local/lib/wificorrect/dhcp-script
   command -v iptables-restore
   echo 'site_name = \"Kalsin\"' >> /etc/wificorrect/ayarlar.toml

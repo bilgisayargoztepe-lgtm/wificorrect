@@ -12,6 +12,8 @@ RemainAfterExit=yes
 ExecStartPre=/usr/sbin/sysctl -qw net.ipv4.ip_forward=0
 ExecStart=/usr/sbin/nft -f /etc/wificorrect/guvenlik.nft
 ExecStart=/usr/sbin/nft -f /etc/wificorrect/kapi.nft
+# Hız sayaçları ve yavaşlatma sınıfları (yalnızca sayar/işaretler); yüklenemezse açılış durmaz
+ExecStart=-/usr/sbin/nft -f /etc/wificorrect/hiz.nft
 # Kurallardan önce açılmış bağlantı kayıtları yeni NAT/kapı kurallarından geçmemiştir → temizle
 # Bayt sayacı ve süre (5651 trafik kaydı); conntrack modülü artık yüklü
 ExecStartPost=/usr/sbin/sysctl -q -p /etc/wificorrect/conntrack.sysctl

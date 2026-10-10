@@ -390,6 +390,34 @@ pub fn capture(cmd: &[&str]) -> String {
     Command::new(prog).args(args).stderr(Stdio::null()).output().map(|o| String::from_utf8_lossy(&o.stdout).into_owned()).unwrap_or_default()
 }
 
+/// `capture`, süre sınırlı: komut `secs` içinde bitmezse öldürülür → `None` (çalıştırılamadı da `None`).
+/// Çıktı ayrı iş parçacığında okunur (büyük çıktı boruyu doldurup komutu bekletmesin).
+pub fn capture_timeout(cmd: &[&str], secs: u64) -> Option<String> {
+    use std::io::Read;
+    let (prog, args) = cmd.split_first()?;
+    let mut child = Command::new(prog).args(args).stdout(Stdio::piped()).stderr(Stdio::null()).spawn().ok()?;
+    let mut out = child.stdout.take()?;
+    let okuyucu = std::thread::spawn(move || {
+        let mut b = Vec::new();
+        let _ = out.read_to_end(&mut b);
+        b
+    });
+    let deadline = Instant::now() + Duration::from_secs(secs);
+    loop {
+        match child.try_wait() {
+            Ok(Some(_)) => break,
+            Ok(None) if Instant::now() < deadline => std::thread::sleep(Duration::from_millis(20)),
+            _ => {
+                let _ = child.kill();
+                let _ = child.wait();
+                let _ = okuyucu.join();
+                return None;
+            }
+        }
+    }
+    okuyucu.join().ok().map(|b| String::from_utf8_lossy(&b).into_owned())
+}
+
 pub fn run_timeout(cmd: &[String], secs: u64) -> bool {
     let Some((prog, args)) = cmd.split_first() else { return false };
     let Ok(mut child) = Command::new(prog).args(args).stdout(Stdio::null()).stderr(Stdio::null()).spawn() else {
@@ -574,5 +602,14 @@ mod tests {
         let m = parse_arp(arp);
         assert_eq!(m.get("10.50.0.9").map(String::as_str), Some("aa:bb:cc:dd:ee:01"));
         assert!(!m.contains_key("10.50.0.8"));
+    }
+
+    #[test]
+    fn capture_timeout_suresi_dolunca_none() {
+        let t0 = Instant::now();
+        assert_eq!(capture_timeout(&["sleep", "3"], 1), None); // asılı komut döngüyü bekletmez
+        assert!(t0.elapsed() < Duration::from_millis(2500), "{:?}", t0.elapsed());
+        assert_eq!(capture_timeout(&["echo", "merhaba"], 5).as_deref(), Some("merhaba\n"));
+        assert_eq!(capture_timeout(&["/yok/komut"], 5), None);
     }
 }

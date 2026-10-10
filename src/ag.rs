@@ -60,6 +60,8 @@ pub struct Yollar {
     pub issue: PathBuf,
     /// Kalıcı bekleme durumu (yeniden açılışta da geri alınabilsin)
     pub durum: PathBuf,
+    /// Yavaşlatmanın uygulanmış plan izi: arayüzler yeniden kurulunca silinir (tc kökleri gitti)
+    pub hiz_uygulanan: PathBuf,
 }
 
 impl Yollar {
@@ -71,6 +73,7 @@ impl Yollar {
             hostapd: "/etc/wificorrect/hostapd.conf".into(),
             issue: "/etc/issue.d/wificorrect.issue".into(),
             durum: "/var/lib/wificorrect".into(),
+            hiz_uygulanan: crate::hiz::UYGULANAN_YOLU.into(),
         }
     }
     fn yedek(&self) -> PathBuf {
@@ -298,6 +301,10 @@ pub fn switch(cfg: &Config, ag: &Ag, y: &Yollar, runner: &Runner) -> Vec<String>
     if !runner(&cmd(&["nft", "-f", "/etc/wificorrect/guvenlik.nft"])) {
         errs.push("güvenlik duvarı yüklenemedi".into());
     }
+    // Hız sayaçları WAN adını yükleme anında alır → yeniden yükle (idempotent, sayaçlar kalır); köprü yeniden kurulduğu için
+    // tc kökleri gitti → plan izi silinir, kaydedici sonraki turda yavaşlatmaları yeniden kurar. Hata ağ geçişini durdurmaz.
+    runner(&cmd(&["nft", "-f", "/etc/wificorrect/hiz.nft"]));
+    let _ = fs::remove_file(&y.hiz_uygulanan);
     if !runner(&cmd(&["systemctl", "restart", "dnsmasq"])) {
         errs.push("dnsmasq başlatılamadı".into());
     }
@@ -396,6 +403,7 @@ mod tests {
             hostapd: root.join("hostapd.conf"),
             issue: root.join("issue"),
             durum: root.join("durum"),
+            hiz_uygulanan: root.join("hiz_uygulanan"),
         };
         (cfg, y, root)
     }
@@ -477,8 +485,10 @@ mod tests {
         let new = Ag { wan: "enp1s0".into(), lan: vec!["enp3s0".into()], wan_mac: "00:0e:c4:ce:a0:9b".into(), ..Ag::default() };
         let staged = root.join("yeni.toml");
         save(&staged, &new).unwrap();
+        fs::write(&y.hiz_uygulanan, "eski plan").unwrap();
         assert_eq!(gecis(&cfg, &y, &staged, 1000.0, &runner), Ok(vec![]));
         assert_eq!(load(&y.ag), new);
+        assert!(!y.hiz_uygulanan.exists()); // tc kökleri yeniden kurulsun
         let (deadline, unit) = pending(&y).unwrap();
         assert_eq!(deadline, 1180.0);
         {
@@ -488,6 +498,9 @@ mod tests {
             assert!(timer < down); // önce zamanlayıcı, sonra ağ
             assert!(c.iter().any(|x| x == "systemctl restart ifup@enp1s0.service") && c.iter().any(|x| x == "systemctl stop wificorrect-wifi"));
             assert!(!c.iter().any(|x| x == "ifup enp1s0")); // dhcpcd geçici işin içinde başlamasın
+            let guv = c.iter().position(|x| x == "nft -f /etc/wificorrect/guvenlik.nft").unwrap();
+            let hiz = c.iter().position(|x| x == "nft -f /etc/wificorrect/hiz.nft").unwrap();
+            assert!(guv < hiz); // yeni WAN adıyla sayaçlar
         }
         assert!(fs::read_to_string(&y.nft).unwrap().contains("\"enp1s0\""));
         save(&staged, &old).unwrap();
@@ -522,7 +535,7 @@ mod tests {
 
     impl Yollar {
         fn test(d: &Path) -> Yollar {
-            Yollar { ag: d.join("ag.toml"), interfaces: d.join("interfaces"), nft: d.join("arayuzler.nft"), hostapd: d.join("hostapd.conf"), issue: d.join("issue"), durum: d.join("durum") }
+            Yollar { ag: d.join("ag.toml"), interfaces: d.join("interfaces"), nft: d.join("arayuzler.nft"), hostapd: d.join("hostapd.conf"), issue: d.join("issue"), durum: d.join("durum"), hiz_uygulanan: d.join("hiz_uygulanan") }
         }
     }
 

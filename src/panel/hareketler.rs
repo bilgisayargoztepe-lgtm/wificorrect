@@ -7,8 +7,8 @@ use crate::kayit;
 
 /// Kişisel veri gösteren ya da veren işlemler (izleme sayılır).
 const KISISEL: &[&str] = &[
-    "PANEL_OZET", "PANEL_OTURUMLAR", "PANEL_KULLANICILAR", "PANEL_KULLANICI_ARA", "PANEL_KULLANICI", "PANEL_KAYIT_GUN",
-    "PANEL_KAYIT_GORUNTULE", "PANEL_KAYIT_INDIR", "PANEL_TALEP_ARA", "PANEL_TALEP_PAKET", "PANEL_GEREKCE",
+    "PANEL_OZET", "PANEL_OTURUMLAR", "PANEL_OTURUMLAR_YENILE", "PANEL_KULLANICILAR", "PANEL_KULLANICI_ARA", "PANEL_KULLANICI", "PANEL_KAYIT_GUN",
+    "PANEL_KAYIT_GORUNTULE", "PANEL_KAYIT_INDIR", "PANEL_TALEP_ARA", "PANEL_TALEP_PAKET", "PANEL_GEREKCE", "PANEL_YAVASLATILMIS",
 ];
 
 pub(super) fn olay_adi(olay: &str) -> &str {
@@ -20,6 +20,7 @@ pub(super) fn olay_adi(olay: &str) -> &str {
         "PANEL_GIRIS_KILIT" => "Giriş kilitlendi",
         "PANEL_OZET" => "Özete baktı (bağlı kullanıcılar, yeni üyeler)",
         "PANEL_OTURUMLAR" => "Bağlı kullanıcılara baktı",
+        "PANEL_OTURUMLAR_YENILE" => "Otomatik yenilemeyi açtı",
         "PANEL_KULLANICILAR" => "Kullanıcı listesine baktı",
         "PANEL_KULLANICI_ARA" => "Kullanıcı aradı",
         "PANEL_KULLANICI" => "Kişi sayfasına baktı",
@@ -29,6 +30,9 @@ pub(super) fn olay_adi(olay: &str) -> &str {
         "PANEL_TALEP_ARA" => "Resmi talep araması",
         "PANEL_TALEP_PAKET" => "Talep paketi indirdi",
         "PANEL_AT" => "Bağlantı kesti",
+        "PANEL_YAVASLAT" => "Yavaşlattı",
+        "PANEL_YAVASLATMA_KALDIR" => "Yavaşlatmayı kaldırdı",
+        "PANEL_YAVASLATILMIS" => "Yavaşlatılmış cihazlara baktı",
         "PANEL_AYAR" => "Ayar değiştirdi",
         "PANEL_PORT" => "Port değiştirdi",
         "PANEL_PORTAL_METIN" => "Portal metnini değiştirdi",

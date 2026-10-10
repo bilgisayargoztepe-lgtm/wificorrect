@@ -1,0 +1,44 @@
+#!/usr/sbin/nft -f
+# WifiCorrect hız sayaçları ve yavaşlatma sınıfları (kapi.nft yanında ayrı tablo).
+# Yalnızca sayar/işaretler, accept/drop yok: yüklenemezse kapı ve 5651 kaydı etkilenmez, yalnızca hız sütunları boş kalır.
+# "delete table" YOK: sayaçlar korunmalı; kaydedici bu dosyayı yalnızca tablo yokken yükler (açılışta guvenlik servisi de).
+# Yeniden yüklemede (servis yeniden başlatma) yalnızca "say" boşaltılıp yeniden yazılır: kurallar çiftlenip iki kez saymaz;
+# setler (sayaçlar) ve "sinif" (yavaşlatma kuralları) kalır.
+# sinif zincirini kaydedici doldurur (meta priority → tc HTB sınıfı); bkz. src/hiz.rs.
+# ponytail: br-hotspot sabit (kapi.nft gibi); WAN adı arayuzler.nft'ten.
+
+include "/etc/wificorrect/arayuzler.nft"
+
+table inet wfc_hiz {
+	set indir {
+		type ipv4_addr
+		flags dynamic, timeout
+		timeout 1d
+		counter
+	}
+
+	set yukle {
+		type ipv4_addr
+		flags dynamic, timeout
+		timeout 1d
+		counter
+	}
+
+	# gate'ten (filter - 5) önce: yalnızca sayar
+	chain say {
+		type filter hook forward priority filter - 10; policy accept;
+	}
+
+	chain sinif {
+		type filter hook forward priority filter - 9; policy accept;
+	}
+}
+
+flush chain inet wfc_hiz say
+
+table inet wfc_hiz {
+	chain say {
+		iifname "br-hotspot" oifname $WAN update @yukle { ip saddr }
+		iifname $WAN oifname "br-hotspot" update @indir { ip daddr }
+	}
+}

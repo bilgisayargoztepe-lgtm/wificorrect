@@ -182,6 +182,8 @@ pub struct Oturum {
     /// Admin kilidi açık kalma sonu ve açılıştaki admin özeti; özet merkezde değişince kilit kapanır
     pub admin_kadar: f64,
     pub admin_surum: String,
+    /// Bağlı kullanıcılarda 10 sn yenilemenin açıldığı (ya da pencerenin yenilendiği) an; 0 = hiç açılmadı
+    pub yenile_acildi: f64,
 }
 
 /// Bellekte oturumlar (panel yeniden başlayınca herkes yeniden girer). 12 saat geçerli.
@@ -194,7 +196,7 @@ impl Oturumlar {
     pub fn create(&self, user: &str, rol: Rol, now: f64, surum: &str) -> String {
         let token = ortak::random_hex(32);
         let o = Oturum { user: user.into(), rol, csrf: ortak::random_hex(16), expires: now + Self::TTL, gerekce: None, surum: surum.into(),
-                       admin_kadar: 0.0, admin_surum: String::new() };
+                       admin_kadar: 0.0, admin_surum: String::new(), yenile_acildi: 0.0 };
         let mut m = self.0.lock().unwrap_or_else(|e| e.into_inner());
         m.retain(|_, v| v.expires > now);
         m.insert(token.clone(), o);
@@ -214,6 +216,12 @@ impl Oturumlar {
     pub fn set_admin(&self, token: &str, until: f64, surum: &str) {
         if let Some(o) = self.0.lock().unwrap_or_else(|e| e.into_inner()).get_mut(token) {
             (o.admin_kadar, o.admin_surum) = (until, surum.to_string());
+        }
+    }
+
+    pub fn set_yenile(&self, token: &str, t: f64) {
+        if let Some(o) = self.0.lock().unwrap_or_else(|e| e.into_inner()).get_mut(token) {
+            o.yenile_acildi = t;
         }
     }
 

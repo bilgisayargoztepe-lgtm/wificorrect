@@ -100,6 +100,11 @@ pub fn fabrika(
         }
         crate::merkez::sil(merkez_path);
     }
+    // 2c) önceki işletmenin yavaşlatmaları ve bugünkü kullanımı silinir (kaydedici durdu; yeniden başlayınca boş planı kurar)
+    for f in ["hiz_sinir.json", "trafik_gun.json"] {
+        let _ = std::fs::remove_file(Path::new(&m.state_root).join(f));
+    }
+    let _ = std::fs::remove_file(&y.hiz_uygulanan);
     // 3) yalnızca admin kalır
     if let Err(e) = Hesaplar::new(hesap_path).keep_only_admin() {
         errs.push(e);
@@ -185,8 +190,16 @@ mod tests {
             hostapd: root.join("hostapd.conf"),
             issue: root.join("issue"),
             durum: root.join("durum"),
+            hiz_uygulanan: root.join("hiz_uygulanan"),
         };
         ag::save(&y.ag, &Ag { wan: "enp1s0".into(), lan: vec!["enp3s0".into()], ..Ag::default() }).unwrap();
+        // önceki işletmenin yavaşlattığı cihazlar, bugünkü kullanım ve uygulanmış plan izi
+        let mut sinir = crate::hiz::Sinirlar::new();
+        sinir.insert("aa:bb:cc:dd:ee:01".into(), crate::hiz::Sinir { hiz: 2, ad: "Ayşe Yılmaz".into(), zaman: String::new(), kim: "mudur".into() });
+        crate::hiz::kaydet(&cfg.main.state_root, &sinir).unwrap();
+        crate::trafik::gun_yaz(&cfg.main.state_root, &crate::trafik::GunToplam { gun: "2026-10-03".into(), bayt: [("aa:bb:cc:dd:ee:01".to_string(), 9)].into() }).unwrap();
+        std::fs::write(&y.hiz_uygulanan, "eski plan").unwrap();
+        let state = root.join("state");
         let calls: Arc<Mutex<Vec<String>>> = Arc::default();
         let c2 = calls.clone();
         let runner = move |c: &[String]| {
@@ -220,6 +233,8 @@ mod tests {
         assert!(!mp.exists() && *bildirimler.lock().unwrap() == vec!["4511643".to_string()]); // teslimden sonra merkeze bildirildi, bağ silindi
         // oturum kapandı (OTURUM_BITIS sunucuya giden kayda girdi)
         assert!(ortak::load_sessions(&root.join("state").to_string_lossy()).is_empty());
+        // yavaşlatmalar, bugünkü kullanım ve plan izi silindi (yeni işletmede eski misafirler görünmez, yavaşlamaz)
+        assert!(!state.join("hiz_sinir.json").exists() && !state.join("trafik_gun.json").exists() && !y.hiz_uygulanan.exists());
         // portlar varsayılan, ağ yeniden kuruldu
         assert!(std::fs::read_to_string(&y.nft).unwrap().contains("\"enp3s0\"") && !y.ag.exists());
         let v = calls.lock().unwrap();
@@ -265,6 +280,7 @@ mod tests {
             hostapd: root.join("hostapd.conf"),
             issue: root.join("issue"),
             durum: root.join("durum"),
+            hiz_uygulanan: root.join("hiz_uygulanan"),
         };
         let r = fabrika(&cfg, &cfg_path.to_string_lossy(), &root.join("hesaplar.json").to_string_lossy(), &root.join("merkez.json"),
                         &|_: &crate::merkez::Merkez| Ok(()), &root.join("yasak.conf"), &y, 1_791_000_000.0, &runner);

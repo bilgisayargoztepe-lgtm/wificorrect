@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light">
 <title>$baslik · $site Yönetim</title>
+$bas_ek
 <style>
 :root{color-scheme:light;
 --zemin:#fff;--ray:#fafaf8;--yuzey:#f6f6f3;--ust:#f1f1ed;
@@ -48,6 +49,7 @@ svg.simge{fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stro
 .rozet{display:inline-flex;align-items:center;min-height:24px;padding:0 10px;border-radius:999px;background:var(--ust);color:var(--soluk);font-size:.8125rem;font-weight:600;white-space:nowrap}
 .rozet.bagli{background:var(--iyi);color:#fff}
 .rozet.bagli::before{content:"";width:6px;height:6px;margin-right:6px;border-radius:50%;background:#fff}
+details.yavas{display:inline-block}details.yavas summary{list-style:none;min-height:32px;padding:0 12px;font-size:.8125rem}details.yavas summary::-webkit-details-marker{display:none}details.yavas[open] summary{background:var(--ust)}.yavas-menu{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:8px;padding:8px 10px;border:1px solid var(--cizgi2);background:var(--yuzey)}.yavas-menu button{min-height:32px;font-size:.8125rem}.yavas-menu .not{font-size:.75rem;margin:0 4px 0 0;flex-basis:100%}.rozet.sinirli{background:#fff4e0;color:#8a5a00}
 /* grup sayfası: üstte bölümlere atlama, bölümler alt alta (başlık + ince çizgi) */
 .bolum{margin:0 0 24px;padding:22px 20px 20px;border:1px solid var(--cizgi2);background:var(--zemin);scroll-margin-top:68px}
 .bolum > :last-child{margin-bottom:0}
@@ -156,6 +158,8 @@ form.ic{display:inline}
 td button{min-height:32px;padding:0 12px;font-size:.8125rem}
 td label.secim{display:inline-flex;min-height:32px;margin:0 6px 0 4px;font-size:.8125rem;vertical-align:middle}
 .eylemler{display:flex;flex-wrap:wrap;gap:8px}
+.arac{align-items:center;margin:14px 0 16px}.arac .dugme{min-height:32px;padding:0 12px;font-weight:500}
+.ayrac{flex:1}
 
 .gizli{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 

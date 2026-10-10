@@ -96,6 +96,25 @@ fn oturumlar(cfg: &Config, now: f64) {
     }
 }
 
+/// Panel yavaşlatma ekleyip kaldırınca: kaydediciyi beklemeden bir kez uzlaştırır (ip: oturumlar + kirada izinli cihazlar).
+fn hiz_uygula(cfg: &Config, wan: &str, runner: &Runner, nft_f: &dyn Fn(&str) -> bool, uygulanan: &std::path::Path) -> ExitCode {
+    let m = &cfg.main;
+    let ses = ortak::load_sessions(&m.state_root);
+    let kiralar = ortak::parse_leases(&std::fs::read_to_string(&m.leases_file).unwrap_or_default());
+    let ip_mac = crate::trafik::ip_mac(ses.iter().map(|(mac, s)| (&s.ip, mac)), &Config::devices(&cfg.allow), &kiralar);
+    let ip_of = ip_mac.into_iter().map(|(ip, mac)| (mac, ip)).collect();
+    match crate::hiz::uygula(cfg, wan, &ip_of, runner, nft_f, uygulanan) {
+        Ok(degisti) => {
+            println!("{}", if degisti { "uygulandı" } else { "değişiklik yok" });
+            ExitCode::SUCCESS
+        }
+        Err(e) => {
+            eprintln!("{e}");
+            ExitCode::from(1)
+        }
+    }
+}
+
 /// Parolayı ekrana yazdırmadan okur (terminal değilse düz satır: kurulum betikleri için).
 fn read_secret(prompt: &str) -> String {
     use std::io::Write;
@@ -283,6 +302,11 @@ pub fn run(cfg: Config, args: &[String]) -> ExitCode {
                 }
             }
         }
+        // Panel → Bağlı kullanıcılar → Yavaşlat / Yavaşlatmayı kaldır
+        Some("hiz-uygula") => {
+            let wan = crate::ag::load(&crate::ag::Yollar::sistem().ag).wan;
+            hiz_uygula(&cfg, &wan, &runner, &crate::hiz::nft_dosya, std::path::Path::new(crate::hiz::UYGULANAN_YOLU))
+        }
         // Açılışta (wificorrect-guvenlik) ve panelden: yasaklı site / kelime listelerini uygula
         Some("filtre-uygula") => match crate::filtre::uygula(&cfg, std::path::Path::new(crate::filtre::DNSMASQ_CONF), &runner) {
             Ok(()) => ExitCode::SUCCESS,
@@ -388,7 +412,7 @@ pub fn run(cfg: Config, args: &[String]) -> ExitCode {
         _ => {
             eprintln!(
                 "Kullanım: wificorrect ctl <komut>\n  dhcp-olay <add|old|del> <mac> <ip> [ad]\n  yukle\n  oturumlar\n  \
-                 gun-kapat [YYYY-AA-GG] [--zorla]\n  dogrula [--son N]\n  temizle [--kuru]\n  yedekle\n  ara ...  (ayrıntı: ctl ara)\n  disa-aktar --baslangic G --bitis G --cikti DOSYA\n  ag-uygula | ag-gecis DOSYA | ag-onayla | ag-geri-al | ag-ilk\n  filtre-uygula\n  admin-parola\n  merkez-eslesme"
+                 gun-kapat [YYYY-AA-GG] [--zorla]\n  dogrula [--son N]\n  temizle [--kuru]\n  yedekle\n  ara ...  (ayrıntı: ctl ara)\n  disa-aktar --baslangic G --bitis G --cikti DOSYA\n  ag-uygula | ag-gecis DOSYA | ag-onayla | ag-geri-al | ag-ilk\n  filtre-uygula\n  hiz-uygula\n  admin-parola\n  merkez-eslesme"
             );
             ExitCode::from(2)
         }
@@ -409,7 +433,7 @@ mod tests {
         let root = std::env::temp_dir().join(format!("wfc-ctl-{}-{}", std::process::id(), N.fetch_add(1, Ordering::SeqCst)));
         let _ = std::fs::remove_dir_all(&root);
         let text = format!(
-            "[main]\nlog_root = '{0}/5651'\nstate_root = '{0}/state'\n[[allow]]\nmac = 'aa:bb:cc:dd:ee:99'\n[[ban]]\nmac = 'aa:bb:cc:dd:ee:66'\n",
+            "[main]\nlog_root = '{0}/5651'\nstate_root = '{0}/state'\nleases_file = '{0}/leases'\n[[allow]]\nmac = 'aa:bb:cc:dd:ee:99'\n[[ban]]\nmac = 'aa:bb:cc:dd:ee:66'\n",
             root.display()
         );
         (Config::parse(&text).unwrap(), root)
@@ -480,5 +504,34 @@ mod tests {
         assert!(calls.iter().any(|c| c[5] == "allow_mac" && c[6] == "{ aa:bb:cc:dd:ee:99 }"));
         assert!(calls.iter().any(|c| c[5] == "ban_mac" && c[6] == "{ aa:bb:cc:dd:ee:66 }"));
         assert!(calls.iter().any(|c| c[6] == "{ aa:bb:cc:dd:ee:01 . 10.50.0.21 timeout 7200s }"));
+    }
+
+    #[test]
+    fn ctl_hiz_uygula_cikis_kodu() {
+        let (c, root) = cfg();
+        let mut ses = ortak::Sessions::new();
+        ses.insert(M1.into(), sess("10.50.0.23", NOW + 3600.0));
+        ortak::save_sessions(&c.main.state_root, &ses).unwrap();
+        std::fs::write(root.join("leases"), "1 aa:bb:cc:dd:ee:99 10.50.0.2 ap 01\n").unwrap(); // izinli cihaz
+        let mut s = crate::hiz::Sinirlar::new();
+        for mac in [M1, "aa:bb:cc:dd:ee:99"] {
+            s.insert(mac.into(), crate::hiz::Sinir { hiz: 2, ad: String::new(), zaman: String::new(), kim: "y".into() });
+        }
+        crate::hiz::kaydet(&c.main.state_root, &s).unwrap();
+        let tc_ok = Arc::new(Mutex::new(false));
+        let t2 = tc_ok.clone();
+        let runner = move |x: &[String]| x[0] != "tc" || x[2] == "del" || *t2.lock().unwrap();
+        let son = std::cell::RefCell::new(String::new());
+        let nft_f = |t: &str| {
+            *son.borrow_mut() = t.to_string();
+            true
+        };
+        let yol = root.join("uygulanan");
+        let kod = |k: ExitCode| format!("{k:?}");
+        assert_eq!(kod(hiz_uygula(&c, "enp3s0", &runner, &nft_f, &yol)), kod(ExitCode::from(1)));
+        *tc_ok.lock().unwrap() = true;
+        assert_eq!(kod(hiz_uygula(&c, "enp3s0", &runner, &nft_f, &yol)), kod(ExitCode::SUCCESS));
+        assert!(son.borrow().contains("ip daddr 10.50.0.23 ") && son.borrow().contains("ip daddr 10.50.0.2 "));
+        assert_eq!(kod(hiz_uygula(&c, "enp3s0", &runner, &nft_f, &yol)), kod(ExitCode::SUCCESS)); // değişiklik yok
     }
 }

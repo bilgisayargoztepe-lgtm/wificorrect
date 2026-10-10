@@ -34,7 +34,11 @@ impl Panel {
             .and_then(|d| d.hiz_hata)
             .map(|e| format!("<div class=\"mesaj hata\">{}</div>", h(&e)))
             .unwrap_or_default();
-        let rows: Vec<Vec<String>> = hiz::oku(&cfg.main.state_root)
+        let (sinirlar, hata) = match hiz::oku_kesin(&cfg.main.state_root) {
+            Ok(k) => (k, hata),
+            Err(e) => (hiz::Sinirlar::new(), format!("{hata}<div class=\"mesaj hata\">{} Hizmet sağlayıcınıza başvurun.</div>", h(&e))),
+        };
+        let rows: Vec<Vec<String>> = sinirlar
             .iter()
             .map(|(mac, s)| {
                 vec![
@@ -82,7 +86,10 @@ impl Panel {
         };
         {
             let Ok(_g) = ortak::state_lock(&m.state_root) else { return hata("Kilit alınamadı.") };
-            let mut k = hiz::oku(&m.state_root);
+            let mut k = match hiz::oku_kesin(&m.state_root) {
+                Ok(k) => k,
+                Err(e) => return hata(&format!("{e} Hiçbir sınır değiştirilmedi; hizmet sağlayıcınıza başvurun.")),
+            };
             k.insert(mac.clone(), hiz::Sinir { hiz, ad, zaman: ortak::now_iso(now), kim: o.user.clone() });
             if hiz::kaydet(&m.state_root, &k).is_err() {
                 return hata("Kaydedilemedi.");
@@ -99,7 +106,10 @@ impl Panel {
         let m = &cfg.main;
         {
             let Ok(_g) = ortak::state_lock(&m.state_root) else { return redirect(donus, Some(("Kilit alınamadı.", true))) };
-            let mut k = hiz::oku(&m.state_root);
+            let mut k = match hiz::oku_kesin(&m.state_root) {
+                Ok(k) => k,
+                Err(e) => return redirect(donus, Some((&format!("{e} Hiçbir sınır değiştirilmedi; hizmet sağlayıcınıza başvurun."), true))),
+            };
             if k.remove(&mac).is_none() {
                 return redirect(donus, Some(("Bu cihaz yavaşlatılmamış.", true)));
             }

@@ -1,4 +1,4 @@
-# Devir notu — kaldığın yerden devam (2026-10-10)
+# Devir notu — kaldığın yerden devam (2026-10-11)
 
 Bu dosya, projeye yeni bir oturumda/hesapta devam eden ajan içindir. Önce bunu, sonra `CLAUDE.md`'deki belgeleri oku.
 
@@ -41,33 +41,33 @@ Cihaz: Debian 13 + Rust ikilisi `wificorrect` (`src/`). Merkez: Python stdlib (`
 `cihaz.wificorrect.com` (cihaz paneline geçit). Cihaz ↔ merkez WireGuard (10.99.0.0/24; merkez .1, cihaz 1537344 = .11).
 Canlı müşteri: **Göztepe Bilgisayar = 1537344**, cihaz 192.168.1.110.
 
-## Dallar ve durum
-`main` ← (birleştirilmedi) `duzeltme/portal-sms-conntrack` (PR #2) ← `kurulum-iso` ← `arayuz-menu` ← **`uzak-panel` (güncel, itildi)**.
-Hepsi `uzak-panel`'in içinde. Canlı cihaz ve merkez `uzak-panel` HEAD'i (e011902 ve öncesi) çalıştırıyor.
+## Dallar ve durum (2026-10-11)
+Repo `bilgisayargoztepe-lgtm/wificorrect` (avsharbeyi'den devredildi). Her şey **`main`**'de (PR #3 uzak-panel, #4 ozet-tasarim,
+#5 hiz-olcer birleşti; PR #2 kapatıldı). **v0.3.0** yayında (ISO + .deb; `WFC_SSH_PUB` = `~/.ssh/bocafe.pub`).
+Canlı cihaz `hiz-olcer` (ec74ddf ≈ main) çalıştırıyor; merkez değişmedi.
 
 Bitenler (canlıda):
 - ISO (Debian netinst + preseed + .deb), GitHub'da QEMU duman testi (`iso.yml`), `release.yml` yalnızca `v*` etiketinde.
-- Panel menüsü: Özet, Cihazlar, Kayıtlar, Ayarlar, Admin ayarları (bölümler tek sayfada alt alta); "Bağlı" yeşil rozeti;
-  Kayıtlar → Site / IP arama.
-- Parolalar: müşteri parolasını yönetici yazar; **tek admin parolası** (Yönetim → Admin parolası, yalnızca özeti saklanır,
-  bütün cihazlara eşitlemede gider).
-- **Uzak panel** (spec `docs/superpowers/specs/2026-10-08-uzak-panel-design.md`, plan `docs/superpowers/plans/2026-10-09-uzak-panel.md`):
-  giriş yalnızca panel.wificorrect.com'dan (numara + parola) → cihaz paneli `cihaz.wificorrect.com` (Caddy forward_auth +
-  WireGuard). Cihaz kimlik başlığına yalnızca tünel ayaktayken ve merkez adresinden güvenir; bağlıyken yerel erişim boş 404;
-  bağlı olmayan cihaz yalnızca eşleştirme ekranı. Admin ayarları + Panel hareketleri admin parolasıyla 30 dk açılır.
-  Dışarıdan sahte başlık/çerez/belirteç denemeleri reddedildi (2026-10-10).
+- Parolalar: müşteri parolasını yönetici yazar; tek admin parolası (merkezden bütün cihazlara).
+- Uzak panel (spec 2026-10-08): giriş yalnızca panel.wificorrect.com'dan → `cihaz.wificorrect.com`; telefondan denendi, çalışıyor.
+- **Panel görünümü** (örnek görsel: koyu üst şerit + koyu sol menü, kırmızı vurgu): menü Özet, Kullanıcılar, Kayıtlar,
+  Ayarlar, Admin; grup sayfalarında simgeli kutucuklar + kırmızı başlıklı bölüm kutuları. **Özet**: kısayollar (Bağlı
+  kullanıcılar, Site/IP ara, Yasaklı siteler), Bağlı Kullanıcılar, sayılar, Bugün Yeni Üyeler, SMS ve Disk halkaları
+  (telefon/MAC yok; her bakış `PANEL_OZET` denetimi).
+- **Hız ve yavaşlatma** (spec `docs/superpowers/specs/2026-10-10-hiz-ve-kullanim-design.md`): nft `inet wfc_hiz` IP başına
+  sayaç (`/etc/wificorrect/hiz.nft`), kaydedici 5 sn'de `/run/wificorrect/trafik.json`; Bağlı kullanıcılar tablosunda
+  ↓/↑ Mb/sn, Bugün MB, sıralama, 10 sn yenileme; Yavaşlat 1/2/5/10/20 Mb/sn (HTB + meta priority, MAC'e bağlı, kaldırılana
+  kadar), Yavaşlatılmış cihazlar bölümü; izinli cihazlar da görünür. Kabul: `scripts/hiz-deneme.sh` (sahte istemci; WAN'ı
+  ~100 sn doldurur, sakin saatte) 2026-10-10'da 5/5 PASS. Canlıya kurulum ölü adam anahtarıyla yapıldı.
 
-## Sıradaki işler (öncelik sırasıyla)
-1. **Kullanıcının telefondan denemesi** (2026-10-10'da istendi, sonucu gelmedi): panel.wificorrect.com → 1537344 → cihaz
-   paneli açılmalı → Admin ayarları admin parolası sorar → Çıkış panel girişine döner. Sorun varsa sistematik hata ayıkla.
-2. **GitHub testleri**: e011902'nin `test`/`iso` çalışmaları `paket` adımında 125 (Docker, büyük olasılıkla geçici) ile düştü,
-   yeniden başlatıldı: `gh run list -R bilgisayargoztepe-lgtm/wificorrect --branch uzak-panel`. Yeşil değilse sebebi bul.
-3. **main'e birleştirme**: `uzak-panel` → `main` için PR aç (kullanıcı onayıyla), eski PR #2'yi kapat. Sonra **v0.3.0**:
-   kullanıcı GitHub değişkeni `WFC_SSH_PUB`'a açık SSH anahtarını girmeli (yoksa sürüm derlemesi durur), etiket onayı.
-4. Önerilen sonraki özellikler (kullanıcı listeden seçecek): donanım bekçisi (watchdog — J1900 donuyor), merkezden uzaktan
-   güncelleme (apt deposu), merkezde sağlık izleme + uyarı, online ödeme (`veri.lisans_uzat`), personel kodu ile giriş,
-   aylık rapor, hazır engel listeleri, hız sınırı, imzalı resmi talep raporu. Zaman damgası: kontör alınınca (merkezde).
-   İki aşamalı giriş istenmedi.
+## Sıradaki işler
+1. Önerilen sonraki özellikler (kullanıcı seçecek): donanım bekçisi (watchdog — J1900 donuyor), merkezden uzaktan güncelleme
+   (apt deposu), merkezde sağlık izleme + uyarı, online ödeme (`veri.lisans_uzat`), personel kodu ile giriş, aylık rapor,
+   hazır engel listeleri, imzalı resmi talep raporu. Zaman damgası: kontör alınınca (merkezde). İki aşamalı giriş istenmedi.
+2. Hız özelliğinin ertelenmiş küçükleri (ledger'da): bozuk `hiz_sinir.json` sonraki yazımda bütün sınırları siler; 10 sn
+   yenileme Kullanıcılar sayfasındaki formlara yazılanı siler; her /cihazlar bakışı iki kişisel veri satırı yazar
+   (OTURUMLAR + YAVASLATILMIS); `hiz_sinir.json`'daki adlar saklama süresine tabi değil (KVKK kararı kullanıcıda).
+3. Geniş ekranda içerik 1320 px'te duruyor (tam genişlik önerildi, kullanıcı karar vermedi).
 
 ## Açık küçük notlar
 - AP (TP-Link TL-WA901ND, 10.50.0.2) menzili zayıf; kullanıcı sonra ilgilenecek (iletim gücü High, kanal 1/6/11, 20 MHz).

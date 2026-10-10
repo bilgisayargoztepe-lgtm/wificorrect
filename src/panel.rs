@@ -386,12 +386,12 @@ pub struct Panel {
     baglan_kilit: std::sync::Mutex<()>,
 }
 
-const MENU: &[(&str, &str)] = &[("/", "Özet"), ("/cihazlar", "Cihazlar"), ("/kayitlar", "Kayıtlar"), ("/ayarlar", "Ayarlar"), ("/admin", "Admin ayarları")];
+const MENU: &[(&str, &str)] = &[("/", "Özet"), ("/cihazlar", "Kullanıcılar"), ("/kayitlar", "Kayıtlar"), ("/ayarlar", "Ayarlar"), ("/admin", "Admin")];
 
 /// Menü grupları tek sayfadır; eski sayfalar bu sayfada alt alta bölüm olur (2026-10-08, kullanıcı isteği).
 /// (grup, eski yol, bölüm id, başlık, yalnızca admin). Eski yollar ayrıca açılır (hata/arama sonucu, ayrıntı).
 const BOLUMLER: &[(&str, &str, &str, &str, bool)] = &[
-    ("/cihazlar", "/oturumlar", "oturumlar", "Bağlı cihazlar", false),
+    ("/cihazlar", "/oturumlar", "oturumlar", "Bağlı kullanıcılar", false),
     ("/cihazlar", "/yasak", "yasak", "Yasaklı cihazlar", false),
     ("/cihazlar", "/izinli", "izinli", "İzinli cihazlar", false),
     ("/cihazlar", "/yasakli-siteler", "yasakli-siteler", "Yasaklı siteler", false),
@@ -419,6 +419,83 @@ fn menu_grubu(path: &str) -> &'static str {
         .iter()
         .find(|(g, y, ..)| path == *g || path == *y || path.strip_prefix(y).is_some_and(|r| r.starts_with('/')))
         .map_or("/", |(g, ..)| g)
+}
+
+// çizgi simgeleri (24×24, stroke): menü ve Özet kısayolları
+const SIMGE_EV: &str = "M3 11 12 3l9 8M5 9.5V21h5v-6h4v6h5V9.5";
+const SIMGE_WIFI: &str = "M2 8.5a15 15 0 0 1 20 0M5 12a10 10 0 0 1 14 0M8.5 15.5a5 5 0 0 1 7 0M12 19h.01";
+const SIMGE_KAYIT: &str = "M6 2h9l5 5v15H6zM14 2v6h6M9 13h8M9 17h8";
+const SIMGE_AYAR: &str = "M4 6h16M4 12h16M4 18h16M9 4v4M15 10v4M7 16v4";
+const SIMGE_KILIT: &str = "M6 11h12v10H6zM8 11V7a4 4 0 0 1 8 0v4";
+const SIMGE_ARA: &str = "M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zM16 16l5 5";
+const SIMGE_YASAK: &str = "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM5.6 5.6l12.8 12.8";
+const SIMGE_MENU: &str = "M3 6h18M3 12h18M3 18h18";
+
+fn simge(d: &str) -> String {
+    format!("<svg class=\"simge\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"{d}\"/></svg>")
+}
+
+fn menu_simgesi(yol: &str) -> &'static str {
+    match yol {
+        "/" => SIMGE_EV,
+        "/cihazlar" => SIMGE_WIFI,
+        "/kayitlar" => SIMGE_KAYIT,
+        "/ayarlar" => SIMGE_AYAR,
+        _ => SIMGE_KILIT,
+    }
+}
+
+const SIMGE_TAMAM: &str = "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM8 12l3 3 5-6";
+const SIMGE_DUNYA: &str = "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM3 12h18M12 3c3 3.5 3 14.5 0 18M12 3c-3 3.5-3 14.5 0 18";
+const SIMGE_KISILER: &str = "M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM2 21v-1a6 6 0 0 1 12 0v1M16 3.5a4 4 0 0 1 0 7.5M22 21v-1a6 6 0 0 0-4-5.6";
+const SIMGE_MUHUR: &str = "M9 3h6v5l3 4H6l3-4zM4 16h16v3H4zM7 22h10";
+const SIMGE_DUKKAN: &str = "M3 9l1.5-5h15L21 9M3 9h18v1a3 3 0 0 1-6 0 3 3 0 0 1-6 0 3 3 0 0 1-6 0zM5 13v8h14v-8M10 21v-5h4v5";
+const SIMGE_METIN: &str = "M4 4h16v12H8l-4 4z";
+const SIMGE_FIS: &str = "M9 2v6M15 2v6M6 8h12v4a6 6 0 0 1-12 0zM12 18v4";
+const SIMGE_SUNUCU: &str = "M3 4h18v7H3zM3 13h18v7H3zM7 7.5h.01M7 16.5h.01";
+const SIMGE_ANAHTAR: &str = "M8 11a4 4 0 1 0 0 8 4 4 0 0 0 0-8zM11 13l9-9M16 8l3 3M18 6l2 2";
+const SIMGE_GOZ: &str = "M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12zM12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z";
+
+/// Grup sayfasının üstündeki bölüm kutucuklarının simgesi (bölüm id'sine göre)
+fn bolum_simgesi(id: &str) -> &'static str {
+    match id {
+        "oturumlar" => SIMGE_WIFI,
+        "yasak" => SIMGE_YASAK,
+        "izinli" => SIMGE_TAMAM,
+        "yasakli-siteler" => SIMGE_DUNYA,
+        "gunler" => SIMGE_KAYIT,
+        "site-ara" => SIMGE_ARA,
+        "kullanicilar" => SIMGE_KISILER,
+        "talep" => SIMGE_MUHUR,
+        "isletme" => SIMGE_DUKKAN,
+        "portal-metinleri" => SIMGE_METIN,
+        "portlar" => SIMGE_FIS,
+        "sistem" => SIMGE_SUNUCU,
+        "sifre-degistir" => SIMGE_ANAHTAR,
+        "admin-ayarlari" => SIMGE_AYAR,
+        "panel-hareketleri" => SIMGE_GOZ,
+        _ => SIMGE_KAYIT,
+    }
+}
+
+/// Özet'in üstündeki kısayol kutuları: (bağlantı, simge, ad)
+const KISAYOLLAR: &[(&str, &str, &str)] = &[
+    ("/cihazlar#oturumlar", SIMGE_WIFI, "Bağlı kullanıcılar"),
+    ("/kayitlar#site-ara", SIMGE_ARA, "Site / IP ara"),
+    ("/cihazlar#yasakli-siteler", SIMGE_YASAK, "Yasaklı siteler"),
+];
+
+/// Özet listelerinde en çok bu kadar satır; fazlası "Tümü" bağlantısıyla
+const OZET_SATIR: usize = 10;
+
+/// "2026-10-10T14:02:11+03:00" → bugünse "14:02", değilse "09.10 14:02"
+fn kisa_zaman(iso: &str, bugun: &str) -> String {
+    let saat = iso.get(11..16).unwrap_or("");
+    match (iso.get(..10), iso.get(5..7), iso.get(8..10)) {
+        (Some(g), _, _) if g == bugun => saat.into(),
+        (_, Some(ay), Some(gun)) => format!("{gun}.{ay} {saat}"),
+        _ => String::new(),
+    }
 }
 
 struct ParcaKipi;
@@ -466,25 +543,37 @@ impl Panel {
         if PARCA.with(std::cell::Cell::get) {
             return Resp { status: 200, body: body.into(), headers: vec![], file: None };
         }
-        let menu = match o {
+        let (menu, ust) = match o {
             Some(o) => {
                 let grup = menu_grubu(&req.path);
                 let links: String = MENU
                     .iter()
                     .map(|(p, l)| {
                         let act = if *p == grup { " class=\"aktif\" aria-current=\"page\"" } else { "" };
-                        format!("<a href=\"{p}\"{act}>{}</a>", h(l))
+                        format!("<a href=\"{p}\"{act}>{}{}</a>", simge(menu_simgesi(p)), h(l))
                     })
                     .collect();
-                format!(
-                    "<div class=\"kim\">{}<span>{}</span></div><nav aria-label=\"Menü\">{links}</nav>\
-                     <form method=\"post\" action=\"/cikis\">{}<button class=\"ikincil\">Çıkış</button></form>",
-                    h(&o.user),
-                    h(o.rol.ad()),
-                    csrf_input(o)
+                (
+                    format!("<nav aria-label=\"Menü\">{links}</nav>"),
+                    format!(
+                        "<div class=\"ust-sag\"><div class=\"kim\">{}<span>{}</span></div>\
+                         <form method=\"post\" action=\"/cikis\">{}<button class=\"ikincil\">Çıkış</button></form></div>",
+                        h(&o.user),
+                        h(o.rol.ad()),
+                        csrf_input(o)
+                    ),
                 )
             }
-            None => String::new(),
+            None => (String::new(), String::new()),
+        };
+        // telefonda menü: betik yok (CSP), gizli onay kutusu + etiket açar/kapatır
+        let (dugme, etiket) = if o.is_some() {
+            (
+                "<input type=\"checkbox\" id=\"menu-ac\" class=\"gizli\">".to_string(),
+                format!("<label for=\"menu-ac\" class=\"menu-dugme\" title=\"Menü\"><span class=\"gizli\">Menüyü aç/kapat</span>{}</label>", simge(SIMGE_MENU)),
+            )
+        } else {
+            (String::new(), String::new())
         };
         let msg = req.query.get("m").map(|m| {
             let cls = if req.query.get("e").is_some_and(|e| e == "1") { "mesaj hata" } else { "mesaj" };
@@ -496,6 +585,9 @@ impl Panel {
         v.insert("site", h(if crate::merkez::oku(&self.merkez_path).is_none() { "WifiCorrect" } else { &cfg.main.site_name }));
         v.insert("govde", if o.is_some() { String::new() } else { "yalin".into() });
         v.insert("menu_html", menu);
+        v.insert("ust_html", ust);
+        v.insert("menu_dugme_html", dugme);
+        v.insert("menu_etiket_html", etiket);
         let mut uyari = String::new();
         if o.is_some() {
             let now = (self.clock)();
@@ -547,8 +639,8 @@ impl Panel {
             })
             .collect();
         drop(parca);
-        let atla: String = bolumler.iter().map(|(_, _, id, baslik, _)| format!("<a href=\"#{id}\">{}</a>", h(baslik))).collect();
-        let mut body = format!("<nav class=\"bolum-atla\" aria-label=\"Bu sayfadaki bölümler\">{atla}</nav>");
+        let atla: String = bolumler.iter().map(|(_, _, id, baslik, _)| format!("<a href=\"#{id}\">{}{}</a>", simge(bolum_simgesi(id)), h(baslik))).collect();
+        let mut body = format!("<nav class=\"kisayol\" aria-label=\"Bu sayfadaki bölümler\">{atla}</nav>");
         for ((_, _, id, baslik, _), govde) in bolumler.iter().zip(&govdeler) {
             body.push_str(&format!(
                 "<section class=\"bolum\" id=\"{id}\" aria-labelledby=\"b-{id}\"><h2 class=\"bolum-baslik\" id=\"b-{id}\">{}</h2>{govde}</section>",
@@ -667,7 +759,7 @@ impl Panel {
                 admin_donus(req.form.get("donus").unwrap_or(&req.path))
             )
         };
-        self.page(cfg, req, Some(o), "Admin ayarları", &body)
+        self.page(cfg, req, Some(o), "Admin", &body)
     }
 
     fn admin_kilidi(&self, cfg: &Config, req: &Req, o: &Oturum, now: f64) -> Resp {
@@ -887,10 +979,20 @@ impl Panel {
 
     // --- özet ve oturumlar
     fn ozet(&self, cfg: &Config, req: &Req, o: &Oturum, now: f64) -> Resp {
+        // ad soyad gösterir: Bağlı cihazlar sayfası gibi denetim kaydına girer
+        self.audit(cfg, req, Some(o), "PANEL_OZET", "");
         let m = &cfg.main;
-        let ses = ortak::load_sessions(&m.state_root);
-        let bagli = ses.values().filter(|s| !s.ip.is_empty() && s.expires_epoch > now).count();
         let today = ortak::day_of(&ortak::now_iso(now)).to_string();
+        // bağlı = oturumu süren ve son 5 dakikada ağda görülen cihaz (Cihazlar sayfasındaki yeşil "Bağlı" ile aynı)
+        let agda = std::fs::read(self.sys.join(&m.iface).join("brforward")).map(|b| ortak::kopruye_bagli(&b)).unwrap_or_default();
+        let mut bagli: Vec<ortak::Session> = ortak::load_sessions(&m.state_root)
+            .into_iter()
+            .filter(|(mac, s)| !s.ip.is_empty() && s.expires_epoch > now && agda.contains(mac))
+            .map(|(_, s)| s)
+            .collect();
+        bagli.sort_by(|a, b| b.start_epoch.total_cmp(&a.start_epoch)); // son bağlanan üstte
+        let mut yeni: Vec<[String; 5]> = ortak::read_index(&m.log_root).into_values().filter(|r| r[3].starts_with(&today)).collect();
+        yeni.sort_by(|a, b| b[3].cmp(&a[3]));
         let kisiler: BTreeSet<String> = std::fs::read_to_string(ortak::day_file(&m.log_root, &today, "oturum.csv"))
             .unwrap_or_default()
             .lines()
@@ -900,7 +1002,7 @@ impl Panel {
             })
             .collect();
         let sms = ortak::sms_count(&m.state_root, &today);
-        let disk = disk_percent(&m.log_root).map_or("?".into(), |p| format!("%{p}"));
+        let disk = disk_percent(&m.log_root);
         let mut uyarilar = vec![];
         let sms_down = cfg.sms.mock || !cfg.sms_missing().is_empty();
         if o.rol == Rol::Hizmet {
@@ -922,14 +1024,65 @@ impl Panel {
         let uyari_html = if uyarilar.is_empty() {
             String::new()
         } else {
-            format!("<div class=\"kart\"><h2>Uyarılar</h2><ul class=\"uyarilar\">{}</ul></div>", uyarilar.iter().map(|u| format!("<li>{}</li>", h(u))).collect::<String>())
+            format!(
+                "<section class=\"kutu ozet-uyari\"><h2>Uyarılar</h2><ul class=\"uyarilar\">{}</ul></section>",
+                uyarilar.iter().map(|u| format!("<li>{}</li>", h(u))).collect::<String>()
+            )
+        };
+        let kisayol: String = KISAYOLLAR.iter().map(|(yol, d, ad)| format!("<a href=\"{yol}\">{}{}</a>", simge(d), h(ad))).collect();
+        // telefon ve MAC yok: yalnızca ad soyad, IP ve bağlanma saati
+        let liste = |satirlar: Vec<String>, toplam: usize, bos: &str, tumu: &str| -> String {
+            if satirlar.is_empty() {
+                return format!("<p class=\"not\">{}</p>", h(bos));
+            }
+            let fazla = if toplam > OZET_SATIR { format!("<a class=\"tumu\" href=\"{tumu}\">Tümü ({toplam}) →</a>") } else { String::new() };
+            format!("<ul class=\"liste\">{}</ul>{fazla}", satirlar.concat())
+        };
+        let bagli_html = liste(
+            bagli
+                .iter()
+                .take(OZET_SATIR)
+                .map(|s| format!("<li><b>{}</b><span>{} · {}</span></li>", h(&format!("{} {}", s.ad, s.soyad)), h(&s.ip), h(&kisa_zaman(&s.start, &today))))
+                .collect(),
+            bagli.len(),
+            "Şu an bağlı kullanıcı yok.",
+            "/cihazlar#oturumlar",
+        );
+        let yeni_html = liste(
+            yeni.iter().take(OZET_SATIR).map(|r| format!("<li><b>{}</b><span>{}</span></li>", h(&format!("{} {}", r[1], r[2])), h(&kisa_zaman(&r[3], &today)))).collect(),
+            yeni.len(),
+            "Bugün yeni üye yok.",
+            "/kayitlar#kullanicilar",
+        );
+        let sinir = cfg.limits.sms_global_day.max(1);
+        let sms_p = (sms * 100 / sinir).min(100);
+        let halka = |p: u64, deger: &str, ad: &str, alt: &str| {
+            format!(
+                "<div class=\"halka{}\"><b style=\"--p:{p}\"><span>{}</span></b>{}<small>{}</small></div>",
+                if p >= 80 { " dolu" } else { "" },
+                h(deger),
+                h(ad),
+                h(alt)
+            )
         };
         let body = format!(
-            "<dl class=\"rakamlar\"><div><dt>Bağlı cihaz</dt><dd>{bagli}</dd></div><div><dt>Bugün farklı kullanıcı</dt><dd>{}</dd></div>\
-             <div><dt>Bugün SMS</dt><dd>{sms} <small>/ {}</small></dd></div><div><dt>Kayıt diski</dt><dd>{}</dd></div></dl>{uyari_html}",
+            "<nav class=\"kisayol\" aria-label=\"Kısayollar\">{kisayol}</nav>{uyari_html}\
+             <div class=\"ozet-izgara\">\
+             <section class=\"kutu\"><h2>Bağlı Kullanıcılar</h2>{bagli_html}</section>\
+             <div class=\"ozet-sag\">\
+             <section class=\"kutu\"><dl class=\"sayilar\"><div><dt>Bağlı kullanıcı</dt><dd>{}</dd></div>\
+             <div><dt>Bugün farklı kullanıcı</dt><dd>{}</dd></div><div><dt>Bugün yeni üye</dt><dd>{}</dd></div></dl></section>\
+             <section class=\"kutu\"><h2>Bugün Yeni Üyeler</h2>{yeni_html}</section>\
+             </div></div>\
+             <section class=\"kutu\"><h2>SMS ve Disk</h2><div class=\"halkalar\">{}{}</div></section>",
+            bagli.len(),
             kisiler.len(),
-            cfg.limits.sms_global_day,
-            h(&disk)
+            yeni.len(),
+            halka(sms_p, &format!("{sms}"), "Bugün SMS", &format!("günlük sınır {}", cfg.limits.sms_global_day)),
+            match disk {
+                Some(p) => halka(p, &format!("%{p}"), "Kayıt diski", "dolu"),
+                None => halka(0, "?", "Kayıt diski", "okunamadı"),
+            },
         );
         self.page(cfg, req, Some(o), "Özet", &body)
     }
@@ -959,9 +1112,9 @@ impl Panel {
         let body = format!(
             "<p class=\"not\">Bağlantısı kesilen cihaz internete çıkamaz; yeniden SMS ile giriş yapması gerekir. \
              <b>Bağlı</b>: cihaz son 5 dakikada ağda görüldü.</p><p class=\"not\">Bu sayfadaki her görüntüleme, arama ve indirme kimin yaptığıyla birlikte kaydedilir ve hizmet sağlayıcı tarafından denetlenir.</p>{}",
-            table(&["Durum", "Telefon", "Ad soyad", "MAC", "IP", "Başlangıç", "Kalan", ""], &rows, "Bağlı cihaz yok")
+            table(&["Durum", "Telefon", "Ad soyad", "MAC", "IP", "Başlangıç", "Kalan", ""], &rows, "Bağlı kullanıcı yok")
         );
-        self.page(cfg, req, Some(o), "Bağlı cihazlar", &body)
+        self.page(cfg, req, Some(o), "Bağlı kullanıcılar", &body)
     }
 
     fn at(&self, cfg: &Config, req: &Req, o: &Oturum, now: f64) -> Resp {
@@ -1098,8 +1251,14 @@ impl Panel {
             }
         }
         let mut body = format!("<form method=\"post\" action=\"{}\">{}", if admin { "/admin-ayarlari" } else { "/ayarlar" }, csrf_input(o));
+        // tek grup (Ayarlar → İşletme): grup adı bölüm başlığıyla aynı, tekrar yazılmaz
+        let tek = groups.len() == 1;
         for (g, inner) in &groups {
-            body.push_str(&format!("<section class=\"kart grup\"><h2>{}</h2><div>{inner}</div></section>", h(g)));
+            if tek {
+                body.push_str(&format!("<section class=\"kart\"><div>{inner}</div></section>"));
+            } else {
+                body.push_str(&format!("<section class=\"kart grup\"><h2>{}</h2><div>{inner}</div></section>", h(g)));
+            }
         }
         if admin {
             let (yedek, fabrika) = self.son_durum(cfg);
@@ -1138,7 +1297,8 @@ impl Panel {
             }
             body.push_str(&format!("<section class=\"kart grup\"><h2>Durum</h2><div>{}</div></section>", facts(&durum)));
         }
-        body.push_str("<div class=\"kaydet\"><button>Kaydet</button><p class=\"not\">Kaydedince giriş sayfası yeni ayarlarla yeniden başlatılır; bağlı müşteriler düşmez.</p></div></form>");
+        body.push_str(if tek { "<div class=\"kaydet tek\"><button>" } else { "<div class=\"kaydet\"><button>" });
+        body.push_str("Kaydet</button><p class=\"not\">Kaydedince giriş sayfası yeni ayarlarla yeniden başlatılır; bağlı müşteriler düşmez.</p></div></form>");
         if admin {
             body.push_str(&format!(
                 "<section class=\"kart\" style=\"margin-top:48px\"><h2>Uzak yedek</h2><p class=\"not\">Mühürlenmiş, henüz \
@@ -1823,6 +1983,46 @@ mod tests {
     }
 
     #[test]
+    fn ozet_bagli_cihazlar_ve_bugun_yeni_uyeler() {
+        let mut e = env();
+        let (tok, _) = setup_and_login(&e, "mudur", "sahip-parola-12");
+        let cfg = Config::load(&e.p.cfg_path).unwrap();
+        let mut ses = ortak::Sessions::new();
+        for (mac, ad, ip) in [("aa:bb:cc:dd:ee:01", "Ayşe", "10.50.0.23"), ("aa:bb:cc:dd:ee:02", "Mehmet", "10.50.0.41")] {
+            ses.insert(mac.into(), ortak::Session {
+                phone: "905334553132".into(), ad: ad.into(), soyad: "Yılmaz".into(), ip: ip.into(),
+                session_id: "s".into(), start: "2026-09-29T20:14:00+03:00".into(), start_epoch: 1.0, expires_epoch: 9e9,
+            });
+        }
+        ortak::save_sessions(&cfg.main.state_root, &ses).unwrap();
+        // yalnızca ...:01 ağda (son 5 dk)
+        let sys = e.root.join("sys-ozet");
+        std::fs::create_dir_all(sys.join(&cfg.main.iface)).unwrap();
+        std::fs::write(sys.join(&cfg.main.iface).join("brforward"), [0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0x01, 1, 0, 0x3d, 0x21, 0, 0, 0, 0, 0, 0]).unwrap();
+        std::fs::create_dir_all(sys.join("wfc")).unwrap();
+        e.p.sys = sys;
+        ortak::upsert_index(&cfg.main.log_root, "905551112233", "Zeynep", "Ak", "2026-09-29T19:40:00+03:00").unwrap();
+        ortak::upsert_index(&cfg.main.log_root, "905551114455", "Eski", "Üye", "2026-08-01T10:00:00+03:00").unwrap();
+
+        let s = e.p.handle(&req("GET", "/", &[], Some(&tok))).body;
+        let kutu = |baslik: &str| s.split(&format!("<h2>{baslik}</h2>")).nth(1).unwrap().split("</section>").next().unwrap().to_string();
+        let bagli = kutu("Bağlı Kullanıcılar");
+        assert!(bagli.contains("<b>Ayşe Yılmaz</b><span>10.50.0.23 · 20:14</span>") && !bagli.contains("Mehmet"), "{bagli}");
+        let yeni = kutu("Bugün Yeni Üyeler");
+        assert!(yeni.contains("<b>Zeynep Ak</b><span>19:40</span>") && !yeni.contains("Eski"), "{yeni}");
+        assert!(s.contains("<dt>Bağlı kullanıcı</dt><dd>1</dd>") && s.contains("<dt>Bugün yeni üye</dt><dd>1</dd>"));
+        assert!(!s.contains("905334553132") && !s.contains("aa:bb:cc"), "özette telefon ve MAC yok");
+        for k in ["/cihazlar#oturumlar", "/kayitlar#site-ara", "/cihazlar#yasakli-siteler"] {
+            assert!(s.contains(&format!("<a href=\"{k}\">")), "{k}");
+        }
+        assert!(!s.contains("href=\"/kayitlar#gunler\"") && !s.contains("href=\"/ayarlar#isletme\""), "menüde olanlar kısayolda yok");
+        assert!(kutu("SMS ve Disk").contains("Bugün SMS") && s.contains("for=\"menu-ac\""));
+        let audit = std::fs::read_to_string(e.root.join("5651/gunluk/2026-09-29/denetim.csv")).unwrap();
+        assert!(audit.contains("PANEL_OZET"));
+        assert_eq!(kisa_zaman("2026-09-28T08:05:00+03:00", "2026-09-29"), "28.09 08:05");
+    }
+
+    #[test]
     fn admin_bolumleri_ve_yonlendirmeler() {
         let e = env();
         let (tok, csrf) = setup_and_login(&e, "admin", "hizmet-parola-1");
@@ -2219,15 +2419,15 @@ mod tests {
         e.p.handle(&get("/kullanicilar", &[("q", "ayşe")], &tok));
         assert!(e.p.handle(&get("/kullanicilar", &[], &tok)).body.contains("hizmet sağlayıcı tarafından denetlenir"));
         let r = e.p.handle(&get("/panel-hareketleri", &[], &tok)); // sahip kendi izini admin parolası olmadan göremez/silemez
-        assert!(r.body.contains("action=\"/admin-kilidi\"") && !r.body.contains("Bağlı cihazlara baktı"));
+        assert!(r.body.contains("action=\"/admin-kilidi\"") && !r.body.contains("Bağlı kullanıcılara baktı"));
         assert!(!e.p.handle(&get("/", &[], &tok)).body.contains("/panel-hareketleri"));
         e.p.handle(&req("POST", "/cikis", &[("csrf", &csrf)], Some(&tok)));
         let (atok, _) = setup_and_login(&e, "admin", "hizmet-parola-1");
         let page = e.p.handle(&get("/panel-hareketleri", &[("kim", MUSTERI), ("kisisel", "1")], &atok)).body;
-        assert!(page.contains("Bağlı cihazlara baktı") && page.contains("Kullanıcı listesine baktı") && page.contains("ara=ayşe"));
+        assert!(page.contains("Bağlı kullanıcılara baktı") && page.contains("Kullanıcı listesine baktı") && page.contains("ara=ayşe"));
         assert!(!page.contains(">Giriş<")); // yalnızca kişisel veri filtresi
         let page = e.p.handle(&get("/panel-hareketleri", &[], &atok)).body;
-        assert!(page.contains("İşletme sahibi") && page.contains(">4<") && page.contains("Çıkış")); // müşteri: 4 kişisel veri bakışı (bağlı cihazlar + 2 liste + arama)
+        assert!(page.contains("İşletme sahibi") && page.contains(">7<") && page.contains("Çıkış")); // müşteri: 7 kişisel veri bakışı (bağlı cihazlar + 2 liste + arama + 3 özet: iki girişte ve yukarıda)
         let audit = std::fs::read_to_string(e.root.join("5651/gunluk/2026-09-29/denetim.csv")).unwrap();
         assert!(audit.contains(&format!("kullanici={MUSTERI} rol=sahip ip=")));
     }

@@ -32,7 +32,9 @@ cihaz.wificorrect.com {
 			# (cihaz wfc'yi hiç görmez, her istekte yeni oturum, bütün formlar CSRF'ye takılır — 2026-10-11).
 			header_up Cookie "\bwcc=[^;]*" "_"
 			# ortak kökende cihazın CSP'si yerine sabit, sıkı CSP (panelde JavaScript yok); Set-Cookie (wfc) geçer
-			header_down Content-Security-Policy "default-src 'none'; style-src 'unsafe-inline'; img-src data:; form-action 'self'; frame-ancestors 'none'"
+			# form-action yönlendirmeye de uygulanır: çıkış (/cikis → /_cikis) panel ya da yönetime döner; ikisi listede olmazsa
+			# tarayıcı gezinmeyi sessizce iptal eder (oturum kapanır ama sayfa yerinde kalır — 2026-10-11)
+			header_down Content-Security-Policy "default-src 'none'; style-src 'unsafe-inline'; img-src data:; form-action 'self' https://panel.wificorrect.com https://yonetim.wificorrect.com; frame-ancestors 'none'"
 		}
 	}
 	# cihaz kapalı/ulaşılamaz: 502 yerine "ulaşılamıyor" sayfası (panel /cihaz?yok=1 döngüsüz gösterir)

@@ -9,6 +9,11 @@ use std::path::Path;
 /// Geçerlilik seçenekleri (saat): 1 gün (varsayılan), 2, 3 gün, 1, 2 hafta, 1 ay.
 pub const SURELER: [u64; 6] = [24, 48, 72, 168, 336, 720];
 const SAKLAMA_SN: f64 = 30.0 * 86400.0;
+/// Bir misafir kodu oturumunun makul en uzun süresi (1 ay + üst üste uzatmalar): resmi talepte IP → oturum araması
+/// bu kadar geriye bakar.
+pub const EN_UZUN_OTURUM_SN: f64 = 90.0 * 86400.0;
+/// Bir koda (kod yoksa kimliğe) bu kadar hatalı denemeden sonra kod portalda reddedilir; personel yeni kod üretir.
+pub const KOD_HATA_TAVANI: usize = 10;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct Kod {

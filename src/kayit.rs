@@ -184,8 +184,9 @@ pub fn by_mac(root: &str, mac: &str, t1: f64, t2: f64) -> Vec<Rec> {
 }
 
 /// t anında `ip`'yi tutan oturum(lar): oturumun t'ye kadarki son olayına bakılır (başlangıç, IP değişimi, bitiş).
+/// Geriye bakış en uzun oturumu kapsar: SMS oturum süresi ya da misafir kodu (uzatmalar üst üste binebilir).
 pub fn sessions_at(cfg: &Config, ip: &str, t: f64) -> Vec<Rec> {
-    let span = cfg.main.session_minutes as f64 * 60.0 + 86400.0;
+    let span = (cfg.main.session_minutes as f64 * 60.0).max(crate::misafir::EN_UZUN_OTURUM_SN) + 86400.0;
     let mut by_id: std::collections::BTreeMap<String, Vec<(f64, Rec)>> = Default::default();
     for day in days_range(t - span, t) {
         for r in day_rows(&cfg.main.log_root, &day, "oturum.csv") {
@@ -414,6 +415,20 @@ mod tests {
 
     pub fn ses_row(olay: &str, zaman: &str, ip: &str, sid: &str) -> Row {
         Row::new(olay, zaman).set("telefon", "905334553132").set("ad", "Ayşe").set("soyad", "Yılmaz").set("mac", "aa:bb:cc:dd:ee:01").set("ic_ip", ip).set("oturum_id", sid)
+    }
+
+    #[test]
+    fn misafir_oturumu_gunler_sonra_bulunur() {
+        // oturum süresi 1 gün; misafir kodu oturumu 5 gün önce başladı, hâlâ açık
+        let (cfg, _root) = setup();
+        let r = &cfg.main.log_root;
+        ortak::append_rows(&ortak::day_file(r, "2026-09-20", "oturum.csv"), &[ses_row("OTURUM_BASLA", "2026-09-20T10:00:00+03:00", "10.50.0.23", "m1")
+            .set("telefon", "TC:10000000146")
+            .set("ek", "bitis=2026-10-20T10:00:00+03:00 sozlesme=1 riza=1 giris=misafir_kodu oda=101")])
+        .unwrap();
+        let bul = sessions_at(&cfg, "10.50.0.23", parse_time("2026-09-25 10:00").unwrap());
+        assert_eq!(bul.len(), 1);
+        assert_eq!(col(&bul[0], "telefon"), "TC:10000000146");
     }
 
     #[test]

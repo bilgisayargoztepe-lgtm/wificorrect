@@ -97,6 +97,37 @@ struct Giris<'a> {
     soyad: &'a str,
     bitis: Option<f64>,
     ek: String,
+    /// Misafir kodu: oturum `state_lock` altında açılırken kod yeniden okunur (bu arada iptal edildiyse / süresi
+    /// dolduysa oturum açılmaz; uzatıldıysa yeni bitiş kullanılır).
+    kod_id: Option<&'a str>,
+}
+
+/// Misafir kodu hata sayaçları. Kontrol ve sayma tek kilit altında (8 işçi aynı anda tahmin etse de tavan aşılmaz):
+/// deneme önce hata olarak ayrılır, başarılıysa geri alınır. ponytail: anahtarlar bellekten silinmez (otel ölçeği).
+#[derive(Default)]
+struct MisafirSayac {
+    /// `misafir_ip:<ip>` / `misafir_mac:<mac>` → hata zamanları (kayan pencere)
+    pencere: HashMap<String, VecDeque<f64>>,
+    /// `kod:<kod_id>` (kimliğin etkin kodu yoksa `kimlik:<anahtar>`) → toplam hata; yeni kod yeni sayaç
+    kod: HashMap<String, usize>,
+    /// Kaba kuvvet kaydı yazılmış kod anahtarları (her kod için bir kez)
+    bildirildi: std::collections::HashSet<String>,
+}
+
+enum MisafirRed {
+    /// IP ya da MAC kilitli
+    Kilit,
+    /// Bu koda çok fazla hatalı deneme: personel yeni kod üretmeli
+    KodTavani,
+}
+
+/// Kayan pencerede (`MISAFIR_KILIT_SN`) kalan hata sayısı; eskiler atılır.
+fn pencere_say(p: &mut HashMap<String, VecDeque<f64>>, key: &str, now: f64) -> usize {
+    let q = p.entry(key.to_string()).or_default();
+    while q.front().is_some_and(|&t| t <= now - MISAFIR_KILIT_SN) {
+        q.pop_front();
+    }
+    q.len()
 }
 
 /// Misafir kodu kaba kuvvet koruması: IP ve MAC başına bu kadar hata → kilit (SMS kod sayaçlarından ayrı).
@@ -107,6 +138,7 @@ pub struct Portal {
     pub cfg: Config,
     pending: Mutex<HashMap<String, Pending>>,
     rl: RateLimiter,
+    misafir_sayac: Mutex<MisafirSayac>,
     clock: Box<Clock>,
     wall: Box<Clock>,
     runner: Box<Runner>,
@@ -311,6 +343,7 @@ impl Portal {
             cfg,
             pending: Mutex::default(),
             rl: RateLimiter::default(),
+            misafir_sayac: Mutex::default(),
             clock,
             wall,
             runner,
@@ -690,7 +723,7 @@ impl Portal {
             self.audit("OTP_HATALI_KOD", ip, mac, &p.phone, "");
             return page;
         }
-        let g = Giris { kisi: &p.phone, ad: &p.ad, soyad: &p.soyad, bitis: None, ek: format!("sozlesme=1 riza={}", u8::from(p.riza)) };
+        let g = Giris { kisi: &p.phone, ad: &p.ad, soyad: &p.soyad, bitis: None, ek: format!("sozlesme=1 riza={}", u8::from(p.riza)), kod_id: None };
         let Some(s) = self.open_session(ip, mac, &g) else {
             return self.error_page(dil::m(d, "baglanti_acilamadi"), d);
         };
@@ -761,6 +794,51 @@ impl Portal {
         Some(self.misafir_form(&Form::new(), vec![], dst, d))
     }
 
+    /// IP ya da MAC kilitli mi (yalnızca bakar; sayma `misafir_ayir`'da).
+    fn misafir_kilitli(&self, ip_key: &str, mac_key: &str, now: f64) -> bool {
+        let mut sy = lock(&self.misafir_sayac);
+        [ip_key, mac_key].iter().any(|k| pencere_say(&mut sy.pencere, k, now) >= MISAFIR_HATA_SINIRI)
+    }
+
+    /// Kontrol + sayma tek kilitte: tavanlar doluysa red, değilse deneme hata olarak ayrılır (başarıda geri alınır).
+    /// Kod tavanında reddedilen deneme de IP/MAC hatası sayılır.
+    fn misafir_ayir(&self, ip_key: &str, mac_key: &str, kod_key: &str, now: f64) -> Result<(), MisafirRed> {
+        let mut sy = lock(&self.misafir_sayac);
+        if [ip_key, mac_key].iter().any(|k| pencere_say(&mut sy.pencere, k, now) >= MISAFIR_HATA_SINIRI) {
+            return Err(MisafirRed::Kilit);
+        }
+        for k in [ip_key, mac_key] {
+            sy.pencere.entry(k.to_string()).or_default().push_back(now);
+        }
+        let n = sy.kod.entry(kod_key.to_string()).or_default();
+        if *n >= misafir::KOD_HATA_TAVANI {
+            return Err(MisafirRed::KodTavani);
+        }
+        *n += 1;
+        Ok(())
+    }
+
+    /// Başarılı (ya da hata sayılmayan) denemenin ayrılan hatasını geri alır.
+    fn misafir_geri_al(&self, ip_key: &str, mac_key: &str, kod_key: &str, now: f64) {
+        let mut sy = lock(&self.misafir_sayac);
+        for k in [ip_key, mac_key] {
+            if let Some(q) = sy.pencere.get_mut(k) {
+                if let Some(i) = q.iter().rposition(|&t| t == now) {
+                    q.remove(i);
+                }
+            }
+        }
+        if let Some(n) = sy.kod.get_mut(kod_key) {
+            *n = n.saturating_sub(1);
+        }
+    }
+
+    /// Kod tavanına ulaşıldı ve kaba kuvvet kaydı henüz yazılmadı mı (her kod için bir kez true).
+    fn misafir_tavan_ilk(&self, kod_key: &str) -> bool {
+        let mut sy = lock(&self.misafir_sayac);
+        sy.kod.get(kod_key).copied().unwrap_or(0) >= misafir::KOD_HATA_TAVANI && sy.bildirildi.insert(kod_key.to_string())
+    }
+
     /// POST /misafir/dogrula: kimlik + kod eşleşirse kodun bitişine kadar internet. Kimlik yok / kod yanlış / süresi
     /// dolmuş / iptal: tek ileti, IP ve MAC başına hata sayılır (5 → 15 dk; kilitliyken doğru kod da reddedilir).
     /// Denetime kimlik ve kod yazılmaz (başarıda yalnızca maskeli kimlik).
@@ -780,12 +858,13 @@ impl Portal {
         geri.remove("kod");
         let now = (self.clock)();
         let (ip_key, mac_key) = (format!("misafir_ip:{ip}"), format!("misafir_mac:{mac}"));
-        let kilitli = self.rl.count(&ip_key, MISAFIR_KILIT_SN, now) >= MISAFIR_HATA_SINIRI
-            || self.rl.count(&mac_key, MISAFIR_KILIT_SN, now) >= MISAFIR_HATA_SINIRI;
-        if kilitli {
+        let kilit_sayfasi = |geri: &Form| {
             self.audit("MISAFIR_HATALI", ip, mac, "", "red=kilit");
             let msg = dil::f(d, "kilit", &[&((MISAFIR_KILIT_SN / 60.0) as u64).to_string()]);
-            return Some(self.misafir_form(&geri, vec![("hata_genel", msg)], &dst, d));
+            Some(self.misafir_form(geri, vec![("hata_genel", msg)], &dst, d))
+        };
+        if self.misafir_kilitli(&ip_key, &mac_key, now) {
+            return kilit_sayfasi(&geri);
         }
         // biçim hataları (kodun var olup olmadığını söylemez, hata sayılmaz)
         let mut errors = vec![];
@@ -831,11 +910,29 @@ impl Portal {
         };
         let wall = (self.wall)();
         let kodlar = misafir::oku(&self.cfg.main.state_root);
+        // kimliğin etkin kodu (varsa): kod başına hata tavanı bu koda sayılır; cevaba hiçbir şey yansımaz
+        let etkin = kodlar.iter().find(|k| k.aktif(wall) && k.kimlik == anahtar);
+        let kod_key = etkin.map_or_else(|| format!("kimlik:{anahtar}"), |k| format!("kod:{}", k.kod_id));
+        let eslesmedi = || Some(self.misafir_form(&geri, vec![("hata_genel", dil::m(d, "misafir_eslesmedi").into())], &dst, d));
+        match self.misafir_ayir(&ip_key, &mac_key, &kod_key, now) {
+            Ok(()) => {}
+            Err(MisafirRed::Kilit) => return kilit_sayfasi(&geri),
+            Err(MisafirRed::KodTavani) => {
+                self.audit("MISAFIR_HATALI", ip, mac, "", "red=kod_tavani");
+                return eslesmedi();
+            }
+        }
+        let hata = |ek: &str| {
+            // ayrılan hata kalır; tavana bu denemeyle ulaşıldıysa bir kez kaba kuvvet kaydı
+            self.audit("MISAFIR_HATALI", ip, mac, "", ek);
+            if self.misafir_tavan_ilk(&kod_key) {
+                let oda = etkin.map_or(String::new(), |k| format!("oda={}", k.oda));
+                self.audit("MISAFIR_KABA_KUVVET", ip, mac, &kimlik::maskele(&anahtar), &oda);
+            }
+            eslesmedi()
+        };
         let Some(k) = misafir::dogrula(&kodlar, &anahtar, &kod, wall).cloned() else {
-            self.rl.hit(&ip_key, now);
-            self.rl.hit(&mac_key, now);
-            self.audit("MISAFIR_HATALI", ip, mac, "", "");
-            return Some(self.misafir_form(&geri, vec![("hata_genel", dil::m(d, "misafir_eslesmedi").into())], &dst, d));
+            return hata("");
         };
         let ek = format!(
             "sozlesme=1 riza=1 giris=misafir_kodu oda={} kod_bitis={} ureten={}",
@@ -843,10 +940,17 @@ impl Portal {
             ortak::now_iso(k.bitis),
             k.ureten.replace(char::is_whitespace, "_")
         );
-        let g = Giris { kisi: &k.kimlik, ad: &k.ad, soyad: &k.soyad, bitis: Some(k.bitis), ek };
+        let g = Giris { kisi: &k.kimlik, ad: &k.ad, soyad: &k.soyad, bitis: Some(k.bitis), ek, kod_id: Some(&k.kod_id) };
         let Some(s) = self.open_session(ip, mac, &g) else {
-            return Some(self.error_page(dil::m(d, "baglanti_acilamadi"), d));
+            // kod bu arada iptal edildi / süresi doldu: aynı tek ileti; değilse (nft) bağlantı hatası
+            let hala = misafir::oku(&self.cfg.main.state_root).iter().any(|x| x.kod_id == k.kod_id && x.aktif((self.wall)()));
+            if hala {
+                self.misafir_geri_al(&ip_key, &mac_key, &kod_key, now);
+                return Some(self.error_page(dil::m(d, "baglanti_acilamadi"), d));
+            }
+            return hata("red=kod_gecersiz");
         };
+        self.misafir_geri_al(&ip_key, &mac_key, &kod_key, now);
         self.audit("MISAFIR_BASARILI", ip, mac, &kimlik::maskele(&k.kimlik), &format!("oturum={}", s.session_id));
         Some(self.success_page(&dst, d))
     }
@@ -859,7 +963,12 @@ impl Portal {
         let _g = ortak::state_lock(&m.state_root).ok()?;
         let mut ses = ortak::load_sessions(&m.state_root);
         let now = (self.wall)();
-        let secs = g.bitis.map_or((m.session_minutes * 60) as f64, |b| b - now);
+        let mut bitis = g.bitis;
+        if let Some(id) = g.kod_id {
+            // panelin iptal/uzatması da state_lock altında: kod şimdi hâlâ etkin mi
+            bitis = Some(misafir::oku(&m.state_root).iter().find(|k| k.kod_id == id && k.aktif(now))?.bitis);
+        }
+        let secs = bitis.map_or((m.session_minutes * 60) as f64, |b| b - now);
         if secs < 1.0 {
             return None; // kodun süresi bu arada doldu
         }
@@ -1648,7 +1757,8 @@ mod tests {
     fn misafir_kilit_ip_ve_mac() {
         let t = setup(otel("otel"));
         let k = kod_uret(&t, TC_KEY, 24, WALL0);
-        let yanlis = mform("tc", TC, &baska(&k.kod));
+        // kodu olmayan kimlikle hatalar (bu koda kod başına tavan sayılmasın)
+        let yanlis = mform("tc", "11111111110", "000000");
         let dogru = mform("tc", TC, &k.kod);
         const KILIT: &str = "Çok fazla hatalı deneme yapıldı. Lütfen 15 dakika sonra tekrar deneyin.";
         // aynı IP, farklı MAC'ler: 5 hata → IP kilitli, doğru kod da reddedilir
@@ -1670,6 +1780,55 @@ mod tests {
         t.advance(901.0);
         assert_eq!(t.p.misafir_dogrula(IP, Some("aa:bb:cc:dd:ee:20"), &dogru).unwrap().tpl, "basarili");
         assert!(t.audit_text().contains("red=kilit"));
+    }
+
+    #[test]
+    fn misafir_kod_basina_hata_tavani() {
+        let t = setup(otel("otel"));
+        let k = kod_uret(&t, TC_KEY, 24, WALL0);
+        const TEK: &str = "Bilgiler eşleşmedi ya da kodun süresi doldu.";
+        // MAC/IP değiştirerek 10 yanlış deneme (IP/MAC kilidine takılmadan)
+        for i in 0..10 {
+            let pg = t.p.misafir_dogrula(&format!("10.50.0.{}", 100 + i), Some(&format!("aa:bb:cc:dd:ef:{i:02}")), &mform("tc", TC, &baska(&k.kod)));
+            assert_eq!(pg.unwrap().get("hata_genel"), TEK, "{i}");
+        }
+        // artık doğru kod da aynı iletiyle reddedilir
+        let pg = t.p.misafir_dogrula("10.50.0.120", Some("aa:bb:cc:dd:ef:20"), &mform("tc", TC, &k.kod)).unwrap();
+        assert_eq!((pg.tpl, pg.get("hata_genel")), ("misafir", TEK));
+        assert!(ortak::load_sessions(&t.p.cfg.main.state_root).is_empty());
+        let a = t.audit_text();
+        assert_eq!(a.matches("MISAFIR_KABA_KUVVET").count(), 1, "{a}");
+        assert!(a.contains("100******46") && a.contains("oda=101") && !a.contains(TC) && !a.contains(&k.kod), "{a}");
+        // personel yeni kod üretir: yeni sayaç, giriş açılır
+        let yeni = kod_uret(&t, TC_KEY, 24, WALL0);
+        assert_eq!(t.p.misafir_dogrula("10.50.0.121", Some("aa:bb:cc:dd:ef:21"), &mform("tc", TC, &yeni.kod)).unwrap().tpl, "basarili");
+        assert_eq!(t.audit_text().matches("MISAFIR_KABA_KUVVET").count(), 1);
+        // kodu olmayan kimlik için de kimlik başına tavan
+        for i in 0..10 {
+            t.p.misafir_dogrula(&format!("10.50.0.{}", 140 + i), Some(&format!("aa:bb:cc:dd:f0:{i:02}")), &mform("tc", "11111111110", "000000"));
+        }
+        assert_eq!(t.audit_text().matches("MISAFIR_KABA_KUVVET").count(), 2);
+    }
+
+    #[test]
+    fn iptal_edilen_kodla_oturum_acilmaz() {
+        // doğrulama ile oturum açma arasında iptal: state_lock altında yeniden kontrol
+        let t = setup(otel("otel"));
+        let k = kod_uret(&t, TC_KEY, 24, WALL0);
+        let mut kodlar = misafir::oku(&t.p.cfg.main.state_root);
+        misafir::iptal(&mut kodlar, &k.kod_id);
+        misafir::kaydet(&t.p.cfg.main.state_root, &kodlar).unwrap();
+        let g = Giris { kisi: TC_KEY, ad: "Ali", soyad: "Veli", bitis: Some(k.bitis), ek: String::new(), kod_id: Some(&k.kod_id) };
+        assert!(t.p.open_session(IP, MAC, &g).is_none());
+        assert!(ortak::load_sessions(&t.p.cfg.main.state_root).is_empty());
+        assert!(t.calls.lock().unwrap().is_empty(), "nft'ye dokunulmaz");
+        // uzatılmışsa yeni bitiş kullanılır
+        let k2 = kod_uret(&t, TC_KEY, 24, WALL0);
+        let mut kodlar = misafir::oku(&t.p.cfg.main.state_root);
+        let yeni = misafir::uzat(&mut kodlar, &k2.kod_id, 24, WALL0).unwrap();
+        misafir::kaydet(&t.p.cfg.main.state_root, &kodlar).unwrap();
+        let g = Giris { kisi: TC_KEY, ad: "Ali", soyad: "Veli", bitis: Some(k2.bitis), ek: String::new(), kod_id: Some(&k2.kod_id) };
+        assert_eq!(t.p.open_session(IP, MAC, &g).unwrap().expires_epoch, yeni);
     }
 
     #[test]

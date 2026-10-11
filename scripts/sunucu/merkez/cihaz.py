@@ -6,6 +6,8 @@ import guvenlik
 import web
 
 PANEL_GIRIS = "https://panel.wificorrect.com/giris"
+YONETIM = "https://yonetim.wificorrect.com"
+CIHAZ_GIRIS = "https://cihaz.wificorrect.com/_giris?t="
 CEREZ = "wcc"
 
 
@@ -46,10 +48,14 @@ class Cihaz:
             m = self.veri.musteri(int(numara)) if numara else None
             if m is None or m["ozet"] != b[1]:
                 return 303, {"Location": PANEL_GIRIS, "Cache-Control": "no-store"}, b""
-            yeni = self.oturumlar.create(numara, "musteri", self.saat(), m["ozet"])
+            yeni = self.oturumlar.create(numara, b[2], self.saat(), m["ozet"])
             return 303, {"Location": "/", "Set-Cookie": _cerez(yeni), "Cache-Control": "no-store"}, b""
         if yol == "/_cikis":
             ot = self.oturumlar.get(token, self.saat())
+            if ot and ot["role"] == "yonetici":
+                # yönetimden gelen: yalnızca bu oturum kapanır, müşterinin kendi oturumları düşmez
+                self.oturumlar.drop(token)
+                return 303, {"Location": f"{YONETIM}/m/{ot['user']}", "Set-Cookie": _cerez(None), "Cache-Control": "no-store"}, b""
             if ot:
                 self.oturumlar.drop_user(ot["user"])
                 self.musteri_app.oturumlar.drop_user(ot["user"])

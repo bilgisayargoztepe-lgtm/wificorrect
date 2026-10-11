@@ -1,0 +1,18 @@
+[Unit]
+Description=WifiCorrect yönetim merkezi: cihaz sağlık kuralları ve uyarı SMS'i
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=wcpanel
+Group=wcpanel
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=/usr/local/sbin/wc-saglik
+TimeoutStartSec=4min
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ReadWritePaths=/var/lib/wificorrect/merkez
+InaccessiblePaths=/srv

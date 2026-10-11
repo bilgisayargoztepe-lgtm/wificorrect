@@ -183,6 +183,8 @@ pub struct Kaydedici {
     /// Yönetim merkezi bağı (testte geçici) ve son eşitleme başlatma zamanı
     pub merkez_path: std::path::PathBuf,
     merkez_son: f64,
+    /// son sağlık raporu başlatma zamanı
+    saglik_son: f64,
     /// son bilinen hizmet durumu (lisans); değişince misafir oturumları kapanır / denetime yazılır
     lisans_acik: Option<bool>,
     /// Trafik ölçümü ve yavaşlatma (5 sn); yollar ve nft yükleyicisi testte değiştirilir
@@ -225,6 +227,7 @@ impl Kaydedici {
             uzak_last_fix: f64::NEG_INFINITY,
             merkez_path: crate::merkez::PATH.into(),
             merkez_son: f64::NEG_INFINITY,
+            saglik_son: f64::NEG_INFINITY,
             lisans_acik: None,
             olcer,
             gun_son: f64::NEG_INFINITY,
@@ -524,6 +527,7 @@ impl Kaydedici {
         self.check_wan(now);
         self.check_uzak(now);
         self.check_merkez(now);
+        self.check_saglik(now);
         self.check_lisans(now);
     }
 
@@ -599,6 +603,24 @@ impl Kaydedici {
         (self.runner)(&c);
     }
 
+    /// Sağlık raporu: cihaz bağlıysa 5 dk'da bir arka planda `ctl saglik` (ağ çağrısı kaydediciyi bekletmesin).
+    /// Saat geri gittiyse beklenmez.
+    fn check_saglik(&mut self, now: f64) {
+        if now >= self.saglik_son && now - self.saglik_son < 300.0 {
+            return;
+        }
+        if crate::merkez::oku(&self.merkez_path).is_none() {
+            return;
+        }
+        self.saglik_son = now;
+        let unit = format!("wfc-saglik-{}", now as u64);
+        let c: Vec<String> = ["systemd-run", "--collect", "--unit", &unit, "--on-active", "1s", "/usr/local/bin/wificorrect", "ctl", "saglik"]
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
+        (self.runner)(&c);
+    }
+
     /// İnternet portunda kablo takılıyken DHCP istemcisi (dhcpcd) 1 dk'dan uzun yoksa WAN birimi yeniden başlatılır
     /// (en çok 5 dk'da bir). dhcpcd ölürse IP kira sonunda düşer, cihaz internetini ve uzaktan yönetimini kaybeder.
     /// Kablo yoksa ya da dhcpcd var ama IP alamıyorsa (modem kapalı) dokunulmaz: dhcpcd zaten deniyor.
@@ -624,13 +646,7 @@ impl Kaydedici {
 
     /// %80'de saatte bir uyarı; %95'te kişi kopyaları durur, günlük yasal dosyalar yazılmaya devam eder.
     fn check_disk(&mut self, now: f64) {
-        let Ok(path) = std::ffi::CString::new(self.cfg.main.log_root.as_str()) else { return };
-        // SAFETY: statvfs yalnızca verilen yapıya yazar.
-        let mut st: libc::statvfs = unsafe { std::mem::zeroed() };
-        if unsafe { libc::statvfs(path.as_ptr(), &mut st) } != 0 || st.f_blocks == 0 {
-            return;
-        }
-        let pct = 100 - (st.f_bavail as u64 * 100 / st.f_blocks as u64);
+        let Some(pct) = ortak::disk_percent(&self.cfg.main.log_root) else { return };
         self.user_copy = pct < 95;
         if pct >= 80 && now - self.last_disk_warn >= 3600.0 {
             self.last_disk_warn = now;
@@ -1048,6 +1064,35 @@ mod tests {
         assert_eq!(n(&calls), 1); // aynı dakikada ikinci kez başlatılmaz
     }
 
+
+    #[test]
+    fn kaydedici_5_dk_da_bir_baslatir() {
+        let (mut k, root, _) = setup();
+        let calls = Arc::new(Mutex::new(Vec::<String>::new()));
+        let c2 = calls.clone();
+        k.runner = Box::new(move |c: &[String]| {
+            c2.lock().unwrap().push(c.join(" "));
+            true
+        });
+        let n = |calls: &Arc<Mutex<Vec<String>>>| calls.lock().unwrap().iter().filter(|x| x.contains("ctl saglik")).count();
+        crate::merkez::sil(&k.merkez_path);
+        k.check_saglik(1000.0);
+        assert_eq!(n(&calls), 0); // bağlı değil
+        crate::merkez::kaydet(&k.merkez_path, &crate::merkez::Merkez { numara: "4511643".into(), son_eslesme: 9e9, ..Default::default() }).unwrap();
+        k.check_saglik(1010.0);
+        assert_eq!(n(&calls), 1);
+        assert!(calls.lock().unwrap().iter().any(|c| c == "systemd-run --collect --unit wfc-saglik-1010 --on-active 1s /usr/local/bin/wificorrect ctl saglik"));
+        k.check_saglik(1040.0);
+        k.check_saglik(1309.0);
+        assert_eq!(n(&calls), 1); // 5 dk dolmadı
+        k.check_saglik(1310.0);
+        assert_eq!(n(&calls), 2);
+        k.maintain(1620.0); // 30 sn'lik bakım turundan çağrılır
+        assert_eq!(n(&calls), 3);
+        k.check_saglik(500.0); // saat geri gitti: beklenmez
+        assert_eq!(n(&calls), 4);
+        let _ = root;
+    }
 
     #[test]
     fn lisans_kapaninca_misafir_oturumlari_kapanir() {

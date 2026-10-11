@@ -14,6 +14,7 @@ mod muhur;
 mod ortak;
 mod panel;
 mod portal;
+mod saglik;
 mod sms;
 mod trafik;
 mod twilio;

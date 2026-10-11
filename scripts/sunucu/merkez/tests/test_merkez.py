@@ -2,6 +2,8 @@ import os
 import sys
 import tempfile
 
+os.environ["WC_TEST"] = "1"  # netgsm.gonder gerçek isteği reddeder (yanlışlıkla SMS gitmesin)
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import yardim as Y  # noqa: E402

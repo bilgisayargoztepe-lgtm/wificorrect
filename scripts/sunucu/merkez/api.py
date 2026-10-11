@@ -1,5 +1,6 @@
 """Cihaz API'si (spec §4): api.wificorrect.com/api/{giris,eslesme,parola}. JSON gövde ≤ 4 KB, IP başına dakikada 20 istek.
 Cihazın kimliği ilk girişte verilen cihaz anahtarıdır (merkez yalnızca SHA-256'sını tutar)."""
+import datetime
 import json
 import time
 
@@ -47,6 +48,45 @@ def _cihaz_ekleri(veri):
     return ek
 
 
+SAGLIK_SERVISLER = ("portal", "panel", "kaydedici", "dnsmasq", "guvenlik")
+SAGLIK_BOOL = ("kayit_boslugu_1s", "wan", "sms_sorunu", "hiz_hata")
+
+
+def _tam(v, alt, ust=None):
+    """bool int'in alt sınıfıdır: tamsayı alanı bool kabul etmez."""
+    return type(v) is int and v >= alt and (ust is None or v <= ust)
+
+
+def _tarih(v):
+    if v == "":
+        return True
+    try:
+        return len(v) == 10 and v.isascii() and datetime.datetime.strptime(v, "%Y-%m-%d") is not None
+    except ValueError:
+        return False
+
+
+def saglik_temizle(r):
+    """Cihaz sağlık raporunu sıkı doğrular; yalnızca bilinen alanlarla yeni sözlük döner, bozuksa None."""
+    if not isinstance(r, dict):
+        return None
+    sv = r.get("servisler")
+    if not (isinstance(sv, dict) and all(type(sv.get(a)) is bool for a in SAGLIK_SERVISLER)):
+        return None
+    if not (isinstance(r.get("surum"), str) and len(r["surum"]) <= 40 and r["surum"].isprintable()):
+        return None
+    if not (_tam(r.get("acik_sn"), 0) and _tam(r.get("disk_yuzde"), 0, 100) and _tam(r.get("bagli"), 0)):
+        return None
+    if not (isinstance(r.get("son_muhur"), str) and _tarih(r["son_muhur"])):
+        return None
+    if not all(type(r.get(a)) is bool for a in SAGLIK_BOOL):
+        return None
+    t = {a: r[a] for a in ("surum", "acik_sn", "disk_yuzde", "son_muhur", "bagli")}
+    t["servisler"] = {a: sv[a] for a in SAGLIK_SERVISLER}
+    t.update({a: r[a] for a in SAGLIK_BOOL})
+    return t
+
+
 class Api:
     def __init__(self, veri, saat=time.time, kuyruk_ekle=kuyruk.ekle, kuyruk_bekle=kuyruk.bekle):
         self.veri, self.saat = veri, saat
@@ -54,7 +94,8 @@ class Api:
         self.kilit, self.hiz = guvenlik.GirisKilidi(), guvenlik.HizSiniri(20, 60)
 
     def istek(self, yontem, yol, basliklar, govde, sorgu="", ip=""):
-        uclar = {"/api/giris": self.giris, "/api/eslesme": self.eslesme, "/api/parola": self.parola}
+        uclar = {"/api/giris": self.giris, "/api/eslesme": self.eslesme, "/api/parola": self.parola,
+                "/api/saglik": self.saglik}
         if yontem != "POST" or yol not in uclar:
             return _hata(404, "yok", "Bulunamadı.")
         if len(govde) > GOVDE_SINIRI:
@@ -135,3 +176,14 @@ class Api:
             return _hata(400, "gecersiz", str(h))
         self.veri.hareket(str(c["musteri"]), ip, "PAROLA_DEGISTI", c["musteri"], "cihazdan")
         return _json(200, {"tuz": tuz, "ozet": oz, "yineleme": y})
+
+    def saglik(self, b, ip):
+        c = self.veri.cihaz_anahtarla(b.get("cihaz_anahtari"))
+        if c is None:
+            return _hata(401, "taninmadi", "Cihaz tanınmadı.")
+        r = saglik_temizle(b.get("rapor"))
+        if r is None:
+            return _hata(400, "gecersiz", "Geçersiz rapor.")
+        if c["durum"] != "serbest_birakiliyor":  # serbest bırakılan cihazın raporu yazılmaz
+            self.veri.saglik_kaydet(c["id"], r)
+        return _json(200, {"tamam": True})

@@ -4,25 +4,34 @@ import re
 import sys
 import tempfile
 
+os.environ["WC_TEST"] = "1"  # netgsm.gonder gerçek isteği reddeder (yanlışlıkla SMS gitmesin)
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import yardim as Y  # noqa: E402
 import kayitlar  # noqa: E402
 import yonetici  # noqa: E402
 import yonetim as YN  # noqa: E402
+import cihaz as CZ  # noqa: E402
+import guvenlik as G  # noqa: E402
+import musteri as MU  # noqa: E402
 
 WG, SSH = "A" * 43 + "=", "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI c"
 PW = "yonetici-parola-1"
 
 
-def kur(tmp, durum=None):
+def kur(tmp, durum=None, gonderilen=None):
     v, k, saat = Y.ortam(tmp)
     yol, dyol = os.path.join(tmp, "yonetici.json"), os.path.join(tmp, "durum.json")
     yonetici.yaz(yol, "serkan", PW)
     with open(dyol, "w", encoding="utf-8") as f:
         json.dump({"zaman": "", "arsivler": durum or {}}, f)
     isler = []
-    app = YN.Yonetim(v, k, saat, yol, dyol, lambda islem, veri: isler.append((islem, veri)) or "0" * 16)
+    def sahte(ayar, metin, numaralar, zaman_asimi=10):
+        gonderilen.append((ayar, metin, list(numaralar)))
+        return "gonderildi"
+    ek = {"gonder": sahte} if gonderilen is not None else {}
+    app = YN.Yonetim(v, k, saat, yol, dyol, lambda islem, veri: isler.append((islem, veri)) or "0" * 16, **ek)
     c = Y.cerez(Y.giris(app, "serkan", PW))
     return app, v, saat, c, isler
 
@@ -240,6 +249,221 @@ def test_sms_ayarlari_sayfasi():
         assert v.sms_ayari()["password"] == "gizli-1" and v.sms_ayari()["mock"] is True  # boş şifre = aynı kalır
         assert any(h["olay"] == "SMS_AYARI" and "gizli-1" not in h["ayrinti"] for h in v.hareketler())
 
+
+def _rapor(**d):
+    r = {"surum": "1.0.<x>", "acik_sn": 90000, "servisler": {"portal": True, "panel": True, "kaydedici": False, "dnsmasq": True,
+         "guvenlik": True}, "disk_yuzde": 91, "son_muhur": "2026-10-10", "kayit_boslugu_1s": False, "wan": True,
+         "sms_sorunu": False, "bagli": 7, "hiz_hata": False}
+    r.update(d)
+    return r
+
+
+def test_acik_sorunlar_karti():
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        app, v, saat, c, _ = kur(tmp)
+        n1, _ = v.musteri_ekle("a")
+        n2, _ = v.musteri_ekle("b")
+        assert "Açık sorunlar" not in Y.al(app, "/", c)[2].decode()  # sorun yoksa kart yok
+        v.cihaz_bagla(n1, WG, SSH, "Kafe <B>")
+        t0 = saat.t
+        saat.t -= 7200  # sorunlar iki saat önce açıldı (oturum bozulmasın diye saati geri alıp kaydet)
+        i1 = v.sorun_ac(n1, "kayit_durdu", "5651 kaydı durdu <i>", "kritik")
+        v.sorun_ac(n2, "lisans_bitti", "Lisans bitti (01.10.2026)", "bilgi")
+        v.sorun_sms(i1, "acilis_sms", "gonderildi")
+        saat.t = t0
+        s = Y.al(app, "/", c)[2].decode()
+        assert "Açık sorunlar" in s and f'href="/m/{n1}"' in s and f'href="/m/{n2}"' in s
+        assert "Kafe &lt;B&gt;" in s and "5651 kaydı durdu &lt;i&gt;" in s and "durdu <i>" not in s
+        assert "2 saat önce" in s and "09:00&#x27;da gidecek" in s and "SMS gitti" in s and "kritik" in s
+        satir = s[s.index(f'<a href="/m/{n1}">{n1}</a></td><td>Kafe'):]
+        assert "5651 kaydı durdu" in satir[:satir.index("</tr>")]  # liste satırındaki sorunlu rozeti
+        v.sorun_kapat(i1)
+        s = Y.al(app, "/", c)[2].decode()
+        assert "5651 kaydı durdu" not in s
+
+
+def test_sms_durum_etiketleri():
+    f = YN.sms_etiketi
+    assert f("", "kritik") == "SMS bekleniyor" and f("", "uyari") == "SMS bekleniyor" and f("", "bilgi") == "09:00'da gidecek"
+    assert f("gonderildi", "kritik") == "SMS gitti" and f("mock", "uyari") == "deneme modu"
+    assert f("hata:30", "kritik") == "SMS gönderilemedi (30)" and f("sinir", "uyari") == "günlük SMS sınırı"
+    assert f("yok", "kritik") == "SMS gönderilmedi (uyarılar kapalı)"
+    assert f("sinir:2026-10-11", "kritik") == "günlük SMS sınırı" and f("sinir:2026-10-11", "bilgi") == "günlük SMS sınırı"
+
+
+def test_gecmis_sms_etiketleri():
+    t = 1_790_000_000.0
+    iso = YN.common.now_iso
+    f = lambda **d: YN.gecmis_sms_etiketleri({"onem": "kritik", "acilis_sms": "", "kapanis_sms": "", "kapanis": "", **d}, t)
+    assert f() == ("SMS bekleniyor", "—") and f(onem="bilgi") == ("09:00'da gidecek", "—")  # açık
+    # kapanmış, hiç SMS'siz: sonsuza dek "bekleniyor" demez
+    assert f(kapanis=iso(t - 5000)) == ("—", "—") and f(kapanis=iso(t - 5000), onem="bilgi") == ("—", "—")
+    assert f(kapanis=iso(t - 100), acilis_sms="gonderildi") == ("SMS gitti", "düzeldi bekletiliyor")
+    assert f(kapanis=iso(t - 100), acilis_sms="mock") == ("deneme modu", "düzeldi bekletiliyor")
+    assert f(kapanis=iso(t - 700), acilis_sms="gonderildi") == ("SMS gitti", "—")
+    assert f(kapanis=iso(t - 100), acilis_sms="sinir:2026-09-21") == ("günlük SMS sınırı", "—")  # açılış gitmedi: düzeldi de yok
+    assert f(kapanis=iso(t - 5000), acilis_sms="gonderildi", kapanis_sms="gonderildi") == ("SMS gitti", "SMS gitti")
+    assert f(kapanis=iso(t - 5000), acilis_sms="gonderildi", kapanis_sms="sinir:2026-09-21") == ("SMS gitti", "günlük SMS sınırı")
+
+
+def test_izleme_satiri_ana_sayfada():
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        app, v, saat, c, _ = kur(tmp)
+        s = Y.al(app, "/", c)[2].decode()
+        assert '<b class="kotu">Sağlık izleme: hiç tur yok — izleme çalışmıyor olabilir</b>' in s  # hiç çalışmadı
+        v.saglik_son_tur_koy(YN.common.now_iso(saat.t - 180))
+        s = Y.al(app, "/", c)[2].decode()
+        assert "Sağlık izleme: son tur 3 dk önce" in s and "izleme çalışmıyor olabilir" not in s
+        v.saglik_son_tur_koy(YN.common.now_iso(saat.t - 16 * 60))
+        s = Y.al(app, "/", c)[2].decode()
+        assert '<b class="kotu">Sağlık izleme: son tur 16 dk önce — izleme çalışmıyor olabilir</b>' in s
+
+
+def test_musteri_saglik_ve_gecmis():
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        app, v, saat, c, _ = kur(tmp)
+        n, _ = v.musteri_ekle()
+        s = Y.al(app, f"/m/{n}", c)[2].decode()
+        assert "Henüz rapor yok" in s and "Sorun geçmişi" in s
+        cid, _ = v.cihaz_bagla(n, WG, SSH, "Kafe")
+        assert "Henüz rapor yok" in Y.al(app, f"/m/{n}", c)[2].decode()
+        t0 = saat.t
+        saat.t -= 600
+        v.saglik_kaydet(cid, _rapor())
+        saat.t = t0
+        s = Y.al(app, f"/m/{n}", c)[2].decode()
+        assert "Henüz rapor yok" not in s and "10 dk önce" in s
+        assert "1.0.&lt;x&gt;" in s and "1.0.<x>" not in s  # cihaz verisi kaçırılır
+        assert "kaydedici" in s and "%91" in s and "2026-10-10" in s and ">7<" in s
+        saat.t -= 3600
+        i = v.sorun_ac(n, "disk_dolu", "Disk dolu (%91)", "uyari")
+        saat.t += 1800
+        v.sorun_kapat(i)
+        saat.t = t0
+        assert "Disk dolu (%91)" in Y.al(app, f"/m/{n}", c)[2].decode()
+        for k in range(60):
+            v.sorun_ac(n, f"t{k}", f"Sorun {k}", "uyari")
+        s = Y.al(app, f"/m/{n}", c)[2].decode()
+        assert "Sorun 59" in s and "Sorun 5<" not in s and "Disk dolu" not in s  # son 50
+
+
+def test_sorun_gecmisi_kapanmis_satir_etiketleri():
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        app, v, saat, c, _ = kur(tmp)
+        n, _ = v.musteri_ekle()
+        t0 = saat.t
+        saat.t -= 3600
+        i = v.sorun_ac(n, "rapor_yok", "Rapor gelmiyor", "kritik")
+        j = v.sorun_ac(n, "lisans_bitiyor", "Lisans bitiyor (01.10.2026)", "bilgi")
+        k = v.sorun_ac(n, "disk_dolu", "Disk dolu (%93)", "uyari")
+        v.sorun_sms(k, "acilis_sms", "gonderildi")
+        saat.t -= 1800
+        v.sorun_kapat(i), v.sorun_kapat(j)  # SMS'siz kapandı
+        saat.t = t0 - 100
+        v.sorun_kapat(k)  # açılışı gitmiş, 100 sn önce kapandı
+        saat.t = t0
+        s = Y.al(app, f"/m/{n}", c)[2].decode()
+        assert "SMS bekleniyor" not in s and "09:00&#x27;da gidecek" not in s and "düzeldi bekletiliyor" in s
+
+
+def test_uyari_ayarlari_kaydet_ve_dogrula():
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        app, v, _, c, _ = kur(tmp)
+        s = Y.al(app, "/uyari", c)[2].decode()
+        assert 'name="tel1"' in s and 'name="tel3"' in s and 'name="acik"' in s and 'name="gunluk_sinir"' in s
+        assert 'href="/uyari"' in s and "Uyarı ayarları" in s
+        t = Y.csrf(Y.al(app, "/uyari", c))
+        r = Y.gonder(app, "/uyari", c, {"csrf": t, "tel1": "0533 111 22 33", "tel2": "", "tel3": "05441112244", "acik": "1", "gunluk_sinir": "15"})
+        assert r[0] == 303
+        assert v.uyari_ayari() == {"telefonlar": ["905331112233", "905441112244"], "acik": True, "gunluk_sinir": 15}
+        olay = [h for h in v.hareketler() if h["olay"] == "UYARI_AYAR"]
+        assert olay and "5331112233" not in olay[0]["ayrinti"]
+        s = Y.al(app, "/uyari", c)[2].decode()
+        assert "5331112233" in s and "checked" in s and 'value="15"' in s
+        r = Y.gonder(app, "/uyari", c, {"csrf": t, "tel1": "123", "gunluk_sinir": "15"})  # geçersiz telefon
+        assert r[0] == 400 and "Geçersiz telefon" in r[2].decode() and v.uyari_ayari()["gunluk_sinir"] == 15
+        for kotu in ("0", "1", "101", "abc", "", "2.5"):
+            r = Y.gonder(app, "/uyari", c, {"csrf": t, "tel1": "05331112233", "gunluk_sinir": kotu})
+            assert r[0] == 400, kotu
+        assert v.uyari_ayari()["gunluk_sinir"] == 15
+        r = Y.gonder(app, "/uyari", c, {"csrf": t, "tel1": "05331112233", "gunluk_sinir": "20"})  # onay kutusu işaretsiz = kapalı
+        assert r[0] == 303 and v.uyari_ayari()["acik"] is False
+        r = Y.gonder(app, "/uyari", c, {"csrf": t, "tel1": "05331112233", "gunluk_sinir": "2"})  # en az 2
+        assert r[0] == 303 and v.uyari_ayari()["gunluk_sinir"] == 2
+
+
+def test_deneme_sms_sahte_gondericiyle():
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        giden = []
+        app, v, saat, c, _ = kur(tmp, gonderilen=giden)
+        t = Y.csrf(Y.al(app, "/uyari", c))
+        v.uyari_ayari_koy({"telefonlar": ["05331112233", "05441112244"], "acik": True, "gunluk_sinir": 20})
+        r = Y.gonder(app, "/uyari/deneme", c, {"csrf": t})  # SMS ayarı yok
+        assert r[0] == 200 and "SMS ayarları girilmemiş" in r[2].decode() and giden == []
+        v.sms_ayari_koy({"mock": False, "usercode": "u", "password": "p", "msgheader": "h"})
+        r = Y.gonder(app, "/uyari/deneme", c, {"csrf": t})
+        assert r[0] == 200 and "gönderildi" in r[2].decode()
+        assert len(giden) == 1 and giden[0][1] == "WifiCorrect deneme uyarısı" and giden[0][2] == ["905331112233"]
+        assert giden[0][0]["usercode"] == "u"
+        gun = YN.datetime.datetime.fromtimestamp(saat(), YN.common.TZ).date().isoformat()
+        assert v.sms_sayaci(gun) == 1
+        assert v.hareketler()[0]["olay"] == "UYARI_DENEME"
+        v.uyari_ayari_koy({"telefonlar": [], "acik": True, "gunluk_sinir": 20})
+        r = Y.gonder(app, "/uyari/deneme", c, {"csrf": t})
+        assert "telefon" in r[2].decode() and len(giden) == 1
+
+
+def test_uyari_csrf_siz_post_reddi():
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        giden = []
+        app, v, _, c, _ = kur(tmp, gonderilen=giden)
+        v.uyari_ayari_koy({"telefonlar": ["05331112233"], "acik": True, "gunluk_sinir": 20})
+        v.sms_ayari_koy({"mock": False, "usercode": "u", "password": "p", "msgheader": "h"})
+        for yol, alan in (("/uyari", {"tel1": "05441112244", "gunluk_sinir": "5"}), ("/uyari/deneme", {})):
+            for form in (alan, dict(alan, csrf="yanlis")):
+                assert Y.gonder(app, yol, c, form)[0] == 403, yol
+        assert giden == [] and v.uyari_ayari()["gunluk_sinir"] == 20 and v.sms_sayaci("2026-09-21") == 0
+
+
+
+def test_yonetimden_cihaz_paneline_dogrudan_gecis():
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        v, k, saat = Y.ortam(tmp)
+        yol, dyol = os.path.join(tmp, "yonetici.json"), os.path.join(tmp, "durum.json")
+        yonetici.yaz(yol, "serkan", PW)
+        with open(dyol, "w", encoding="utf-8") as f:
+            json.dump({"zaman": "", "arsivler": {}}, f)
+        gecis = G.GecisBelirtecleri()
+        mu = MU.Musteri(v, k, saat, gecis=gecis)
+        cz = CZ.Cihaz(v, gecis, mu, saat)
+        app = YN.Yonetim(v, k, saat, yol, dyol, lambda *a: "0" * 16, gecis=gecis, musteri_app=mu)
+        c = Y.cerez(Y.giris(app, "serkan", PW))
+        n, pw = v.musteri_ekle(parola="musteri-parola-1")
+        v.cihaz_bagla(n, WG, SSH)
+        # tünel adresi yok → düğme yok, geçiş reddedilir
+        f = Y.al(app, f"/m/{n}", c)
+        s = f[2].decode()
+        assert "Cihaz paneline git" not in s and "şu an ulaşılamıyor" in s
+        t = Y.csrf(f)
+        assert Y.gonder(app, f"/m/{n}/cihaz-paneli", c, {"csrf": t})[0] == 409
+        v.cihaz_guncelle(v.bagli_cihaz(n)["id"], tunel_ip="10.99.0.11")
+        s = Y.al(app, f"/m/{n}", c)[2].decode()
+        assert f'action="/m/{n}/cihaz-paneli"' in s and "Cihaz paneline git" in s
+        assert Y.gonder(app, f"/m/{n}/cihaz-paneli", c, {"csrf": "yanlis"})[0] == 403
+        r = Y.gonder(app, f"/m/{n}/cihaz-paneli", c, {"csrf": t})
+        assert r[0] == 303 and r[1]["Location"].startswith("https://cihaz.wificorrect.com/_giris?t=")
+        assert v.hareketler(n)[0]["olay"] == "YONETICI_CIHAZ_PANELI"
+        h = {"Host": "cihaz.wificorrect.com"}
+        r = cz.istek("GET", "/_giris", h, "", "t=" + r[1]["Location"].split("t=", 1)[1], "1.2.3.4")
+        wcc = r[1]["Set-Cookie"].split(";")[0].split("=", 1)[1]
+        y = cz.istek("GET", "/cihaz-yetki", dict(h, Cookie=f"wcc={wcc}"), "", "", "1.2.3.4")
+        assert y[0] == 200 and y[1]["X-WFC-Cihaz"] == "10.99.0.11" and y[1]["X-WFC-Kullanici"] == str(n)
+        # müşterinin kendi cihaz oturumu yöneticinin çıkışıyla düşmez; yönetici müşteri sayfasına döner
+        mw = cz.oturumlar.create(str(n), "musteri", saat(), v.musteri(n)["ozet"])
+        r = cz.istek("GET", "/_cikis", dict(h, Cookie=f"wcc={wcc}"), "", "", "1.2.3.4")
+        assert r[0] == 303 and r[1]["Location"] == f"https://yonetim.wificorrect.com/m/{n}"
+        assert cz.istek("GET", "/cihaz-yetki", dict(h, Cookie=f"wcc={wcc}"), "", "", "1.2.3.4")[0] == 302
+        assert cz.istek("GET", "/cihaz-yetki", dict(h, Cookie=f"wcc={mw}"), "", "", "1.2.3.4")[0] == 200
 
 if __name__ == "__main__":
     for _name, _fn in sorted(globals().items()):

@@ -34,6 +34,12 @@ CREATE TABLE IF NOT EXISTS hareket (
 CREATE INDEX IF NOT EXISTS hareket_musteri ON hareket(musteri, id);
 CREATE TABLE IF NOT EXISTS eski_arsiv (ad TEXT PRIMARY KEY, musteri INTEGER REFERENCES musteri(numara));
 CREATE TABLE IF NOT EXISTS ayar (anahtar TEXT PRIMARY KEY, deger TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS saglik (cihaz INTEGER PRIMARY KEY, zaman TEXT NOT NULL, rapor TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS sorun (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, musteri INTEGER NOT NULL, tur TEXT NOT NULL, metin TEXT NOT NULL,
+  onem TEXT NOT NULL, acilis TEXT NOT NULL, kapanis TEXT NOT NULL DEFAULT '',
+  acilis_sms TEXT NOT NULL DEFAULT '', kapanis_sms TEXT NOT NULL DEFAULT '');
+CREATE INDEX IF NOT EXISTS sorun_musteri ON sorun(musteri, kapanis);
 """
 CIHAZ_ALANLARI = {"tunel_ip", "isletme_adi", "unvan", "surum", "son_eslesme"}
 # Sonradan eklenen müşteri sütunları (eski veritabanına ALTER ile eklenir)
@@ -41,6 +47,10 @@ YENI_SUTUNLAR = (("parola_acik", "TEXT NOT NULL DEFAULT ''"), ("lisans_bitis", "
                  ("askida", "INTEGER NOT NULL DEFAULT 0"))
 YENI_CIHAZ_SUTUNLARI = (("admin_parola", "TEXT NOT NULL DEFAULT ''"), ("admin_tuz", "TEXT NOT NULL DEFAULT ''"),
                         ("admin_ozet", "TEXT NOT NULL DEFAULT ''"), ("admin_yineleme", "INTEGER NOT NULL DEFAULT 0"))
+UYARI_VARSAYILAN = {"telefonlar": [], "acik": False, "gunluk_sinir": 20}
+UYARI_TELEFON_EN_COK = 3
+UYARI_SINIR_ARALIK = (2, 100)  # günlük uyarı SMS sınırı (yönetim formu da bunu kullanır)
+SORUN_SMS_ALANLARI = ("acilis_sms", "kapanis_sms")
 SMS_ALANLARI = ("usercode", "password", "msgheader", "appkey")
 LISANS_GUN = 365
 
@@ -284,6 +294,124 @@ class Veri:
         with self._islem() as db:
             # ponytail: NetGSM şifresi açık saklanır (cihaza gönderilmesi gerekir); veritabanı yalnızca wcpanel'in (600)
             db.execute("INSERT OR REPLACE INTO ayar (anahtar, deger) VALUES ('sms', ?)", (json.dumps(a, ensure_ascii=False),))
+
+    # --- sağlık raporu, sorun kaydı, uyarı ayarı ---
+    def saglik_kaydet(self, cid, rapor):
+        """Cihaz başına tek satır; her rapor öncekinin üzerine yazar."""
+        with self._islem() as db:
+            db.execute("INSERT OR REPLACE INTO saglik (cihaz, zaman, rapor) VALUES (?, ?, ?)",
+                       (cid, self._simdi(), json.dumps(rapor, ensure_ascii=False)))
+
+    def saglik(self, cid):
+        r = self._bir("SELECT zaman, rapor FROM saglik WHERE cihaz = ?", cid)
+        return {"zaman": r["zaman"], "rapor": json.loads(r["rapor"])} if r else None
+
+    def sorun_ac(self, musteri, tur, metin, onem):
+        """Aynı müşteri+tür için açık sorun varsa onun id'si döner, yenisi açılmaz."""
+        with self._islem() as db:
+            r = db.execute("SELECT id FROM sorun WHERE musteri = ? AND tur = ? AND kapanis = ''", (musteri, tur)).fetchone()
+            if r:
+                return r["id"]
+            return db.execute("INSERT INTO sorun (musteri, tur, metin, onem, acilis) VALUES (?, ?, ?, ?, ?)",
+                              (musteri, tur, metin, onem, self._simdi())).lastrowid
+
+    def sorun_kapat(self, sorun_id):
+        with self._islem() as db:
+            db.execute("UPDATE sorun SET kapanis = ? WHERE id = ? AND kapanis = ''", (self._simdi(), sorun_id))
+
+    def sorun_sms(self, sorun_id, alan, deger):
+        """alan: acilis_sms | kapanis_sms; değer: gonderildi|mock|hata:<kod>|sinir:<gün>|yok (kapanış SMS'i gerekmedi)."""
+        if alan not in SORUN_SMS_ALANLARI:
+            raise ValueError("Geçersiz SMS alanı.")
+        with self._islem() as db:
+            db.execute(f"UPDATE sorun SET {alan} = ? WHERE id = ?", (str(deger)[:64], sorun_id))
+
+    def sorun_metin(self, sorun_id, metin):
+        """Açık sorunun metni değişti (ör. disk yüzdesi): güncellenir, açılış zamanı ve SMS durumu aynı kalır."""
+        with self._islem() as db:
+            db.execute("UPDATE sorun SET metin = ? WHERE id = ?", (str(metin)[:200], sorun_id))
+
+    def sorun_yeniden_ac(self, sorun_id):
+        """Kapanıp TEKRAR_SN temiz kalmadan dönen sorun aynı olayın devamıdır: kapanış silinir."""
+        with self._islem() as db:
+            db.execute("UPDATE sorun SET kapanis = '' WHERE id = ?", (sorun_id,))
+
+    def kapanis_bekleyenler(self, musteri):
+        """Açılış SMS'i gitmiş, kapanmış, kapanış SMS'i henüz karara bağlanmamış (kritik/uyarı) sorunlar."""
+        return [dict(r) for r in self._hepsi(
+            "SELECT * FROM sorun WHERE musteri = ? AND kapanis != '' AND kapanis_sms = '' AND onem != 'bilgi' "
+            "AND acilis_sms IN ('gonderildi', 'mock') ORDER BY id", musteri)]
+
+    def gunluk_bayrak(self, ad, gun):
+        """Günde bir kez yapılacak iş: o gün ilk çağrıda True döner (bayrak konur), sonra False."""
+        with self._islem() as db:
+            if db.execute("SELECT 1 FROM ayar WHERE anahtar = ?", (f"{ad}:{gun}",)).fetchone():
+                return False
+            db.execute("INSERT INTO ayar (anahtar, deger) VALUES (?, '1')", (f"{ad}:{gun}",))
+            return True
+
+    def acik_sorunlar(self, musteri=None):
+        if musteri is None:
+            rows = self._hepsi("SELECT * FROM sorun WHERE kapanis = '' ORDER BY id")
+        else:
+            rows = self._hepsi("SELECT * FROM sorun WHERE kapanis = '' AND musteri = ? ORDER BY id", musteri)
+        return [dict(r) for r in rows]
+
+    def sorun_gecmisi(self, musteri, limit=50):
+        return [dict(r) for r in self._hepsi("SELECT * FROM sorun WHERE musteri = ? ORDER BY id DESC LIMIT ?", musteri, limit)]
+
+    def son_kapanan(self, musteri, tur):
+        r = self._bir("SELECT * FROM sorun WHERE musteri = ? AND tur = ? AND kapanis != '' ORDER BY id DESC LIMIT 1",
+                      musteri, tur)
+        return dict(r) if r else None
+
+    def uyari_ayari(self):
+        r = self._bir("SELECT deger FROM ayar WHERE anahtar = 'uyari'")
+        return {**UYARI_VARSAYILAN, **json.loads(r["deger"])} if r else dict(UYARI_VARSAYILAN)
+
+    def uyari_ayari_koy(self, d):
+        tel = []
+        for ham in d.get("telefonlar") or []:
+            n = common.normalize_phone(str(ham))
+            if n is None:
+                raise ValueError(f"Geçersiz telefon: {ham}")
+            if "90" + n not in tel:
+                tel.append("90" + n)
+        if len(tel) > UYARI_TELEFON_EN_COK:
+            raise ValueError(f"En çok {UYARI_TELEFON_EN_COK} telefon girilebilir.")
+        ham = d.get("gunluk_sinir", UYARI_VARSAYILAN["gunluk_sinir"])
+        try:
+            if isinstance(ham, (bool, float)):
+                raise ValueError
+            sinir = int(ham)
+        except (TypeError, ValueError):
+            raise ValueError("Günlük SMS sınırı tamsayı olmalı.")
+        if not UYARI_SINIR_ARALIK[0] <= sinir <= UYARI_SINIR_ARALIK[1]:  # son hak üst sınır bildiriminin: 1 olamaz
+            raise ValueError(f"Günlük SMS sınırı {UYARI_SINIR_ARALIK[0]} ile {UYARI_SINIR_ARALIK[1]} arasında olmalı.")
+        a = {"telefonlar": tel, "acik": bool(d.get("acik")), "gunluk_sinir": sinir}
+        with self._islem() as db:
+            db.execute("INSERT OR REPLACE INTO ayar (anahtar, deger) VALUES ('uyari', ?)", (json.dumps(a),))
+
+    def saglik_son_tur(self):
+        """wc-saglik'in son tamamlanan turunun zamanı (ISO) ya da None (hiç çalışmadı)."""
+        r = self._bir("SELECT deger FROM ayar WHERE anahtar = 'saglik_son_tur'")
+        return r["deger"] if r else None
+
+    def saglik_son_tur_koy(self, zaman):
+        with self._islem() as db:
+            db.execute("INSERT OR REPLACE INTO ayar (anahtar, deger) VALUES ('saglik_son_tur', ?)", (str(zaman),))
+
+    def sms_sayaci(self, gun):
+        r = self._bir("SELECT deger FROM ayar WHERE anahtar = ?", "sms_sayac:" + gun)
+        return int(r["deger"]) if r else 0
+
+    def sms_say(self, gun):
+        """Günlük uyarı SMS sayacını bir artırır, yeni değeri döner."""
+        with self._islem() as db:
+            r = db.execute("SELECT deger FROM ayar WHERE anahtar = ?", ("sms_sayac:" + gun,)).fetchone()
+            n = (int(r["deger"]) if r else 0) + 1
+            db.execute("INSERT OR REPLACE INTO ayar (anahtar, deger) VALUES (?, ?)", ("sms_sayac:" + gun, str(n)))
+            return n
 
     def cihazlar(self):
         return {c["musteri"]: c for c in self._hepsi("SELECT * FROM cihaz WHERE durum != 'serbest'")}

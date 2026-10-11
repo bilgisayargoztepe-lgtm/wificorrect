@@ -193,6 +193,63 @@ def test_sms_ayari_yoksa_alan_yok_varsa_gider():
         assert d == 401 and "sms" not in j3
 
 
+RAPOR = {"surum": "1.2.3", "acik_sn": 5000, "servisler": {"portal": True, "panel": True, "kaydedici": True, "dnsmasq": True, "guvenlik": False},
+         "disk_yuzde": 42, "son_muhur": "2026-10-10", "kayit_boslugu_1s": False, "wan": True, "sms_sorunu": False, "bagli": 7, "hiz_hata": False}
+
+
+def test_saglik_raporu_kaydedilir():
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        api, v, q, _ = kur(tmp)
+        n, pw = v.musteri_ekle()
+        _, j = giris(api, n, pw)
+        c = v.bagli_cihaz(n)
+        d, r = post(api, "/api/saglik", {"cihaz_anahtari": j["cihaz_anahtari"], "rapor": dict(RAPOR, ad="Ali", telefon="5551112233")})
+        assert d == 200 and r == {"tamam": True}
+        assert v.saglik(c["id"])["rapor"] == RAPOR  # bilinmeyen alanlar atıldı
+        assert post(api, "/api/saglik", {"cihaz_anahtari": j["cihaz_anahtari"], "rapor": dict(RAPOR, son_muhur="", bagli=0)})[0] == 200
+        assert v.saglik(c["id"])["rapor"]["son_muhur"] == "" and v.saglik(c["id"])["rapor"]["bagli"] == 0
+        # serbest bırakılan cihaz: 200 ama yazılmaz
+        v.saglik_kaydet(c["id"], {"eski": 1})
+        v.serbest_birak(n)
+        d, r = post(api, "/api/saglik", {"cihaz_anahtari": j["cihaz_anahtari"], "rapor": RAPOR})
+        assert d == 200 and r == {"tamam": True} and v.saglik(c["id"])["rapor"] == {"eski": 1}
+
+
+def test_bozuk_rapor_reddedilir():
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        api, v, _, _ = kur(tmp)
+        n, pw = v.musteri_ekle()
+        _, j = giris(api, n, pw)
+        k, cid = j["cihaz_anahtari"], v.bagli_cihaz(n)["id"]
+
+        def yolla(rapor, ip="198.51.100.9"):
+            return post(api, "/api/saglik", {"cihaz_anahtari": k, "rapor": rapor}, ip)
+        eksik = dict(RAPOR)
+        del eksik["wan"]
+        kotu = [eksik, dict(RAPOR, disk_yuzde=101), dict(RAPOR, disk_yuzde=-1), dict(RAPOR, servisler=["portal"]),
+                dict(RAPOR, servisler=dict(RAPOR["servisler"], portal=1)), dict(RAPOR, servisler={"portal": True}),
+                dict(RAPOR, acik_sn=True), dict(RAPOR, bagli=True), dict(RAPOR, disk_yuzde=True), dict(RAPOR, acik_sn=-1),
+                dict(RAPOR, wan=1), dict(RAPOR, hiz_hata="evet"), dict(RAPOR, surum="x" * 41), dict(RAPOR, surum=5),
+                dict(RAPOR, son_muhur="10.10.2026"), dict(RAPOR, son_muhur="2026-13-40"), dict(RAPOR, acik_sn=1.5), "metin", None]
+        for rp in kotu:
+            d, r = yolla(rp)
+            assert d == 400 and r["kod"] == "gecersiz", rp
+        assert post(api, "/api/saglik", {"cihaz_anahtari": k})[0] == 400  # rapor yok
+        assert v.saglik(cid) is None
+        d, r = post(api, "/api/saglik", {"cihaz_anahtari": "bilinmeyen", "rapor": RAPOR})
+        assert d == 401 and r["kod"] == "taninmadi"
+
+
+def test_saglik_govde_siniri_ve_hiz_siniri():
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        api, v, _, _ = kur(tmp)
+        assert api.istek("POST", "/api/saglik", {}, "x" * 5000, "", "1.1.1.1")[0] == 413
+        n, pw = v.musteri_ekle()
+        _, j = giris(api, n, pw, ip="198.51.100.20")
+        sonuc = [post(api, "/api/saglik", {"cihaz_anahtari": j["cihaz_anahtari"], "rapor": RAPOR}, "203.0.113.5")[0] for _ in range(21)]
+        assert sonuc[:20] == [200] * 20 and sonuc[20] == 429
+
+
 if __name__ == "__main__":
     for _name, _fn in sorted(globals().items()):
         if _name.startswith("test_") and callable(_fn):

@@ -35,7 +35,7 @@ def cerez(yanit, ad):
 def test_belirtec_tek_kullanim():
     g = G.GecisBelirtecleri()
     t = g.uret("1234567", 1000.0, "oz")
-    assert g.tuket(t, 1030.0) == ("1234567", "oz") and g.tuket(t, 1031.0) is None
+    assert g.tuket(t, 1030.0) == ("1234567", "oz", "musteri") and g.tuket(t, 1031.0) is None
     t2 = g.uret("1234567", 1000.0)
     assert g.tuket(t2, 1061.0) is None and g.tuket("yok", 1000.0) is None
 

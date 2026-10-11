@@ -6,12 +6,15 @@ import re
 import time
 import urllib.parse
 
+import cihaz as cihaz_modulu
 import common
 import detay
 import durum as durum_modulu
 import guvenlik
 import kayitlar as kayitlar_modulu
 import kuyruk
+import netgsm
+import veri as veri_modulu
 import web
 import yonetici
 from web import bilgi_tablosu, e, kart, yanit_html, yonlendir
@@ -20,6 +23,8 @@ NUMARA_RE = guvenlik.NUMARA_RE
 CEVRIMICI_SN = 600
 ESLESME_GECIKME_SN = 26 * 3600
 GECIKME_GUN = 2
+TEKRAR_SN = 600  # saglik.py: kapanan sorun bu kadar temiz kalmadan "düzeldi" denmez (SMS bekletilir)
+IZLEME_BAYAT_SN = 900  # wc-saglik 5 dk'da bir; son turu bundan eskiyse izleme çalışmıyor olabilir
 
 
 def _epoch(iso):
@@ -27,6 +32,12 @@ def _epoch(iso):
         return datetime.datetime.fromisoformat(iso).timestamp()
     except (TypeError, ValueError):
         return None
+
+
+def yedek_gecikti(son_gun, simdi):
+    """Yedek gecikti: son gelen gün yok ya da GECIKME_GUN günden eski (TR takvimi). Liste ve uyarı (saglik.py) ortak."""
+    sinir = (datetime.datetime.fromtimestamp(simdi, common.TZ).date() - datetime.timedelta(days=GECIKME_GUN)).isoformat()
+    return not son_gun or son_gun < sinir
 
 
 def parola_alanlari(etiket="Parola"):
@@ -48,6 +59,38 @@ def parola_formdan(form):
 
 
 
+SMS_ETIKET = {"gonderildi": "SMS gitti", "mock": "deneme modu", "sinir": "günlük SMS sınırı",
+              "yok": "SMS gönderilmedi (uyarılar kapalı)"}
+ONEM_ETIKET = {"kritik": "kritik", "uyari": "uyarı", "bilgi": "bilgi"}
+SINIR_ARALIK = veri_modulu.UYARI_SINIR_ARALIK  # günlük SMS sınırı aralığı (yönetim formu)
+DENEME_METNI = "WifiCorrect deneme uyarısı"
+
+
+def sms_etiketi(deger, onem):
+    """Açık sorun satırının SMS durumu (acilis_sms / kapanis_sms değeri). Kaçış çağıranın işi."""
+    if deger.startswith("hata:"):
+        return f"SMS gönderilemedi ({deger[5:]})"
+    if deger.startswith("sinir"):  # sinir:<gün>: o gün sınıra takıldı (açılışsa ertesi gün yeniden denenir)
+        return SMS_ETIKET["sinir"]
+    if deger in SMS_ETIKET:
+        return SMS_ETIKET[deger]
+    return "09:00'da gidecek" if onem == "bilgi" else "SMS bekleniyor"
+
+
+def gecmis_sms_etiketleri(x, simdi):
+    """Sorun geçmişi satırının (açılış SMS'i, kapanış SMS'i) etiketleri. Kapanmış sorunda boş değer artık gitmeyecek
+    demektir ("—"); tek istisna: açılışı gitmiş, "düzeldi"si TEKRAR_SN dolana dek bekletiliyor."""
+    if not x["kapanis"]:
+        return sms_etiketi(x["acilis_sms"], x["onem"]), "—"
+    acilis = sms_etiketi(x["acilis_sms"], x["onem"]) if x["acilis_sms"] else "—"
+    if x["kapanis_sms"]:
+        return acilis, sms_etiketi(x["kapanis_sms"], x["onem"])
+    if (x["onem"] != "bilgi" and x["acilis_sms"] in ("gonderildi", "mock")
+            and simdi - (_epoch(x["kapanis"]) or 0) < TEKRAR_SN):
+        return acilis, "düzeldi bekletiliyor"
+    return acilis, "—"
+
+
 def once(sn):
     dk = int(sn) // 60
     return f"{dk} dk önce" if dk < 120 else (f"{dk // 60} saat önce" if dk < 2880 else f"{dk // 1440} gün önce")
@@ -60,9 +103,11 @@ class Yonetim(web.Taban):
     giris_aciklama = "Hizmet sağlayıcı girişi."
 
     def __init__(self, veri, kayitlar, saat=time.time, yonetici_yolu=yonetici.YONETICI,
-                 durum_yolu=durum_modulu.DURUM, kuyruk_ekle=kuyruk.ekle):
+                 durum_yolu=durum_modulu.DURUM, kuyruk_ekle=kuyruk.ekle, gonder=netgsm.gonder, gecis=None, musteri_app=None):
         super().__init__(veri, kayitlar, saat)
-        self.yonetici_yolu, self.durum_yolu, self.kuyruk_ekle = yonetici_yolu, durum_yolu, kuyruk_ekle
+        self.yonetici_yolu, self.durum_yolu, self.kuyruk_ekle, self.gonder = yonetici_yolu, durum_yolu, kuyruk_ekle, gonder
+        # cihaz paneline doğrudan geçiş: müşteri paneliyle aynı belirteç deposu ve cihaz adresi kuralı
+        self.gecis, self.musteri_app = gecis, musteri_app
 
     # --- Taban ---
     def dogrula(self, kul, pw):
@@ -88,7 +133,7 @@ class Yonetim(web.Taban):
 
     def menu(self, ot):
         return ('<a href="/">Müşteriler</a><a href="/yeni">Yeni müşteri</a><a href="/hareketler">Hareketler</a>'
-                '<a href="/sms">SMS ayarları</a><a href="/admin-parolasi">Admin parolası</a><a href="/eski-arsivler">Eski arşivler</a><a href="/hesabim">Hesabım</a>')
+                '<a href="/sms">SMS ayarları</a><a href="/uyari">Uyarı ayarları</a><a href="/admin-parolasi">Admin parolası</a><a href="/eski-arsivler">Eski arşivler</a><a href="/hesabim">Hesabım</a>')
 
     # --- yardımcılar ---
     def _durum(self):
@@ -99,10 +144,6 @@ class Yonetim(web.Taban):
             return {}
         a = d.get("arsivler") if isinstance(d, dict) else None
         return a if isinstance(a, dict) else {}
-
-    def _sinir_gun(self):
-        bugun = datetime.datetime.fromtimestamp(self.saat(), common.TZ).date()
-        return (bugun - datetime.timedelta(days=GECIKME_GUN)).isoformat()
 
     def _ozet(self, m, c, d):
         """Bir müşterinin liste satırı bilgileri: (cihaz metni, son gün metni, sorunlu mu)."""
@@ -118,7 +159,7 @@ class Yonetim(web.Taban):
         else:
             cihaz = f"son eşitleme {once(simdi - es)}" if c["son_eslesme"] else "henüz eşitlenmedi"
         sg = d.get("son_gun")
-        gecikti = not sg or sg < self._sinir_gun()
+        gecikti = yedek_gecikti(sg, simdi)
         son = e(sg or "—") + (' <b class="kotu">GECİKTİ</b>' if gecikti else "")
         sorunlu = gecikti or simdi - es > ESLESME_GECIKME_SN or c["durum"] == "serbest_birakiliyor"
         return cihaz, son, sorunlu
@@ -135,6 +176,10 @@ class Yonetim(web.Taban):
             return self.eski_arsivler(ot, yontem, form, ip)
         if yol == "/sms":
             return self.sms(ot, yontem, form, ip)
+        if yol == "/uyari":
+            return self.uyari(ot, yontem, form, ip)
+        if (yontem, yol) == ("POST", "/uyari/deneme"):
+            return self.uyari_deneme(ot, ip)
         if yol == "/admin-parolasi":
             return self.admin_parolasi(ot, yontem, form, ip)
         if yol == "/hesabim":
@@ -154,6 +199,8 @@ class Yonetim(web.Taban):
             return yonlendir(f"/m/{n}")
         if (yontem, alt) == ("POST", "/serbest"):
             return self.serbest(ot, n, form, ip)
+        if (yontem, alt) == ("POST", "/cihaz-paneli"):
+            return self.cihaz_paneli(ot, n, ip)
         if (yontem, alt) == ("POST", "/lisans"):
             return self.lisans(ot, n, form, ip)
         if (yontem, alt) == ("POST", "/uyelik"):
@@ -181,12 +228,18 @@ class Yonetim(web.Taban):
         q = detay.tr_kucuk((urllib.parse.parse_qs(sorgu).get("q") or [""])[0].strip())
         durum, cihazlar, satirlar = self._durum(), self.veri.cihazlar(), []
         gunler = [g.isoformat() for g in kayitlar_modulu.son_30_gun(self.saat())[:7]]
+        acik, kritik = self.veri.acik_sorunlar(), {}
+        for x in acik:
+            if x["onem"] == "kritik":
+                kritik.setdefault(x["musteri"], []).append(x["metin"])
         for m in self.veri.musteriler():
             n, c = m["numara"], cihazlar.get(m["numara"])
             ad = c["isletme_adi"] if c is not None else ""
             if q and q not in str(n) and q not in detay.tr_kucuk(ad) and q not in detay.tr_kucuk(m["not_"]):
                 continue
             cihaz, son, sorunlu = self._ozet(m, c, durum.get(str(n), {}))
+            cihaz = e(cihaz) + "".join(f' <b class="kotu">{e(t)}</b>' for t in kritik.get(n, []))  # kritik sorun rozeti
+            sorunlu = sorunlu or n in kritik
             sayilar = self.kayitlar.sayilar(self.veri.arsivler(n))[0]
             yedi = " ".join(str(sayilar.get(g, "—")) for g in reversed(gunler))
             uyelik = "Aktif" if m["uyelik"] == "aktif" else f"Bitti {m['bitis'][:10]}"
@@ -196,14 +249,39 @@ class Yonetim(web.Taban):
             sorunlu = sorunlu or ldurum != "aktif"
             satirlar.append((not sorunlu, n,
                              f'<tr><td><a href="/m/{n}">{n}</a></td><td>{e(ad or "—")}<br><span class="alt">{e(m["not_"])}</span></td>'
-                             f'<td>{e(cihaz)}</td><td>{son}</td><td>{e(yedi)}</td><td>{lisans}</td><td>{e(uyelik)}</td></tr>'))
+                             f'<td>{cihaz}</td><td>{son}</td><td>{e(yedi)}</td><td>{lisans}</td><td>{e(uyelik)}</td></tr>'))
         satirlar.sort()
         tablo = ('<div class="kaydir"><table class="detay"><tr><th>No</th><th>İşletme / not</th><th>Cihaz</th>'
                  '<th>Son gelen gün</th><th>Son 7 gün</th><th>Lisans</th><th>Üyelik</th></tr>' + "".join(s[2] for s in satirlar)
                  + "</table></div>") if satirlar else '<p class="alt">Müşteri yok.</p>'
         ara = (f'<form class="ara" method="get" action="/"><input name="q" value="{e(q)}" placeholder="Numara, işletme adı ya da not">'
                '<button>Ara</button></form>')
-        return yanit_html(self.sayfa("Müşteriler", kart(f"<h1>Müşteriler</h1>{ara}") + kart(tablo), ot, genis=True))
+        return yanit_html(self.sayfa("Müşteriler", self._acik_sorunlar_karti(acik, cihazlar)
+                                     + kart(f"<h1>Müşteriler</h1>{self._izleme_satiri()}{ara}") + kart(tablo), ot, genis=True))
+
+    def _izleme_satiri(self):
+        """wc-saglik'in son turu: hep görünür; 15 dk'dan eskiyse ya da hiç yoksa kırmızı (zamanlayıcı durmuş olabilir)."""
+        t = _epoch(self.veri.saglik_son_tur())
+        if t is None:
+            return '<p><b class="kotu">Sağlık izleme: hiç tur yok — izleme çalışmıyor olabilir</b></p>'
+        sn = max(0, self.saat() - t)
+        metin = f"Sağlık izleme: son tur {once(sn)}"
+        if sn > IZLEME_BAYAT_SN:
+            return f'<p><b class="kotu">{e(metin)} — izleme çalışmıyor olabilir</b></p>'
+        return f'<p class="alt">{e(metin)}</p>'
+
+    def _acik_sorunlar_karti(self, acik, cihazlar):
+        if not acik:
+            return ""
+        simdi, satirlar = self.saat(), []
+        for x in acik:
+            c = cihazlar.get(x["musteri"])
+            sn = simdi - (_epoch(x["acilis"]) or simdi)
+            satirlar.append(f'<tr><td><a href="/m/{x["musteri"]}">{x["musteri"]}</a></td><td>{e(c["isletme_adi"] if c is not None else "")}</td>'
+                            f'<td>{e(x["metin"])}</td><td>{e(ONEM_ETIKET.get(x["onem"], x["onem"]))}</td><td>{e(once(sn))}</td>'
+                            f'<td>{e(sms_etiketi(x["acilis_sms"], x["onem"]))}</td></tr>')
+        return kart('<h2>Açık sorunlar</h2><div class="kaydir"><table class="detay"><tr><th>No</th><th>İşletme</th><th>Sorun</th>'
+                    '<th>Önem</th><th>Ne zamandır</th><th>SMS</th></tr>' + "".join(satirlar) + "</table></div>")
 
     def yeni(self, ot, yontem, form, ip):
         if yontem == "GET":
@@ -223,6 +301,24 @@ class Yonetim(web.Taban):
             f'<p>Lisans bitişi: {e(self.veri.musteri(n)["lisans_bitis"])}</p>'
             '<p class="alt">Parolayı müşteriye iletin (müşteri sayfasında da görünür). Müşteri cihazın giriş ekranına bu numara ve '
             f'parolayla girer.</p><p><a href="/m/{n}">Müşteri sayfası →</a></p>'), ot))
+
+    def _cihaz_adresi(self, n):
+        return self.musteri_app.cihaz_adresi(n) if self.musteri_app is not None and self.gecis is not None else None
+
+    def _cihaz_paneli_dugmesi(self, n, cs):
+        if not self._cihaz_adresi(n):
+            return '<span class="bos">şu an ulaşılamıyor (cihaz kapalı, tünel yok ya da lisans/üyelik kapalı)</span>'
+        return (f'<form method="post" action="/m/{n}/cihaz-paneli" class="satir-ici"><input type="hidden" name="csrf" value="{cs}">'
+                '<button>Cihaz paneline git</button></form>')
+
+    def cihaz_paneli(self, ot, n, ip):
+        """Müşteri parolası girmeden cihaz.wificorrect.com'a: tek kullanımlık 60 sn'lik geçiş belirteci (yönetici rolü)."""
+        if not self._cihaz_adresi(n):
+            return yanit_html(self.mesaj(ot, "Cihaza ulaşılamıyor",
+                                         "Cihaz kapalı, tünel yok ya da lisans/üyelik kapalı."), 409)
+        t = self.gecis.uret(str(n), self.saat(), self.veri.musteri(n)["ozet"], rol="yonetici")
+        self.veri.hareket("admin", ip, "YONETICI_CIHAZ_PANELI", n)
+        return yonlendir(cihaz_modulu.CIHAZ_GIRIS + t)
 
     def musteri_sayfasi(self, ot, n):
         m, c, d = self.veri.musteri(n), self.veri.bagli_cihaz(n), self._durum().get(str(n), {})
@@ -244,7 +340,7 @@ class Yonetim(web.Taban):
                 ("Tünel adresi", e(c["tunel_ip"] or "—")), ("Sürüm", e(c["surum"] or "—")),
                 ("Bağlanma", e(c["baglanma"][:16])), ("Son eşitleme", e(c["son_eslesme"][:16] or "—")),
                 ("Son gelen gün", son), ("Arşiv", e(detay.boyut(d.get("boyut", 0)))),
-                ("Cihaz paneli", '<a href="https://panel.wificorrect.com">panel.wificorrect.com</a> (müşteri numarası ve parolasıyla)')])
+                ("Cihaz paneli", self._cihaz_paneli_dugmesi(n, cs))])
             cihaz += (f'<form method="post" action="/m/{n}/serbest"><input type="hidden" name="csrf" value="{cs}">'
                       f'<label for="o">Cihazı serbest bırakmak için müşteri numarasını yazın ({n})</label>'
                       '<input id="o" name="onay" inputmode="numeric" autocomplete="off" required>'
@@ -277,7 +373,35 @@ class Yonetim(web.Taban):
                                   [(x["id"], x["durum"], x["baglanma"][:16], x["ayrilma"][:16], x["tunel_ip"])
                                    for x in self.veri.cihaz_gecmisi(n)], "Henüz cihaz yok.")
         return yanit_html(self.sayfa(f"Müşteri {n}", kart(f"<h1>Müşteri {n}</h1>{bilgi}") + kart(f"<h2>Cihaz</h2>{cihaz}")
+                                     + kart(f"<h2>Sağlık</h2>{self._saglik_tablosu(c)}")
+                                     + kart(f"<h2>Sorun geçmişi</h2>{self._sorun_gecmisi(n)}")
                                      + kart(f"<h2>İşlemler</h2>{islemler}") + kart(f"<h2>Cihaz geçmişi</h2>{gecmis}"), ot, genis=True))
+
+    def _saglik_tablosu(self, c):
+        s = self.veri.saglik(c["id"]) if c is not None else None
+        if not s:
+            return '<p class="alt">Henüz rapor yok.</p>'
+        r = s["rapor"] if isinstance(s["rapor"], dict) else {}  # cihazdan gelen veri: her değer kaçırılır
+        sv = r.get("servisler") if isinstance(r.get("servisler"), dict) else {}
+        servis = " · ".join(e(ad) + (" çalışıyor" if ok else ' <b class="kotu">DURDU</b>') for ad, ok in sv.items()) or "—"
+        ac = r.get("acik_sn")
+        acik = e(once(ac).replace(" önce", "")) if isinstance(ac, (int, float)) and not isinstance(ac, bool) else "—"
+        ep = _epoch(s["zaman"])
+        zaman = f'{e(s["zaman"][:16])} ({e(once(self.saat() - ep))})' if ep else e(s["zaman"])
+
+        def durum(d, iyi):
+            return "—" if d is None else ("tamam" if bool(d) == iyi else '<b class="kotu">sorun</b>')
+        return bilgi_tablosu([
+            ("Son rapor", zaman), ("Sürüm", e(r.get("surum", "—"))), ("Açık kalma", acik), ("Servisler", servis),
+            ("Disk", f'%{e(r["disk_yuzde"])}' if "disk_yuzde" in r else "—"), ("Son mühür", e(r.get("son_muhur") or "—")),
+            ("WAN", durum(r.get("wan"), True)), ("SMS", durum(r.get("sms_sorunu"), False)),
+            ("Bağlı cihaz", e(r.get("bagli", "—")))])
+
+    def _sorun_gecmisi(self, n):
+        simdi = self.saat()
+        satirlar = [(x["acilis"][:16], x["kapanis"][:16] or "açık", x["metin"], ONEM_ETIKET.get(x["onem"], x["onem"]),
+                     *gecmis_sms_etiketleri(x, simdi)) for x in self.veri.sorun_gecmisi(n, 50)]
+        return detay._tablo(("Açılış", "Kapanış", "Sorun", "Önem", "Açılış SMS'i", "Kapanış SMS'i"), satirlar, "Sorun kaydı yok.")
 
     def sms(self, ot, yontem, form, ip):
         """Bütün cihazların NetGSM ayarı. Şifre yalnızca yazılır; boş bırakılırsa eskisi kalır."""
@@ -309,6 +433,62 @@ class Yonetim(web.Taban):
                   '<button>Kaydet</button></form>'
                   '<p class="alt">Bütün bağlı cihazlara bir sonraki eşitlemede (her gün 06:00) gider.</p>')
         return yanit_html(self.sayfa("SMS ayarları", kart(icerik), ot), 400 if hata else 200)
+
+    def uyari(self, ot, yontem, form, ip):
+        """Uyarı SMS'i alıcıları ve günlük sınır. Telefonlar 0533… ya da 533… yazılabilir; veri katmanı doğrular."""
+        a, hata = self.veri.uyari_ayari(), ""
+        if yontem == "POST":
+            tel = [form.get(f"tel{i}", "").strip() for i in (1, 2, 3)]
+            acik, ham = form.get("acik") == "1", form.get("gunluk_sinir", "").strip()
+            try:
+                sinir = int(ham)
+                if not SINIR_ARALIK[0] <= sinir <= SINIR_ARALIK[1]:
+                    raise ValueError
+            except ValueError:
+                hata = f"Günlük SMS sınırı {SINIR_ARALIK[0]} ile {SINIR_ARALIK[1]} arasında bir sayı olmalı."
+            else:
+                try:
+                    self.veri.uyari_ayari_koy({"telefonlar": [t for t in tel if t], "acik": acik, "gunluk_sinir": sinir})
+                except ValueError as h:
+                    hata = str(h)
+                else:
+                    self.veri.hareket("admin", ip, "UYARI_AYAR", None,  # telefon yazılmaz
+                                      f"telefon={sum(1 for t in tel if t)} acik={int(acik)} sinir={sinir}")
+                    return yonlendir("/uyari")
+            a = {"telefonlar": tel, "acik": acik, "gunluk_sinir": ham}  # yazılanı geri göster
+        tel = list(a["telefonlar"]) + [""] * 3
+        alanlar = "".join(
+            f'<label for="t{i}">Telefon {i}</label><input id="t{i}" name="tel{i}" '
+            f'value="{e(("0" + t[2:]) if t.startswith("90") and len(t) == 12 else t)}" inputmode="tel" autocomplete="off" '
+            'placeholder="05XX XXX XX XX">' for i, t in enumerate(tel[:3], 1))
+        h = f'<p class="hata">{e(hata)}</p>' if hata else ""
+        cs = e(ot["csrf"])
+        icerik = (f'<h1>Uyarı ayarları</h1>{h}<form method="post" action="/uyari"><input type="hidden" name="csrf" value="{cs}">'
+                  f'{alanlar}<label><input type="checkbox" name="acik" value="1"{" checked" if a["acik"] else ""}> SMS uyarıları açık</label>'
+                  f'<label for="s">Günlük SMS sınırı ({SINIR_ARALIK[0]}–{SINIR_ARALIK[1]})</label>'
+                  f'<input id="s" name="gunluk_sinir" value="{e(a["gunluk_sinir"])}" inputmode="numeric" autocomplete="off">'
+                  '<button>Kaydet</button></form>'
+                  f'<form method="post" action="/uyari/deneme"><input type="hidden" name="csrf" value="{cs}">'
+                  "<button class=\"ikincil\">Deneme SMS'i gönder</button></form>"
+                  "<p class=\"alt\">Cihaz sağlık sorunları (ulaşılamıyor, kayıt durdu, servis durdu, disk, lisans…) bu numaralara SMS olarak "
+                  "gider. Deneme SMS'i ilk telefona gider ve günlük sayaca girer. Gönderim için SMS ayarları sayfasında NetGSM bilgileri "
+                  "girilmiş olmalı; deneme modu açıksa SMS gitmez.</p>")
+        return yanit_html(self.sayfa("Uyarı ayarları", kart(icerik), ot), 400 if hata else 200)
+
+    def uyari_deneme(self, ot, ip):
+        ayar, a = self.veri.sms_ayari(), self.veri.uyari_ayari()
+        if ayar is None:
+            return yanit_html(self.mesaj(ot, "Deneme SMS'i gitmedi", "SMS ayarları girilmemiş. Önce SMS ayarları sayfasını doldurun."))
+        if not a["telefonlar"]:
+            return yanit_html(self.mesaj(ot, "Deneme SMS'i gitmedi", "Uyarı ayarlarında kayıtlı telefon yok."))
+        try:
+            r = self.gonder(ayar, DENEME_METNI, a["telefonlar"][:1])
+        except Exception:  # gönderici hatası yönetim sayfasını düşürmez
+            r = "hata:AG"
+        self.veri.sms_say(datetime.datetime.fromtimestamp(self.saat(), common.TZ).date().isoformat())
+        self.veri.hareket("admin", ip, "UYARI_DENEME", None, f"sonuç={r}")
+        ne = {"gonderildi": "Deneme SMS'i gönderildi.", "mock": "Deneme modu açık: SMS gönderilmedi, yalnızca kaydedildi."}
+        return yanit_html(self.mesaj(ot, "Deneme SMS'i", ne.get(r, f"Deneme SMS'i gönderilemedi ({r}).")))
 
     def admin_parolasi(self, ot, yontem, form, ip):
         """Bütün cihazlarda tek admin parolası (2026-10-08): yönetici belirler, kendiliğinden değişmez; yalnızca özet saklanır."""

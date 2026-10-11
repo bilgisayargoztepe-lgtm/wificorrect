@@ -1,10 +1,11 @@
 """Müşteri kayıtlarının görünümü (eski kafe paneli ekranları): son 30 gün sayıları, gün → kişi, arama.
 Bir müşterinin birden çok arşivi olabilir (kendi numarası + bağlı eski arşivler); aynı gün iki arşivde varsa ilki geçerli.
-Yalnızca root'un ürettiği özetleri okur (istatistik/<arşiv>.json, detay/<arşiv>/)."""
+Yalnızca root'un ürettiği özetleri okur (istatistik/<arşiv>.json, detay/<arşiv>/).
+Kişiler ekranda maskeli, adreslerde opak kimlikle (sır: SIR, wcpanel 600, ilk kullanımda üretilir)."""
 import datetime
 import json
 import os
-import urllib.parse
+import threading
 
 import common
 import detay
@@ -12,6 +13,7 @@ from detay import e
 
 ISTATISTIK = "/var/lib/wificorrect/istatistik"
 DETAY = "/var/lib/wificorrect/detay"
+SIR = "/var/lib/wificorrect/merkez/kisi_sir"
 
 
 def _json(yol):
@@ -28,8 +30,15 @@ def son_30_gun(simdi):
 
 
 class Kayitlar:
-    def __init__(self, istatistik=ISTATISTIK, detay_dizini=DETAY):
-        self.istatistik, self.detay = istatistik, detay_dizini
+    def __init__(self, istatistik=ISTATISTIK, detay_dizini=DETAY, sir_yolu=SIR):
+        self.istatistik, self.detay, self.sir_yolu = istatistik, detay_dizini, sir_yolu
+        self._sir, self._sir_kilit = None, threading.Lock()
+
+    def sir(self):
+        with self._sir_kilit:
+            if self._sir is None:
+                self._sir = detay.sir_oku_ya_uret(self.sir_yolu)
+            return self._sir
 
     def sayilar(self, arsivler):
         out, guncel = {}, None
@@ -54,7 +63,7 @@ class Kayitlar:
                     out.setdefault(a[:-5], ad)
         return out
 
-    def ozet_html(self, baslik, arsivler, simdi, onek):
+    def ozet_html(self, baslik, arsivler, simdi, onek, csrf=""):
         sayilar, guncel = self.sayilar(arsivler)
         if not sayilar:
             tablo = '<p class="alt">Henüz veri yok. Cihazdan ilk gün geldiğinde burada görünecek.</p>'
@@ -77,7 +86,7 @@ class Kayitlar:
         return (f'<div class="kart"><h1>{e(baslik)}</h1>'
                 '<p class="alt">Son 30 gün · her gün internete çıkan farklı kişi sayısı</p></div>'
                 f'<div class="kart">{tablo}{son}</div>'
-                f'<div class="kart"><h2>Kişi ara</h2>{detay.arama_formu("", onek)}</div>'
+                f'<div class="kart"><h2>Kişi ara</h2>{detay.arama_formu("", onek, csrf)}</div>'
                 f'{detay.gunler_html(list(self.gunler(arsivler)), sayilar, onek)}')
 
     def gun_html(self, arsivler, gun, onek):
@@ -85,19 +94,32 @@ class Kayitlar:
             return None
         ad = self.gunler(arsivler).get(gun)
         ozet = _json(os.path.join(self.detay, ad, gun + ".json")) if ad else None
-        return detay.gun_icerik(gun, ozet, onek) if isinstance(ozet, dict) else None
+        return detay.gun_icerik(gun, ozet, self.sir(), onek) if isinstance(ozet, dict) else None
 
-    def ara_html(self, arsivler, sorgu, onek):
-        q = (urllib.parse.parse_qs(sorgu).get("q") or [""])[0].strip()[:50]
+    def ara_html(self, arsivler, form, onek, csrf=""):
+        """form None: yalnızca boş arama formu (GET). Değilse POST gövdesi: q, tur (kisi|oda), uyruk."""
+        if form is None:
+            return detay.ara_icerik("", None, b"", onek, csrf)
+        q = str(form.get("q", "")).strip()[:50]
+        tur = "oda" if form.get("tur") == "oda" else "kisi"
+        uyruk = str(form.get("uyruk", "")).strip()[:2]
         dizin = {}
         for ad in arsivler:
             d = _json(os.path.join(self.detay, ad, "kisiler.json"))
             for tel, k in (d.items() if isinstance(d, dict) else ()):
                 if not isinstance(k, dict):
                     continue
+                odalar = k.get("odalar") if isinstance(k.get("odalar"), dict) else {}
                 if tel in dizin:
-                    dizin[tel]["gunler"] = sorted(set(dizin[tel]["gunler"]) | set(k.get("gunler") or []), reverse=True)
+                    x = dizin[tel]
+                    x["gunler"] = sorted(set(x["gunler"]) | set(k.get("gunler") or []), reverse=True)
+                    for oda, gunler in odalar.items():
+                        x["odalar"][oda] = sorted(set(x["odalar"].get(oda, [])) | set(gunler or []))
                 else:
-                    dizin[tel] = dict(k, gunler=list(k.get("gunler") or []))
-        sonuclar = detay.ara_sonuclari(dizin, q) if len(q) >= 2 else None
-        return detay.ara_icerik(q, sonuclar, onek)
+                    dizin[tel] = dict(k, gunler=list(k.get("gunler") or []),
+                                      odalar={o: list(g or []) for o, g in odalar.items()})
+        yeterli = len(q) >= (1 if tur == "oda" else 2)
+        sonuclar = detay.ara_sonuclari(dizin, q, tur, uyruk) if yeterli else None
+        geri = "" if tur == "kisi" and detay.kimlik_sorgusu_mu(q, dizin) else q
+        return detay.ara_icerik(geri, sonuclar, self.sir(), onek, csrf, tur, uyruk,
+                                "" if yeterli else "En az 2 karakter yazın.")

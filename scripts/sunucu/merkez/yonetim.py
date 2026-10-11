@@ -27,6 +27,11 @@ TEKRAR_SN = 600  # saglik.py: kapanan sorun bu kadar temiz kalmadan "düzeldi" d
 IZLEME_BAYAT_SN = 900  # wc-saglik 5 dk'da bir; son turu bundan eskiyse izleme çalışmıyor olabilir
 
 
+def isletme_turu(c):
+    """Cihazın bildirdiği işletme türünün etiketi; cihaz yoksa ya da tür bildirilmemişse "—"."""
+    return veri_modulu.ISLETME_TURLERI.get(c["isletme_turu"], "—") if c is not None else "—"
+
+
 def _epoch(iso):
     try:
         return datetime.datetime.fromisoformat(iso).timestamp()
@@ -218,10 +223,10 @@ class Yonetim(web.Taban):
         if (yontem, alt) == ("GET", "/hareketler"):
             return yanit_html(self.sayfa("Hareketler", kart(f"<h1>Müşteri {n} · hareketler</h1>"
                                                             + self._hareket_tablosu(self.veri.hareketler(n))), ot, genis=True))
-        if yontem == "GET" and (alt == "/kayitlar" or alt.startswith("/kayitlar/")):
+        if (yontem == "GET" and (alt == "/kayitlar" or alt.startswith("/kayitlar/"))) or (yontem, alt) == ("POST", "/kayitlar/ara"):
             c = self.veri.bagli_cihaz(n)
             baslik = (c["isletme_adi"] if c is not None and c["isletme_adi"] else f"Müşteri {n}")
-            return self.kayit_sayfasi(ot, n, alt[len("/kayitlar"):] or "/", sorgu, f"/m/{n}/kayitlar", ip, baslik)
+            return self.kayit_sayfasi(ot, n, alt[len("/kayitlar"):] or "/", sorgu, f"/m/{n}/kayitlar", ip, baslik, yontem, form)
         return None
 
     def liste(self, ot, sorgu):
@@ -235,6 +240,7 @@ class Yonetim(web.Taban):
         for m in self.veri.musteriler():
             n, c = m["numara"], cihazlar.get(m["numara"])
             ad = c["isletme_adi"] if c is not None else ""
+            tur = isletme_turu(c)
             if q and q not in str(n) and q not in detay.tr_kucuk(ad) and q not in detay.tr_kucuk(m["not_"]):
                 continue
             cihaz, son, sorunlu = self._ozet(m, c, durum.get(str(n), {}))
@@ -249,9 +255,9 @@ class Yonetim(web.Taban):
             sorunlu = sorunlu or ldurum != "aktif"
             satirlar.append((not sorunlu, n,
                              f'<tr><td><a href="/m/{n}">{n}</a></td><td>{e(ad or "—")}<br><span class="alt">{e(m["not_"])}</span></td>'
-                             f'<td>{cihaz}</td><td>{son}</td><td>{e(yedi)}</td><td>{lisans}</td><td>{e(uyelik)}</td></tr>'))
+                             f'<td>{e(tur)}</td><td>{cihaz}</td><td>{son}</td><td>{e(yedi)}</td><td>{lisans}</td><td>{e(uyelik)}</td></tr>'))
         satirlar.sort()
-        tablo = ('<div class="kaydir"><table class="detay"><tr><th>No</th><th>İşletme / not</th><th>Cihaz</th>'
+        tablo = ('<div class="kaydir"><table class="detay"><tr><th>No</th><th>İşletme / not</th><th>Tür</th><th>Cihaz</th>'
                  '<th>Son gelen gün</th><th>Son 7 gün</th><th>Lisans</th><th>Üyelik</th></tr>' + "".join(s[2] for s in satirlar)
                  + "</table></div>") if satirlar else '<p class="alt">Müşteri yok.</p>'
         ara = (f'<form class="ara" method="get" action="/"><input name="q" value="{e(q)}" placeholder="Numara, işletme adı ya da not">'
@@ -336,7 +342,8 @@ class Yonetim(web.Taban):
         else:
             metin, son, _ = self._ozet(m, c, d)
             cihaz = bilgi_tablosu([
-                ("Durum", e(metin)), ("İşletme adı", e(c["isletme_adi"] or "—")), ("Unvan", e(c["unvan"] or "—")),
+                ("Durum", e(metin)), ("İşletme adı", e(c["isletme_adi"] or "—")), ("İşletme türü", e(isletme_turu(c))),
+                ("Unvan", e(c["unvan"] or "—")),
                 ("Tünel adresi", e(c["tunel_ip"] or "—")), ("Sürüm", e(c["surum"] or "—")),
                 ("Bağlanma", e(c["baglanma"][:16])), ("Son eşitleme", e(c["son_eslesme"][:16] or "—")),
                 ("Son gelen gün", son), ("Arşiv", e(detay.boyut(d.get("boyut", 0)))),

@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS cihaz (
   surum TEXT NOT NULL DEFAULT '', son_eslesme TEXT NOT NULL DEFAULT '', baglanma TEXT NOT NULL,
   admin_parola TEXT NOT NULL DEFAULT '', admin_tuz TEXT NOT NULL DEFAULT '',
   admin_ozet TEXT NOT NULL DEFAULT '', admin_yineleme INTEGER NOT NULL DEFAULT 0,
-  ayrilma TEXT NOT NULL DEFAULT '');
+  ayrilma TEXT NOT NULL DEFAULT '', isletme_turu TEXT NOT NULL DEFAULT '');
 CREATE UNIQUE INDEX IF NOT EXISTS cihaz_tek ON cihaz(musteri) WHERE durum != 'serbest';
 CREATE TABLE IF NOT EXISTS hareket (
   id INTEGER PRIMARY KEY AUTOINCREMENT, zaman TEXT NOT NULL, kim TEXT NOT NULL, ip TEXT NOT NULL,
@@ -41,12 +41,15 @@ CREATE TABLE IF NOT EXISTS sorun (
   acilis_sms TEXT NOT NULL DEFAULT '', kapanis_sms TEXT NOT NULL DEFAULT '');
 CREATE INDEX IF NOT EXISTS sorun_musteri ON sorun(musteri, kapanis);
 """
-CIHAZ_ALANLARI = {"tunel_ip", "isletme_adi", "unvan", "surum", "son_eslesme"}
+CIHAZ_ALANLARI = {"tunel_ip", "isletme_adi", "unvan", "surum", "son_eslesme", "isletme_turu"}
+# Cihazın eşitlemede bildirdiği işletme türü (cihaz ayarı main.isletme_turu); başka değer saklanmaz
+ISLETME_TURLERI = {"kafe": "Kafe/Restoran", "otel": "Otel/Pansiyon", "yurt": "Yurt", "diger": "Diğer"}
 # Sonradan eklenen müşteri sütunları (eski veritabanına ALTER ile eklenir)
 YENI_SUTUNLAR = (("parola_acik", "TEXT NOT NULL DEFAULT ''"), ("lisans_bitis", "TEXT NOT NULL DEFAULT ''"),
                  ("askida", "INTEGER NOT NULL DEFAULT 0"))
 YENI_CIHAZ_SUTUNLARI = (("admin_parola", "TEXT NOT NULL DEFAULT ''"), ("admin_tuz", "TEXT NOT NULL DEFAULT ''"),
-                        ("admin_ozet", "TEXT NOT NULL DEFAULT ''"), ("admin_yineleme", "INTEGER NOT NULL DEFAULT 0"))
+                        ("admin_ozet", "TEXT NOT NULL DEFAULT ''"), ("admin_yineleme", "INTEGER NOT NULL DEFAULT 0"),
+                        ("isletme_turu", "TEXT NOT NULL DEFAULT ''"))
 UYARI_VARSAYILAN = {"telefonlar": [], "acik": False, "gunluk_sinir": 20}
 UYARI_TELEFON_EN_COK = 3
 UYARI_SINIR_ARALIK = (2, 100)  # günlük uyarı SMS sınırı (yönetim formu da bunu kullanır)
@@ -241,8 +244,10 @@ class Veri:
         with self._islem() as db:
             db.execute(f"UPDATE cihaz SET {', '.join(k + ' = ?' for k in alanlar)} WHERE id = ?", (*alanlar.values(), cid))
 
-    def eslesme_kaydet(self, cid, isletme_adi, unvan, surum):
-        self.cihaz_guncelle(cid, isletme_adi=isletme_adi, unvan=unvan, surum=surum, son_eslesme=self._simdi())
+    def eslesme_kaydet(self, cid, isletme_adi, unvan, surum, isletme_turu=None):
+        """isletme_turu yalnızca izinli değerse yazılır; yoksa ya da bozuksa eskisi kalır."""
+        ek = {"isletme_turu": isletme_turu} if isinstance(isletme_turu, str) and isletme_turu in ISLETME_TURLERI else {}
+        self.cihaz_guncelle(cid, isletme_adi=isletme_adi, unvan=unvan, surum=surum, son_eslesme=self._simdi(), **ek)
 
     def serbest_birak(self, numara, zorla=False):
         """Dönen: etkilenen cihaz satırı (yoksa None). Zorla: cihaz beklenmeden serbest (arızalı/kayıp cihaz)."""

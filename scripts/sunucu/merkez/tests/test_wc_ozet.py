@@ -121,7 +121,7 @@ def test_detay_guncelle_artimli_ve_dizin():
         assert O.detay_guncelle(kafe, dd) == []
         assert sorted(os.listdir(dd)) == ["2026-09-26.json", "2026-09-27.json", "kisiler.json"]
         dizin = oku(os.path.join(dd, "kisiler.json"))
-        assert dizin[A] == {"ad": "Ayşe", "soyad": "Yılmaz", "gunler": ["2026-09-27", "2026-09-26"]}
+        assert dizin[A] == {"ad": "Ayşe", "soyad": "Yılmaz", "gunler": ["2026-09-27", "2026-09-26"], "odalar": {}}
         with open(os.path.join(dd, "2026-09-26.json"), "w", encoding="utf-8") as f:
             json.dump({"gun": "2026-09-26", "kisiler": []}, f)  # özetlenmiş gün yeniden üretilmez
         O.detay_guncelle(kafe, dd)
@@ -165,6 +165,31 @@ def test_dizine_girmemis_ozet_gunu_eklenir():
             json.dump({"gun": "2026-09-27", "kisiler": O.gun_ozeti(d27, {})}, f)
         O.detay_guncelle(kafe, dd)
         assert oku(os.path.join(dd, "kisiler.json"))[A]["gunler"] == ["2026-09-27", "2026-09-26"]
+
+def test_oda_dizini_ve_eski_bicim_yeniden_kurulur():
+    with tempfile.TemporaryDirectory() as tmp:
+        kafe, dd = os.path.join(tmp, "arsiv", "bocafe"), os.path.join(tmp, "detay", "bocafe")
+        d = ornek_gun(kafe, "2026-09-26")
+        gz_yaz(os.path.join(d, "oturum.csv.gz"), [
+            {"zaman": z("2026-09-26", "09:00:00"), "olay": "OTURUM_BASLA", "telefon": "TC:10000000146", "ad": "Deniz",
+             "ek": "sozlesme=1 riza=1 giris=misafir_kodu oda=a-12 kod_bitis=x ureten=mudur"}])
+        O.detay_guncelle(kafe, dd)
+        assert oku(os.path.join(dd, "kisiler.json"))["TC:10000000146"]["odalar"] == {"A-12": ["2026-09-26"]}
+        with open(os.path.join(dd, "kisiler.json"), "w", encoding="utf-8") as f:  # oda alanından önceki biçim
+            json.dump({"TC:10000000146": {"ad": "Deniz", "soyad": "", "gunler": ["2026-09-26"]}}, f)
+        O.detay_guncelle(kafe, dd)
+        assert oku(os.path.join(dd, "kisiler.json"))["TC:10000000146"]["odalar"] == {"A-12": ["2026-09-26"]}
+
+
+def test_kimlikli_kisi_dosyasindan_ad():
+    with tempfile.TemporaryDirectory() as tmp:
+        d = os.path.join(tmp, "gunluk", "2026-09-27")
+        gz_yaz(os.path.join(d, "dns.csv.gz"), [{"zaman": "x", "olay": "DNS", "telefon": "PASAPORT:DE:X1234567", "alan_adi": "a.com"}])
+        gz_yaz(os.path.join(d, "kullanicilar", "PASAPORT_DE_X1234567.csv.gz"), [
+            {"zaman": "x", "olay": "KAYIT", "telefon": "PASAPORT:DE:X1234567", "ad": "Hans", "soyad": "Muller"}])
+        (k,) = O.gun_ozeti(d, {})
+        assert (k["ad"], k["soyad"]) == ("Hans", "Muller")
+
 
 if __name__ == "__main__":
     for _name, _fn in sorted(globals().items()):

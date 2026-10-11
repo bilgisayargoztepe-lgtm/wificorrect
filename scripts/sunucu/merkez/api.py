@@ -155,7 +155,8 @@ class Api:
                 self.kuyruk_ekle("cihaz-kapat", {"numara": str(c["musteri"]), "wg_pub": c["wg_pub"]})  # sonucu beklenmez
                 self.veri.hareket(f"cihaz:{c['id']}", ip, "CIHAZ_SERBEST", c["musteri"])
             return _json(200, {"durum": "serbest"})
-        self.veri.eslesme_kaydet(c["id"], _metin(b.get("isletme_adi")), _metin(b.get("unvan")), _metin(b.get("surum")))
+        self.veri.eslesme_kaydet(c["id"], _metin(b.get("isletme_adi")), _metin(b.get("unvan")), _metin(b.get("surum")),
+                                b.get("isletme_turu"))
         m = self.veri.musteri(c["musteri"])
         return _json(200, dict(_parola_alanlari(m), **_lisans(self.veri, m), **_cihaz_ekleri(self.veri),
                                durum="bagli", uyelik=m["uyelik"]))

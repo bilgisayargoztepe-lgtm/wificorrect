@@ -43,7 +43,9 @@ def test_gerekce_olmadan_kisi_verisi_yok():
         c = Y.cerez(Y.giris(app, str(n), pw))
         r = Y.al(app, "/gun/2026-09-20", c)
         assert r[0] == 303 and r[1]["Location"] == "/gerekce?donus=%2Fgun%2F2026-09-20"
-        assert Y.al(app, "/ara", c)[0] == 200 and Y.al(app, "/ara?q=ay", c)[0] == 303
+        assert Y.al(app, "/ara", c)[0] == 200 and "Ayşe" not in Y.al(app, "/ara?q=ay", c)[2].decode()  # GET aramaz
+        r = Y.gonder(app, "/ara", c, {"csrf": Y.csrf(Y.al(app, "/ara", c)), "q": "ay"})
+        assert r[0] == 303 and r[1]["Location"] == "/gerekce?donus=%2Fara"  # POST arama gerekçe ister
         assert Y.gerekce_ver(app, c, "x")[0] == 400
         assert Y.gerekce_ver(app, c)[0] == 303
         assert "Ayşe" in Y.al(app, "/gun/2026-09-20", c)[2].decode()

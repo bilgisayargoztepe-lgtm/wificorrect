@@ -1,7 +1,5 @@
 //! Kimlik doğrulama ve kişi anahtarı: T.C. kimlik no, pasaport, maske, dosya adı, opak kimlik.
 //! Kişi anahtarı: `TC:<11 hane>` / `PASAPORT:<ISO2>:<NO>`; telefonlu anahtarlar (`905…`) aynen kalır.
-//! Sonraki görevlerde kullanılır; o zamana kadar ölü kod uyarısı kapalı.
-#![allow(dead_code)]
 
 use crate::ortak;
 use sha2::{Digest, Sha256};
@@ -79,12 +77,32 @@ pub fn maskele(anahtar: &str) -> String {
         if let Some((uyruk, no)) = r.split_once(':') {
             let n = no.len();
             if uyruk.len() == 2 && n >= 1 && no.is_ascii() {
-                let (bas, son) = if n >= 6 { (3, 2) } else { (1, 0) };
-                return format!("{uyruk} {}{}{}", &no[..bas], "*".repeat(n - bas - son), &no[n - son..]);
+                return format!("{uyruk} {}", ortasi_gizli(no));
             }
         }
     }
     anahtar.to_string()
+}
+
+/// Pasaport numarası maskesi: ilk 3 + yıldız + son 2 (6 haneden kısada yalnızca ilk hane açık). ASCII girdi.
+fn ortasi_gizli(no: &str) -> String {
+    let n = no.len();
+    let (bas, son) = if n >= 6 { (3, 2) } else { (1, 0) };
+    format!("{}{}{}", &no[..bas], "*".repeat(n - bas - son), &no[n - son..])
+}
+
+/// Denetim kaydı için aranan kimliğin maskesi (yapılandırılmış arama): TC → `TC:<11>`, pasaport →
+/// `PASAPORT:<uyruk|??>:<no>` normalleştirilip maskelenir. Normalleşmeyen değer serbest metin kuralıyla.
+pub fn denetim_tc(deger: &str) -> String {
+    let t: String = deger.chars().filter(|c| !c.is_whitespace()).collect();
+    if tc_gecerli(&t) { maskele(&format!("TC:{t}")) } else { denetim_metni(deger) }
+}
+
+pub fn denetim_pasaport(uyruk: &str, deger: &str) -> String {
+    match pasaport_normal(deger) {
+        Some(no) => maskele(&format!("PASAPORT:{}:{no}", if uyruk.len() == 2 && uyruk.is_ascii() { uyruk } else { "??" })),
+        None => denetim_metni(deger),
+    }
 }
 
 /// Dosya adı için güvenli biçim: `:` → `_`, sonra yalnızca `[A-Za-z0-9_]` kalır (yol ayracı, nokta, NUL atılır;
@@ -125,25 +143,25 @@ pub fn goster(anahtar: &str) -> String {
     }
 }
 
-/// Denetim satırına yazılacak serbest metin: kimlik anahtarı, 11 haneli geçerli TC ya da harf+rakam karışık sözcük
-/// (pasaport olabilir) maskelenir. Ad, IP ve telefon aynen kalır.
+/// Denetim satırına yazılacak serbest metin (Kullanıcılar ve satır araması). Bütün metin boşluk/tire atılınca TC ya da
+/// pasaport benzeri (5–20 `[A-Z0-9]`, en az bir rakam; yalnız rakam da) bir değere dönüşüyorsa tamamı maskelenir; değilse
+/// sözcük sözcük aynı kural (kimlik anahtarı da). Rakamsız sözcük (ad) ve IP gibi noktalı değerler aynen kalır.
 pub fn denetim_metni(s: &str) -> String {
-    s.split(' ')
-        .map(|w| {
-            let n = w.chars().count();
-            if kimlik_mi(w) {
-                maskele(w)
-            } else if tc_gecerli(w) {
-                maskele(&format!("TC:{w}"))
-            } else if n >= 5 && w.chars().any(|c| c.is_ascii_digit()) && w.chars().any(char::is_alphabetic) {
-                let c: Vec<char> = w.chars().collect();
-                format!("{}{}{}", c[..3].iter().collect::<String>(), "*".repeat(n - 5), c[n - 2..].iter().collect::<String>())
-            } else {
-                w.to_string()
-            }
-        })
-        .collect::<Vec<_>>()
-        .join(" ")
+    let s = s.trim();
+    let tek = |w: &str| -> Option<String> {
+        if kimlik_mi(w) {
+            return Some(maskele(w));
+        }
+        let t: String = w.chars().filter(|c| !c.is_whitespace() && *c != '-').collect();
+        if tc_gecerli(&t) {
+            return Some(maskele(&format!("TC:{t}")));
+        }
+        pasaport_normal(w).filter(|no| no.bytes().any(|b| b.is_ascii_digit())).map(|no| ortasi_gizli(&no))
+    };
+    if let Some(m) = tek(s) {
+        return m;
+    }
+    s.split_whitespace().map(|w| tek(w).unwrap_or_else(|| w.to_string())).collect::<Vec<_>>().join(" ")
 }
 
 /// HMAC-SHA256 (RFC 2104).
@@ -276,8 +294,15 @@ mod tests {
         assert_eq!(goster(""), "");
         assert_eq!(denetim_metni("10000000146"), "100******46");
         assert_eq!(denetim_metni("X1234567"), "X12***67");
-        assert_eq!(denetim_metni("ayşe 905334553132 10.50.0.23"), "ayşe 905334553132 10.50.0.23");
+        assert_eq!(denetim_metni("ayşe 10.50.0.23"), "ayşe 10.50.0.23");
         assert_eq!(denetim_metni("TC:10000000146"), "100******46");
+        // boşluklu TC ve yalnız rakamlı pasaport da maskelenir
+        assert_eq!(denetim_metni("100 000 001 46"), "100******46");
+        assert_eq!(denetim_metni("123456789"), "123****89");
+        assert_eq!(denetim_metni("ali 123456789"), "ALI*******89"); // bütün metin pasaport benzeri
+        assert_eq!(denetim_tc(" 100 000 001 46 "), "100******46");
+        assert_eq!(denetim_pasaport("", "123 456 789"), "?? 123****89");
+        assert_eq!(denetim_pasaport("DE", "x1234567"), "DE X12***67");
     }
 
     #[test]

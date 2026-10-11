@@ -235,6 +235,21 @@ pub fn sessions_at(cfg: &Config, ip: &str, t: f64) -> Vec<Rec> {
     out
 }
 
+/// t anında açık oturumların kimlikleri: [t-span, t] içindeki son olayı OTURUM_BITIS olmayan oturumlar.
+fn acik_oturumlar(cfg: &Config, t: f64, span: f64) -> std::collections::HashSet<String> {
+    let mut son: std::collections::HashMap<String, (f64, String)> = Default::default();
+    for day in days_range(t - span, t) {
+        for r in day_rows(&cfg.main.log_root, &day, "oturum.csv") {
+            let Some(ts) = parse_time(col(&r, "zaman")).filter(|&ts| ts <= t) else { continue };
+            let e = son.entry(col(&r, "oturum_id").to_string()).or_insert((f64::MIN, String::new()));
+            if ts >= e.0 {
+                *e = (ts, col(&r, "olay").to_string());
+            }
+        }
+    }
+    son.into_iter().filter(|(id, (_, olay))| !id.is_empty() && olay != "OTURUM_BITIS").map(|(id, _)| id).collect()
+}
+
 /// t anına kadarki son DHCP kaydı (kira 2 saat; bir gün geriye bakılır).
 pub fn dhcp_at(cfg: &Config, ip: &str, t: f64) -> Option<Rec> {
     days_range(t - 86400.0, t)
@@ -329,14 +344,29 @@ pub fn ara(cfg: &Config, tur: &str, deger: &str, zaman: &str, tol: f64, now: f64
                 None => (now - span, now),
             };
             let basla = by_oda(cfg, &oda, t1, t2);
+            // zaman verildiyse o anda açık olan oturumlar ayrı ve önce (o anda odada kalan misafir)
+            let (acik, diger): (Vec<Rec>, Vec<Rec>) = match parse_time(zaman) {
+                Some(t) => {
+                    let ids = acik_oturumlar(cfg, t, span);
+                    basla.into_iter().partition(|r| ids.contains(col(r, "oturum_id")))
+                }
+                None => (vec![], basla),
+            };
             let mut kisiler: Vec<String> = vec![];
-            for r in &basla {
+            for r in acik.iter().chain(&diger) {
                 let k = col(r, "telefon");
                 if !k.is_empty() && !kisiler.iter().any(|x| x == k) {
                     kisiler.push(k.to_string());
                 }
             }
-            let mut out = vec![(format!("Oda {oda}: misafir oturumları"), basla)];
+            let mut out = if parse_time(zaman).is_some() {
+                vec![
+                    (format!("Oda {oda}: {} anında açık oturumlar (o anda konaklıyordu)", zaman.trim()), acik),
+                    (format!("Oda {oda}: aralıktaki diğer oturumlar"), diger),
+                ]
+            } else {
+                vec![(format!("Oda {oda}: misafir oturumları"), diger)]
+            };
             out.extend(kisiler.into_iter().map(|k| {
                 let rows = by_phone(root, &k);
                 (format!("{k} oturumları"), rows)
@@ -588,9 +618,16 @@ mod tests {
         assert_eq!(idler, ["t1", "p2"]);
         assert_eq!(s.iter().skip(1).map(|(b, _)| b.as_str()).collect::<Vec<_>>(), ["TC:10000000146 oturumları", "PASAPORT:GB:X1234567 oturumları"]);
         assert!(ara(&cfg, "oda", "1010", "", 0.0, now).unwrap()[0].1.is_empty()); // "oda=101" "oda=1010"u tutmaz
-        // zamanla: o güne kadarki oturumlar
+        // zamanla: o anda açık olan ayrı ve önce; t1 o anda açık, p2 ertesi gün başladı (pencerede ama o anda yok)
         let s = ara(&cfg, "oda", "101", "2026-09-27 12:00", 0.0, now).unwrap();
-        assert_eq!(s[0].1.len(), 2); // ertesi gün de pencerede (en az 1 gün tolerans)
+        assert!(s[0].0.contains("açık oturumlar"), "{}", s[0].0);
+        assert_eq!(s[0].1.iter().map(|r| col(r, "oturum_id")).collect::<Vec<_>>(), ["t1"]);
+        assert_eq!(s[1].1.iter().map(|r| col(r, "oturum_id")).collect::<Vec<_>>(), ["p2"]);
+        assert_eq!(s[2].0, "TC:10000000146 oturumları"); // o anda kalan kişi önce
+        // biten oturum o anda açık sayılmaz
+        ortak::append_rows(&ortak::day_file(r, "2026-09-27", "oturum.csv"), &[ses_row("OTURUM_BITIS", "2026-09-27T11:30:00+03:00", "10.50.0.31", "t1")]).unwrap();
+        let s = ara(&cfg, "oda", "101", "2026-09-27 12:00", 0.0, now).unwrap();
+        assert!(s[0].1.is_empty() && s[1].1.len() == 2);
         assert!(ara(&cfg, "oda", "1 0 1", "", 0.0, now).is_err());
     }
 

@@ -1269,7 +1269,7 @@ impl Panel {
              <p class=\"not\">Bu sayfadaki her görüntüleme, arama ve indirme kimin yaptığıyla birlikte kaydedilir ve hizmet sağlayıcı tarafından denetlenir.</p>{arac}{}\
              <p class=\"not\">{}</p>",
             table(
-                &["Durum", "Telefon", "Ad soyad", "MAC", "IP", "↓ İndirme Mb/sn", "↑ Yükleme Mb/sn", "Bugün MB", "Başlangıç", "Kalan", "Yavaşlat", ""],
+                &["Durum", "Telefon / Kimlik", "Ad soyad", "MAC", "IP", "↓ İndirme Mb/sn", "↑ Yükleme Mb/sn", "Bugün MB", "Başlangıç", "Kalan", "Yavaşlat", ""],
                 &rows,
                 "Bağlı kullanıcı yok"
             ),
@@ -2213,7 +2213,7 @@ mod tests {
         let s = e.p.handle(&req("GET", "/cihazlar", &[], Some(&tok))).body;
         let r = satir_of(&s, "Ayşe");
         assert!(r.contains("<td>38,4</td>") && r.contains("<td>2,1</td>") && r.contains("<td>4.820</td>"), "{r}");
-        let basliklar = ["Durum", "Telefon", "Ad soyad", "MAC", "IP", "↓ İndirme Mb/sn", "↑ Yükleme Mb/sn", "Bugün MB", "Başlangıç", "Kalan", "Yavaşlat", ""];
+        let basliklar = ["Durum", "Telefon / Kimlik", "Ad soyad", "MAC", "IP", "↓ İndirme Mb/sn", "↑ Yükleme Mb/sn", "Bugün MB", "Başlangıç", "Kalan", "Yavaşlat", ""];
         let thead: String = basliklar.iter().map(|b| format!("<th>{}</th>", h(b))).collect();
         assert!(s.contains(&thead), "başlıklar");
         assert_eq!((mbps(0), mbps(38_449_999), mbps(1_250_000_000)), ("0,0".into(), "38,4".into(), "1250,0".into()));
@@ -3764,12 +3764,24 @@ mod tests {
         assert!(r.body.contains("PASAPORT:DE:X1234567 oturumları"));
         let r = e.p.handle(&req("POST", "/talep", &[("csrf", &csrf), ("tur", "oda"), ("deger", "101")], Some(&tok)));
         assert!(r.body.contains("Oda 101: misafir oturumları") && r.body.contains("TC:10000000146"));
+        // yalnız rakamlı pasaport ve boşluklu TC de denetime maskeli girer (talep, kullanıcı ve satır araması)
+        let post = |yol: &str, f: &[(&str, &str)]| {
+            let mut v = vec![("csrf", csrf.as_str())];
+            v.extend_from_slice(f);
+            e.p.handle(&req("POST", yol, &v, Some(&tok)))
+        };
+        post("/talep", &[("tur", "pasaport"), ("deger", "123456789")]);
+        post("/talep", &[("tur", "tc"), ("deger", "100 000 001 46")]);
+        post("/kullanicilar", &[("q", "100 000 001 46")]);
+        post("/kullanicilar", &[("q", "123456789")]);
+        post("/kayitlar/dosya", &[("gun", "2026-09-29"), ("dosya", "oturum.csv"), ("q", "123456789")]);
         // denetim kaydına kimlik tam girmez
         let audit = std::fs::read_to_string(e.root.join("5651/gunluk/2026-09-29/denetim.csv")).unwrap();
-        assert!(audit.contains("PANEL_TALEP_ARA") && audit.contains("deger=100******46") && audit.contains("uyruk=DE"));
+        assert!(audit.contains("PANEL_TALEP_ARA") && audit.contains("deger=100******46") && audit.contains("deger=DE X12***67"));
         assert!(audit.contains("PANEL_KULLANICI_ARA") && audit.contains("ara=100******46"));
         assert!(audit.contains("kisi=100******46")); // kişi sayfası bakışı
         assert!(!audit.contains("10000000146") && !audit.contains("X1234567"), "{audit}");
+        assert!(!audit.contains("123456789") && !audit.contains("000 001") && audit.contains("deger=?? 123****89"), "{audit}");
     }
 
     #[test]
@@ -3827,8 +3839,19 @@ mod tests {
         assert!(icerik.contains("TC:10000000146"));
         let ad = r.headers.iter().find(|(k, _)| k == "Content-Disposition").unwrap().1.clone();
         assert!(!ad.contains("10000000146") && ad.contains(&opak), "{ad}");
-        // gerçek dosya adı da açılır (eski yer imleri), uydurma opak açılmaz
-        assert_eq!(e.p.handle(&get("/kayitlar/dosya", &[("gun", "2026-09-29"), ("dosya", "kullanicilar/TC_10000000146.csv")], &tok)).status, 200);
+        // gerçek dosya adıyla (eski yer imi) gelinirse opak adrese yönlenir; sayfadaki hiçbir adreste gerçek ad yok
+        let r = e.p.handle(&get("/kayitlar/dosya", &[("gun", "2026-09-29"), ("dosya", "kullanicilar/TC_10000000146.csv"), ("s", "1")], &tok));
+        assert_eq!(r.status, 303);
+        assert_eq!(loc(&r), format!("/kayitlar/dosya?gun=2026-09-29&dosya=kullanicilar%2F{opak}.csv&s=1"));
+        let r = e.p.handle(&get("/kayitlar/indir", &[("gun", "2026-09-29"), ("dosya", "kullanicilar/TC_10000000146.csv")], &tok));
+        assert_eq!((r.status, loc(&r).to_string()), (303, format!("/kayitlar/indir?gun=2026-09-29&dosya=kullanicilar%2F{opak}.csv")));
+        // POST (satır araması) gerçek adla gelse de sayfadaki bağlantılar, gizli alan ve form opak
+        let r = e.p.handle(&req("POST", "/kayitlar/dosya", &[("csrf", &csrf), ("gun", "2026-09-29"), ("dosya", "kullanicilar/TC_10000000146.csv"), ("q", "oturum")], Some(&tok)));
+        assert_eq!(r.status, 200);
+        for a in adresler(&r) {
+            assert!(!a.contains("TC_") && !a.contains("PASAPORT_") && !a.contains("10000000146"), "{a}");
+        }
+        assert!(!r.body.contains("value=\"kullanicilar/TC_") && r.body.contains(&format!("value=\"kullanicilar/{opak}.csv\"")));
         assert_eq!(e.p.handle(&get("/kayitlar/dosya", &[("gun", "2026-09-29"), ("dosya", "kullanicilar/0123456789abcdef.csv")], &tok)).status, 404);
         let audit = std::fs::read_to_string(e.root.join("5651/gunluk/2026-09-29/denetim.csv")).unwrap();
         assert!(audit.contains("dosya=kullanicilar/100******46.csv") && !audit.contains("10000000146"), "{audit}");

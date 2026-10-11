@@ -191,10 +191,22 @@ impl Panel {
 
     pub(super) fn kayit_dosya(&self, cfg: &Config, req: &Req, o: &Oturum) -> Resp {
         // satır araması kimlik içerebilir: arama formu ve aramalı sayfalar POST (GET'te yalnızca sayfa numarası)
-        let (day, rel_url) = (alan(req, "gun"), alan(req, "dosya"));
+        let (day, gelen) = (alan(req, "gun"), alan(req, "dosya"));
         let filter = if req.method == "POST" { alan(req, "q").trim().to_lowercase() } else { String::new() };
-        let rel = &gercek_dosya(&cfg.main.log_root, &sir(cfg), day, rel_url);
+        let sir = sir(cfg);
+        let rel = &gercek_dosya(&cfg.main.log_root, &sir, day, gelen);
         let Some(path) = kayit::safe_file(&cfg.main.log_root, day, rel) else { return text(404, "Dosya bulunamadı") };
+        // gerçek adla (eski yer imi: kullanicilar/TC_….csv) gelindiyse opak adrese; bütün bağlantılar opak adla
+        let rel_url = url_dosya(&sir, rel);
+        let rel_url = rel_url.as_str();
+        if req.method == "GET" && gelen != rel_url {
+            let s = alan(req, "s");
+            let mut p = vec![("gun", day), ("dosya", rel_url)];
+            if !s.is_empty() {
+                p.push(("s", s));
+            }
+            return redirect(&link("/kayitlar/dosya", &p), None);
+        }
         let rows: Vec<Rec> = kayit::parse_csv(&kayit::read_text(&path))
             .into_iter()
             .filter(|r| filter.is_empty() || r.iter().any(|c| c.to_lowercase().contains(&filter)))
@@ -238,14 +250,18 @@ impl Panel {
     }
 
     pub(super) fn kayit_indir(&self, cfg: &Config, req: &Req, o: &Oturum) -> Resp {
-        let (day, rel_url) = (q(req, "gun"), q(req, "dosya"));
+        let (day, gelen) = (q(req, "gun"), q(req, "dosya"));
         let sir = sir(cfg);
-        let rel = &gercek_dosya(&cfg.main.log_root, &sir, day, rel_url);
+        let rel = &gercek_dosya(&cfg.main.log_root, &sir, day, gelen);
         let Some(path) = kayit::safe_file(&cfg.main.log_root, day, rel) else { return text(404, "Dosya bulunamadı") };
+        let rel_url = url_dosya(&sir, rel);
+        if gelen != rel_url {
+            return redirect(&link("/kayitlar/indir", &[("gun", day), ("dosya", &rel_url)]), None); // gerçek ad → opak adres
+        }
         self.audit(cfg, req, Some(o), "PANEL_KAYIT_INDIR", &format!("gun={day} dosya={}", goster_dosya(rel)));
         // dosya adı tarayıcının indirme geçmişinde kalır: kimlikli kişi dosyası opak adla iner (içerik tam)
         let kimlikli = kayit::kisi_dosyasi_anahtari(rel).is_some_and(|k| kimlik::kimlik_mi(&k));
-        let name = download_name(day, &if kimlikli { url_dosya(&sir, rel) } else { rel.clone() });
+        let name = download_name(day, if kimlikli { &rel_url } else { rel });
         let ctype = "text/csv; charset=utf-8";
         if rel.ends_with(".gz") {
             // ponytail: mühürlü dosya bellekte açılır (günlük dosya birkaç MB); çok büyürse geçici dosyaya akıt
@@ -299,7 +315,7 @@ impl Panel {
             csrf_input(o),
             h(&filter),
             if total > SAYFA { format!(", ilk {SAYFA} gösteriliyor") } else { String::new() },
-            table(&["Telefon", "Ad soyad", "İlk kayıt", "Son oturum"], &rows, "Kayıtlı kişi yok")
+            table(&["Telefon / Kimlik", "Ad soyad", "İlk kayıt", "Son oturum"], &rows, "Kayıtlı kişi yok")
         );
         self.page(cfg, req, Some(o), "Kullanıcılar", &body)
     }
@@ -370,11 +386,11 @@ impl Panel {
                 Ok(sections) => {
                     // denetime kimlik tam yazılmaz; sonuç ekranı 5651 kaydıdır, tam gösterir
                     let d = match tur {
-                        "tc" | "pasaport" => kimlik::denetim_metni(deger.trim()),
+                        "tc" => kimlik::denetim_tc(deger),
+                        "pasaport" => kimlik::denetim_pasaport(&uyruk, deger), // uyruk maskede açık
                         _ => deger.to_string(),
                     };
-                    let u = if uyruk.is_empty() || tur != "pasaport" { String::new() } else { format!(" uyruk={uyruk}") };
-                    self.audit(cfg, req, Some(o), "PANEL_TALEP_ARA", &format!("tur={tur} deger={d}{u} zaman={zaman} tolerans={tol_s}"));
+                    self.audit(cfg, req, Some(o), "PANEL_TALEP_ARA", &format!("tur={tur} deger={d} zaman={zaman} tolerans={tol_s}"));
                     for (title, rows) in sections {
                         let note = if rows.len() > TALEP_EN_FAZLA { format!("<p class=\"not\">{} satır; ilk {TALEP_EN_FAZLA} gösteriliyor.</p>", rows.len()) } else { String::new() };
                         let shown = &rows[..rows.len().min(TALEP_EN_FAZLA)];
@@ -439,7 +455,7 @@ impl Panel {
                     let not = if s.satirlar.len() > goster.len() { format!("<p class=\"not\">{} satır; ilk {TALEP_EN_FAZLA} gösteriliyor.</p>", s.satirlar.len()) } else { String::new() };
                     sonuc = format!(
                         "<div class=\"kart\"><h2>Kimler girdi</h2>{}</div><div class=\"kart\"><h2>Ayrıntı</h2>{not}{}</div>",
-                        table(&["Telefon", "Ad soyad", "MAC", "İlk", "Son", "Kaç kez"], &kisiler, "Bu aralıkta kimse girmemiş"),
+                        table(&["Telefon / Kimlik", "Ad soyad", "MAC", "İlk", "Son", "Kaç kez"], &kisiler, "Bu aralıkta kimse girmemiş"),
                         rec_table_maskeli(goster, "Kayıt bulunamadı")
                     );
                 }

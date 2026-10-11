@@ -35,6 +35,15 @@ pub fn oku(state_root: &str) -> Sinirlar {
         .unwrap_or_default()
 }
 
+/// Yazmadan önce okuma: dosya yoksa boş, var ama okunamıyorsa hata (üzerine yazılıp bütün sınırlar silinmesin).
+pub fn oku_kesin(state_root: &str) -> Result<Sinirlar, String> {
+    match std::fs::read_to_string(yol(state_root)) {
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(Sinirlar::new()),
+        Err(e) => Err(format!("Yavaşlatma kayıtları okunamadı ({e}).")),
+        Ok(s) => serde_json::from_str(&s).map_err(|_| "Yavaşlatma kayıtları okunamadı (dosya bozuk).".to_string()),
+    }
+}
+
 pub fn kaydet(state_root: &str, s: &Sinirlar) -> std::io::Result<()> {
     let data = serde_json::to_vec_pretty(s).map_err(std::io::Error::other)?;
     ortak::write_atomic(&yol(state_root), &data)

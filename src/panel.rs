@@ -247,9 +247,14 @@ fn sorgu_bir(req: &Req, k: &str) -> bool {
 }
 
 /// Bağlı kullanıcılar adresi; grup sayfasında bölüme atlar.
-fn oturumlar_url(req: &Req, sira: &str, yenile: bool, oto: bool) -> String {
-    let (yol, cipa) = if req.path == "/cihazlar" { ("/cihazlar", "#oturumlar") } else { ("/oturumlar", "") };
-    format!("{yol}?sira={sira}{}{}{cipa}", if yenile { "&yenile=1" } else { "" }, if oto { "&oto=1" } else { "" })
+/// Yenileme açıkken yalnızca bağlı kullanıcılar bölümü tek başına açılır (/oturumlar): 10 sn'lik yenileme aynı sayfadaki
+/// Yasaklı/İzinli cihaz formlarına yazılanı silmesin. Yenileme kapalıyken tam Kullanıcılar sayfası.
+fn oturumlar_url(sira: &str, yenile: bool, oto: bool) -> String {
+    if yenile {
+        format!("/oturumlar?sira={sira}&yenile=1{}", if oto { "&oto=1" } else { "" })
+    } else {
+        format!("/cihazlar?sira={sira}#oturumlar")
+    }
 }
 
 /// Yenileme açıkken yalnızca bağlı kullanıcılar sayfası 10 sn'de bir kendini yeniler (betik yok; CSP).
@@ -257,7 +262,7 @@ fn yenile_meta(req: &Req) -> String {
     if !matches!(req.path.as_str(), "/cihazlar" | "/oturumlar") || !sorgu_bir(req, "yenile") {
         return String::new();
     }
-    format!("<meta http-equiv=\"refresh\" content=\"10;url={}\">", h(&oturumlar_url(req, sira(req), true, true)))
+    format!("<meta http-equiv=\"refresh\" content=\"10;url={}\">", h(&oturumlar_url(sira(req), true, true)))
 }
 
 /// ↓, ↑, bugün MB hücreleri; ölçüm yoksa tire.
@@ -1226,7 +1231,7 @@ impl Panel {
         }
         let rows: Vec<Vec<String>> = satirlar.into_iter().map(|s| s.3).collect();
         let secenek = |k: &str, ad: &str| {
-            format!("<a class=\"{}\" href=\"{}\">{ad}</a>", if k == sira { "dugme" } else { "dugme ikincil" }, h(&oturumlar_url(req, k, yenile, false)))
+            format!("<a class=\"{}\" href=\"{}\">{ad}</a>", if k == sira { "dugme" } else { "dugme ikincil" }, h(&oturumlar_url(k, yenile, false)))
         };
         let arac = format!(
             "<div class=\"eylemler arac\"><span class=\"not\">Sırala:</span>{}{}{}<span class=\"ayrac\"></span>\
@@ -1235,7 +1240,7 @@ impl Panel {
             secenek("mb", "Bugün MB"),
             secenek("saat", "Bağlanma saati"),
             if yenile { "dugme" } else { "dugme ikincil" },
-            h(&oturumlar_url(req, sira, !yenile, false)),
+            h(&oturumlar_url(sira, !yenile, false)),
             if yenile { "açık" } else { "kapalı" },
         );
         let olcum_notu = match &durum {
@@ -2188,7 +2193,7 @@ mod tests {
         // seçili sıralama dolu düğme, diğerleri ikincil; yenileme kapalı
         assert!(s.contains("<a class=\"dugme\" href=\"/cihazlar?sira=hiz#oturumlar\">Anlık hız</a>"), "seçili sıralama");
         assert!(s.contains("<a class=\"dugme ikincil\" href=\"/cihazlar?sira=mb#oturumlar\">Bugün MB</a>"));
-        assert!(s.contains("href=\"/cihazlar?sira=hiz&amp;yenile=1#oturumlar\">⟳ 10 sn'de bir yenile: kapalı</a>"), "yenile bağlantısı");
+        assert!(s.contains("href=\"/oturumlar?sira=hiz&amp;yenile=1\">⟳ 10 sn'de bir yenile: kapalı</a>"), "yenile tek bölüm sayfasına götürür");
         once(&[("sira", "hiz")], "Mehmet", "Ayşe");
         once(&[("sira", "mb")], "Ayşe", "Mehmet");
         let s = once(&[("sira", "saat")], "Ayşe", "Mehmet");
@@ -2245,13 +2250,16 @@ mod tests {
             let csv = std::fs::read_to_string(e.root.join("5651/gunluk/2026-09-29/denetim.csv")).unwrap_or_default();
             csv.lines().filter(|l| l.split(';').nth(1) == Some(olay)).count()
         };
-        const META: &str = "<meta http-equiv=\"refresh\" content=\"10;url=/cihazlar?sira=hiz&amp;yenile=1&amp;oto=1#oturumlar\">";
+        const META: &str = "<meta http-equiv=\"refresh\" content=\"10;url=/oturumlar?sira=hiz&amp;yenile=1&amp;oto=1\">";
         let s = e.p.handle(&get("/cihazlar", &[], &tok)).body;
         assert!(!s.contains("http-equiv=\"refresh\"") && say("PANEL_OTURUMLAR") == 1 && say("PANEL_OTURUMLAR_YENILE") == 0);
         let s = e.p.handle(&get("/cihazlar", &[("yenile", "1")], &tok)).body;
         assert!(s.contains(META), "meta");
         assert!(s.contains("href=\"/cihazlar?sira=hiz#oturumlar\">⟳ 10 sn'de bir yenile: açık</a>"), "açıkken yenilesiz bağlantı");
-        assert!(s.contains("href=\"/cihazlar?sira=mb&amp;yenile=1#oturumlar\""), "sıralama yenilemeyi korur");
+        assert!(s.contains("href=\"/oturumlar?sira=mb&amp;yenile=1\""), "sıralama yenilemeyi korur");
+        // yenilenen sayfa tek bölüm: Yasaklı/İzinli formları yok (yazılan silinmesin)
+        let t = e.p.handle(&get("/oturumlar", &[("sira", "hiz"), ("yenile", "1"), ("oto", "1")], &tok)).body;
+        assert!(t.contains(META) && !t.contains("action=\"/yasak/ekle\"") && !t.contains("action=\"/izinli/ekle\""), "tek bölüm");
         assert_eq!((say("PANEL_OTURUMLAR_YENILE"), say("PANEL_OTURUMLAR")), (1, 1));
         for _ in 0..3 {
             ilerle(10.0);
@@ -3084,6 +3092,34 @@ mod tests {
         // bölüm sayfası ayrıca açılır
         let s = e.p.handle(&get("/yavaslatilmis", &[], &tok));
         assert!(s.status == 200 && s.body.contains("Yavaşlatılmış cihaz yok") && s.body.contains("href=\"/cihazlar\" class=\"aktif\""));
+    }
+
+    #[test]
+    fn bozuk_sinir_dosyasi_uzerine_yazilmaz() {
+        let e = env();
+        let (tok, csrf) = setup_and_login(&e, "mudur", "sahip-parola-12");
+        let cfg = Config::load(&e.p.cfg_path).unwrap();
+        let mut ses = ortak::Sessions::new();
+        ses.insert("aa:bb:cc:dd:ee:01".into(), ortak::Session {
+            phone: "905334553132".into(), ad: "Ayşe".into(), soyad: "Y".into(), ip: "10.50.0.23".into(),
+            session_id: "s".into(), start: "2026-09-29T20:00:00+03:00".into(), start_epoch: 1.0, expires_epoch: 9e9,
+        });
+        ortak::save_sessions(&cfg.main.state_root, &ses).unwrap();
+        let yol = std::path::Path::new(&cfg.main.state_root).join("hiz_sinir.json");
+        std::fs::write(&yol, "{\"aa:bb:cc:dd:ee:55\": {\"hiz\": 5, \"ad\"").unwrap(); // yarım dosya
+        for (yol_, alanlar) in [
+            ("/oturumlar/yavaslat", vec![("mac", "aa:bb:cc:dd:ee:01"), ("hiz", "5")]),
+            ("/oturumlar/yavaslatma-kaldir", vec![("mac", "aa:bb:cc:dd:ee:55"), ("donus", "yavaslatilmis")]),
+        ] {
+            let mut f = vec![("csrf", csrf.as_str())];
+            f.extend(alanlar);
+            let r = e.p.handle(&req("POST", yol_, &f, Some(&tok)));
+            assert!(loc(&r).contains("e=1") && loc(&r).contains("okunamad"), "{yol_}: {}", loc(&r));
+        }
+        assert_eq!(std::fs::read_to_string(&yol).unwrap(), "{\"aa:bb:cc:dd:ee:55\": {\"hiz\": 5, \"ad\"", "dosya değişmedi");
+        assert_eq!(hiz_uygulandi(&e), 0);
+        let b = bolum_of(&e.p.handle(&get("/cihazlar", &[], &tok)).body, "yavaslatilmis");
+        assert!(b.contains("<div class=\"mesaj hata\">Yavaşlatma kayıtları okunamadı (dosya bozuk). Hizmet sağlayıcınıza başvurun.</div>"), "{b}");
     }
 
     #[test]

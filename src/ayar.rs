@@ -211,12 +211,14 @@ pub struct Filtre {
 /// İşletme türleri (değer, etiket); ilk öğe varsayılan davranış.
 pub const ISLETME_TURLERI: &[(&str, &str)] = &[("kafe", "Kafe/Restoran"), ("otel", "Otel/Pansiyon"), ("yurt", "Yurt"), ("diger", "Diğer")];
 
-/// Geçerli işletme türü: ayarda yoksa ya da tanınmıyorsa `kafe`.
+/// Sahibin seçtiği tür; anahtar yoksa ya da tanınmıyorsa (elle bozulmuş) None = "seçilmemiş".
+pub fn isletme_turu_secili(cfg: &Config) -> Option<&str> {
+    cfg.main.isletme_turu.as_deref().filter(|t| ISLETME_TURLERI.iter().any(|(k, _)| k == t))
+}
+
+/// Geçerli işletme türü: seçilmemişse `kafe`.
 pub fn isletme_turu(cfg: &Config) -> &str {
-    match cfg.main.isletme_turu.as_deref() {
-        Some(t) if ISLETME_TURLERI.iter().any(|(k, _)| *k == t) => t,
-        _ => "kafe",
-    }
+    isletme_turu_secili(cfg).unwrap_or("kafe")
 }
 
 /// Giriş yöntemleri ayarı (`[giris]`). SMS her zaman açıktır, anahtarı yok.
@@ -397,8 +399,10 @@ mod tests {
         assert_eq!((back.main.isletme_turu.as_deref(), back.giris.misafir_kodu), (Some("otel"), true));
         c.main.isletme_turu = Some("kafe".into()); // ayar açık kalsa da türde görünmez → kullanılamaz
         assert!(!misafir_kodu_acik(&c));
-        c.main.isletme_turu = Some("bilinmeyen".into());
-        assert_eq!(isletme_turu(&c), "kafe");
+        c.main.isletme_turu = Some("bilinmeyen".into()); // elle bozulmuş: seçilmemiş sayılır, davranış kafe
+        assert_eq!((isletme_turu(&c), isletme_turu_secili(&c)), ("kafe", None));
+        c.main.isletme_turu = Some("yurt".into());
+        assert_eq!(isletme_turu_secili(&c), Some("yurt"));
         for (tur, gorunur) in [("kafe", false), ("otel", true), ("yurt", true), ("diger", false)] {
             assert_eq!(GirisYontemi::MisafirKodu.gorunur(tur), gorunur, "{tur}");
             assert!(GirisYontemi::Sms.gorunur(tur));

@@ -244,7 +244,7 @@ pub fn run(cfg: Config, args: &[String]) -> ExitCode {
             m.deneme = now;
             let _ = crate::merkez::kaydet(p, &m);
             let denetim = |olay: &str, ek: String| ortak::audit(&cfg.main.log_root, Row::new(olay, &ortak::now_iso(now)).set("ek", ek));
-            match crate::merkez::eslesme(&mut m, &cfg.main.site_name, &cfg.main.unvan, crate::ayar::isletme_turu(&cfg), false, &crate::merkez::curl, now) {
+            match crate::merkez::eslesme(&mut m, &cfg.main.site_name, &cfg.main.unvan, crate::ayar::isletme_turu_secili(&cfg).unwrap_or(""), false, &crate::merkez::curl, now) {
                 Ok(crate::merkez::Eslesme::Bagli { uyelik, ek }) => {
                     if let Err(e) = crate::merkez::kaydet(p, &m) {
                         eprintln!("{e}");

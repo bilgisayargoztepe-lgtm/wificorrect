@@ -533,13 +533,16 @@ mod tests {
     #[test]
     fn eslesme_govdesinde_tur() {
         let mut m = ornek();
-        let (h, c) = sahte(vec![Ok((200, r#"{"durum":"serbest"}"#)), Ok((200, r#"{"durum":"serbest"}"#))]);
-        // ctl merkez-eslesme geçerli türü gönderir: ayarda yoksa kafe
-        let cfg = crate::ayar::Config::parse("").unwrap();
-        eslesme(&mut m, "Bocafe", "Ltd", crate::ayar::isletme_turu(&cfg), false, &*h, 0.0).unwrap();
-        eslesme(&mut m, "Bocafe", "Ltd", "yurt", false, &*h, 0.0).unwrap();
+        let serbest = Ok((200, r#"{"durum":"serbest"}"#));
+        let (h, c) = sahte(vec![serbest.clone(), serbest.clone(), serbest]);
+        // ctl merkez-eslesme yalnızca seçilmiş türü gönderir: seçilmemiş/tanınmayan → alan yok (yönetimde "—")
+        for metin in ["", "[main]\nisletme_turu = 'x'\n", "[main]\nisletme_turu = 'otel'\n"] {
+            let cfg = crate::ayar::Config::parse(metin).unwrap();
+            eslesme(&mut m, "Bocafe", "Ltd", crate::ayar::isletme_turu_secili(&cfg).unwrap_or(""), false, &*h, 0.0).unwrap();
+        }
         let c = c.lock().unwrap();
-        assert_eq!((c[0].1["isletme_turu"].as_str(), c[1].1["isletme_turu"].as_str()), (Some("kafe"), Some("yurt")));
+        assert_eq!((c[0].1.get("isletme_turu"), c[1].1.get("isletme_turu")), (None, None));
+        assert_eq!(c[2].1["isletme_turu"].as_str(), Some("otel"));
     }
 
     #[test]

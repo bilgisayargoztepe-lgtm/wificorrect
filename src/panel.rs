@@ -269,8 +269,8 @@ fn get_field(c: &Config, key: &str) -> String {
     match key {
         "main.site_name" => c.main.site_name.clone(),
         "main.unvan" => c.main.unvan.clone(),
-        // seçilmemiş tür boş döner: formda "Seçin" görünür, kaydetmek türü kendiliğinden yazmaz
-        "main.isletme_turu" => c.main.isletme_turu.as_ref().map_or(String::new(), |_| crate::ayar::isletme_turu(c).to_string()),
+        // seçilmemiş (yok ya da tanınmayan) tür boş döner: formda "Seçin" görünür, kaydetmek türü kendiliğinden yazmaz
+        "main.isletme_turu" => crate::ayar::isletme_turu_secili(c).unwrap_or_default().to_string(),
         "giris.misafir_kodu" => b(c.giris.misafir_kodu),
         "uzak.enabled" => b(c.uzak.enabled),
         "uzak.sunucu" => c.uzak.sunucu.clone(),
@@ -1102,8 +1102,8 @@ impl Panel {
             uyarilar.push(format!("Günlük SMS tavanına yaklaşıldı ({sms} / {}).", cfg.limits.sms_global_day));
         }
         let mut uyari_li: String = uyarilar.iter().map(|u| format!("<li>{}</li>", h(u))).collect();
-        if cfg.main.isletme_turu.is_none() {
-            // seçilmemiş = anahtar yok (eski cihazlar); seçilince (kafe dahil) kalkar
+        if crate::ayar::isletme_turu_secili(cfg).is_none() {
+            // seçilmemiş = anahtar yok (eski cihazlar) ya da tanınmayan değer; seçilince (kafe dahil) kalkar
             uyari_li.insert_str(0, "<li>İşletme türünüzü seçin: <a href=\"/ayarlar#main-isletme_turu\">Ayarlar → İşletme türü</a></li>");
         }
         let uyari_html = if uyari_li.is_empty() {
@@ -2539,6 +2539,22 @@ mod tests {
         assert!(!e.p.handle(&req("GET", "/", &[], Some(&tok))).body.contains(uyari));
         assert!(e.p.handle(&req("GET", "/ayarlar", &[], Some(&tok))).body.contains("<option value=\"kafe\" selected>Kafe/Restoran</option>"));
         assert!(denetim_satirlari(&e, "PANEL_ISLETME_TURU")[0].contains("eski=secilmemis yeni=kafe"));
+    }
+
+    #[test]
+    fn taninmayan_tur_secilmemis_sayilir() {
+        let e = env();
+        let (tok, csrf) = setup_and_login(&e, "mudur", "sahip-parola-12");
+        let mut c = Config::load(&e.p.cfg_path).unwrap();
+        c.main.isletme_turu = Some("x".into()); // elle bozulmuş değer
+        c.save(&e.p.cfg_path).unwrap();
+        assert_eq!(crate::ayar::isletme_turu(&c), "kafe"); // davranış kafe
+        assert!(e.p.handle(&req("GET", "/", &[], Some(&tok))).body.contains("İşletme türünüzü seçin"));
+        assert!(e.p.handle(&req("GET", "/ayarlar", &[], Some(&tok))).body.contains("<option value=\"\" selected>— Seçin —</option>"));
+        e.p.handle(&req("POST", "/ayarlar", &[("csrf", &csrf), ("main.isletme_turu", "otel")], Some(&tok)));
+        assert_eq!(Config::load(&e.p.cfg_path).unwrap().main.isletme_turu.as_deref(), Some("otel"));
+        assert!(denetim_satirlari(&e, "PANEL_ISLETME_TURU")[0].contains("eski=secilmemis yeni=otel"));
+        assert!(!e.p.handle(&req("GET", "/", &[], Some(&tok))).body.contains("İşletme türünüzü seçin"));
     }
 
     #[test]

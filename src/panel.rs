@@ -3775,12 +3775,18 @@ mod tests {
         post("/kullanicilar", &[("q", "100 000 001 46")]);
         post("/kullanicilar", &[("q", "123456789")]);
         post("/kayitlar/dosya", &[("gun", "2026-09-29"), ("dosya", "oturum.csv"), ("q", "123456789")]);
+        // önekli / küçük harfli / uyruk:no / başka ayraçlı yazımlar da (düzeltme turu 2)
+        post("/kullanicilar", &[("q", "TC:10000000146")]);
+        post("/kullanicilar", &[("q", "pasaport:de:x1234567")]);
+        post("/kullanicilar", &[("q", "100.000.001.46")]);
+        post("/kayitlar/dosya", &[("gun", "2026-09-29"), ("dosya", "oturum.csv"), ("q", "10000000146,")]);
+        post("/talep", &[("tur", "pasaport"), ("deger", "de:x1234567")]);
         // denetim kaydına kimlik tam girmez
         let audit = std::fs::read_to_string(e.root.join("5651/gunluk/2026-09-29/denetim.csv")).unwrap();
         assert!(audit.contains("PANEL_TALEP_ARA") && audit.contains("deger=100******46") && audit.contains("deger=DE X12***67"));
         assert!(audit.contains("PANEL_KULLANICI_ARA") && audit.contains("ara=100******46"));
         assert!(audit.contains("kisi=100******46")); // kişi sayfası bakışı
-        assert!(!audit.contains("10000000146") && !audit.contains("X1234567"), "{audit}");
+        assert!(!audit.contains("10000000146") && !audit.to_uppercase().contains("X1234567") && !audit.contains("100.000.001.46"), "{audit}");
         assert!(!audit.contains("123456789") && !audit.contains("000 001") && audit.contains("deger=?? 123****89"), "{audit}");
     }
 

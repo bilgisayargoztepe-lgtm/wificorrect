@@ -94,15 +94,67 @@ fn ortasi_gizli(no: &str) -> String {
 /// Denetim kaydı için aranan kimliğin maskesi (yapılandırılmış arama): TC → `TC:<11>`, pasaport →
 /// `PASAPORT:<uyruk|??>:<no>` normalleştirilip maskelenir. Normalleşmeyen değer serbest metin kuralıyla.
 pub fn denetim_tc(deger: &str) -> String {
-    let t: String = deger.chars().filter(|c| !c.is_whitespace()).collect();
+    let t = ayracsiz(deger);
     if tc_gecerli(&t) { maskele(&format!("TC:{t}")) } else { denetim_metni(deger) }
 }
 
+/// Pasaport araması: `kayit::ara` gibi uyruk boşsa değer `UYRUK:NO` olabilir (ilk `:`'dan bölünür).
 pub fn denetim_pasaport(uyruk: &str, deger: &str) -> String {
-    match pasaport_normal(deger) {
-        Some(no) => maskele(&format!("PASAPORT:{}:{no}", if uyruk.len() == 2 && uyruk.is_ascii() { uyruk } else { "??" })),
+    let (u, n) = match deger.split_once(':') {
+        Some((u, n)) if uyruk.trim().is_empty() => (u.trim().to_ascii_uppercase(), n),
+        _ => (uyruk.trim().to_ascii_uppercase(), deger),
+    };
+    let u = if u.len() == 2 && u.bytes().all(|b| b.is_ascii_uppercase()) { u } else { "??".into() };
+    match pasaport_normal(n) {
+        Some(no) => maskele(&format!("PASAPORT:{u}:{no}")),
         None => denetim_metni(deger),
     }
+}
+
+/// Kimlik denetimi için ayraçlar atılmış hâl: boşluk, `-`, `.`, `,`, `/`, `;`, `:`.
+fn ayracsiz(s: &str) -> String {
+    s.chars().filter(|c| !c.is_whitespace() && !"-.,/;:".contains(*c)).collect()
+}
+
+/// Tek değer (sözcük ya da bütün metin) kimlik gibi görünüyorsa maskesi. Büyük/küçük harf duyarsız `tc:` / `pasaport:`
+/// öneki atılır; `xx:no` biçiminde uyruk maskede açık kalır. TC: ayraçlar atılınca 11 haneli geçerli TC. Pasaport:
+/// `:` ile ayrılan parçalardan biri (baş/sondaki `.,/;` atılınca) rakam içeren 5–20 `[A-Z0-9]`; IP ve alan adı gibi
+/// içinde nokta olan değerler eşleşmez.
+fn kimlik_maskesi(w: &str) -> Option<String> {
+    let w = w.trim();
+    let kucuk = w.to_ascii_lowercase();
+    let govde = if kucuk.starts_with("pasaport:") {
+        &w[9..]
+    } else if kucuk.starts_with("tc:") {
+        &w[3..]
+    } else {
+        w
+    };
+    let tc = |p: &str| {
+        let t = ayracsiz(p);
+        tc_gecerli(&t).then(|| maskele(&format!("TC:{t}")))
+    };
+    if let Some(m) = tc(govde) {
+        return Some(m);
+    }
+    let parcalar: Vec<&str> = govde.split(':').collect();
+    for (i, p) in parcalar.iter().enumerate() {
+        if let Some(m) = tc(p) {
+            return Some(m);
+        }
+        let p = p.trim().trim_matches(|c: char| ".,/;".contains(c));
+        if let Some(no) = pasaport_normal(p).filter(|n| n.bytes().any(|b| b.is_ascii_digit())) {
+            let uyruk = i
+                .checked_sub(1)
+                .map(|j| parcalar[j].trim().to_ascii_uppercase())
+                .filter(|u| u.len() == 2 && u.bytes().all(|b| b.is_ascii_uppercase()));
+            return Some(match uyruk {
+                Some(u) => maskele(&format!("PASAPORT:{u}:{no}")),
+                None => ortasi_gizli(&no),
+            });
+        }
+    }
+    None
 }
 
 /// Dosya adı için güvenli biçim: `:` → `_`, sonra yalnızca `[A-Za-z0-9_]` kalır (yol ayracı, nokta, NUL atılır;
@@ -148,20 +200,10 @@ pub fn goster(anahtar: &str) -> String {
 /// sözcük sözcük aynı kural (kimlik anahtarı da). Rakamsız sözcük (ad) ve IP gibi noktalı değerler aynen kalır.
 pub fn denetim_metni(s: &str) -> String {
     let s = s.trim();
-    let tek = |w: &str| -> Option<String> {
-        if kimlik_mi(w) {
-            return Some(maskele(w));
-        }
-        let t: String = w.chars().filter(|c| !c.is_whitespace() && *c != '-').collect();
-        if tc_gecerli(&t) {
-            return Some(maskele(&format!("TC:{t}")));
-        }
-        pasaport_normal(w).filter(|no| no.bytes().any(|b| b.is_ascii_digit())).map(|no| ortasi_gizli(&no))
-    };
-    if let Some(m) = tek(s) {
+    if let Some(m) = kimlik_maskesi(s) {
         return m;
     }
-    s.split_whitespace().map(|w| tek(w).unwrap_or_else(|| w.to_string())).collect::<Vec<_>>().join(" ")
+    s.split_whitespace().map(|w| kimlik_maskesi(w).unwrap_or_else(|| w.to_string())).collect::<Vec<_>>().join(" ")
 }
 
 /// HMAC-SHA256 (RFC 2104).
@@ -303,6 +345,18 @@ mod tests {
         assert_eq!(denetim_tc(" 100 000 001 46 "), "100******46");
         assert_eq!(denetim_pasaport("", "123 456 789"), "?? 123****89");
         assert_eq!(denetim_pasaport("DE", "x1234567"), "DE X12***67");
+        // küçük harfli önek, uyruk:no ve başka ayraçlar (düzeltme turu 2)
+        assert_eq!(denetim_metni("tc:10000000146"), "100******46");
+        assert_eq!(denetim_metni("pasaport:de:x1234567"), "DE X12***67");
+        assert_eq!(denetim_metni("de:x1234567"), "DE X12***67");
+        assert_eq!(denetim_metni("100.000.001.46"), "100******46");
+        assert_eq!(denetim_metni("10000000146,"), "100******46");
+        assert_eq!(denetim_metni("ayşe 10000000146; x1234567."), "ayşe 100******46 X12***67");
+        assert_eq!(denetim_pasaport("", "de:x1234567"), "DE X12***67");
+        assert_eq!(denetim_pasaport("", "pasaport:de:x1234567"), "DE X12***67");
+        assert_eq!(denetim_tc("tc:100.000.001.46"), "100******46");
+        // IP, alan adı ve saat bozulmaz
+        assert_eq!(denetim_metni("10.50.0.23 bet365.com 10:30"), "10.50.0.23 bet365.com 10:30");
     }
 
     #[test]

@@ -390,7 +390,7 @@ impl Panel {
                         "pasaport" => kimlik::denetim_pasaport(&uyruk, deger), // uyruk maskede açık
                         _ => deger.to_string(),
                     };
-                    self.audit(cfg, req, Some(o), "PANEL_TALEP_ARA", &format!("tur={tur} deger={d} zaman={zaman} tolerans={tol_s}"));
+                    self.audit(cfg, req, Some(o), "PANEL_TALEP_ARA", &format!("tur={tur} deger={d} zaman={} tolerans={tol_s}", kimlik::denetim_metni(zaman)));
                     for (title, rows) in sections {
                         let note = if rows.len() > TALEP_EN_FAZLA { format!("<p class=\"not\">{} satır; ilk {TALEP_EN_FAZLA} gösteriliyor.</p>", rows.len()) } else { String::new() };
                         let shown = &rows[..rows.len().min(TALEP_EN_FAZLA)];

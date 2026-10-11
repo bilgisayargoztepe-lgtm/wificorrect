@@ -239,7 +239,20 @@ pub fn run(cfg: Config, args: &[String]) -> ExitCode {
             if r.iter().any(|(_, p, _)| !p.is_empty()) { ExitCode::from(1) } else { ExitCode::SUCCESS }
         }
         Some("temizle") => {
-            let out = crate::muhur::prune(&cfg, now, args.iter().any(|a| a == "--kuru"));
+            let kuru = args.iter().any(|a| a == "--kuru");
+            let mut out = crate::muhur::prune(&cfg, now, kuru);
+            // bitişinden 30 gün geçmiş misafir kodları (tam kimlik) her gece silinir; kod üretilmese de birikmesin
+            if !kuru {
+                if let Ok(_g) = ortak::state_lock(&cfg.main.state_root) {
+                    if let Ok(mut k) = crate::misafir::oku_kesin(&cfg.main.state_root) {
+                        let once = k.len();
+                        crate::misafir::temizle(&mut k, now);
+                        if k.len() < once && crate::misafir::kaydet(&cfg.main.state_root, &k).is_ok() {
+                            out.push(format!("{} eski misafir kodu silindi", once - k.len()));
+                        }
+                    }
+                }
+            }
             println!("{}", if out.is_empty() { "Silinecek kayıt yok".to_string() } else { out.join("\n") });
             ExitCode::SUCCESS
         }

@@ -1,6 +1,5 @@
 //! Misafir kodu deposu (otel/yurt): üret, iptal et, uzat, doğrula, temizle. `misafir_kodlari.json` (600, atomik).
-//! `kod_id` panel bağlantıları içindir (kodun kendisi URL'de görünmez). Sonraki görevlerde kullanılır.
-#![allow(dead_code)]
+//! `kod_id` panel bağlantıları içindir (kodun kendisi URL'de görünmez).
 
 use crate::{hesap, ortak};
 use serde::{Deserialize, Serialize};

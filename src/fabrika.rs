@@ -100,8 +100,9 @@ pub fn fabrika(
         }
         crate::merkez::sil(merkez_path);
     }
-    // 2c) önceki işletmenin yavaşlatmaları ve bugünkü kullanımı silinir (kaydedici durdu; yeniden başlayınca boş planı kurar)
-    for f in ["hiz_sinir.json", "trafik_gun.json"] {
+    // 2c) önceki işletmenin yavaşlatmaları, bugünkü kullanımı, misafir kodları (tam kimlik + kod) ve kişi bağlantı sırrı
+    // silinir (kaydedici durdu; yeniden başlayınca boş planı kurar; eski kodlarla yeni işletmede giriş olmaz)
+    for f in ["hiz_sinir.json", "trafik_gun.json", "misafir_kodlari.json", "kisi_sir"] {
         let _ = std::fs::remove_file(Path::new(&m.state_root).join(f));
     }
     let _ = std::fs::remove_file(&y.hiz_uygulanan);
@@ -200,6 +201,8 @@ mod tests {
         crate::trafik::gun_yaz(&cfg.main.state_root, &crate::trafik::GunToplam { gun: "2026-10-03".into(), bayt: [("aa:bb:cc:dd:ee:01".to_string(), 9)].into() }).unwrap();
         std::fs::write(&y.hiz_uygulanan, "eski plan").unwrap();
         let state = root.join("state");
+        std::fs::write(state.join("misafir_kodlari.json"), "[]").unwrap();
+        std::fs::write(state.join("kisi_sir"), "eski").unwrap();
         let calls: Arc<Mutex<Vec<String>>> = Arc::default();
         let c2 = calls.clone();
         let runner = move |c: &[String]| {
@@ -235,6 +238,7 @@ mod tests {
         assert!(ortak::load_sessions(&root.join("state").to_string_lossy()).is_empty());
         // yavaşlatmalar, bugünkü kullanım ve plan izi silindi (yeni işletmede eski misafirler görünmez, yavaşlamaz)
         assert!(!state.join("hiz_sinir.json").exists() && !state.join("trafik_gun.json").exists() && !y.hiz_uygulanan.exists());
+        assert!(!state.join("misafir_kodlari.json").exists() && !state.join("kisi_sir").exists());
         // portlar varsayılan, ağ yeniden kuruldu
         assert!(std::fs::read_to_string(&y.nft).unwrap().contains("\"enp3s0\"") && !y.ag.exists());
         let v = calls.lock().unwrap();

@@ -1,11 +1,12 @@
-<h1>Doğrulama kodu</h1>
-<p>$telefon_maskeli numarasına 6 haneli bir kod gönderdik. Kod $dakika dakika geçerlidir.</p>
+<h1>$m_kod_baslik</h1>
+<p>$m_kod_aciklama</p>
 <p class="hata genel">$hata</p>
 <p class="not">$not</p>
 <form method="post" action="$portal/dogrula">
-<label for="kod">Kod</label>
+<input type="hidden" name="dil" value="$dil_kod">
+<label for="kod">$m_kod</label>
 <input type="text" id="kod" name="kod" class="kod" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required autofocus>
-<button type="submit">Doğrula</button>
+<button type="submit">$m_dogrula</button>
 </form>
-<form method="post" action="$portal/tekrar-gonder"><button type="submit" class="ikincil">Kodu tekrar gönder</button></form>
-<p class="not"><a href="$portal/">Numarayı değiştir</a></p>
+<form method="post" action="$portal/tekrar-gonder"><input type="hidden" name="dil" value="$dil_kod"><button type="submit" class="ikincil">$m_tekrar_gonder</button></form>
+<p class="not"><a href="$portal/?dil=$dil_kod">$m_numara_degistir</a></p>

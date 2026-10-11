@@ -175,6 +175,10 @@ pub struct PortalMetin {
     pub aydinlatma: String,
     pub acik_riza: String,
     pub sozlesme: String,
+    /// İngilizce giriş sayfası için (boşsa Türkçesi gösterilir); İŞLETMECİ yalnızca adla değişir (ek yok).
+    pub aydinlatma_en: String,
+    pub acik_riza_en: String,
+    pub sozlesme_en: String,
 }
 
 impl Default for PortalMetin {
@@ -183,6 +187,9 @@ impl Default for PortalMetin {
             aydinlatma: include_str!("sablon/aydinlatma.txt").trim().to_string(),
             acik_riza: include_str!("sablon/acik_riza.txt").trim().to_string(),
             sozlesme: include_str!("sablon/sozlesme.txt").trim().to_string(),
+            aydinlatma_en: String::new(),
+            acik_riza_en: String::new(),
+            sozlesme_en: String::new(),
         }
     }
 }

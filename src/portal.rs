@@ -2,6 +2,7 @@
 //! Akış: form → hız sınırları → SMS kodu → doğrulama → nft yetkisi + oturum + 5651 kayıtları.
 
 use crate::ayar::Config;
+use crate::dil::{self, Dil};
 use crate::ortak::{self, Row, Runner, Session};
 use crate::sms::{self, Saglayici, Sonuc};
 use crate::ulkeler;
@@ -11,7 +12,6 @@ use std::process::ExitCode;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 
-const NO_MAC: &str = "Cihazınız tanınamadı. Wi-Fi bağlantısını kapatıp yeniden açın; sorun sürerse personele başvurun.";
 const AFTER_LOGIN_URL: &str = "http://www.google.com/"; // istenen sayfa bilinmiyorsa başarıdan sonra
 
 pub type Form = HashMap<String, String>;
@@ -58,11 +58,12 @@ impl RateLimiter {
 pub struct Page {
     pub tpl: &'static str,
     pub ctx: Vec<(&'static str, String)>,
+    pub dil: Dil,
 }
 
 impl Page {
-    fn new(tpl: &'static str, ctx: Vec<(&'static str, String)>) -> Page {
-        Page { tpl, ctx }
+    fn new(tpl: &'static str, ctx: Vec<(&'static str, String)>, dil: Dil) -> Page {
+        Page { tpl, ctx, dil }
     }
 
     #[cfg(test)]
@@ -146,8 +147,29 @@ pub fn substitute(tpl: &str, values: &HashMap<&str, String>) -> String {
     out
 }
 
-/// Panelden yazılan düz metin → güvenli HTML: boş satır paragraf, tek satır sonu <br>. Boşsa bilgi notu.
+/// Şablondaki `$m_<anahtar>` → sayfa dilindeki metin (dil.rs; güvenilir sabit, kaçışsız). Metnin içindeki `$ad`
+/// yer tutucuları ikinci geçişte (substitute) dolar.
+fn yerel(tpl: &str, d: Dil) -> String {
+    let mut out = String::with_capacity(tpl.len());
+    let mut rest = tpl;
+    while let Some(i) = rest.find("$m_") {
+        out.push_str(&rest[..i]);
+        let after = &rest[i + 3..];
+        let n = after.find(|c: char| !(c.is_ascii_alphanumeric() || c == '_')).unwrap_or(after.len());
+        out.push_str(dil::m(d, &after[..n]));
+        rest = &after[n..];
+    }
+    out.push_str(rest);
+    out
+}
+
+#[cfg(test)]
 pub fn metin_html(text: &str) -> String {
+    metin_html_dil(text, Dil::Tr)
+}
+
+/// Panelden yazılan düz metin → güvenli HTML: boş satır paragraf, tek satır sonu <br>. Boşsa bilgi notu (sayfa dilinde).
+pub fn metin_html_dil(text: &str, d: Dil) -> String {
     let text = text.replace("\r\n", "\n");
     let paras: Vec<String> = text
         .split("\n\n")
@@ -186,7 +208,7 @@ pub fn metin_html(text: &str) -> String {
             html
         })
         .collect();
-    if paras.is_empty() { "<p class=\"not\">Metin henüz eklenmedi.</p>".into() } else { paras.concat() }
+    if paras.is_empty() { format!("<p class=\"not\">{}</p>", dil::m(d, "metin_yok")) } else { paras.concat() }
 }
 
 fn tr_lower(s: &str) -> String {
@@ -285,9 +307,9 @@ impl Portal {
     }
 
     /// Bekleyen koddan formu yeniden doldurmak için (numara `+` ile, ülke seçimi yok sayılır).
-    fn prefill(p: &Pending) -> Form {
+    fn prefill(p: &Pending, d: Dil) -> Form {
         let riza = if p.riza { "1" } else { "" };
-        [("ad", p.ad.clone()), ("soyad", p.soyad.clone()), ("telefon", format!("+{}", p.phone)), ("sozlesme", "1".into()), ("riza", riza.into()), ("dst", p.dst.clone())]
+        [("ad", p.ad.clone()), ("soyad", p.soyad.clone()), ("telefon", format!("+{}", p.phone)), ("sozlesme", "1".into()), ("riza", riza.into()), ("dst", p.dst.clone()), ("dil", d.kod().into())]
             .into_iter()
             .map(|(k, v)| (k.to_string(), v))
             .collect()
@@ -295,7 +317,9 @@ impl Portal {
 
     // --- sayfalar
     pub fn render(&self, page: &Page) -> String {
+        let d = page.dil;
         let mut values: HashMap<&str, String> = HashMap::new();
+        values.insert("dil_kod", d.kod().into());
         values.insert("site", self.cfg.main.site_name.clone());
         // "Bocafe'ye", "Starbucks'a": ek ünlü uyumuyla, kesme işaretiyle ayrılır
         values.insert("site_ye", format!("{}'{}", self.cfg.main.site_name, ek(&self.cfg.main.site_name, 'y')));
@@ -305,16 +329,42 @@ impl Portal {
         }
         let safe: HashMap<&str, String> =
             values.into_iter().map(|(k, v)| (k, if k.ends_with("_html") { v } else { html_escape(&v) })).collect();
-        let body = substitute(template(page.tpl), &safe);
+        let body = substitute(&yerel(template(page.tpl), d), &safe);
         let mut outer = HashMap::new();
         outer.insert("icerik_html", body);
         outer.insert("site", safe["site"].clone());
         outer.insert("bas_html", safe.get("bas_html").cloned().unwrap_or_default());
-        substitute(template("_sayfa"), &outer)
+        outer.insert("dil_kod", d.kod().into());
+        outer.insert("dil_secim_html", self.dil_secimi(page));
+        substitute(&yerel(template("_sayfa"), d), &outer)
     }
 
+    /// Sayfanın üstündeki "TR | EN": istenen adres (`dst`) korunur; kod sayfasındaysa `sayfa=kod` ile kod sayfası
+    /// yeni dilde yeniden açılır (bekleyen kod bellekte).
+    fn dil_secimi(&self, page: &Page) -> String {
+        let mut ek = String::new();
+        if page.tpl == "kod" {
+            ek.push_str("&amp;sayfa=kod");
+        }
+        let dst = page.ctx.iter().find(|(k, _)| *k == "dst").map_or("", |(_, v)| v.as_str());
+        if !dst.is_empty() {
+            ek.push_str(&format!("&amp;dst={}", pct_encode(dst)));
+        }
+        let a = |x: Dil, ad: &str| {
+            let cur = if x == page.dil { " aria-current=\"true\"" } else { "" };
+            format!("<a href=\"{}/?dil={}{ek}\" lang=\"{}\"{cur}>{ad}</a>", html_escape(&self.base_url), x.kod(), x.kod())
+        };
+        format!("<nav class=\"dil\" aria-label=\"{}\">{} | {}</nav>", dil::m(page.dil, "dil_secimi"), a(Dil::Tr, "TR"), a(Dil::En, "EN"))
+    }
+
+    #[cfg(test)]
     fn form_page(&self, form: &Form, errors: Vec<(&'static str, String)>, dst: &str) -> Page {
+        self.form_page_dil(form, errors, dst, Dil::Tr)
+    }
+
+    fn form_page_dil(&self, form: &Form, errors: Vec<(&'static str, String)>, dst: &str, d: Dil) -> Page {
         let f = |k: &str| form.get(k).cloned().unwrap_or_default();
+        let pm = &self.cfg.portal;
         let mut ctx = vec![
             ("ad", f("ad")),
             ("soyad", f("soyad")),
@@ -322,9 +372,9 @@ impl Portal {
             ("sozlesme_checked", if f("sozlesme") == "1" { "checked".into() } else { String::new() }),
             ("riza_checked", if f("riza") == "1" { "checked".into() } else { String::new() }),
             // açık rıza metni onay kutusunun yanında (kısa metin; satır sonları korunur)
-            ("riza_metni_html", html_escape(&self.yerlestir(&self.cfg.portal.acik_riza)).replace('\n', "<br>")),
-            ("sozlesme_html", metin_html(&self.yerlestir(&self.cfg.portal.sozlesme))),
-            ("aydinlatma_html", metin_html(&self.yerlestir(&self.cfg.portal.aydinlatma))),
+            ("riza_metni_html", html_escape(&self.hukuki(d, &pm.acik_riza, &pm.acik_riza_en)).replace('\n', "<br>")),
+            ("sozlesme_html", metin_html_dil(&self.hukuki(d, &pm.sozlesme, &pm.sozlesme_en), d)),
+            ("aydinlatma_html", metin_html_dil(&self.hukuki(d, &pm.aydinlatma, &pm.aydinlatma_en), d)),
             ("dst", dst.to_string()),
             ("ulke_secenekleri_html", ulkeler::options_html(form.get("ulke").map_or("TR", String::as_str))),
         ];
@@ -332,17 +382,29 @@ impl Portal {
             let v = errors.iter().find(|(e, _)| *e == k).map(|(_, v)| v.clone()).unwrap_or_default();
             ctx.push((k, v));
         }
-        Page::new("giris", ctx)
+        Page::new("giris", ctx, d)
     }
 
     /// Metinlerdeki İŞLETMECİ → işletme adı, [vergi levhası unvanı] → unvan (girilmemişse yer tutucu kalır).
     fn yerlestir(&self, text: &str) -> String {
-        let t = isletme_yerlestir(text, &self.cfg.main.site_name);
+        self.unvan_yerlestir(isletme_yerlestir(text, &self.cfg.main.site_name))
+    }
+
+    fn unvan_yerlestir(&self, t: String) -> String {
         let unvan = self.cfg.main.unvan.trim();
         if unvan.is_empty() { t } else { t.replace("[vergi levhası unvanı]", unvan) }
     }
 
-    fn code_page(&self, p: &Pending, note: &str, error: &str) -> Page {
+    /// Hukuki metin sayfa dilinde: İngilizcesi yazılmamışsa Türkçesi. İngilizcede İŞLETMECİ yalnızca adla değişir (ek yok).
+    fn hukuki(&self, d: Dil, tr: &str, en: &str) -> String {
+        if d == Dil::En && !en.trim().is_empty() {
+            self.unvan_yerlestir(en.replace("İŞLETMECİ", &self.cfg.main.site_name))
+        } else {
+            self.yerlestir(tr)
+        }
+    }
+
+    fn code_page(&self, p: &Pending, note: &str, error: &str, d: Dil) -> Page {
         let dakika = (self.cfg.limits.otp_ttl_sec / 60).max(1);
         Page::new(
             "kod",
@@ -352,17 +414,18 @@ impl Portal {
                 ("not", note.into()),
                 ("hata", error.into()),
             ],
+            d,
         )
     }
 
-    fn error_page(&self, msg: &str) -> Page {
-        Page::new("hata", vec![("mesaj", msg.into())])
+    fn error_page(&self, msg: &str, d: Dil) -> Page {
+        Page::new("hata", vec![("mesaj", msg.into())], d)
     }
 
     /// JS yok (CSP): 1 sn sonra yönlen. Telefonların giriş penceresi interneti görünce kendini kapatır.
-    fn success_page(&self, dst: &str) -> Page {
+    fn success_page(&self, dst: &str, d: Dil) -> Page {
         let target = html_escape(if dst.is_empty() { AFTER_LOGIN_URL } else { dst });
-        Page::new("basarili", vec![("bas_html", format!("<meta http-equiv=\"refresh\" content=\"1;url={target}\">"))])
+        Page::new("basarili", vec![("bas_html", format!("<meta http-equiv=\"refresh\" content=\"1;url={target}\">"))], d)
     }
 
     fn audit(&self, olay: &str, ip: &str, mac: &str, phone: &str, ek: &str) {
@@ -382,21 +445,32 @@ impl Portal {
 
     // --- akış
     /// Lisans kapalı / cihaz bağlı değil: misafir giremez (yeni kod gönderilmez).
-    fn hizmet_kapali(&self) -> Option<Page> {
-        (!crate::merkez::hizmet_acik(&self.merkez_path, (self.wall)()))
-            .then(|| self.error_page("Bu işletmenin misafir internet hizmeti şu an kapalı. Lütfen işletme görevlisine başvurun."))
+    fn hizmet_kapali(&self, d: Dil) -> Option<Page> {
+        (!crate::merkez::hizmet_acik(&self.merkez_path, (self.wall)())).then(|| self.error_page(dil::m(d, "hizmet_kapali"), d))
     }
 
+    #[cfg(test)]
     pub fn home(&self, ip: &str, mac: Option<&str>, dst: &str) -> Page {
-        if let Some(pg) = self.hizmet_kapali() {
+        self.home_dil(ip, mac, dst, Dil::Tr, false)
+    }
+
+    /// `kod_sayfasi`: kod sayfasındaki dil bağlantısından gelindi; süresi dolmamış bekleyen kod varsa kod sayfası açılır.
+    pub fn home_dil(&self, ip: &str, mac: Option<&str>, dst: &str, d: Dil, kod_sayfasi: bool) -> Page {
+        if let Some(pg) = self.hizmet_kapali(d) {
             return pg;
         }
-        let Some(mac) = mac else { return self.error_page(NO_MAC) };
+        let Some(mac) = mac else { return self.error_page(dil::m(d, "mac_yok"), d) };
         if self.session_for(ip, mac) || self.rehome(ip, mac) {
-            self.success_page(dst)
-        } else {
-            self.form_page(&Form::new(), vec![], dst)
+            return self.success_page(dst, d);
         }
+        if kod_sayfasi {
+            let now = (self.clock)();
+            let p = lock(&self.pending).get(mac).filter(|p| now < p.expires).cloned();
+            if let Some(p) = p {
+                return self.code_page(&p, "", "", d);
+            }
+        }
+        self.form_page_dil(&Form::new(), vec![], dst, d)
     }
 
     /// Oturumu süren cihaz DHCP'den yeni IP ile döndü: SMS istemeden oturumu yeni IP'ye taşır.
@@ -412,69 +486,71 @@ impl Portal {
         ortak::save_sessions(&root.state_root, &ses).is_ok()
     }
 
-    fn refusal(&self, pending: &HashMap<String, Pending>, mac: &str, phone: &str, now: f64, day: &str) -> Option<(&'static str, String)> {
+    fn refusal(&self, pending: &HashMap<String, Pending>, mac: &str, phone: &str, now: f64, day: &str, d: Dil) -> Option<(&'static str, String)> {
         let l = &self.cfg.limits;
         let cooldown = l.resend_cooldown_sec as f64;
         if let Some(p) = pending.get(mac) {
             if now - p.sent_at < cooldown {
                 let wait = (cooldown - (now - p.sent_at)) as i64 + 1;
-                return Some(("bekleme", format!("Yeni kod için {wait} saniye bekleyin.")));
+                return Some(("bekleme", dil::f(d, "bekleme", &[&wait.to_string()])));
             }
         }
         let tel = format!("tel:{phone}");
         if self.rl.count(&tel, 900.0, now) >= l.sms_per_phone_15min {
-            return Some(("tel_15dk", "Bu numaraya çok fazla kod gönderildi. 15 dakika sonra tekrar deneyin.".into()));
+            return Some(("tel_15dk", dil::m(d, "tel_15dk").into()));
         }
         if self.rl.count(&tel, 86400.0, now) >= l.sms_per_phone_day {
-            return Some(("tel_gun", "Bu numara için bugünkü kod sınırı doldu.".into()));
+            return Some(("tel_gun", dil::m(d, "tel_gun").into()));
         }
         if self.rl.count(&format!("mac:{mac}"), 3600.0, now) >= l.sms_per_mac_hour {
-            return Some(("mac_saat", "Bu cihazdan çok fazla kod istendi. Bir saat sonra tekrar deneyin.".into()));
+            return Some(("mac_saat", dil::m(d, "mac_saat").into()));
         }
         if ortak::sms_count(&self.cfg.main.state_root, day) >= l.sms_global_day {
-            return Some(("tavan", "Şu an SMS gönderilemiyor, lütfen personele başvurun.".into()));
+            return Some(("tavan", dil::m(d, "tavan").into()));
         }
         None
     }
 
+    /// Formdaki `dil` alanı (HTTP katmanı seçilen dili yazar); yoksa Türkçe.
+    fn form_dil(form: &Form) -> Dil {
+        form.get("dil").and_then(|v| Dil::coz(v)).unwrap_or_default()
+    }
+
     pub fn send_code(&self, ip: &str, mac: Option<&str>, form: &Form) -> Page {
-        if let Some(pg) = self.hizmet_kapali() {
+        let d = Self::form_dil(form);
+        if let Some(pg) = self.hizmet_kapali(d) {
             return pg;
         }
         let get = |k: &str| form.get(k).map(String::as_str).unwrap_or("");
         let dst = safe_dst(get("dst"));
-        let Some(mac) = mac else { return self.error_page(NO_MAC) };
+        let Some(mac) = mac else { return self.error_page(dil::m(d, "mac_yok"), d) };
         let ulke = if get("ulke").is_empty() { "TR" } else { get("ulke") };
         let (ad, soyad, phone) = (ortak::clean_name(get("ad")), ortak::clean_name(get("soyad")), ulkeler::normalize_phone(ulke, get("telefon")));
         let mut errors = vec![];
         if ad.is_none() {
-            errors.push(("hata_ad", "Adınızı harflerle yazın (2-40 karakter).".to_string()));
+            errors.push(("hata_ad", dil::m(d, "hata_ad").to_string()));
         }
         if soyad.is_none() {
-            errors.push(("hata_soyad", "Soyadınızı harflerle yazın (2-40 karakter).".to_string()));
+            errors.push(("hata_soyad", dil::m(d, "hata_soyad").to_string()));
         }
         if phone.is_none() {
-            let msg = if ulke == "TR" && !get("telefon").trim_start().starts_with('+') {
-                "Geçerli bir cep telefonu numarası girin (5XX XXX XX XX)."
-            } else {
-                "Geçerli bir telefon numarası girin (ülke kodunu kontrol edin)."
-            };
-            errors.push(("hata_telefon", msg.to_string()));
+            let k = if ulke == "TR" && !get("telefon").trim_start().starts_with('+') { "hata_telefon_tr" } else { "hata_telefon" };
+            errors.push(("hata_telefon", dil::m(d, k).to_string()));
         }
         if get("sozlesme") != "1" {
-            errors.push(("hata_sozlesme", "Devam etmek için İnternet Kullanıcı Sözleşmesi'ni kabul edin.".to_string()));
+            errors.push(("hata_sozlesme", dil::m(d, "hata_sozlesme").to_string()));
         }
         if get("riza") != "1" {
-            errors.push(("hata_riza", "Devam etmek için açık rıza onayını işaretleyin.".to_string()));
+            errors.push(("hata_riza", dil::m(d, "hata_riza").to_string()));
         }
         let (Some(ad), Some(soyad), Some(phone), true) = (ad, soyad, phone, errors.is_empty()) else {
-            return self.form_page(form, errors, &dst);
+            return self.form_page_dil(form, errors, &dst, d);
         };
         let provider = match sms::route(&self.cfg, &phone) {
             Ok(p) => p,
             Err(msg) => {
                 self.audit("OTP_ISTEK", ip, mac, &phone, "red=yabanci_numara");
-                return self.form_page(form, vec![("hata_genel", msg.to_string())], &dst);
+                return self.form_page_dil(form, vec![("hata_genel", dil::cevir(d, msg))], &dst, d);
             }
         };
         let now = (self.clock)();
@@ -485,14 +561,14 @@ impl Portal {
             if let Some(p) = pending.get(mac) {
                 if p.phone == phone && now - p.sent_at < cooldown && now < p.expires {
                     let wait = (cooldown - (now - p.sent_at)) as i64 + 1;
-                    return self.code_page(p, &format!("Kod az önce gönderildi. Yeni kod için {wait} saniye bekleyin."), "");
+                    return self.code_page(p, &dil::f(d, "kod_az_once", &[&wait.to_string()]), "", d);
                 }
             }
-            if let Some((kind, msg)) = self.refusal(&pending, mac, &phone, now, &day) {
+            if let Some((kind, msg)) = self.refusal(&pending, mac, &phone, now, &day, d) {
                 drop(pending);
                 let olay = if kind == "tavan" { "SMS_TAVAN" } else { "OTP_ISTEK" };
                 self.audit(olay, ip, mac, &phone, &format!("red={kind}"));
-                return self.form_page(form, vec![("hata_genel", msg)], &dst);
+                return self.form_page_dil(form, vec![("hata_genel", msg)], &dst, d);
             }
             self.rl.hit(&format!("tel:{phone}"), now);
             self.rl.hit(&format!("mac:{mac}"), now);
@@ -502,7 +578,7 @@ impl Portal {
         let r = (self.send_sms)(&self.cfg, provider, &phone, &code); // ağ çağrısı kilit dışında
         if !r.ok {
             self.audit("OTP_HATA", ip, mac, &phone, &format!("{}={}", provider.ad(), r.kod));
-            return self.form_page(form, vec![("hata_genel", sms::message_for(provider, &r.kod).to_string())], &dst);
+            return self.form_page_dil(form, vec![("hata_genel", dil::cevir(d, sms::message_for(provider, &r.kod)))], &dst, d);
         }
         let p = Pending {
             phone: phone.clone(),
@@ -517,39 +593,42 @@ impl Portal {
             riza: get("riza") == "1",
             nonce: self.nonce.fetch_add(1, Ordering::Relaxed),
         };
-        let page = self.code_page(&p, "", "");
+        let page = self.code_page(&p, "", "", d);
         lock(&self.pending).insert(mac.to_string(), p);
         let job = r.is.as_deref().unwrap_or("None");
         self.audit("OTP_GONDERILDI", ip, mac, &phone, &format!("{}={job}", provider.ad()));
         page
     }
 
+    #[cfg(test)]
     pub fn resend(&self, ip: &str, mac: Option<&str>) -> Page {
-        if let Some(pg) = self.hizmet_kapali() {
+        self.resend_dil(ip, mac, Dil::Tr)
+    }
+
+    pub fn resend_dil(&self, ip: &str, mac: Option<&str>, d: Dil) -> Page {
+        if let Some(pg) = self.hizmet_kapali(d) {
             return pg;
         }
         let p = mac.and_then(|m| lock(&self.pending).get(m).cloned());
         let Some(p) = p else {
-            return self.form_page(&Form::new(), vec![("hata_genel", "Kod bulunamadı, lütfen bilgilerinizi yeniden girin.".into())], "");
+            return self.form_page_dil(&Form::new(), vec![("hata_genel", dil::m(d, "kod_yok_bilgi").into())], "", d);
         };
-        self.send_code(ip, mac, &Self::prefill(&p))
+        self.send_code(ip, mac, &Self::prefill(&p, d))
     }
 
     pub fn verify(&self, ip: &str, mac: Option<&str>, form: &Form) -> Page {
-        if let Some(pg) = self.hizmet_kapali() {
+        let d = Self::form_dil(form);
+        if let Some(pg) = self.hizmet_kapali(d) {
             return pg;
         }
-        let Some(mac) = mac else { return self.error_page(NO_MAC) };
+        let Some(mac) = mac else { return self.error_page(dil::m(d, "mac_yok"), d) };
         let now = (self.clock)();
         let fail_lock = self.cfg.limits.verify_fail_lock_min * 60;
         let fail_key = format!("hata:{mac}");
         if self.rl.count(&fail_key, fail_lock as f64, now) >= 10 {
-            return self.error_page(&format!(
-                "Çok fazla hatalı deneme yapıldı. Lütfen {} dakika sonra tekrar deneyin.",
-                fail_lock / 60
-            ));
+            return self.error_page(&dil::f(d, "kilit", &[&(fail_lock / 60).to_string()]), d);
         }
-        let not_found = || self.form_page(&Form::new(), vec![("hata_genel", "Kod bulunamadı, lütfen yeni kod isteyin.".into())], "");
+        let not_found = || self.form_page_dil(&Form::new(), vec![("hata_genel", dil::m(d, "kod_yok").into())], "", d);
         let code: String = form.get("kod").map(|k| k.chars().filter(char::is_ascii_digit).collect()).unwrap_or_default();
         // 1) bekleyen kod
         let p = {
@@ -557,7 +636,7 @@ impl Portal {
             let Some(p) = pending.get(mac).cloned() else { return not_found() };
             if now >= p.expires {
                 pending.remove(mac);
-                return self.form_page(&Self::prefill(&p), vec![("hata_genel", "Kodun süresi doldu. Yeni kod isteyin.".into())], &p.dst);
+                return self.form_page_dil(&Self::prefill(&p, d), vec![("hata_genel", dil::m(d, "kod_suresi").into())], &p.dst, d);
             }
             p
         };
@@ -565,7 +644,7 @@ impl Portal {
         let matched = if p.provider == Saglayici::Twilio && !self.cfg.sms.mock {
             let (ok, err) = (self.check_sms)(&self.cfg, &p.phone, &code);
             if err.is_some() {
-                return self.code_page(&p, "", "Kod şu an doğrulanamadı, lütfen birkaç saniye sonra tekrar deneyin.");
+                return self.code_page(&p, "", dil::m(d, "dogrulanamadi"), d);
             }
             ok
         } else {
@@ -584,9 +663,9 @@ impl Portal {
                 let left = self.cfg.limits.otp_max_attempts.saturating_sub(cur.attempts);
                 Some(if left == 0 {
                     pending.remove(mac);
-                    self.form_page(&Self::prefill(&p), vec![("hata_genel", "Çok fazla hatalı deneme. Yeni kod isteyin.".into())], &p.dst)
+                    self.form_page_dil(&Self::prefill(&p, d), vec![("hata_genel", dil::m(d, "cok_hatali").into())], &p.dst, d)
                 } else {
-                    self.code_page(&p, "", &format!("Kod hatalı. Kalan deneme hakkı: {left}"))
+                    self.code_page(&p, "", &dil::f(d, "kod_hatali", &[&left.to_string()]), d)
                 })
             }
         };
@@ -595,10 +674,10 @@ impl Portal {
             return page;
         }
         let Some(s) = self.open_session(ip, mac, &p) else {
-            return self.error_page("Bağlantı açılamadı, lütfen tekrar deneyin.");
+            return self.error_page(dil::m(d, "baglanti_acilamadi"), d);
         };
         self.audit("OTP_BASARILI", ip, mac, &p.phone, &format!("oturum={}", s.session_id));
-        self.success_page(&p.dst)
+        self.success_page(&p.dst, d)
     }
 
     /// §11.7 sırası. nft başarısızsa yeni oturum yazılmaz.
@@ -705,7 +784,7 @@ fn pct_encode(s: &str) -> String {
         .collect()
 }
 
-fn respond(req: tiny_http::Request, code: u16, body: String, ctype: &str, location: Option<String>, base_url: &str) {
+fn respond(req: tiny_http::Request, code: u16, body: String, ctype: &str, extra: Vec<(&'static str, String)>, base_url: &str) {
     let csp = format!("default-src 'none'; style-src 'unsafe-inline'; img-src data:; form-action {base_url}");
     let mut headers = vec![
         ("Content-Type", ctype.to_string()),
@@ -714,9 +793,7 @@ fn respond(req: tiny_http::Request, code: u16, body: String, ctype: &str, locati
         ("Content-Security-Policy", csp),
         ("Server", "hotspot".into()),
     ];
-    if let Some(l) = location {
-        headers.push(("Location", l));
-    }
+    headers.extend(extra);
     let mut resp = tiny_http::Response::from_string(body).with_status_code(code);
     for (k, v) in headers {
         if let Ok(h) = tiny_http::Header::from_bytes(k.as_bytes(), v.as_bytes()) {
@@ -726,55 +803,74 @@ fn respond(req: tiny_http::Request, code: u16, body: String, ctype: &str, locati
     let _ = req.respond(resp);
 }
 
+fn baslik(req: &tiny_http::Request, ad: &'static str) -> String {
+    req.headers().iter().find(|h| h.field.equiv(ad)).map(|h| h.value.as_str().to_string()).unwrap_or_default()
+}
+
 fn handle(p: &Portal, per_ip: &RateLimiter, mut req: tiny_http::Request) {
     let base = p.base_url.clone();
-    let text = |req, code, msg: &str| respond(req, code, msg.to_string(), "text/plain; charset=utf-8", None, &base);
+    let text = |req, code, msg: &str| respond(req, code, msg.to_string(), "text/plain; charset=utf-8", vec![], &base);
+    let git = |req, to: String| respond(req, 302, String::new(), "text/html; charset=utf-8", vec![("Location", to)], &base);
     let ip = req.remote_addr().map(|a| a.ip().to_string()).unwrap_or_default();
     if !ortak::in_subnet(&ip, &p.cfg.main.subnet) {
         return text(req, 403, "Yasak");
     }
-    let now = ortak::monotonic();
-    if per_ip.count(&ip, 60.0, now) >= 30 {
-        return text(req, 429, "Çok fazla istek. Biraz bekleyip tekrar deneyin.");
-    }
-    per_ip.hit(&ip, now);
-    let host = req.headers().iter().find(|h| h.field.equiv("Host")).map(|h| h.value.as_str().to_string()).unwrap_or_default();
-    if host != p.host {
-        // nft'nin 80 → 8080 yönlendirdiği yabancı istek: portala gönder, gitmek istediği adresi hatırla
-        let dst = if host.is_empty() { String::new() } else { safe_dst(&format!("http://{host}{}", req.url())) };
-        let q = if dst.is_empty() { String::new() } else { format!("?dst={}", pct_encode(&dst)) };
-        return respond(req, 302, String::new(), "text/html; charset=utf-8", Some(format!("{base}/{q}")), &base);
-    }
     let url = req.url().to_string();
     let (path, query) = url.split_once('?').unwrap_or((url.as_str(), ""));
+    let q = parse_query(query);
+    // dil: sorgu (GET) ya da form alanı (POST) > çerez > Accept-Language > Türkçe
+    let (cerez, al) = (baslik(&req, "Cookie"), baslik(&req, "Accept-Language"));
+    let dil_sec = |acik: Option<&str>| dil::sec(acik, dil::cerezden(&cerez), Some(al.as_str()).filter(|a| !a.is_empty()));
+    let d = dil_sec(q.get("dil").map(String::as_str));
+    let now = ortak::monotonic();
+    if per_ip.count(&ip, 60.0, now) >= 30 {
+        return text(req, 429, dil::m(d, "cok_istek"));
+    }
+    per_ip.hit(&ip, now);
+    let host = baslik(&req, "Host");
+    if host != p.host {
+        // nft'nin 80 → 8080 yönlendirdiği yabancı istek: portala gönder, gitmek istediği adresi hatırla
+        let dst = if host.is_empty() { String::new() } else { safe_dst(&format!("http://{host}{url}")) };
+        let q = if dst.is_empty() { String::new() } else { format!("?dst={}", pct_encode(&dst)) };
+        return git(req, format!("{base}/{q}"));
+    }
     let mac = ortak::lookup_mac(&ip, &p.cfg.main.leases_file);
     let mac = mac.as_deref();
     let method = req.method().clone();
+    let mut extra = vec![];
     let page = match method {
         tiny_http::Method::Get | tiny_http::Method::Head => match path {
-            "/" => p.home(&ip, mac, &safe_dst(parse_query(query).get("dst").map(String::as_str).unwrap_or(""))),
-            _ => return respond(req, 302, String::new(), "text/html; charset=utf-8", Some(format!("{base}/")), &base),
+            "/" => {
+                if q.get("dil").and_then(|v| dil::Dil::coz(v)).is_some() {
+                    extra.push(("Set-Cookie", dil::cerez_basligi(d))); // seçim hatırlansın
+                }
+                let dst = safe_dst(q.get("dst").map(String::as_str).unwrap_or(""));
+                p.home_dil(&ip, mac, &dst, d, q.get("sayfa").is_some_and(|s| s == "kod"))
+            }
+            _ => return git(req, format!("{base}/")),
         },
         tiny_http::Method::Post => {
             if req.body_length().unwrap_or(0) > 4096 {
-                return text(req, 413, "İstek çok büyük.");
+                return text(req, 413, dil::m(d, "istek_buyuk"));
             }
             let mut raw = String::new();
             if req.as_reader().take(4096).read_to_string(&mut raw).is_err() {
-                return text(req, 400, "Geçersiz istek.");
+                return text(req, 400, dil::m(d, "istek_gecersiz"));
             }
-            let form = parse_query(&raw);
+            let mut form = parse_query(&raw);
+            let d = dil_sec(form.get("dil").map(String::as_str));
+            form.insert("dil".into(), d.kod().into());
             match path {
                 "/kod-gonder" => p.send_code(&ip, mac, &form),
                 "/dogrula" => p.verify(&ip, mac, &form),
-                "/tekrar-gonder" => p.resend(&ip, mac),
-                _ => return respond(req, 302, String::new(), "text/html; charset=utf-8", Some(format!("{base}/")), &base),
+                "/tekrar-gonder" => p.resend_dil(&ip, mac, d),
+                _ => return git(req, format!("{base}/")),
             }
         }
-        _ => return text(req, 405, "Desteklenmeyen istek."),
+        _ => return text(req, 405, dil::m(d, "istek_desteklenmez")),
     };
     let html = p.render(&page);
-    respond(req, 200, html, "text/html; charset=utf-8", None, &base);
+    respond(req, 200, html, "text/html; charset=utf-8", extra, &base);
 }
 
 pub fn run(cfg: Config) -> ExitCode {
@@ -1179,4 +1275,88 @@ mod tests {
         assert_eq!(t.p.home(IP, Some(MAC), "").tpl, "hata");
     }
 
+    fn en(pairs: &[(&str, &str)]) -> Form {
+        let mut f = form(pairs);
+        f.insert("dil".into(), "en".into());
+        f
+    }
+
+    #[test]
+    fn en_formu_ve_hatalar_ingilizce() {
+        let t = setup(|_| {});
+        let pg = t.p.send_code(IP, Some(MAC), &en(&[("ad", "A"), ("soyad", "Ali1"), ("telefon", "212 455 31 32")]));
+        assert_eq!((pg.tpl, pg.dil), ("giris", Dil::En));
+        assert_eq!(pg.get("hata_ad"), "Enter your first name using letters (2-40 characters).");
+        assert_eq!(pg.get("hata_telefon"), "Enter a valid mobile number (5XX XXX XX XX).");
+        assert_eq!(pg.get("hata_sozlesme"), "Accept the Internet User Agreement to continue.");
+        let html = t.p.render(&pg);
+        assert!(html.contains("<html lang=\"en\">") && html.contains("<h1>Welcome to Bocafe</h1>"));
+        assert!(html.contains(">First name</label>") && html.contains(">Send code</button>") && html.contains("Bocafe · Guest Wi-Fi"));
+        assert!(html.contains("I have read and accept the Internet User Agreement.") && html.contains("All rights reserved."));
+        assert!(html.contains("<input type=\"hidden\" name=\"dil\" value=\"en\">"));
+        assert!(!html.contains("hoş geldiniz") && !html.contains("Kod Gönder") && !html.contains("$m_"));
+        // sağlayıcı iletisi de çevrilir
+        let f = en(&[("ad", "John"), ("soyad", "Smith"), ("ulke", "DE"), ("telefon", "0151 2345 6789"), ("sozlesme", "1"), ("riza", "1")]);
+        assert_eq!(t.p.send_code(IP, Some(MAC), &f).get("hata_genel"), "SMS cannot be sent to foreign numbers right now, please ask the staff.");
+        // kod sayfası, tekrar gönderme, yanlış ve doğru kod
+        let mut g = good("5334553132");
+        g.insert("dil".into(), "en".into());
+        let html = t.p.render(&t.p.send_code(IP, Some(MAC), &g));
+        assert!(html.contains("We sent a 6-digit code to +90 5XX XXX XX 32. The code is valid for 3 minutes."));
+        assert!(html.contains(">Resend code</button>") && html.contains(">Change number</a>") && !html.contains("Doğrula"));
+        assert!(t.p.resend_dil(IP, Some(MAC), Dil::En).get("not").starts_with("A code was just sent. Please wait"));
+        let code = t.last_code();
+        let wrong = if code == "000000" { "111111" } else { "000000" };
+        assert_eq!(t.p.verify(IP, Some(MAC), &en(&[("kod", wrong)])).get("hata"), "Incorrect code. Attempts left: 4");
+        let html = t.p.render(&t.p.verify(IP, Some(MAC), &en(&[("kod", &code)])));
+        assert!(html.contains("<h1>You are connected</h1>") && html.contains("You are connected to Bocafe Wi-Fi") && html.contains("<b>Done</b>"));
+        // hata sayfası
+        let html = t.p.render(&t.p.home_dil(IP, None, "", Dil::En, false));
+        assert!(html.contains("Your device could not be identified") && html.contains(">Start over</a>") && html.contains("Something went wrong"));
+    }
+
+    #[test]
+    fn dil_baglantilari_dst_ve_kod_sayfasini_korur() {
+        let t = setup(|_| {});
+        let base = t.p.base_url.clone();
+        let html = t.p.render(&t.p.home(IP, Some(MAC), "http://neverssl.com/a?b=1"));
+        assert!(html.contains("<html lang=\"tr\">"));
+        assert!(html.contains(&format!("href=\"{base}/?dil=en&amp;dst=http%3A%2F%2Fneverssl.com%2Fa%3Fb%3D1\"")));
+        assert!(html.contains(&format!("href=\"{base}/?dil=tr&amp;dst=http%3A%2F%2Fneverssl.com%2Fa%3Fb%3D1\" lang=\"tr\" aria-current=\"true\">TR</a>")));
+        assert!(html.contains("<input type=\"hidden\" name=\"dil\" value=\"tr\">"));
+        // kod sayfasında dil değişince kod sayfası yeni dilde gelir; "Numarayı değiştir" (sayfa yok) formu açar
+        let pg = t.p.send_code(IP, Some(MAC), &good("5334553132"));
+        assert!(t.p.render(&pg).contains(&format!("href=\"{base}/?dil=en&amp;sayfa=kod\"")));
+        let pg = t.p.home_dil(IP, Some(MAC), "", Dil::En, true);
+        assert_eq!((pg.tpl, pg.dil), ("kod", Dil::En));
+        assert_eq!(t.p.home_dil(IP, Some(MAC), "", Dil::En, false).tpl, "giris");
+        t.advance(181.0); // kod süresi dolduysa form
+        assert_eq!(t.p.home_dil(IP, Some(MAC), "", Dil::En, true).tpl, "giris");
+    }
+
+    #[test]
+    fn hukuki_metin_en_bossa_turkce() {
+        // İngilizce alanlar boş: Türkçe metinler (eklerle) görünür, başlıklar İngilizce
+        let t = setup(|c| c.main.unvan = "Boca Ltd.".into());
+        let html = t.p.render(&t.p.home_dil(IP, Some(MAC), "", Dil::En, false));
+        assert!(html.contains("Bocafe’nin uhdesindeki") && html.contains("Şirketinizin Wi-Fi internet hizmetini"));
+        assert!(html.contains("<summary>Privacy Notice (KVKK)</summary>") && html.contains("<summary>Internet User Agreement</summary>"));
+        // İngilizce yazılmışsa: İŞLETMECİ yalnızca adla, unvan yer tutucusu unvanla değişir
+        let t = setup(|c| {
+            c.main.unvan = "Boca Ltd.".into();
+            c.portal.aydinlatma_en = "Data controller: İŞLETMECİ".into();
+            c.portal.acik_riza_en = "I consent to sharing with [vergi levhası unvanı].".into();
+            c.portal.sozlesme_en = "Rules of İŞLETMECİ’s network".into();
+        });
+        let html = t.p.render(&t.p.home_dil(IP, Some(MAC), "", Dil::En, false));
+        assert!(html.contains("Data controller: Bocafe") && html.contains("I consent to sharing with Boca Ltd.") && html.contains("Rules of Bocafe’s network"));
+        assert!(!html.contains("uhdesindeki") && !html.contains("Şirketinizin"));
+        // Türkçe sayfa İngilizce metinlerden etkilenmez
+        let html = t.p.render(&t.p.home(IP, Some(MAC), ""));
+        assert!(html.contains("Bocafe’nin uhdesindeki") && !html.contains("Data controller"));
+        // ikisi de boşsa bilgi notu sayfanın dilinde
+        let t = setup(|c| c.portal.aydinlatma = String::new());
+        assert!(t.p.render(&t.p.home_dil(IP, Some(MAC), "", Dil::En, false)).contains("This text has not been added yet."));
+        assert!(t.p.render(&t.p.home(IP, Some(MAC), "")).contains("Metin henüz eklenmedi."));
+    }
 }

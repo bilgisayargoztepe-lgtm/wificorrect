@@ -2937,6 +2937,24 @@ mod tests {
     }
 
     #[test]
+    fn portal_metinleri_ingilizce_alanlar() {
+        let e = env();
+        let (tok, csrf) = setup_and_login(&e, "mudur", "sahip-parola-12");
+        let page = e.p.handle(&get("/portal-metinleri", &[], &tok)).body;
+        assert!(page.contains("KVKK Aydınlatma Metni (İngilizce)") && page.contains("name=\"acik_riza_en\"") && page.contains("name=\"sozlesme_en\""));
+        let c0 = Config::load(&e.p.cfg_path).unwrap();
+        let (a, r, s) = (c0.portal.aydinlatma.clone(), c0.portal.acik_riza.clone(), c0.portal.sozlesme.clone());
+        let f = [("csrf", csrf.as_str()), ("aydinlatma", a.as_str()), ("acik_riza", r.as_str()), ("sozlesme", s.as_str()), ("aydinlatma_en", "Data controller: <X>"), ("acik_riza_en", "I consent"), ("sozlesme_en", "")];
+        assert!(!loc(&e.p.handle(&req("POST", "/portal-metinleri", &f, Some(&tok)))).contains("e=1"));
+        let c = Config::load(&e.p.cfg_path).unwrap();
+        assert_eq!((c.portal.aydinlatma_en.as_str(), c.portal.acik_riza_en.as_str(), c.portal.sozlesme_en.as_str()), ("Data controller: <X>", "I consent", ""));
+        assert_eq!(c.portal.aydinlatma, a); // Türkçeler değişmedi
+        assert!(e.p.handle(&get("/portal-metinleri", &[], &tok)).body.contains("Data controller: &lt;X&gt;"));
+        let audit = std::fs::read_to_string(e.root.join("5651/gunluk/2026-09-29/denetim.csv")).unwrap();
+        assert!(audit.contains("PANEL_PORTAL_METIN") && audit.contains("aydinlatma_en(20 karakter) acik_riza_en(9 karakter)") && !audit.contains("sozlesme_en("));
+    }
+
+    #[test]
     fn admin_settings_page_and_factory_reset() {
         let e = env();
         let (otok, ocsrf) = setup_and_login(&e, "mudur", "sahip-parola-12");

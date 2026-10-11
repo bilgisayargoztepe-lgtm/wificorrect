@@ -3,6 +3,7 @@
 mod ag;
 mod ayar;
 mod ctl;
+mod dil;
 mod fabrika;
 mod filtre;
 mod hiz;

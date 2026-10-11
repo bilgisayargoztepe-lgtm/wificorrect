@@ -121,6 +121,9 @@ enum MisafirRed {
     KodTavani,
 }
 
+/// `Giris.ek` içinde oturum açılırken kodun güncel bitişiyle değiştirilen yer tutucu.
+const KOD_BITIS: &str = "{kod_bitis}";
+
 /// Kayan pencerede (`MISAFIR_KILIT_SN`) kalan hata sayısı; eskiler atılır.
 fn pencere_say(p: &mut HashMap<String, VecDeque<f64>>, key: &str, now: f64) -> usize {
     let q = p.entry(key.to_string()).or_default();
@@ -935,9 +938,8 @@ impl Portal {
             return hata("");
         };
         let ek = format!(
-            "sozlesme=1 riza=1 giris=misafir_kodu oda={} kod_bitis={} ureten={}",
+            "sozlesme=1 riza=1 giris=misafir_kodu oda={} kod_bitis={KOD_BITIS} ureten={}",
             k.oda,
-            ortak::now_iso(k.bitis),
             k.ureten.replace(char::is_whitespace, "_")
         );
         let g = Giris { kisi: &k.kimlik, ad: &k.ad, soyad: &k.soyad, bitis: Some(k.bitis), ek, kod_id: Some(&k.kod_id) };
@@ -1009,7 +1011,8 @@ impl Portal {
             .set("mac", mac)
             .set("ic_ip", ip)
             .set("oturum_id", &s.session_id)
-            .set("ek", format!("bitis={} {}", ortak::now_iso(now + secs), g.ek));
+            // kod_bitis: state_lock altında yeniden okunan kodun bitişi (bu arada uzatılmış olabilir)
+            .set("ek", format!("bitis={} {}", ortak::now_iso(now + secs), g.ek.replace(KOD_BITIS, &ortak::now_iso(now + secs))));
         let day = ortak::day_of(&zaman).to_string();
         let written = ortak::append_user_rows(&m.log_root, &s, mac, &[basla.clone()])
             .and_then(|_| ortak::append_rows(&ortak::day_file(&m.log_root, &day, "oturum.csv"), &[basla]))
@@ -1827,8 +1830,13 @@ mod tests {
         let mut kodlar = misafir::oku(&t.p.cfg.main.state_root);
         let yeni = misafir::uzat(&mut kodlar, &k2.kod_id, 24, WALL0).unwrap();
         misafir::kaydet(&t.p.cfg.main.state_root, &kodlar).unwrap();
-        let g = Giris { kisi: TC_KEY, ad: "Ali", soyad: "Veli", bitis: Some(k2.bitis), ek: String::new(), kod_id: Some(&k2.kod_id) };
+        let ek = format!("giris=misafir_kodu kod_bitis={KOD_BITIS}");
+        let g = Giris { kisi: TC_KEY, ad: "Ali", soyad: "Veli", bitis: Some(k2.bitis), ek, kod_id: Some(&k2.kod_id) };
         assert_eq!(t.p.open_session(IP, MAC, &g).unwrap().expires_epoch, yeni);
+        // kayıttaki kod_bitis de yeniden okunan (uzatılmış) bitiş
+        let oturum = t.read("5651/gunluk/2026-09-29/oturum.csv");
+        assert!(oturum.contains(&format!("giris=misafir_kodu kod_bitis={}", ortak::now_iso(yeni))), "{oturum}");
+        assert!(!oturum.contains(&ortak::now_iso(k2.bitis)));
     }
 
     #[test]

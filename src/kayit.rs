@@ -198,7 +198,12 @@ pub fn sessions_at(cfg: &Config, ip: &str, t: f64) -> Vec<Rec> {
     let mut out = vec![];
     for (_, mut ev) in by_id {
         ev.sort_by(|a, b| a.0.total_cmp(&b.0));
-        let started = ev.iter().find(|(_, r)| col(r, "olay") == "OTURUM_BASLA").map(|(_, r)| r.clone());
+        // başlangıç geriye bakışın dışında kaldıysa (uzun misafir oturumu) uzatma satırı da oturumun açık olduğunu gösterir
+        let started = ev
+            .iter()
+            .find(|(_, r)| col(r, "olay") == "OTURUM_BASLA")
+            .or_else(|| ev.iter().find(|(_, r)| col(r, "olay") == "OTURUM_UZATILDI"))
+            .map(|(_, r)| r.clone());
         if let (Some((_, last)), Some(start)) = (ev.last(), started) {
             if col(last, "olay") != "OTURUM_BITIS" && col(last, "ic_ip") == ip {
                 out.push(start);
@@ -429,6 +434,25 @@ mod tests {
         let bul = sessions_at(&cfg, "10.50.0.23", parse_time("2026-09-25 10:00").unwrap());
         assert_eq!(bul.len(), 1);
         assert_eq!(col(&bul[0], "telefon"), "TC:10000000146");
+    }
+
+    #[test]
+    fn uzatilan_misafir_oturumu_120_gun_sonra_bulunur() {
+        // oturum 120 gün önce başladı (geriye bakışın dışında), 100. günde uzatıldı, IP aynı
+        let (cfg, _root) = setup();
+        let r = &cfg.main.log_root;
+        let tc = |row: Row| row.set("telefon", "TC:10000000146");
+        ortak::append_rows(&ortak::day_file(r, "2026-01-01", "oturum.csv"), &[tc(ses_row("OTURUM_BASLA", "2026-01-01T10:00:00+03:00", "10.50.0.23", "u1"))]).unwrap();
+        ortak::append_rows(&ortak::day_file(r, "2026-04-11", "oturum.csv"), &[tc(ses_row("OTURUM_UZATILDI", "2026-04-11T10:00:00+03:00", "10.50.0.23", "u1"))
+            .set("ek", "yeni_bitis=2026-05-11T10:00:00+03:00 ureten=mudur")])
+        .unwrap();
+        let bul = sessions_at(&cfg, "10.50.0.23", parse_time("2026-04-21 10:00").unwrap());
+        assert_eq!(bul.len(), 1);
+        assert_eq!((col(&bul[0], "telefon"), col(&bul[0], "oturum_id")), ("TC:10000000146", "u1"));
+        // başka IP eşleşmez; sonradan bitmişse bulunmaz
+        assert!(sessions_at(&cfg, "10.50.0.24", parse_time("2026-04-21 10:00").unwrap()).is_empty());
+        ortak::append_rows(&ortak::day_file(r, "2026-04-15", "oturum.csv"), &[tc(ses_row("OTURUM_BITIS", "2026-04-15T10:00:00+03:00", "10.50.0.23", "u1"))]).unwrap();
+        assert!(sessions_at(&cfg, "10.50.0.23", parse_time("2026-04-21 10:00").unwrap()).is_empty());
     }
 
     #[test]

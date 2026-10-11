@@ -338,18 +338,23 @@ impl Panel {
             let k = kodlar.iter().find(|k| k.kod_id == id).expect("uzatılan kod").clone();
             let mut ses = ortak::load_sessions(&m.state_root);
             let macler: Vec<String> = ses.iter().filter(|(_, s)| s.phone == k.kimlik).map(|(mac, _)| mac.clone()).collect();
-            let (mut uzayan, mut hatali) = (0, 0);
+            let (mut uzayanlar, mut hatali) = (Vec::new(), 0);
             for mac in &macler {
                 if ortak::oturum_uzat(&mut ses, mac, bitis, now, &*self.runner) {
-                    uzayan += 1;
+                    uzayanlar.push(mac.clone());
                 } else {
                     hatali += 1;
                 }
             }
+            let mut uzayan = uzayanlar.len();
             // kayıt yazılamazsa nft uzadı ama kaydedici eski bitişte kapatır: hata olarak bildirilir
             if uzayan > 0 && ortak::save_sessions(&m.state_root, &ses).is_err() {
                 hatali += uzayan;
                 uzayan = 0;
+            } else {
+                for mac in &uzayanlar {
+                    ortak::oturum_uzatildi_yaz(&m.log_root, &ses[mac], mac, now, &o.user);
+                }
             }
             (k, uzayan, hatali)
         };

@@ -3509,6 +3509,13 @@ mod tests {
         assert_eq!(kodlar(&e)[0].bitis, yeni);
         let d = denetim_satirlari(&e, "PANEL_MISAFIR_KODU");
         assert!(d.iter().any(|l| l.contains("islem=uzat") && l.contains("sure=48") && l.contains("uzayan=2")), "{d:?}");
+        // her uzayan oturum için 5651 kaydı (resmi talep IP araması oturumu buradan da bulur)
+        let oturum = std::fs::read_to_string(e.root.join("5651/gunluk/2026-09-29/oturum.csv")).unwrap();
+        let uz: Vec<&str> = oturum.lines().filter(|l| l.contains(";OTURUM_UZATILDI;")).collect();
+        assert_eq!(uz.len(), 2, "{oturum}");
+        let beklenen = format!("yeni_bitis={} ureten={}", ortak::now_iso(yeni), kodlar(&e)[0].ureten); // kodu üreten hesapla aynı
+        assert!(uz.iter().all(|l| l.contains("TC:10000000146") && l.ends_with(&beklenen)), "{uz:?}");
+        assert!(uz.iter().any(|l| l.contains(MISAFIR_MAC) && l.contains("10.50.0.31")));
     }
 
     #[test]

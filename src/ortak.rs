@@ -542,6 +542,16 @@ pub fn oturum_uzat(sessions: &mut Sessions, mac: &str, yeni_bitis: f64, now: f64
     true
 }
 
+/// Uzatılan oturum için `OTURUM_UZATILDI` (oturum.csv + kişi dosyası). Resmi talep IP araması oturumun hâlâ açık
+/// olduğunu bu satırdan da anlar: geriye bakış en son uzatmaya ulaşsa yeter.
+pub fn oturum_uzatildi_yaz(root: &str, s: &Session, mac: &str, now: f64, ureten: &str) {
+    let row = session_row("OTURUM_UZATILDI", &now_iso(now), s, mac)
+        .set("ad", &s.ad)
+        .set("soyad", &s.soyad)
+        .set("ek", format!("yeni_bitis={} ureten={}", now_iso(s.expires_epoch), ureten.replace(char::is_whitespace, "_")));
+    write_session_row(root, s, mac, row);
+}
+
 /// `nft delete element … ; add element … timeout Ns` — tek çağrı, tek işlem (atomik).
 pub fn nft_uzat_cmd(mac: &str, ip: &str, seconds: f64) -> Option<Cmd> {
     let mut c = nft_del_cmd(mac, ip)?;

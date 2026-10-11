@@ -9,6 +9,7 @@ mod hiz;
 mod hesap;
 mod kayit;
 mod kaydedici;
+mod kimlik;
 mod merkez;
 mod muhur;
 mod ortak;

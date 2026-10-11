@@ -199,7 +199,7 @@ def test_kural_esikleri():
     assert S.sorunlar(M, C, rapor(sms_sorunu=True), T0 - 60, T0 - 60, BUGUN, T0) == [("sms_calismiyor", "SMS çalışmıyor", "uyari")]
     # lisansı bitmiş: yalnızca lisans bilgisi
     s = S.sorunlar({**M, "lisans_bitis": "2026-10-10"}, C, rapor(disk_yuzde=99), T0 - 5000, T0 - 5000, None, T0)
-    assert s == [("lisans_bitiyor", "Lisans bitti (10.10.2026)", "bilgi")]
+    assert s == [("lisans_bitti", "Lisans bitti (10.10.2026)", "bilgi")]
 
 
 def test_hic_rapor_yoksa_rapor_yok_acilmaz():
@@ -252,6 +252,8 @@ class Ortam:
             if rapor_yaz and c is not None:
                 self.v.saglik_kaydet(c["id"], rapor())
             gun = datetime.datetime.fromtimestamp(simdi, common.TZ).date().isoformat()
+            if yas == "yok":  # durum.json'da kaydı yok (arşiv henüz oluşmadı)
+                continue
             ars[str(n)] = {"tur": "cihaz", "son_gun": self.sg.get(n, gun), "boyut": 0,
                            "el_sikisma": None if yas is None else simdi - yas}
         S.calistir(self.v, {"zaman": common.now_iso(simdi), "arsivler": ars}, gonder=self.g, simdi=simdi)
@@ -276,8 +278,12 @@ def test_sms_10_dk_sonra_ve_duzeldi():
         o.tur(300)
         assert len(o.g.giden) == 1
         o.el[n] = 60
-        o.tur(300)  # 1200 sn sonra düzeldi
-        assert o.acik(n) == {} and o.g.giden[1] == f"WifiCorrect {n} Göztepe: Cihaz ulaşılamıyor düzeldi (20 dk sürdü)"
+        o.tur(300)  # 1200 sn sonra düzeldi; "düzeldi" 600 sn temiz kalınca
+        assert o.acik(n) == {} and len(o.g.giden) == 1
+        o.tur(300)
+        assert len(o.g.giden) == 1
+        o.tur(300)
+        assert o.g.giden[1] == f"WifiCorrect {n} Göztepe: Cihaz ulaşılamıyor düzeldi (20 dk sürdü)"
         assert o.v.son_kapanan(n, "ulasilamiyor")["kapanis_sms"] == "gonderildi"
         h = [r for r in o.v.hareketler(n) if r["olay"] == "UYARI_SMS"]
         assert len(h) == 2 and all(r["kim"] == "saglik" and r["ip"] == "-" for r in h)
@@ -294,19 +300,55 @@ def test_titreyen_baglanti_tek_sms():
             o.el[n] = yas
             o.tur(300)
         assert o.g.giden == []
-        # sonra gerçekten 10 dk sürer → tek açılış SMS'i, düzelince tek kapanış
+        # sonra gerçekten 10 dk sürer (T0+2100'den) → tek açılış SMS'i
         o.el[n] = 700
         o.tur(300), o.tur(300), o.tur(300)
         assert len(o.g.giden) == 1 and "ulaşılamıyor (" in o.g.giden[0]
-        o.el[n] = 60
-        o.tur(300)
-        assert len(o.g.giden) == 2 and "düzeldi" in o.g.giden[1]
-        # bildirilmiş sorun 600 sn içinde yeniden açıldı: ne açılış ne kapanış SMS'i
-        for yas in (700, 700, 700, 700, 60, 700, 700, 700, 60):
+        # titremeye devam: 600 sn temiz kalmadan dönen aynı olay → ne "düzeldi" ne yeni açılış
+        for yas in (60, 700, 60, 700, 60, 60):
             o.el[n] = yas
             o.tur(300)
+        assert len(o.g.giden) == 1
+        bildirilen = [s for s in o.v.sorun_gecmisi(n) if s["acilis_sms"] == "gonderildi"]
+        assert len(bildirilen) == 1
+        o.tur(300)  # son kapanıştan (T0+4200) 600 sn temiz: tek "düzeldi", toplam süreyle
+        assert o.g.giden[1] == f"WifiCorrect {n} Göztepe: Cihaz ulaşılamıyor düzeldi (35 dk sürdü)"
+        o.tur(300)
         assert len(o.g.giden) == 2
-        assert [s["acilis_sms"] for s in o.v.sorun_gecmisi(n)][:2] == ["tekrar", "tekrar"]
+
+
+def test_kisa_kapanip_acilma_tek_olay():
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        o = Ortam(tmp)
+        n, _ = o.musteri(el_yas=700)
+        o.tur(), o.tur(600)
+        assert len(o.g.giden) == 1
+        ilk = o.acik(n)["ulasilamiyor"]
+        o.el[n] = 60
+        o.tur(300)  # 300 sn temiz
+        o.el[n] = 700
+        o.tur(300), o.tur(300), o.tur(300)
+        assert len(o.g.giden) == 1  # düzeldi yok, yeni açılış yok
+        s = o.acik(n)["ulasilamiyor"]
+        assert s["id"] == ilk["id"] and s["acilis"] == ilk["acilis"] and len(o.v.sorun_gecmisi(n)) == 1
+
+
+def test_duzeldi_sonrasi_uzun_kesinti_sms_atar():
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        o = Ortam(tmp)
+        n, _ = o.musteri(el_yas=700)
+        o.tur(), o.tur(600)
+        o.el[n] = 60
+        o.tur(300), o.tur(300), o.tur(300)  # 600 sn temiz → düzeldi
+        assert len(o.g.giden) == 2 and "düzeldi" in o.g.giden[1]
+        o.el[n] = 700
+        o.tur(300)  # yeniden düştü (artık yeni olay)
+        assert len(o.g.giden) == 2
+        o.tur(300), o.tur(300)  # 600 sn sürdü → yeni SMS
+        assert len(o.g.giden) == 3 and o.g.giden[2].startswith(f"WifiCorrect {n} Göztepe: Cihaz ulaşılamıyor (")
+        for _ in range(12):
+            o.tur(300)  # saatlerce sürse de tek SMS
+        assert len(o.g.giden) == 3
 
 
 def test_yeniden_calistirmada_cift_sms_yok():
@@ -325,6 +367,7 @@ def test_gunluk_sinir():
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
         o = Ortam(tmp, sinir=3)
         ns = sorted(o.musteri(ad=f"K{i}", el_yas=700)[0] for i in range(5))  # müşteri sırası numaraya göre
+        o.musteri(ad="Sağlam")  # hepsi birden düşmüş olmasın (o, izleme arızası sayılır)
         o.tur(), o.tur(600)
         assert len(o.g.giden) == 3 and o.v.sms_sayaci(BUGUN) == 3
         assert o.g.giden[2] == "WifiCorrect: günlük SMS üst sınırına (3) ulaşıldı, bugün başka uyarı SMS'i gitmeyecek."
@@ -332,7 +375,7 @@ def test_gunluk_sinir():
         assert durumlar == ["gonderildi", "gonderildi", "sinir", "sinir", "sinir"]
         for n in ns:
             o.el[n] = 60
-        o.tur(300)  # düzeldi: ilk ikisinin kapanışı sınıra takılır, üst sınır SMS'i ikinci kez gitmez
+        o.tur(300), o.tur(300), o.tur(300)  # düzeldi: ilk ikisinin kapanışı sınıra takılır, üst sınır SMS'i ikinci kez gitmez
         assert len(o.g.giden) == 3
         assert [o.v.son_kapanan(n, "ulasilamiyor")["kapanis_sms"] for n in ns] == ["sinir", "sinir", "", "", ""]
         assert len([r for r in o.v.hareketler() if r["olay"] == "UYARI_SMS"]) == 3
@@ -366,6 +409,12 @@ def test_bilgi_09da_toplu():
         o.v.lisans_ayarla(a, "2027-10-20")
         o.tur(300)
         assert len(o.g.giden) == 1 and [s["musteri"] for s in o.v.acik_sorunlar()] == [b]  # bilgi kapanışı SMS'siz
+        # b'nin lisansı bitti: "bitiyor" sessizce kapanır, "bitti" ayrı sorun olarak ertesi 09:00 özetine girer
+        ertesi = datetime.datetime.strptime(t_b, "%d.%m.%Y").date() + datetime.timedelta(days=1)
+        o.t[0] = ts(f"{ertesi.isoformat()}T09:00:00")
+        o.tur()
+        assert [(s["tur"], s["metin"]) for s in o.v.acik_sorunlar(b)] == [("lisans_bitti", f"Lisans bitti ({t_b})")]
+        assert len(o.g.giden) == 2 and o.g.giden[1] == f"WifiCorrect bilgi: {b} {ad_b}: Lisans bitti ({t_b})"
 
 
 def test_sms_hatasi_kaydedilir():
@@ -421,13 +470,86 @@ def test_ulasilamiyorken_rapor_kritikleri_duzeldi_sayilmaz():
         assert sorted(o.acik(n)) == ["kayit_durdu", "ulasilamiyor"] and len(o.g.giden) == 1
 
 
-def test_bayat_durumda_degerlendirme_yok():
+def test_bayat_durumda_degerlendirme_yok_gunde_bir_sms():
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
         o = Ortam(tmp)
         o.musteri(el_yas=None)
         for d in ({}, {"zaman": common.now_iso(T0 - 1000), "arsivler": {}}, {"zaman": "bozuk", "arsivler": {}}):
             S.calistir(o.v, d, gonder=o.g, simdi=T0)
-        assert o.v.acik_sorunlar() == [] and o.g.giden == []
+        assert o.v.acik_sorunlar() == [] and o.g.giden == ["WifiCorrect: izleme çalışmıyor (durum.json yok)"]
+        S.calistir(o.v, {"zaman": common.now_iso(T0), "arsivler": {}}, gonder=o.g, simdi=T0 + 86400 + 1000)
+        assert o.g.giden[1:] == ["WifiCorrect: izleme çalışmıyor (durum.json bayat)"]  # ertesi gün yine bir kez
+        assert len([r for r in o.v.hareketler() if r["olay"] == "UYARI_SMS"]) == 2 and o.v.sms_sayaci(BUGUN) == 1
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        o = Ortam(tmp, acik=False)
+        S.calistir(o.v, {}, gonder=o.g, simdi=T0)
+        assert o.g.giden == []
+
+
+def test_el_sikisma_yasi_durum_zamanina_gore():
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        o = Ortam(tmp)
+        n, cid = o.musteri()
+        o.v.saglik_kaydet(cid, rapor())
+        dz = T0 - 500  # durum.json 500 sn önce yazılmış, el sıkışma ondan 120 sn önce
+        d = {"zaman": common.now_iso(dz), "arsivler": {str(n): {"son_gun": BUGUN, "el_sikisma": dz - 120}}}
+        S.calistir(o.v, d, gonder=o.g, simdi=T0)
+        assert o.v.acik_sorunlar(n) == []
+        d["arsivler"][str(n)]["el_sikisma"] = dz - 601
+        S.calistir(o.v, d, gonder=o.g, simdi=T0)
+        assert list(o.acik(n)) == ["ulasilamiyor"]
+
+
+def test_tunel_bilgisi_okunamadi_toplu_ulasilamiyor_acilmaz():
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        o = Ortam(tmp)
+        a, _ = o.musteri(el_yas=None)
+        b, _ = o.musteri(el_yas=None)
+        o.tur(), o.tur(600), o.tur(300)
+        assert o.v.acik_sorunlar() == []
+        assert o.g.giden == ["WifiCorrect: izleme çalışmıyor (tünel bilgisi okunamadı)"]
+        o.el[b] = 60  # biri ayakta: ötekinin düşmesi gerçek
+        o.tur(300)
+        assert list(o.acik(a)) == ["ulasilamiyor"] and o.v.acik_sorunlar(b) == []
+
+
+def test_arsiv_kaydi_yoksa_ulasilamiyor_ve_yedek_acilmaz():
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        o = Ortam(tmp)
+        n, _ = o.musteri(el_yas="yok")
+        o.tur(), o.tur(600), o.tur(86400)
+        assert o.v.acik_sorunlar(n) == [] and o.g.giden == []
+        o.tur(2 * 86400)  # bağlanalı 3 gün: yedek gecikti
+        assert list(o.acik(n)) == ["yedek_gecikti"]
+    c = {**C, "baglanma": "2026-10-09T10:00:00+03:00"}
+    assert S.sorunlar(M, c, rapor(), T0 - 60, None, None, T0, arsiv_var=False) == []
+    c = {**C, "baglanma": "2026-10-08T23:00:00+03:00"}
+    assert S.sorunlar(M, c, rapor(), T0 - 60, None, None, T0, arsiv_var=False) == [("yedek_gecikti", "Yedek gecikti", "uyari")]
+    assert [t for t, _, _ in S.sorunlar(M, c, rapor(kaydedici=False), T0 - 5000, None, None, T0, arsiv_var=False)] == \
+        ["kayit_durdu", "yedek_gecikti"]  # rapor kuralları yine çalışır; tünel bilinmediğinden rapor_yok yok
+
+
+def test_main_beklenmeyen_hatada_sms():
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        o = Ortam(tmp)
+        eski = S.calistir
+
+        def bozuk(*a, **k):
+            raise RuntimeError("deneme")
+        S.calistir = bozuk
+        try:
+            assert S.main(db=o.yol, durum_yolu=os.path.join(tmp, "yok.json"), gonder=o.g) == 1
+        finally:
+            S.calistir = eski
+        assert o.g.giden == ["WifiCorrect: izleme çalışmıyor (hata: RuntimeError)"]
+
+        def patlayan(*a):
+            raise OSError("ağ")
+        S.calistir = bozuk
+        try:  # SMS denemesi de patlasa main düşmez
+            assert S.main(db=os.path.join(tmp, "b.db"), durum_yolu=os.path.join(tmp, "yok.json"), gonder=patlayan) == 1
+        finally:
+            S.calistir = eski
 
 
 if __name__ == "__main__":

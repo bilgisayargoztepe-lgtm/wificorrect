@@ -319,11 +319,30 @@ class Veri:
             db.execute("UPDATE sorun SET kapanis = ? WHERE id = ? AND kapanis = ''", (self._simdi(), sorun_id))
 
     def sorun_sms(self, sorun_id, alan, deger):
-        """alan: acilis_sms | kapanis_sms; değer: gonderildi|mock|hata:<kod>|sinir."""
+        """alan: acilis_sms | kapanis_sms; değer: gonderildi|mock|hata:<kod>|sinir|yok (kapanış SMS'i gerekmedi)."""
         if alan not in SORUN_SMS_ALANLARI:
             raise ValueError("Geçersiz SMS alanı.")
         with self._islem() as db:
             db.execute(f"UPDATE sorun SET {alan} = ? WHERE id = ?", (str(deger)[:64], sorun_id))
+
+    def sorun_yeniden_ac(self, sorun_id):
+        """Kapanıp "düzeldi" SMS'i gitmeden dönen sorun aynı olayın devamıdır: kapanış silinir."""
+        with self._islem() as db:
+            db.execute("UPDATE sorun SET kapanis = '' WHERE id = ?", (sorun_id,))
+
+    def kapanis_bekleyenler(self, musteri):
+        """Açılış SMS'i gitmiş, kapanmış, kapanış SMS'i henüz karara bağlanmamış (kritik/uyarı) sorunlar."""
+        return [dict(r) for r in self._hepsi(
+            "SELECT * FROM sorun WHERE musteri = ? AND kapanis != '' AND kapanis_sms = '' AND onem != 'bilgi' "
+            "AND acilis_sms IN ('gonderildi', 'mock') ORDER BY id", musteri)]
+
+    def gunluk_bayrak(self, ad, gun):
+        """Günde bir kez yapılacak iş: o gün ilk çağrıda True döner (bayrak konur), sonra False."""
+        with self._islem() as db:
+            if db.execute("SELECT 1 FROM ayar WHERE anahtar = ?", (f"{ad}:{gun}",)).fetchone():
+                return False
+            db.execute("INSERT INTO ayar (anahtar, deger) VALUES (?, '1')", (f"{ad}:{gun}",))
+            return True
 
     def acik_sorunlar(self, musteri=None):
         if musteri is None:

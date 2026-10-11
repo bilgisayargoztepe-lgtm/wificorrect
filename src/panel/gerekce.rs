@@ -8,14 +8,15 @@ pub(super) const SURE_SN: f64 = 30.0 * 60.0;
 const ONERILER: &[&str] = &["Emniyet / savcılık talebi", "Müşteri şikâyeti", "Müşterinin kendi talebi", "Teknik sorun incelemesi"];
 
 /// Gerekçe isteyen sayfa mı (yalnızca kafe sahibi için).
+/// Kimlikle aramalar (kullanıcılar, resmi talep, satır araması) POST'tur: gerekçe onlarda da sorulur; dönüş adresine
+/// aranan değer girmez (yalnızca yol).
 pub(super) fn needs_reason(req: &Req) -> bool {
-    req.method == "GET"
-        && match req.path.as_str() {
-            "/kayitlar/gun" | "/kayitlar/dosya" | "/kayitlar/indir" | "/kayitlar/gun-indir" | "/kullanicilar" | "/kullanici" | "/talep/paket" => true,
-            "/talep" => req.query.get("tur").is_some_and(|t| !t.is_empty()), // boş form gerekçesiz açılır, arama gerekçe ister
-            "/ara" => req.query.get("q").is_some_and(|t| !t.trim().is_empty()),
-            _ => false,
-        }
+    match (req.method.as_str(), req.path.as_str()) {
+        ("GET", "/kayitlar/gun" | "/kayitlar/dosya" | "/kayitlar/indir" | "/kayitlar/gun-indir" | "/kullanicilar" | "/kullanici" | "/talep/paket") => true,
+        ("GET", "/ara") => req.query.get("q").is_some_and(|t| !t.trim().is_empty()),
+        ("POST", "/kullanicilar" | "/talep" | "/kayitlar/dosya") => true, // boş talep formu (GET) gerekçesiz açılır, arama gerekçe ister
+        _ => false,
+    }
 }
 
 /// Dönülecek adres (yalnızca bu paneldeki bir yol; başka siteye yönlendirme yok).

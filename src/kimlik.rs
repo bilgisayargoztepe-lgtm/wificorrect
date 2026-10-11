@@ -87,9 +87,63 @@ pub fn maskele(anahtar: &str) -> String {
     anahtar.to_string()
 }
 
-/// Dosya adı için güvenli biçim: `:` → `_` (telefon anahtarı aynen).
+/// Dosya adı için güvenli biçim: `:` → `_`, sonra yalnızca `[A-Za-z0-9_]` kalır (yol ayracı, nokta, NUL atılır;
+/// telefon anahtarı aynen).
 pub fn dosya_adi(anahtar: &str) -> String {
-    anahtar.replace(':', "_")
+    anahtar.replace(':', "_").chars().filter(|c| c.is_ascii_alphanumeric() || *c == '_').collect()
+}
+
+/// Kişi anahtarı mı: geçerli TC/pasaport anahtarı ya da 6–15 haneli telefon.
+pub fn gecerli_anahtar(anahtar: &str) -> bool {
+    coz(anahtar).is_some() || ((6..=15).contains(&anahtar.len()) && anahtar.bytes().all(|b| b.is_ascii_digit()))
+}
+
+/// `dosya_adi`'nın tersi: `TC_…` → `TC:…`, `PASAPORT_DE_X…` → `PASAPORT:DE:X…`, telefon aynen; geçersizse `None`.
+pub fn dosya_adindan(ad: &str) -> Option<String> {
+    let k = if let Some(t) = ad.strip_prefix("TC_") {
+        format!("TC:{t}")
+    } else if let Some(r) = ad.strip_prefix("PASAPORT_") {
+        let (uyruk, no) = r.split_once('_')?;
+        format!("PASAPORT:{uyruk}:{no}")
+    } else {
+        ad.to_string()
+    };
+    gecerli_anahtar(&k).then_some(k)
+}
+
+/// TC ya da pasaport anahtarı mı (biçime bakar; listelerde maskelenmesi gereken kimlik).
+pub fn kimlik_mi(anahtar: &str) -> bool {
+    anahtar.starts_with("TC:") || anahtar.starts_with("PASAPORT:")
+}
+
+/// Panel listelerinde kişi: kimlik maskeli, telefon `+905…` (bugünkü gibi), boşsa boş.
+pub fn goster(anahtar: &str) -> String {
+    match anahtar {
+        "" => String::new(),
+        k if kimlik_mi(k) => maskele(k),
+        k => format!("+{k}"),
+    }
+}
+
+/// Denetim satırına yazılacak serbest metin: kimlik anahtarı, 11 haneli geçerli TC ya da harf+rakam karışık sözcük
+/// (pasaport olabilir) maskelenir. Ad, IP ve telefon aynen kalır.
+pub fn denetim_metni(s: &str) -> String {
+    s.split(' ')
+        .map(|w| {
+            let n = w.chars().count();
+            if kimlik_mi(w) {
+                maskele(w)
+            } else if tc_gecerli(w) {
+                maskele(&format!("TC:{w}"))
+            } else if n >= 5 && w.chars().any(|c| c.is_ascii_digit()) && w.chars().any(char::is_alphabetic) {
+                let c: Vec<char> = w.chars().collect();
+                format!("{}{}{}", c[..3].iter().collect::<String>(), "*".repeat(n - 5), c[n - 2..].iter().collect::<String>())
+            } else {
+                w.to_string()
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 /// HMAC-SHA256 (RFC 2104).
@@ -191,6 +245,39 @@ mod tests {
         assert_eq!(dosya_adi("PASAPORT:DE:X1234567"), "PASAPORT_DE_X1234567");
         assert_eq!(dosya_adi("905334553132"), "905334553132");
         assert!(!dosya_adi("PASAPORT:DE:X1").contains(':'));
+    }
+
+    #[test]
+    fn dosya_adi_yol_ayraci_ve_nul_atilir() {
+        for (girdi, beklenen) in [("../x", "x"), ("a/b", "ab"), ("\0", ""), ("a\\b", "ab"), ("TC:1.2", "TC_12")] {
+            assert_eq!(dosya_adi(girdi), beklenen, "{girdi:?}");
+        }
+        assert!(dosya_adi("../../etc/passwd").bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_'));
+    }
+
+    #[test]
+    fn dosya_adindan_geri_kurar() {
+        assert_eq!(dosya_adindan("TC_10000000146").as_deref(), Some("TC:10000000146"));
+        assert_eq!(dosya_adindan("PASAPORT_DE_X1234567").as_deref(), Some("PASAPORT:DE:X1234567"));
+        assert_eq!(dosya_adindan("905334553132").as_deref(), Some("905334553132"));
+        for bad in ["TC_10000000147", "PASAPORT_DEU_X1234567", "abc", "12345", "", "index"] {
+            assert_eq!(dosya_adindan(bad), None, "{bad}");
+        }
+        for k in ["TC:10000000146", "PASAPORT:DE:X1234567", "905334553132"] {
+            assert_eq!(dosya_adindan(&dosya_adi(k)).as_deref(), Some(k));
+        }
+    }
+
+    #[test]
+    fn goster_ve_denetim_metni_maskeli() {
+        assert_eq!(goster("TC:10000000146"), "100******46");
+        assert_eq!(goster("PASAPORT:DE:X1234567"), "DE X12***67");
+        assert_eq!(goster("905334553132"), "+905334553132");
+        assert_eq!(goster(""), "");
+        assert_eq!(denetim_metni("10000000146"), "100******46");
+        assert_eq!(denetim_metni("X1234567"), "X12***67");
+        assert_eq!(denetim_metni("ayşe 905334553132 10.50.0.23"), "ayşe 905334553132 10.50.0.23");
+        assert_eq!(denetim_metni("TC:10000000146"), "100******46");
     }
 
     #[test]

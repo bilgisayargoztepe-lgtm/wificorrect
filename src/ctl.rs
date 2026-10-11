@@ -197,6 +197,18 @@ fn fabrika_calistir(cfg: &Config, now: f64, runner: &Runner, serbest: bool) -> E
     }
 }
 
+/// `ctl ara` seçeneği → (`kayit::ara` türü, değer). Pasaportta `--uyruk XX` varsa değer `XX:NO` olur.
+fn ara_secenegi(args: &[String]) -> Option<(&'static str, String)> {
+    let opt = |name: &str| args.iter().position(|a| a == name).and_then(|i| args.get(i + 1)).cloned();
+    let (tur, deger) = ["ic-ip", "nat-port", "hedef-ip", "telefon", "mac", "tc", "pasaport", "oda"]
+        .iter()
+        .find_map(|t| opt(&format!("--{t}")).map(|v| (*t, v)))?;
+    match (tur, opt("--uyruk")) {
+        ("pasaport", Some(u)) => Some((tur, format!("{u}:{deger}"))),
+        _ => Some((tur, deger)),
+    }
+}
+
 pub fn run(cfg: Config, args: &[String]) -> ExitCode {
     let runner = |c: &[String]| ortak::run(c);
     let now = ortak::wall();
@@ -367,11 +379,13 @@ pub fn run(cfg: Config, args: &[String]) -> ExitCode {
         }
         Some("ara") => {
             let opt = |name: &str| args.iter().position(|a| a == name).and_then(|i| args.get(i + 1)).map(String::as_str);
-            let Some((tur, deger)) = ["ic-ip", "nat-port", "hedef-ip", "telefon", "mac"].iter().find_map(|t| opt(&format!("--{t}")).map(|v| (*t, v))) else {
+            let Some((tur, deger)) = ara_secenegi(args) else {
                 eprintln!("Kullanım: wificorrect ctl ara (--ic-ip IP | --nat-port PORT | --hedef-ip IP) --zaman \"2026-09-24 14:30\" [--tolerans SN]");
                 eprintln!("          wificorrect ctl ara --telefon NUMARA | --mac MAC [--zaman ...]");
+                eprintln!("          wificorrect ctl ara --tc TCKN | --pasaport NO [--uyruk XX] | --oda NO [--zaman ...]");
                 return ExitCode::from(2);
             };
+            let deger = deger.as_str();
             let tol = opt("--tolerans").and_then(|v| v.parse().ok()).unwrap_or(120.0);
             match crate::kayit::ara(&cfg, tur, deger, opt("--zaman").unwrap_or(""), tol, now) {
                 Ok(sections) => {
@@ -433,6 +447,17 @@ mod tests {
     use super::*;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::{Arc, Mutex};
+
+    #[test]
+    fn ara_secenekleri_kimlik_ve_oda() {
+        let v = |a: &[&str]| ara_secenegi(&a.iter().map(|s| s.to_string()).collect::<Vec<_>>());
+        assert_eq!(v(&["ara", "--tc", "10000000146"]), Some(("tc", "10000000146".into())));
+        assert_eq!(v(&["ara", "--pasaport", "X1234567", "--uyruk", "DE"]), Some(("pasaport", "DE:X1234567".into())));
+        assert_eq!(v(&["ara", "--pasaport", "X1234567"]), Some(("pasaport", "X1234567".into())));
+        assert_eq!(v(&["ara", "--oda", "101", "--zaman", "2026-09-27 12:00"]), Some(("oda", "101".into())));
+        assert_eq!(v(&["ara", "--telefon", "05334553132"]), Some(("telefon", "05334553132".into())));
+        assert_eq!(v(&["ara", "--uyruk", "DE"]), None);
+    }
 
     const M1: &str = "aa:bb:cc:dd:ee:01";
     const M2: &str = "aa:bb:cc:dd:ee:02";

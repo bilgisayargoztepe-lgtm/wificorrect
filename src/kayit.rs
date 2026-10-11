@@ -2,6 +2,7 @@
 //! Yalnızca okur: mühürlü `.csv.gz` dosyalar açılıp okunur, hiçbir kayıt değiştirilmez.
 
 use crate::ayar::Config;
+use crate::kimlik;
 use crate::ortak::{self, CSV_HEADER};
 use std::fs;
 use std::io::Read;
@@ -70,7 +71,8 @@ pub fn valid_day(s: &str) -> bool {
 }
 
 // ---------------------------------------------------------------- dosyalar
-/// Gün klasöründe izin verilen dosya adı mı: `trafik.csv(.gz)`, `kullanicilar/905….csv(.gz)`. Başka yol yok (dışarı çıkılamaz).
+/// Gün klasöründe izin verilen dosya adı mı: `trafik.csv(.gz)`, `kullanicilar/<kişi>.csv(.gz)` (`905…`, `TC_…`,
+/// `PASAPORT_DE_…`). Başka yol yok (dışarı çıkılamaz).
 pub fn safe_file(root: &str, day: &str, rel: &str) -> Option<PathBuf> {
     if !valid_day(day) {
         return None;
@@ -78,7 +80,7 @@ pub fn safe_file(root: &str, day: &str, rel: &str) -> Option<PathBuf> {
     let base = rel.strip_suffix(".gz").unwrap_or(rel);
     let stem = base.strip_suffix(".csv")?;
     let ok = match stem.strip_prefix("kullanicilar/") {
-        Some(phone) => (6..=15).contains(&phone.len()) && phone.bytes().all(|b| b.is_ascii_digit()),
+        Some(kisi) => kimlik::dosya_adindan(kisi).is_some(),
         None => !stem.is_empty() && stem.bytes().all(|b| b.is_ascii_lowercase()),
     };
     let p = ortak::day_file(root, day, rel);
@@ -151,13 +153,14 @@ pub fn days_desc(root: &str) -> Vec<String> {
     v
 }
 
-/// Kişinin dosyası olan günler (eskiden yeniye) ve yolları.
-pub fn user_days(root: &str, phone: &str) -> Vec<(String, String)> {
+/// Kişinin dosyası olan günler (eskiden yeniye) ve yolları. `kisi` = kişi anahtarı (telefon, `TC:…`, `PASAPORT:…`).
+pub fn user_days(root: &str, kisi: &str) -> Vec<(String, String)> {
+    let ad = kimlik::dosya_adi(kisi);
     crate::muhur::days(root)
         .into_iter()
         .filter_map(|day| {
             ["csv", "csv.gz"].iter().find_map(|ext| {
-                let rel = format!("kullanicilar/{phone}.{ext}");
+                let rel = format!("kullanicilar/{ad}.{ext}");
                 safe_file(root, &day, &rel).map(|_| (day.clone(), rel))
             })
         })
@@ -165,10 +168,29 @@ pub fn user_days(root: &str, phone: &str) -> Vec<(String, String)> {
 }
 
 // ---------------------------------------------------------------- arama
-pub fn by_phone(root: &str, phone: &str) -> Vec<Rec> {
-    user_days(root, phone)
+/// Kişi dosya yolundaki (`kullanicilar/<ad>.csv(.gz)`) kişi anahtarı.
+pub fn kisi_dosyasi_anahtari(rel: &str) -> Option<String> {
+    let ad = rel.strip_prefix("kullanicilar/")?;
+    let ad = ad.strip_suffix(".gz").unwrap_or(ad).strip_suffix(".csv")?;
+    kimlik::dosya_adindan(ad)
+}
+
+/// Kaydı olan bütün kişi anahtarları: kişi listesi (index.csv) + günlerin kişi dosyaları.
+pub fn kisi_anahtarlari(root: &str) -> std::collections::BTreeSet<String> {
+    let mut out: std::collections::BTreeSet<String> = ortak::read_index(root).into_keys().filter(|k| kimlik::gecerli_anahtar(k)).collect();
+    for day in crate::muhur::days(root) {
+        let Ok(rd) = fs::read_dir(Path::new(root).join("gunluk").join(&day).join("kullanicilar")) else { continue };
+        out.extend(rd.flatten().filter_map(|e| kisi_dosyasi_anahtari(&format!("kullanicilar/{}", e.file_name().to_string_lossy()))));
+    }
+    out
+}
+
+/// Kişinin oturum kayıtları (kişi dosyalarından).
+pub fn by_phone(root: &str, kisi: &str) -> Vec<Rec> {
+    let ad = kimlik::dosya_adi(kisi);
+    user_days(root, kisi)
         .into_iter()
-        .flat_map(|(day, _)| day_rows(root, &day, &format!("kullanicilar/{phone}.csv")))
+        .flat_map(|(day, _)| day_rows(root, &day, &format!("kullanicilar/{ad}.csv")))
         .filter(|r| col(r, "olay").starts_with("OTURUM_") || col(r, "olay") == "KAYIT")
         .collect()
 }
@@ -238,7 +260,22 @@ pub fn flows(cfg: &Config, field: &str, value: &str, t: f64, tol: f64) -> Vec<Re
         .collect()
 }
 
-/// Talep araması. tur: ic-ip | nat-port | hedef-ip | telefon | mac. Dönen: (başlık, satırlar) bölümleri ya da hata.
+/// Oda numarasıyla açılmış misafir oturumları (`ek` alanında `oda=<no>`), [t1, t2] günleri arasında.
+pub fn by_oda(cfg: &Config, oda: &str, t1: f64, t2: f64) -> Vec<Rec> {
+    let aranan = format!("oda={oda}");
+    let mut rows: Vec<Rec> = days_range(t1, t2)
+        .iter()
+        .flat_map(|d| day_rows(&cfg.main.log_root, d, "oturum.csv"))
+        .filter(|r| matches!(col(r, "olay"), "OTURUM_BASLA" | "OTURUM_UZATILDI"))
+        .filter(|r| col(r, "ek").split_whitespace().any(|t| t.eq_ignore_ascii_case(&aranan)))
+        .collect();
+    rows.sort_by(|a, b| a[0].cmp(&b[0]));
+    rows
+}
+
+/// Talep araması. tur: ic-ip | nat-port | hedef-ip | telefon | mac | tc | pasaport | oda.
+/// Pasaportta değer `NO` (bütün uyruklar) ya da `UYRUK:NO`. Dönen: (başlık, satırlar) bölümleri ya da hata.
+/// Resmi talep sonuçları 5651 kaydıdır: kimlikler tam gösterilir.
 pub fn ara(cfg: &Config, tur: &str, deger: &str, zaman: &str, tol: f64, now: f64) -> Result<Vec<(String, Vec<Rec>)>, String> {
     let root = &cfg.main.log_root;
     let deger = deger.trim();
@@ -248,6 +285,63 @@ pub fn ara(cfg: &Config, tur: &str, deger: &str, zaman: &str, tol: f64, now: f64
         "telefon" => {
             let phone = crate::ulkeler::normalize_phone("TR", deger).ok_or("Telefon numarası geçersiz.")?;
             Ok(vec![(format!("+{phone} oturumları"), by_phone(root, &phone))])
+        }
+        "tc" => {
+            let tc: String = deger.chars().filter(|c| !c.is_whitespace()).collect();
+            if !kimlik::tc_gecerli(&tc) {
+                return Err("T.C. kimlik numarası geçersiz.".into());
+            }
+            let k = kimlik::Kimlik::Tc(tc).anahtar();
+            Ok(vec![(format!("{k} oturumları"), by_phone(root, &k))])
+        }
+        "pasaport" => {
+            let (uyruk, no) = match deger.split_once(':') {
+                Some((u, n)) => (u.trim().to_ascii_uppercase(), n),
+                None => (String::new(), deger),
+            };
+            let no = kimlik::pasaport_normal(no).ok_or("Pasaport numarası geçersiz.")?;
+            if !uyruk.is_empty() && !(uyruk.len() == 2 && uyruk.bytes().all(|b| b.is_ascii_uppercase())) {
+                return Err("Uyruk iki harfli ülke kodu olmalı (ör. DE).".into());
+            }
+            let anahtarlar: Vec<String> = if uyruk.is_empty() {
+                // uyruk verilmezse her uyruktaki aynı numara
+                kisi_anahtarlari(root)
+                    .into_iter()
+                    .filter(|k| matches!(kimlik::coz(k), Some(kimlik::Kimlik::Pasaport { no: ref n, .. }) if *n == no))
+                    .collect()
+            } else {
+                vec![kimlik::Kimlik::Pasaport { uyruk, no: no.clone() }.anahtar()]
+            };
+            if anahtarlar.is_empty() {
+                return Ok(vec![(format!("Pasaport {no} oturumları"), vec![])]);
+            }
+            Ok(anahtarlar.into_iter().map(|k| (format!("{k} oturumları"), by_phone(root, &k))).collect())
+        }
+        "oda" => {
+            let oda = deger.to_ascii_uppercase();
+            if !(1..=10).contains(&oda.len()) || !oda.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-') {
+                return Err("Oda numarası geçersiz.".into());
+            }
+            // misafir oturumu en çok EN_UZUN_OTURUM_SN sürer: o kadar geriye bakılır
+            let span = crate::misafir::EN_UZUN_OTURUM_SN + 86400.0;
+            let (t1, t2) = match parse_time(zaman) {
+                Some(t) => (t - span, t + tol.max(86400.0)),
+                None => (now - span, now),
+            };
+            let basla = by_oda(cfg, &oda, t1, t2);
+            let mut kisiler: Vec<String> = vec![];
+            for r in &basla {
+                let k = col(r, "telefon");
+                if !k.is_empty() && !kisiler.iter().any(|x| x == k) {
+                    kisiler.push(k.to_string());
+                }
+            }
+            let mut out = vec![(format!("Oda {oda}: misafir oturumları"), basla)];
+            out.extend(kisiler.into_iter().map(|k| {
+                let rows = by_phone(root, &k);
+                (format!("{k} oturumları"), rows)
+            }));
+            Ok(out)
         }
         "mac" => {
             let mac = ortak::norm_mac(deger).ok_or("MAC adresi geçersiz.")?;
@@ -455,6 +549,66 @@ mod tests {
         assert!(sessions_at(&cfg, "10.50.0.23", parse_time("2026-04-21 10:00").unwrap()).is_empty());
     }
 
+    /// Misafir oturumu: oturum.csv + kişi dosyası (portalın yazdığı gibi)
+    fn misafir_yaz(r: &str, gun: &str, zaman: &str, kisi: &str, oda: &str, sid: &str) {
+        let row = ses_row("OTURUM_BASLA", zaman, "10.50.0.31", sid)
+            .set("telefon", kisi)
+            .set("ek", format!("bitis=x sozlesme=1 riza=1 giris=misafir_kodu oda={oda} kod_bitis=x ureten=mudur"));
+        ortak::append_rows(&ortak::day_file(r, gun, "oturum.csv"), &[row.clone()]).unwrap();
+        ortak::append_rows(&ortak::user_file(r, gun, kisi), &[row]).unwrap();
+    }
+
+    #[test]
+    fn talep_tc_pasaport_oda() {
+        let (cfg, _) = setup();
+        let r = &cfg.main.log_root;
+        misafir_yaz(r, "2026-09-27", "2026-09-27T10:00:00+03:00", "TC:10000000146", "101", "t1");
+        misafir_yaz(r, "2026-09-27", "2026-09-27T11:00:00+03:00", "PASAPORT:DE:X1234567", "102", "p1");
+        misafir_yaz(r, "2026-09-28", "2026-09-28T11:00:00+03:00", "PASAPORT:GB:X1234567", "101", "p2");
+        let now = parse_time("2026-09-29 12:00").unwrap();
+        // TC: tam değerle, boşluklu yazım da olur; sağlaması bozuk numara reddedilir
+        let s = ara(&cfg, "tc", " 10000000146 ", "", 0.0, now).unwrap();
+        assert_eq!((s.len(), s[0].0.as_str(), s[0].1.len()), (1, "TC:10000000146 oturumları", 1));
+        assert_eq!(col(&s[0].1[0], "telefon"), "TC:10000000146"); // sonuç tam
+        assert!(ara(&cfg, "tc", "10000000147", "", 0.0, now).is_err());
+        // pasaport + uyruk: yalnızca o uyruk; uyruksuz: her uyruk
+        let s = ara(&cfg, "pasaport", "de:x1234567", "", 0.0, now).unwrap();
+        assert_eq!((s.len(), s[0].1.len(), col(&s[0].1[0], "oturum_id")), (1, 1, "p1"));
+        let s = ara(&cfg, "pasaport", "X1234567", "", 0.0, now).unwrap();
+        let basliklar: Vec<&str> = s.iter().map(|(b, _)| b.as_str()).collect();
+        assert_eq!(basliklar, ["PASAPORT:DE:X1234567 oturumları", "PASAPORT:GB:X1234567 oturumları"]);
+        assert!(s.iter().all(|(_, rows)| rows.len() == 1));
+        assert!(ara(&cfg, "pasaport", "DEU:X1234567", "", 0.0, now).is_err());
+        assert!(ara(&cfg, "pasaport", "X1", "", 0.0, now).is_err());
+        assert!(ara(&cfg, "pasaport", "Y7654321", "", 0.0, now).unwrap()[0].1.is_empty());
+        // oda: o odada açılmış oturumlar ve kişilerinin kayıtları
+        let s = ara(&cfg, "oda", "101", "", 0.0, now).unwrap();
+        assert_eq!(s[0].0, "Oda 101: misafir oturumları");
+        let idler: Vec<&str> = s[0].1.iter().map(|r| col(r, "oturum_id")).collect();
+        assert_eq!(idler, ["t1", "p2"]);
+        assert_eq!(s.iter().skip(1).map(|(b, _)| b.as_str()).collect::<Vec<_>>(), ["TC:10000000146 oturumları", "PASAPORT:GB:X1234567 oturumları"]);
+        assert!(ara(&cfg, "oda", "1010", "", 0.0, now).unwrap()[0].1.is_empty()); // "oda=101" "oda=1010"u tutmaz
+        // zamanla: o güne kadarki oturumlar
+        let s = ara(&cfg, "oda", "101", "2026-09-27 12:00", 0.0, now).unwrap();
+        assert_eq!(s[0].1.len(), 2); // ertesi gün de pencerede (en az 1 gün tolerans)
+        assert!(ara(&cfg, "oda", "1 0 1", "", 0.0, now).is_err());
+    }
+
+    #[test]
+    fn telefonlu_kayit_aramasi_aynen() {
+        let (cfg, _) = setup();
+        let r = &cfg.main.log_root;
+        ortak::append_rows(&ortak::user_file(r, "2026-09-27", "905334553132"), &[ses_row("OTURUM_BASLA", "2026-09-27T10:00:00+03:00", "10.50.0.23", "s1")]).unwrap();
+        ortak::append_rows(&ortak::user_file(r, "2026-09-28", "905334553132"), &[ses_row("OTURUM_BITIS", "2026-09-28T10:00:00+03:00", "10.50.0.23", "s1")]).unwrap();
+        let s = ara(&cfg, "telefon", "0533 455 31 32", "", 0.0, 0.0).unwrap();
+        assert_eq!((s[0].0.as_str(), s[0].1.len()), ("+905334553132 oturumları", 2));
+        assert_eq!(user_days(r, "905334553132").len(), 2);
+        assert!(Path::new(r).join("gunluk/2026-09-27/kullanicilar/905334553132.csv").exists()); // dosya adı aynen
+        assert_eq!(kisi_dosyasi_anahtari("kullanicilar/905334553132.csv.gz").as_deref(), Some("905334553132"));
+        assert_eq!(kisi_dosyasi_anahtari("kullanicilar/TC_10000000146.csv").as_deref(), Some("TC:10000000146"));
+        assert_eq!(kisi_dosyasi_anahtari("dns.csv"), None);
+    }
+
     #[test]
     fn time_parsing() {
         assert_eq!(parse_time("2026-09-29 21:05:34"), Some(1_790_705_134.0));
@@ -512,6 +666,9 @@ mod tests {
         ortak::append_rows(&ortak::user_file(root, "2026-09-28", "905334553132"), &[Row::new("KAYIT", "2026-09-28T10:00:00+03:00")]).unwrap();
         assert!(safe_file(root, "2026-09-28", "dhcp.csv").is_some());
         assert!(safe_file(root, "2026-09-28", "kullanicilar/905334553132.csv").is_some());
+        ortak::append_rows(&ortak::user_file(root, "2026-09-28", "TC:10000000146"), &[Row::new("KAYIT", "2026-09-28T10:00:00+03:00")]).unwrap();
+        assert!(safe_file(root, "2026-09-28", "kullanicilar/TC_10000000146.csv").is_some());
+        assert!(safe_file(root, "2026-09-28", "kullanicilar/TC_10000000147.csv").is_none());
         for bad in ["../../zincir.txt", "kullanicilar/../dhcp.csv", "/etc/passwd", "dhcp.csv/..", "MANIFEST.sha256", "yok.csv"] {
             assert!(safe_file(root, "2026-09-28", bad).is_none(), "{bad}");
         }

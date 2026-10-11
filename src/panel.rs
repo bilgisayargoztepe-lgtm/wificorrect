@@ -3481,10 +3481,10 @@ mod tests {
         assert_eq!(ses[MISAFIR_MAC].expires_epoch, yeni);
         assert_eq!(ses["aa:bb:cc:dd:ee:08"].expires_epoch, yeni);
         let calls: Vec<String> = e.calls.lock().unwrap().iter().map(|c| c.join(" ")).collect();
-        assert_eq!(calls, [
-            format!("nft delete element inet hotspot auth {{ {MISAFIR_MAC} . 10.50.0.31 }}"),
-            format!("nft add element inet hotspot auth {{ {MISAFIR_MAC} . 10.50.0.31 timeout 259200s }}"),
-        ]);
+        // sil + ekle tek nft çağrısında (tek işlem): arada öğesiz an yok
+        assert_eq!(calls, [format!(
+            "nft delete element inet hotspot auth {{ {MISAFIR_MAC} . 10.50.0.31 }} ; add element inet hotspot auth {{ {MISAFIR_MAC} . 10.50.0.31 timeout 259200s }}"
+        )]);
         // geçersiz süre
         let r = e.p.handle(&req("POST", "/misafir-kodlari/uzat", &[("csrf", &csrf), ("id", &k.kod_id), ("sure", "5")], Some(&tok)));
         assert!(loc(&r).contains("e=1"));
@@ -3503,16 +3503,52 @@ mod tests {
         let calls = Arc::new(Mutex::new(Vec::new()));
         let c2 = calls.clone();
         let runner = move |c: &[String]| {
-            let s = c.join(" ");
-            let ok = !s.contains("timeout 9000s"); // yeni süre eklenemez
-            c2.lock().unwrap().push(s);
-            ok
+            c2.lock().unwrap().push(c.to_vec());
+            false // işlem reddedildi: nft hiçbirini uygulamaz, eski öğe yerinde
         };
         assert!(!ortak::oturum_uzat(&mut ses, MISAFIR_MAC, 10_000.0, 1000.0, &runner));
         assert_eq!(ses[MISAFIR_MAC].expires_epoch, 2000.0);
-        assert_eq!(calls.lock().unwrap().last().unwrap(), &format!("nft add element inet hotspot auth {{ {MISAFIR_MAC} . 10.50.0.31 timeout 1000s }}"));
+        let calls = calls.lock().unwrap().clone();
+        assert_eq!(calls.len(), 1, "tek çağrı, geri koyma yok: {calls:?}");
+        let c = &calls[0];
+        assert_eq!(c[0], "nft");
+        assert_eq!(c.iter().filter(|x| x.as_str() == "nft").count(), 1);
+        assert!(c.join(" ").ends_with(&format!("; add element inet hotspot auth {{ {MISAFIR_MAC} . 10.50.0.31 timeout 9000s }}")));
+        // geçersiz MAC/IP: hiçbir komut yok
+        assert!(ortak::nft_uzat_cmd("bozuk", "10.50.0.31", 10.0).is_none() && ortak::nft_uzat_cmd(MISAFIR_MAC, "1.2.3", 10.0).is_none());
         assert!(ortak::oturum_uzat(&mut ses, MISAFIR_MAC, 5000.0, 1000.0, &|_: &[String]| true));
         assert_eq!(ses[MISAFIR_MAC].expires_epoch, 5000.0);
+    }
+
+    /// sessions.json yazılamasın: geçici dosya yolu klasör (root için de açılamaz)
+    fn oturum_kaydini_boz(e: &Env) {
+        let state = Config::load(&e.p.cfg_path).unwrap().main.state_root;
+        std::fs::create_dir_all(std::path::Path::new(&state).join("sessions.tmp")).unwrap();
+    }
+
+    #[test]
+    fn oturum_kaydi_yazilamazsa_basari_denmez() {
+        let e = env();
+        let (tok, csrf) = setup_and_login(&e, "mudur", "sahip-parola-12");
+        misafir_ac(&e, "otel", true);
+        uret_tc(&e, &tok, &csrf, TC1, "101", "24");
+        uret_tc(&e, &tok, &csrf, TC2, "102", "24");
+        let k = kodlar(&e);
+        misafir_oturumu(&e, MISAFIR_MAC, "TC:10000000146", "10.50.0.31", k[0].bitis);
+        misafir_oturumu(&e, AYSE, "TC:11111111110", "10.50.0.23", k[1].bitis);
+        oturum_kaydini_boz(&e);
+        // uzatma: hata mesajı, denetimde hatali
+        let r = e.p.handle(&req("POST", "/misafir-kodlari/uzat", &[("csrf", &csrf), ("id", &k[1].kod_id), ("sure", "24")], Some(&tok)));
+        assert!(loc(&r).contains("e=1") && loc(&r).contains(&pct("Oturum kaydı yazılamadı")), "{}", loc(&r));
+        assert!(denetim_satirlari(&e, "PANEL_MISAFIR_KODU").last().unwrap().contains("uzayan=0 hatali=1"));
+        // iptal
+        let r = e.p.handle(&req("POST", "/misafir-kodlari/iptal", &[("csrf", &csrf), ("id", &k[0].kod_id)], Some(&tok)));
+        assert!(loc(&r).contains("e=1") && loc(&r).contains(&pct("Oturum kaydı yazılamadı; servisleri yeniden başlatın.")), "{}", loc(&r));
+        assert!(denetim_satirlari(&e, "PANEL_MISAFIR_KODU").last().unwrap().contains("kapanan=1 hatali=1"));
+        // aynı kimliğe yeni kod (eskisi iptal, oturum kapanır): yine hata
+        let r = uret_tc(&e, &tok, &csrf, TC2, "103", "24");
+        assert!(loc(&r).starts_with("/misafir-kodlari/fis?id=") && loc(&r).ends_with("&e=1"), "{}", loc(&r));
+        assert!(denetim_satirlari(&e, "PANEL_MISAFIR_KODU").last().unwrap().ends_with("hatali=1"));
     }
 
     #[test]
@@ -3588,6 +3624,14 @@ mod tests {
         assert!(b.contains("@media print") && b.contains("Yazdırmak için Ctrl+P") && b.contains("Kod üretildi."));
         assert!(!b.contains(TC1) && !b.to_lowercase().contains("kupon"));
         assert_eq!(misafir_sayfasi::tarih_saat(1_790_705_134.0), "29.09.2026 21:05");
+        // süresi dolmuş (iptal edilmemiş) kodun fişi açılır ama kod gösterilmez
+        let state = Config::load(&e.p.cfg_path).unwrap().main.state_root;
+        let mut dolmus = kodlar(&e);
+        dolmus[0].bitis = 1_790_705_000.0;
+        crate::misafir::kaydet(&state, &dolmus).unwrap();
+        let b = e.p.handle(&q).body;
+        assert!(!b.contains(&format!(">{}<", k.kod)) && b.contains("Süresi doldu / Expired") && b.contains("Bu kodun süresi doldu."), "{b}");
+        crate::misafir::kaydet(&state, &[k.clone()]).unwrap();
         misafir_ac(&e, "yurt", true);
         let b = e.p.handle(&q).body;
         assert!(b.contains("'Yurt sakiniyim'e dokunun") && b.contains("tap 'Dormitory resident'"));

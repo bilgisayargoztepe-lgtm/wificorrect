@@ -529,19 +529,24 @@ pub fn move_session(root: &str, sessions: &mut Sessions, mac: &str, new_ip: &str
 }
 
 /// Süren oturumun bitişini değiştirir (misafir kodu uzatıldı). nft öğesinin süresi yerinde değiştirilemez
-/// (`add` var olan öğeye dokunmaz, `update` yalnızca kural içinde): öğe silinip yeni kalan süreyle yeniden eklenir
-/// (arada milisaniyelik boşluk). Eklenemezse eski süreyle geri konur, oturum değişmez → false. IP'siz oturumda yalnızca kayıt.
+/// (`add` var olan öğeye dokunmaz, `update` yalnızca kural içinde): sil + yeniden ekle **tek nft çağrısında** (`;` ile
+/// ayrılmış komutlar tek işlem/batch olarak uygulanır: ya ikisi birden ya hiçbiri; arada boşluk yok). Başarısızsa eski öğe
+/// yerinde kalır, oturum değişmez → false. IP'siz oturumda yalnızca kayıt. Süre = yeni bitiş − şimdi (koddan uzun olamaz).
 pub fn oturum_uzat(sessions: &mut Sessions, mac: &str, yeni_bitis: f64, now: f64, runner: &Runner) -> bool {
     let Some(s) = sessions.get_mut(mac) else { return false };
-    if !s.ip.is_empty() {
-        run_opt(runner, nft_del_cmd(mac, &s.ip));
-        if !run_opt(runner, nft_add_cmd(mac, &s.ip, yeni_bitis - now)) {
-            run_opt(runner, nft_add_cmd(mac, &s.ip, s.expires_epoch - now));
-            return false;
-        }
+    if !s.ip.is_empty() && !run_opt(runner, nft_uzat_cmd(mac, &s.ip, yeni_bitis - now)) {
+        return false;
     }
     s.expires_epoch = yeni_bitis;
     true
+}
+
+/// `nft delete element … ; add element … timeout Ns` — tek çağrı, tek işlem (atomik).
+pub fn nft_uzat_cmd(mac: &str, ip: &str, seconds: f64) -> Option<Cmd> {
+    let mut c = nft_del_cmd(mac, ip)?;
+    c.push(";".into());
+    c.extend(nft_add_cmd(mac, ip, seconds)?.into_iter().skip(1)); // "nft" bir kez
+    Some(c)
 }
 
 // ---------------------------------------------------------------- IP → MAC

@@ -8,6 +8,7 @@ use super::*;
 use crate::{kimlik, misafir};
 
 const YOL: &str = "/misafir-kodlari";
+const OTURUM_HATA: &str = "Oturum kaydı yazılamadı; servisleri yeniden başlatın.";
 
 /// Geçerlilik seçeneğinin adı.
 fn sure_adi(saat: u64) -> String {
@@ -208,17 +209,16 @@ impl Panel {
     }
 
     /// Kişinin (kişi anahtarı = `Session.phone`) açık oturumlarını kapatır; çağıran state_lock tutar.
-    fn kimlik_oturumlari_kapat(&self, cfg: &Config, anahtar: &str, now: f64) -> usize {
+    /// (kapanan sayısı, sessions.json yazıldı mı): yazılamazsa `ctl yukle` kapanan oturumu geri getirebilir → hata gösterilir.
+    fn kimlik_oturumlari_kapat(&self, cfg: &Config, anahtar: &str, now: f64) -> (usize, bool) {
         let m = &cfg.main;
         let mut ses = ortak::load_sessions(&m.state_root);
         let macler: Vec<String> = ses.iter().filter(|(_, s)| s.phone == anahtar).map(|(mac, _)| mac.clone()).collect();
         for mac in &macler {
             ortak::close_session(&m.log_root, &mut ses, mac, "kod_iptal", now, &*self.runner);
         }
-        if !macler.is_empty() {
-            let _ = ortak::save_sessions(&m.state_root, &ses);
-        }
-        macler.len()
+        let yazildi = macler.is_empty() || ortak::save_sessions(&m.state_root, &ses).is_ok();
+        (macler.len(), yazildi)
     }
 
     fn misafir_uret(&self, cfg: &Config, req: &Req, o: &Oturum, now: f64) -> Resp {
@@ -232,7 +232,7 @@ impl Panel {
             }
         };
         let m = &cfg.main;
-        let (yeni, eski, kapanan) = {
+        let (yeni, eski, (kapanan, yazildi)) = {
             let Ok(_g) = ortak::state_lock(&m.state_root) else { return redirect(YOL, Some(("Kilit alınamadı.", true))) };
             let mut kodlar = match misafir::oku_kesin(&m.state_root) {
                 Ok(k) => k,
@@ -243,7 +243,7 @@ impl Panel {
             if misafir::kaydet(&m.state_root, &kodlar).is_err() {
                 return redirect(YOL, Some(("Kaydedilemedi; kod üretilmedi.", true)));
             }
-            let kapanan = if eski.is_some() { self.kimlik_oturumlari_kapat(cfg, &anahtar, now) } else { 0 };
+            let kapanan = if eski.is_some() { self.kimlik_oturumlari_kapat(cfg, &anahtar, now) } else { (0, true) };
             (yeni, eski, kapanan)
         };
         self.audit(
@@ -252,19 +252,24 @@ impl Panel {
             Some(o),
             "PANEL_MISAFIR_KODU",
             &format!(
-                "islem=uret kod_id={} oda={} bitis={} tur={} sure={sure}{}",
+                "islem=uret kod_id={} oda={} bitis={} tur={} sure={sure}{}{}",
                 yeni.kod_id,
                 yeni.oda,
                 ortak::now_iso(yeni.bitis),
                 tur_kisa(&anahtar),
-                eski.as_ref().map_or(String::new(), |e| format!(" onceki_iptal={} kapanan={kapanan}", e.kod_id))
+                eski.as_ref().map_or(String::new(), |e| format!(" onceki_iptal={} kapanan={kapanan}", e.kod_id)),
+                if yazildi { "" } else { " hatali=1" }
             ),
         );
-        let msg = if eski.is_some() { "Kod üretildi. Bu kişinin önceki kodu iptal edildi." } else { "Kod üretildi." };
+        let msg = match (eski.is_some(), yazildi) {
+            (_, false) => format!("Kod üretildi, önceki kodu iptal edildi; ama {OTURUM_HATA}"),
+            (true, true) => "Kod üretildi. Bu kişinin önceki kodu iptal edildi.".into(),
+            (false, true) => "Kod üretildi.".into(),
+        };
         Resp {
             status: 303,
             body: String::new(),
-            headers: vec![("Location".into(), format!("{YOL}/fis?id={}&m={}", pct(&yeni.kod_id), pct(msg)))],
+            headers: vec![("Location".into(), format!("{YOL}/fis?id={}&m={}{}", pct(&yeni.kod_id), pct(&msg), if yazildi { "" } else { "&e=1" }))],
             file: None,
         }
     }
@@ -272,7 +277,7 @@ impl Panel {
     fn misafir_iptal(&self, cfg: &Config, req: &Req, o: &Oturum, now: f64) -> Resp {
         let id = req.form.get("id").map_or("", String::as_str);
         let m = &cfg.main;
-        let (k, kapanan) = {
+        let (k, (kapanan, yazildi)) = {
             let Ok(_g) = ortak::state_lock(&m.state_root) else { return redirect(YOL, Some(("Kilit alınamadı.", true))) };
             let mut kodlar = match misafir::oku_kesin(&m.state_root) {
                 Ok(k) => k,
@@ -287,7 +292,7 @@ impl Panel {
             }
             // aynı kişinin başka etkin kodu varsa (olmamalı: üretim eskisini iptal eder) oturumlar ona aittir
             let baska = kodlar.iter().any(|x| x.aktif(now) && x.kimlik == k.kimlik);
-            let kapanan = if baska { 0 } else { self.kimlik_oturumlari_kapat(cfg, &k.kimlik, now) };
+            let kapanan = if baska { (0, true) } else { self.kimlik_oturumlari_kapat(cfg, &k.kimlik, now) };
             (k, kapanan)
         };
         self.audit(
@@ -295,8 +300,18 @@ impl Panel {
             req,
             Some(o),
             "PANEL_MISAFIR_KODU",
-            &format!("islem=iptal kod_id={} oda={} bitis={} tur={} kapanan={kapanan}", k.kod_id, k.oda, ortak::now_iso(k.bitis), tur_kisa(&k.kimlik)),
+            &format!(
+                "islem=iptal kod_id={} oda={} bitis={} tur={} kapanan={kapanan}{}",
+                k.kod_id,
+                k.oda,
+                ortak::now_iso(k.bitis),
+                tur_kisa(&k.kimlik),
+                if yazildi { "" } else { " hatali=1" }
+            ),
         );
+        if !yazildi {
+            return redirect(YOL, Some((&format!("Kod iptal edildi; ama {OTURUM_HATA}"), true)));
+        }
         let msg = if kapanan > 0 { format!("Kod iptal edildi; {kapanan} cihazın bağlantısı kesildi.") } else { "Kod iptal edildi.".into() };
         redirect(YOL, Some((&msg, false)))
     }
@@ -331,8 +346,10 @@ impl Panel {
                     hatali += 1;
                 }
             }
-            if uzayan > 0 {
-                let _ = ortak::save_sessions(&m.state_root, &ses);
+            // kayıt yazılamazsa nft uzadı ama kaydedici eski bitişte kapatır: hata olarak bildirilir
+            if uzayan > 0 && ortak::save_sessions(&m.state_root, &ses).is_err() {
+                hatali += uzayan;
+                uzayan = 0;
             }
             (k, uzayan, hatali)
         };
@@ -351,7 +368,7 @@ impl Panel {
             ),
         );
         if hatali > 0 {
-            let msg = format!("Kod {} tarihine uzatıldı, ama {hatali} bağlı cihazın süresi güvenlik duvarına yazılamadı; servisleri yeniden başlatın.", tarih_saat(k.bitis));
+            let msg = format!("Kod {} tarihine uzatıldı, ama {hatali} bağlı cihazın süresi uzatılamadı ({OTURUM_HATA})", tarih_saat(k.bitis));
             return redirect(YOL, Some((&msg, true)));
         }
         redirect(YOL, Some((&format!("Kod {} tarihine uzatıldı.", tarih_saat(k.bitis)), false)))
@@ -369,7 +386,12 @@ impl Panel {
         };
         self.audit(cfg, req, Some(o), "PANEL_MISAFIR_KODLARI", &format!("sayfa=fis kod_id={}", k.kod_id));
         let (tr, en) = dugme_adi(cfg);
-        let dolmus = if k.aktif(now) { String::new() } else { "<p class=\"mesaj hata\">Bu kodun süresi doldu.</p>".into() };
+        // süresi dolmuş kodun kendisi gösterilmez
+        let (dolmus, kod) = if k.aktif(now) {
+            (String::new(), h(&k.kod))
+        } else {
+            ("<p class=\"mesaj hata\">Bu kodun süresi doldu.</p>".to_string(), "Süresi doldu / Expired".to_string())
+        };
         let body = format!(
             "<style>.fis{{max-width:26rem;border:1px dashed var(--cizgi2);padding:20px 24px;margin:8px 0 20px}}\
              .fis .isletme{{font-weight:700;font-size:1.0625rem;margin-bottom:12px}}.fis .etiket{{font-size:.8125rem;color:var(--soluk);margin-top:14px}}\
@@ -379,14 +401,13 @@ impl Panel {
              {dolmus}<p class=\"not yazdirma-disi\">Yazdırmak için Ctrl+P. <a href=\"{YOL}\">Misafir kodlarına dön</a></p>\
              <div class=\"fis\"><div class=\"isletme\">{}</div>\
              <div>Misafir / Guest: <b>{}</b></div><div>Oda / Room: <b>{}</b></div>\
-             <div class=\"etiket\">Wi-Fi giriş kodu / Wi-Fi access code</div><div class=\"kod\">{}</div>\
+             <div class=\"etiket\">Wi-Fi giriş kodu / Wi-Fi access code</div><div class=\"kod\">{kod}</div>\
              <div>Son geçerlilik / Valid until: <b>{}</b></div>\
              <p>Wi-Fi'ye bağlanın, açılan sayfada '{tr}'e dokunun; kimlik bilginizi ve bu kodu girin.</p>\
              <p lang=\"en\">Connect to the Wi-Fi, tap '{en}' on the page that opens, then enter your ID details and this code.</p></div>",
             h(&cfg.main.site_name),
             h(&format!("{} {}", k.ad, k.soyad)),
             h(&k.oda),
-            h(&k.kod),
             h(&tarih_saat(k.bitis)),
         );
         self.page(cfg, req, Some(o), "Misafir kodu fişi", &body)

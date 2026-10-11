@@ -3781,10 +3781,37 @@ mod tests {
         post("/kullanicilar", &[("q", "100.000.001.46")]);
         post("/kayitlar/dosya", &[("gun", "2026-09-29"), ("dosya", "oturum.csv"), ("q", "10000000146,")]);
         post("/talep", &[("tur", "pasaport"), ("deger", "de:x1234567")]);
+        // düzeltme turu 3: serbest metinde 5+ rakam varsa her rakam yıldız (hangi ayraçla yazılırsa yazılsın)
+        let saldiri = [
+            "ayşe 100 000 001 46", "(10000000146)", "\"10000000146\"", "TC=10000000146", "TC_10000000146", "100_000_001_46",
+            "１００００００００１４６", "TC：10000000146", "100–000–001–46", "100·000·001·46", "10000000146\u{200B}",
+        ];
+        for q in saldiri {
+            post("/kullanicilar", &[("q", q)]);
+            post("/kayitlar/dosya", &[("gun", "2026-09-29"), ("dosya", "oturum.csv"), ("q", q)]);
+        }
+        post("/kullanicilar", &[("q", "101")]);
+        post("/kayitlar/dosya", &[("gun", "2026-09-29"), ("dosya", "oturum.csv"), ("q", "bet")]);
+        post("/kayitlar/dosya", &[("gun", "2026-09-29"), ("dosya", "oturum.csv"), ("q", "10.50.0.23:44321")]);
         // denetim kaydına kimlik tam girmez
         let audit = std::fs::read_to_string(e.root.join("5651/gunluk/2026-09-29/denetim.csv")).unwrap();
         assert!(audit.contains("PANEL_TALEP_ARA") && audit.contains("deger=100******46") && audit.contains("deger=DE X12***67"));
-        assert!(audit.contains("PANEL_KULLANICI_ARA") && audit.contains("ara=100******46"));
+        assert!(audit.contains("PANEL_KULLANICI_ARA") && audit.contains("ara=***********"));
+        // her serbest arama değerinde 5 ve daha uzun rakam dizisi yok; kısa arama ve IP'nin noktalaması aynen
+        let degerler: Vec<&str> = audit
+            .lines()
+            .filter_map(|l| l.split("ara=").nth(1))
+            .map(|v| v.split(" gerekce=").next().unwrap_or(v))
+            .collect();
+        assert!(degerler.len() >= 2 * 11 + 3, "{degerler:?}");
+        for v in &degerler {
+            let mut dizi = 0;
+            for c in v.chars() {
+                dizi = if c.is_numeric() { dizi + 1 } else { 0 };
+                assert!(dizi < 5, "denetimde rakam dizisi: {v}");
+            }
+        }
+        assert!(degerler.contains(&"101") && degerler.contains(&"bet") && degerler.contains(&"**.**.*.**:*****"), "{degerler:?}");
         assert!(audit.contains("kisi=100******46")); // kişi sayfası bakışı
         assert!(!audit.contains("10000000146") && !audit.to_uppercase().contains("X1234567") && !audit.contains("100.000.001.46"), "{audit}");
         assert!(!audit.contains("123456789") && !audit.contains("000 001") && audit.contains("deger=?? 123****89"), "{audit}");

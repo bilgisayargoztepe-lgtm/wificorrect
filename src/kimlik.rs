@@ -116,47 +116,6 @@ fn ayracsiz(s: &str) -> String {
     s.chars().filter(|c| !c.is_whitespace() && !"-.,/;:".contains(*c)).collect()
 }
 
-/// Tek değer (sözcük ya da bütün metin) kimlik gibi görünüyorsa maskesi. Büyük/küçük harf duyarsız `tc:` / `pasaport:`
-/// öneki atılır; `xx:no` biçiminde uyruk maskede açık kalır. TC: ayraçlar atılınca 11 haneli geçerli TC. Pasaport:
-/// `:` ile ayrılan parçalardan biri (baş/sondaki `.,/;` atılınca) rakam içeren 5–20 `[A-Z0-9]`; IP ve alan adı gibi
-/// içinde nokta olan değerler eşleşmez.
-fn kimlik_maskesi(w: &str) -> Option<String> {
-    let w = w.trim();
-    let kucuk = w.to_ascii_lowercase();
-    let govde = if kucuk.starts_with("pasaport:") {
-        &w[9..]
-    } else if kucuk.starts_with("tc:") {
-        &w[3..]
-    } else {
-        w
-    };
-    let tc = |p: &str| {
-        let t = ayracsiz(p);
-        tc_gecerli(&t).then(|| maskele(&format!("TC:{t}")))
-    };
-    if let Some(m) = tc(govde) {
-        return Some(m);
-    }
-    let parcalar: Vec<&str> = govde.split(':').collect();
-    for (i, p) in parcalar.iter().enumerate() {
-        if let Some(m) = tc(p) {
-            return Some(m);
-        }
-        let p = p.trim().trim_matches(|c: char| ".,/;".contains(c));
-        if let Some(no) = pasaport_normal(p).filter(|n| n.bytes().any(|b| b.is_ascii_digit())) {
-            let uyruk = i
-                .checked_sub(1)
-                .map(|j| parcalar[j].trim().to_ascii_uppercase())
-                .filter(|u| u.len() == 2 && u.bytes().all(|b| b.is_ascii_uppercase()));
-            return Some(match uyruk {
-                Some(u) => maskele(&format!("PASAPORT:{u}:{no}")),
-                None => ortasi_gizli(&no),
-            });
-        }
-    }
-    None
-}
-
 /// Dosya adı için güvenli biçim: `:` → `_`, sonra yalnızca `[A-Za-z0-9_]` kalır (yol ayracı, nokta, NUL atılır;
 /// telefon anahtarı aynen).
 pub fn dosya_adi(anahtar: &str) -> String {
@@ -195,15 +154,16 @@ pub fn goster(anahtar: &str) -> String {
     }
 }
 
-/// Denetim satırına yazılacak serbest metin (Kullanıcılar ve satır araması). Bütün metin boşluk/tire atılınca TC ya da
-/// pasaport benzeri (5–20 `[A-Z0-9]`, en az bir rakam; yalnız rakam da) bir değere dönüşüyorsa tamamı maskelenir; değilse
-/// sözcük sözcük aynı kural (kimlik anahtarı da). Rakamsız sözcük (ad) ve IP gibi noktalı değerler aynen kalır.
+/// Denetim satırına yazılacak serbest metin (Kullanıcılar ve satır araması). Kesin kural (düzeltme turu 3): metinde
+/// toplam 5 ya da daha çok rakam (`char::is_numeric`, Unicode rakamlar dahil) varsa her rakam `*` olur, harf ve
+/// noktalama yazıldığı gibi kalır; yoksa metin aynen yazılır. Biçim tahmini yok: hangi ayraçla yazılırsa yazılsın
+/// TC/pasaport/telefon denetime girmez.
 pub fn denetim_metni(s: &str) -> String {
-    let s = s.trim();
-    if let Some(m) = kimlik_maskesi(s) {
-        return m;
+    if s.chars().filter(|c| c.is_numeric()).count() >= 5 {
+        s.chars().map(|c| if c.is_numeric() { '*' } else { c }).collect()
+    } else {
+        s.to_string()
     }
-    s.split_whitespace().map(|w| kimlik_maskesi(w).unwrap_or_else(|| w.to_string())).collect::<Vec<_>>().join(" ")
 }
 
 /// HMAC-SHA256 (RFC 2104).
@@ -334,29 +294,30 @@ mod tests {
         assert_eq!(goster("PASAPORT:DE:X1234567"), "DE X12***67");
         assert_eq!(goster("905334553132"), "+905334553132");
         assert_eq!(goster(""), "");
-        assert_eq!(denetim_metni("10000000146"), "100******46");
-        assert_eq!(denetim_metni("X1234567"), "X12***67");
-        assert_eq!(denetim_metni("ayşe 10.50.0.23"), "ayşe 10.50.0.23");
-        assert_eq!(denetim_metni("TC:10000000146"), "100******46");
-        // boşluklu TC ve yalnız rakamlı pasaport da maskelenir
-        assert_eq!(denetim_metni("100 000 001 46"), "100******46");
-        assert_eq!(denetim_metni("123456789"), "123****89");
-        assert_eq!(denetim_metni("ali 123456789"), "ALI*******89"); // bütün metin pasaport benzeri
+        // yapılandırılmış talep araması: normalleştirilmiş anahtarın maskesi
         assert_eq!(denetim_tc(" 100 000 001 46 "), "100******46");
+        assert_eq!(denetim_tc("tc:100.000.001.46"), "tc:***.***.***.**"); // ara bunu reddeder; yine de rakam yazılmaz
         assert_eq!(denetim_pasaport("", "123 456 789"), "?? 123****89");
         assert_eq!(denetim_pasaport("DE", "x1234567"), "DE X12***67");
-        // küçük harfli önek, uyruk:no ve başka ayraçlar (düzeltme turu 2)
-        assert_eq!(denetim_metni("tc:10000000146"), "100******46");
-        assert_eq!(denetim_metni("pasaport:de:x1234567"), "DE X12***67");
-        assert_eq!(denetim_metni("de:x1234567"), "DE X12***67");
-        assert_eq!(denetim_metni("100.000.001.46"), "100******46");
-        assert_eq!(denetim_metni("10000000146,"), "100******46");
-        assert_eq!(denetim_metni("ayşe 10000000146; x1234567."), "ayşe 100******46 X12***67");
         assert_eq!(denetim_pasaport("", "de:x1234567"), "DE X12***67");
-        assert_eq!(denetim_pasaport("", "pasaport:de:x1234567"), "DE X12***67");
-        assert_eq!(denetim_tc("tc:100.000.001.46"), "100******46");
-        // IP, alan adı ve saat bozulmaz
-        assert_eq!(denetim_metni("10.50.0.23 bet365.com 10:30"), "10.50.0.23 bet365.com 10:30");
+        // serbest metin: 5+ rakam varsa her rakam yıldız; hiçbir yazımda 5 haneli rakam dizisi kalmaz
+        for girdi in [
+            "10000000146", "X1234567", "TC:10000000146", "tc:10000000146", "pasaport:de:x1234567", "100.000.001.46",
+            "10000000146,", "123456789", "100 000 001 46", "ayşe 100 000 001 46", "(10000000146)", "\"10000000146\"",
+            "TC=10000000146", "TC_10000000146", "100_000_001_46", "１００００００００１４６", "TC：10000000146",
+            "100–000–001–46", "100·000·001·46", "10000000146\u{200B}", "de:x1234567",
+        ] {
+            let m = denetim_metni(girdi);
+            assert!(!m.chars().any(char::is_numeric), "{girdi:?} → {m:?}");
+            assert_eq!(m.chars().count(), girdi.chars().count(), "{girdi:?}");
+        }
+        assert_eq!(denetim_metni("ayşe 100 000 001 46"), "ayşe *** *** *** **");
+        assert_eq!(denetim_metni("TC=10000000146"), "TC=***********");
+        assert_eq!(denetim_metni("10.50.0.23:44321"), "**.**.*.**:*****"); // harf ve noktalama kalır
+        // 5'ten az rakam: aynen
+        for girdi in ["101", "bet", "ayşe", "oda 1010", "bet365.com"] {
+            assert_eq!(denetim_metni(girdi), girdi);
+        }
     }
 
     #[test]

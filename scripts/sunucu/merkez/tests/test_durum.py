@@ -52,6 +52,30 @@ def test_main():
             d = json.load(f)
         assert d["arsivler"]["100001"] == {"tur": "cihaz", "son_gun": "2026-10-03", "boyut": 100, "el_sikisma": 1790000000}
         assert d["arsivler"]["bocafe"]["el_sikisma"] is None and d["zaman"].startswith("2026-")
+        assert d["wg_ok"] is True
+        onceki = D._wg
+        D._wg = lambda: None  # `wg show` başarısız
+        try:
+            D.main(kayit, yeni, eski, cikti, simdi=1_790_000_100.0, grup=None)
+        finally:
+            D._wg = onceki
+        with open(cikti, encoding="utf-8") as f:
+            d = json.load(f)
+        assert d["wg_ok"] is False and d["arsivler"]["100001"]["el_sikisma"] is None
+
+
+def test_wg_basarisi():
+    class Sonuc:
+        def __init__(self, kod, cikti):
+            self.returncode, self.stdout = kod, cikti
+
+    assert D._wg(lambda *a, **k: Sonuc(0, f"{PUB}\t1790000000\n")) == f"{PUB}\t1790000000\n"
+    assert D._wg(lambda *a, **k: Sonuc(0, "")) == ""  # çalıştı, hiç eş yok
+    assert D._wg(lambda *a, **k: Sonuc(1, "")) is None  # arayüz yok / yetki yok
+
+    def patlar(*a, **k):
+        raise OSError("wg yok")
+    assert D._wg(patlar) is None
 
 
 if __name__ == "__main__":

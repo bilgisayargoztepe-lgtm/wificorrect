@@ -8,7 +8,7 @@ User=wcpanel
 Group=wcpanel
 Environment=PYTHONDONTWRITEBYTECODE=1
 ExecStart=/usr/local/sbin/wc-saglik
-TimeoutStartSec=2min
+TimeoutStartSec=4min
 NoNewPrivileges=yes
 ProtectSystem=strict
 ProtectHome=yes

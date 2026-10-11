@@ -4,6 +4,8 @@ import re
 import sys
 import tempfile
 
+os.environ["WC_TEST"] = "1"  # netgsm.gonder gerçek isteği reddeder (yanlışlıkla SMS gitmesin)
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import yardim as Y  # noqa: E402
@@ -283,6 +285,35 @@ def test_sms_durum_etiketleri():
     assert f("gonderildi", "kritik") == "SMS gitti" and f("mock", "uyari") == "deneme modu"
     assert f("hata:30", "kritik") == "SMS gönderilemedi (30)" and f("sinir", "uyari") == "günlük SMS sınırı"
     assert f("yok", "kritik") == "SMS gönderilmedi (uyarılar kapalı)"
+    assert f("sinir:2026-10-11", "kritik") == "günlük SMS sınırı" and f("sinir:2026-10-11", "bilgi") == "günlük SMS sınırı"
+
+
+def test_gecmis_sms_etiketleri():
+    t = 1_790_000_000.0
+    iso = YN.common.now_iso
+    f = lambda **d: YN.gecmis_sms_etiketleri({"onem": "kritik", "acilis_sms": "", "kapanis_sms": "", "kapanis": "", **d}, t)
+    assert f() == ("SMS bekleniyor", "—") and f(onem="bilgi") == ("09:00'da gidecek", "—")  # açık
+    # kapanmış, hiç SMS'siz: sonsuza dek "bekleniyor" demez
+    assert f(kapanis=iso(t - 5000)) == ("—", "—") and f(kapanis=iso(t - 5000), onem="bilgi") == ("—", "—")
+    assert f(kapanis=iso(t - 100), acilis_sms="gonderildi") == ("SMS gitti", "düzeldi bekletiliyor")
+    assert f(kapanis=iso(t - 100), acilis_sms="mock") == ("deneme modu", "düzeldi bekletiliyor")
+    assert f(kapanis=iso(t - 700), acilis_sms="gonderildi") == ("SMS gitti", "—")
+    assert f(kapanis=iso(t - 100), acilis_sms="sinir:2026-09-21") == ("günlük SMS sınırı", "—")  # açılış gitmedi: düzeldi de yok
+    assert f(kapanis=iso(t - 5000), acilis_sms="gonderildi", kapanis_sms="gonderildi") == ("SMS gitti", "SMS gitti")
+    assert f(kapanis=iso(t - 5000), acilis_sms="gonderildi", kapanis_sms="sinir:2026-09-21") == ("SMS gitti", "günlük SMS sınırı")
+
+
+def test_izleme_satiri_ana_sayfada():
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        app, v, saat, c, _ = kur(tmp)
+        s = Y.al(app, "/", c)[2].decode()
+        assert '<b class="kotu">Sağlık izleme: hiç tur yok — izleme çalışmıyor olabilir</b>' in s  # hiç çalışmadı
+        v.saglik_son_tur_koy(YN.common.now_iso(saat.t - 180))
+        s = Y.al(app, "/", c)[2].decode()
+        assert "Sağlık izleme: son tur 3 dk önce" in s and "izleme çalışmıyor olabilir" not in s
+        v.saglik_son_tur_koy(YN.common.now_iso(saat.t - 16 * 60))
+        s = Y.al(app, "/", c)[2].decode()
+        assert '<b class="kotu">Sağlık izleme: son tur 16 dk önce — izleme çalışmıyor olabilir</b>' in s
 
 
 def test_musteri_saglik_ve_gecmis():
@@ -313,6 +344,25 @@ def test_musteri_saglik_ve_gecmis():
         assert "Sorun 59" in s and "Sorun 5<" not in s and "Disk dolu" not in s  # son 50
 
 
+def test_sorun_gecmisi_kapanmis_satir_etiketleri():
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        app, v, saat, c, _ = kur(tmp)
+        n, _ = v.musteri_ekle()
+        t0 = saat.t
+        saat.t -= 3600
+        i = v.sorun_ac(n, "rapor_yok", "Rapor gelmiyor", "kritik")
+        j = v.sorun_ac(n, "lisans_bitiyor", "Lisans bitiyor (01.10.2026)", "bilgi")
+        k = v.sorun_ac(n, "disk_dolu", "Disk dolu (%93)", "uyari")
+        v.sorun_sms(k, "acilis_sms", "gonderildi")
+        saat.t -= 1800
+        v.sorun_kapat(i), v.sorun_kapat(j)  # SMS'siz kapandı
+        saat.t = t0 - 100
+        v.sorun_kapat(k)  # açılışı gitmiş, 100 sn önce kapandı
+        saat.t = t0
+        s = Y.al(app, f"/m/{n}", c)[2].decode()
+        assert "SMS bekleniyor" not in s and "09:00&#x27;da gidecek" not in s and "düzeldi bekletiliyor" in s
+
+
 def test_uyari_ayarlari_kaydet_ve_dogrula():
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
         app, v, _, c, _ = kur(tmp)
@@ -329,12 +379,14 @@ def test_uyari_ayarlari_kaydet_ve_dogrula():
         assert "5331112233" in s and "checked" in s and 'value="15"' in s
         r = Y.gonder(app, "/uyari", c, {"csrf": t, "tel1": "123", "gunluk_sinir": "15"})  # geçersiz telefon
         assert r[0] == 400 and "Geçersiz telefon" in r[2].decode() and v.uyari_ayari()["gunluk_sinir"] == 15
-        for kotu in ("0", "101", "abc", ""):
+        for kotu in ("0", "1", "101", "abc", "", "2.5"):
             r = Y.gonder(app, "/uyari", c, {"csrf": t, "tel1": "05331112233", "gunluk_sinir": kotu})
             assert r[0] == 400, kotu
         assert v.uyari_ayari()["gunluk_sinir"] == 15
         r = Y.gonder(app, "/uyari", c, {"csrf": t, "tel1": "05331112233", "gunluk_sinir": "20"})  # onay kutusu işaretsiz = kapalı
         assert r[0] == 303 and v.uyari_ayari()["acik"] is False
+        r = Y.gonder(app, "/uyari", c, {"csrf": t, "tel1": "05331112233", "gunluk_sinir": "2"})  # en az 2
+        assert r[0] == 303 and v.uyari_ayari()["gunluk_sinir"] == 2
 
 
 def test_deneme_sms_sahte_gondericiyle():

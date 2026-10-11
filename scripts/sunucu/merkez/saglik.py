@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """wc-saglik (wcpanel, 5 dk'da bir; spec 2026-10-11): cihaz sağlık kuralları → sorun kaydı → hizmet sağlayıcıya SMS.
 El sıkışma ve son yedek günü root'un yazdığı durum.json'dan, son rapor veritabanından okunur.
-SMS kuralı: kritik/uyarı sorun 600 sn açık kalınca tek SMS; düzelince 600 sn temiz kalırsa tek "düzeldi" SMS'i (bu sürede
-geri dönerse aynı olay sürer); bilgi önemliler 09:00'da toplu; günlük üst sınır dolunca tek "üst sınır" SMS'i;
-izleme çalışamazsa günde bir "izleme çalışmıyor" SMS'i. Yeniden deneme yok."""
+SMS kuralı: kritik/uyarı sorun 600 sn açık kalınca tek SMS; kapanıp 600 sn içinde dönen sorun (bildirilmiş olsun olmasın)
+aynı olaydır; bildirilmişse düzelince 600 sn temiz kalırsa tek "düzeldi" SMS'i; bilgi önemliler 09:00'da toplu; günlük üst
+sınır dolunca ilk bastırılan uyarıda tek "üst sınır" SMS'i; sınıra takılan açılış (sinir:<gün>) ertesi gün yeniden denenir,
+"düzeldi"si gitmez; izleme çalışamazsa günde bir "izleme çalışmıyor" SMS'i. Ağ hatasında yeniden deneme yok.
+Her tamamlanan turun zamanı `saglik_son_tur` ayarına yazılır (yönetim ana sayfası izlemenin durduğunu oradan görür)."""
 import datetime
 import json
 import os
@@ -22,13 +24,14 @@ import yonetim  # noqa: E402
 ULASILAMIYOR_SN = yonetim.CEVRIMICI_SN  # yönetim listesindeki "çevrimiçi" ile aynı eşik
 RAPOR_SN = 900
 SMS_BEKLE_SN = 600
-TEKRAR_SN = 600  # bildirilmiş sorun bu kadar temiz kalmadan "düzeldi" denmez; içinde dönerse aynı olay (titreme)
+TEKRAR_SN = yonetim.TEKRAR_SN  # kapanan sorun bu kadar temiz kalmadan "düzeldi" denmez; içinde dönerse aynı olay (titreme)
 DISK_ESIK = 90
 LISANS_GUN = 15
 DURUM_BAYAT_SN = 900  # wc-durum 5 dk'da bir yazar; daha eskiyse el sıkışmalar bilinmez
 BILGI_SAAT = 9
 BILGI_PENCERE_SN = 600  # 09:00–09:10: timer kayması bir turu atlatsa da bilgi SMS'i o gün gider
 GONDERILDI = ("gonderildi", "mock")
+BILGI_EN_COK = 5  # toplu bilgi SMS'inde en çok bu kadar sorun yazılır, kalanı "+k diğer"
 ULASILAMIYORKEN_BILINMEZ = ("rapor_yok", "kayit_durdu", "servis_durdu")  # cihaza ulaşılamazken bilinmez
 SERVIS_ADLARI = ("portal", "panel", "dnsmasq", "guvenlik")  # kaydedici ayrı: kayit_durdu
 IZLEME_METNI = "WifiCorrect: izleme çalışmıyor ({})"
@@ -44,6 +47,11 @@ def _epoch(iso):
 
 def _bugun(simdi):
     return datetime.datetime.fromtimestamp(simdi, common.TZ).date()
+
+
+def _bekliyor(deger, gun):
+    """Açılış SMS'i daha gitmedi: hiç denenmedi ya da önceki bir gün günlük sınıra takıldı (bugün yeniden denenir)."""
+    return not deger or (deger.startswith("sinir") and deger != "sinir:" + gun)
 
 
 def kapsam(m, c, simdi):
@@ -117,19 +125,21 @@ class Uyari:
             return "hata:AG"
 
     def _gonder(self, metin):
-        """Dönen: gonderildi | mock | hata:<kod> | sinir. Üst sınır bildirimi de sayaca girer, günde bir kez gider."""
+        """Dönen: gonderildi | mock | hata:<kod> | sinir:<gün>. Son hak üst sınır bildiriminin; sayaç başka yoldan
+        (deneme SMS'i) dolduysa bildirim o günün ilk bastırılan uyarısında yine bir kez gider (sayaca girer)."""
         sinir = int(self.ayar["gunluk_sinir"])
-        if self.veri.sms_sayaci(self.gun) >= sinir:
-            return "sinir"
-        if self.veri.sms_say(self.gun) >= sinir:  # son hak üst sınır bildiriminin
+        if self.veri.sms_sayaci(self.gun) < sinir - 1:
+            self.veri.sms_say(self.gun)
+            return self._yolla(metin)
+        if self.veri.gunluk_bayrak("sinir_sms", self.gun):
+            self.veri.sms_say(self.gun)
             r = self._yolla(SINIR_METNI.format(sinir))
             self.veri.hareket("saglik", "-", "UYARI_SMS", None, f"üst sınır: {r}")
-            return "sinir"
-        return self._yolla(metin)
+        return "sinir:" + self.gun
 
     def _kaydet(self, s, alan, r, ne):
         self.veri.sorun_sms(s["id"], alan, r)
-        if r != "sinir":
+        if not r.startswith("sinir"):
             self.veri.hareket("saglik", "-", "UYARI_SMS", s["musteri"], f"{s['tur']} {ne}: {r}")
 
     def acilis(self, m, c, s):
@@ -138,7 +148,8 @@ class Uyari:
             self._kaydet(s, "acilis_sms", self._gonder(f"WifiCorrect {_kim(m, c)}: {s['metin']} ({saat}'ten beri)"), "açılış")
 
     def kapanis(self, m, c, s):
-        """Bekletilmiş "düzeldi" SMS'i; süre açılıştan son kapanışa. Uyarı kapalıysa "yok" (sonradan gitmez)."""
+        """Bekletilmiş "düzeldi" SMS'i; süre açılıştan son kapanışa. Uyarı kapalıysa "yok" (sonradan gitmez). Sınıra
+        takılırsa ertesi gün denenmez (geç "düzeldi" anlamsız)."""
         if not self.acik:
             self.veri.sorun_sms(s["id"], "kapanis_sms", "yok")
         else:
@@ -154,17 +165,20 @@ class Uyari:
             self.veri.hareket("saglik", "-", "UYARI_SMS", None, f"izleme çalışmıyor ({neden}): {r}")
 
     def bilgi_toplu(self, musteriler, cihazlar):
-        """TR 09:00 turunda bildirilmemiş bütün bilgi sorunları tek SMS'te."""
+        """TR 09:00 turunda bildirilmemiş (ya da önceki gün sınıra takılmış) bütün bilgi sorunları tek SMS'te; en çok
+        BILGI_EN_COK tanesi yazılır, kalanı "+k diğer"."""
         t = datetime.datetime.fromtimestamp(self.simdi, common.TZ)
         dokuz = t.replace(hour=BILGI_SAAT, minute=0, second=0, microsecond=0)
         if not self.acik or not 0 <= (t - dokuz).total_seconds() < BILGI_PENCERE_SN:
             return
-        bekleyen = [s for s in self.veri.acik_sorunlar() if s["onem"] == "bilgi" and not s["acilis_sms"]
+        bekleyen = [s for s in self.veri.acik_sorunlar() if s["onem"] == "bilgi" and _bekliyor(s["acilis_sms"], self.gun)
                     and s["musteri"] in musteriler]
         if not bekleyen:
             return
         parca = [f"{_kim(musteriler[s['musteri']], cihazlar.get(s['musteri']))}: {s['metin']}"
-                 for s in bekleyen]
+                 for s in bekleyen[:BILGI_EN_COK]]
+        if len(bekleyen) > BILGI_EN_COK:
+            parca.append(f"+{len(bekleyen) - BILGI_EN_COK} diğer")
         r = self._gonder("WifiCorrect bilgi: " + "; ".join(parca))
         for s in bekleyen:
             self._kaydet(s, "acilis_sms", r, "bilgi")
@@ -191,11 +205,19 @@ def _musteri_turu(veri, u, m, c, d, simdi):
             veri.sorun_sms(s["id"], "kapanis_sms", "yok")  # askıya alındı/serbest: sessiz kapanış
     for tur, (metin, onem) in yeni.items():
         if tur in acik:
+            if acik[tur]["metin"] != metin:  # ör. disk yüzdesi değişti: metin güncellenir, SMS yok
+                veri.sorun_metin(acik[tur]["id"], metin)
+                acik[tur]["metin"] = metin
             continue
         once = veri.son_kapanan(n, tur)
-        if (once and onem != "bilgi" and once["acilis_sms"] in GONDERILDI and not once["kapanis_sms"]
+        if (once and onem != "bilgi" and not once["kapanis_sms"]
                 and simdi - (_epoch(once["kapanis"]) or 0) < TEKRAR_SN):
-            veri.sorun_yeniden_ac(once["id"])  # "düzeldi" denmeden döndü: aynı olay sürüyor, yeni SMS yok
+            # TEKRAR_SN temiz kalmadan döndü: bildirilmiş olsun olmasın aynı olay (ilk açılış korunur); titreyen bağlantı
+            # böylece 600 sn açık yaşa ulaşıp tek SMS atar, bildirilmişse yeni SMS yok
+            veri.sorun_yeniden_ac(once["id"])
+            if once["metin"] != metin:
+                veri.sorun_metin(once["id"], metin)
+            acik[tur] = {**once, "kapanis": "", "metin": metin}
         else:
             veri.sorun_ac(n, tur, metin, onem)
     for s in veri.kapanis_bekleyenler(n):
@@ -204,14 +226,9 @@ def _musteri_turu(veri, u, m, c, d, simdi):
         elif simdi - (_epoch(s["kapanis"]) or simdi) >= TEKRAR_SN:
             u.kapanis(m, c, s)
     for tur, s in acik.items():
-        if (tur in yeni and s["onem"] != "bilgi" and not s["acilis_sms"]
+        if (tur in yeni and s["onem"] != "bilgi" and _bekliyor(s["acilis_sms"], u.gun)
                 and simdi - (_epoch(s["acilis"]) or simdi) >= SMS_BEKLE_SN):
             u.acilis(m, c, s)
-
-
-def _ulasilamaz(d, zaman):
-    el = d.get("el_sikisma")
-    return not isinstance(el, (int, float)) or zaman - el > ULASILAMIYOR_SN
 
 
 def calistir(veri, durum, gonder=netgsm.gonder, simdi=None):
@@ -227,10 +244,12 @@ def calistir(veri, durum, gonder=netgsm.gonder, simdi=None):
     cihazlar = veri.cihazlar()
     musteriler = {m["numara"]: m for m in veri.musteriler()}
     kayit = {n: (arsivler.get(str(n)) if isinstance(arsivler.get(str(n)), dict) else None) for n in musteriler}
-    # kaydı olmayan (yeni bağlanmış, arşivi henüz yok) cihazın tüneli bilinmez: toplu kopma hesabına girmez
+    # tünel bilgisi okunamadıysa (`wg show` başarısız) her cihaz "ulaşılamıyor" görünürdü: değerlendirme yok, SMS bütçesi
+    # yakılmaz. wg_ok yoksa (eski wc-durum): kaydı olan izlenen cihazların hiçbirinde el sıkışma yoksa okunamadı sayılır.
+    # kaydı olmayan (yeni bağlanmış, arşivi henüz yok) cihazın tüneli bilinmez: hesaba girmez
     izlenen = [n for n, m in musteriler.items() if kapsam(m, cihazlar.get(n), simdi) == "tam" and kayit[n] is not None]
-    if len(izlenen) >= 2 and all(_ulasilamaz(kayit[n], zaman) for n in izlenen):
-        # kaydı olan hepsi birden düştü: büyük olasılıkla `wg show` okunamadı (ya da merkezin ağı); SMS bütçesi yakılmaz
+    wg_ok = durum.get("wg_ok")
+    if wg_ok is False or (wg_ok is None and izlenen and all(kayit[n].get("el_sikisma") is None for n in izlenen)):
         return u.izleme_bozuk("tunel_okunamadi", "tünel bilgisi okunamadı")
     hatalar = 0
     for n, m in musteriler.items():
@@ -245,6 +264,7 @@ def calistir(veri, durum, gonder=netgsm.gonder, simdi=None):
     u.bilgi_toplu(musteriler, cihazlar)
     if hatalar:
         u.izleme_bozuk("musteri_hatasi", f"{hatalar} müşteride hata")
+    veri.saglik_son_tur_koy(common.now_iso(simdi))
 
 
 def main(db=merkez.DB, durum_yolu=durum_modulu.DURUM, gonder=netgsm.gonder):

@@ -13,6 +13,7 @@ import guvenlik
 import kayitlar as kayitlar_modulu
 import kuyruk
 import netgsm
+import veri as veri_modulu
 import web
 import yonetici
 from web import bilgi_tablosu, e, kart, yanit_html, yonlendir
@@ -21,6 +22,8 @@ NUMARA_RE = guvenlik.NUMARA_RE
 CEVRIMICI_SN = 600
 ESLESME_GECIKME_SN = 26 * 3600
 GECIKME_GUN = 2
+TEKRAR_SN = 600  # saglik.py: kapanan sorun bu kadar temiz kalmadan "düzeldi" denmez (SMS bekletilir)
+IZLEME_BAYAT_SN = 900  # wc-saglik 5 dk'da bir; son turu bundan eskiyse izleme çalışmıyor olabilir
 
 
 def _epoch(iso):
@@ -58,17 +61,33 @@ def parola_formdan(form):
 SMS_ETIKET = {"gonderildi": "SMS gitti", "mock": "deneme modu", "sinir": "günlük SMS sınırı",
               "yok": "SMS gönderilmedi (uyarılar kapalı)"}
 ONEM_ETIKET = {"kritik": "kritik", "uyari": "uyarı", "bilgi": "bilgi"}
-SINIR_ARALIK = (1, 100)  # günlük SMS sınırı aralığı (yönetim formu)
+SINIR_ARALIK = veri_modulu.UYARI_SINIR_ARALIK  # günlük SMS sınırı aralığı (yönetim formu)
 DENEME_METNI = "WifiCorrect deneme uyarısı"
 
 
 def sms_etiketi(deger, onem):
-    """Sorun satırının SMS durumu (acilis_sms / kapanis_sms değeri). Kaçış çağıranın işi."""
+    """Açık sorun satırının SMS durumu (acilis_sms / kapanis_sms değeri). Kaçış çağıranın işi."""
     if deger.startswith("hata:"):
         return f"SMS gönderilemedi ({deger[5:]})"
+    if deger.startswith("sinir"):  # sinir:<gün>: o gün sınıra takıldı (açılışsa ertesi gün yeniden denenir)
+        return SMS_ETIKET["sinir"]
     if deger in SMS_ETIKET:
         return SMS_ETIKET[deger]
     return "09:00'da gidecek" if onem == "bilgi" else "SMS bekleniyor"
+
+
+def gecmis_sms_etiketleri(x, simdi):
+    """Sorun geçmişi satırının (açılış SMS'i, kapanış SMS'i) etiketleri. Kapanmış sorunda boş değer artık gitmeyecek
+    demektir ("—"); tek istisna: açılışı gitmiş, "düzeldi"si TEKRAR_SN dolana dek bekletiliyor."""
+    if not x["kapanis"]:
+        return sms_etiketi(x["acilis_sms"], x["onem"]), "—"
+    acilis = sms_etiketi(x["acilis_sms"], x["onem"]) if x["acilis_sms"] else "—"
+    if x["kapanis_sms"]:
+        return acilis, sms_etiketi(x["kapanis_sms"], x["onem"])
+    if (x["onem"] != "bilgi" and x["acilis_sms"] in ("gonderildi", "mock")
+            and simdi - (_epoch(x["kapanis"]) or 0) < TEKRAR_SN):
+        return acilis, "düzeldi bekletiliyor"
+    return acilis, "—"
 
 
 def once(sn):
@@ -232,8 +251,19 @@ class Yonetim(web.Taban):
                  + "</table></div>") if satirlar else '<p class="alt">Müşteri yok.</p>'
         ara = (f'<form class="ara" method="get" action="/"><input name="q" value="{e(q)}" placeholder="Numara, işletme adı ya da not">'
                '<button>Ara</button></form>')
-        return yanit_html(self.sayfa("Müşteriler", self._acik_sorunlar_karti(acik, cihazlar) + kart(f"<h1>Müşteriler</h1>{ara}")
-                                     + kart(tablo), ot, genis=True))
+        return yanit_html(self.sayfa("Müşteriler", self._acik_sorunlar_karti(acik, cihazlar)
+                                     + kart(f"<h1>Müşteriler</h1>{self._izleme_satiri()}{ara}") + kart(tablo), ot, genis=True))
+
+    def _izleme_satiri(self):
+        """wc-saglik'in son turu: hep görünür; 15 dk'dan eskiyse ya da hiç yoksa kırmızı (zamanlayıcı durmuş olabilir)."""
+        t = _epoch(self.veri.saglik_son_tur())
+        if t is None:
+            return '<p><b class="kotu">Sağlık izleme: hiç tur yok — izleme çalışmıyor olabilir</b></p>'
+        sn = max(0, self.saat() - t)
+        metin = f"Sağlık izleme: son tur {once(sn)}"
+        if sn > IZLEME_BAYAT_SN:
+            return f'<p><b class="kotu">{e(metin)} — izleme çalışmıyor olabilir</b></p>'
+        return f'<p class="alt">{e(metin)}</p>'
 
     def _acik_sorunlar_karti(self, acik, cihazlar):
         if not acik:
@@ -345,9 +375,9 @@ class Yonetim(web.Taban):
             ("Bağlı cihaz", e(r.get("bagli", "—")))])
 
     def _sorun_gecmisi(self, n):
+        simdi = self.saat()
         satirlar = [(x["acilis"][:16], x["kapanis"][:16] or "açık", x["metin"], ONEM_ETIKET.get(x["onem"], x["onem"]),
-                     sms_etiketi(x["acilis_sms"], x["onem"]), sms_etiketi(x["kapanis_sms"], x["onem"]) if x["kapanis"] else "—")
-                    for x in self.veri.sorun_gecmisi(n, 50)]
+                     *gecmis_sms_etiketleri(x, simdi)) for x in self.veri.sorun_gecmisi(n, 50)]
         return detay._tablo(("Açılış", "Kapanış", "Sorun", "Önem", "Açılış SMS'i", "Kapanış SMS'i"), satirlar, "Sorun kaydı yok.")
 
     def sms(self, ot, yontem, form, ip):

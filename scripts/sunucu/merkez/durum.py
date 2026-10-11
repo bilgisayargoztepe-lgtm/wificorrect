@@ -82,20 +82,24 @@ def boyut(kaynaklar):
     return toplam
 
 
-def _wg():
+def _wg(calistir=subprocess.run):
+    """`wg show` çıktısı; çalışmadıysa (komut yok, arayüz yok, zaman aşımı) None."""
     try:
-        return subprocess.run(["wg", "show", "wg0", "latest-handshakes"], capture_output=True, text=True, timeout=10).stdout
+        r = calistir(["wg", "show", "wg0", "latest-handshakes"], capture_output=True, text=True, timeout=10)
     except (OSError, subprocess.SubprocessError):
-        return ""
+        return None
+    return r.stdout if r.returncode == 0 else None
 
 
 def main(kayit=KAYIT, yeni=YENI, eski=ESKI, cikti=DURUM, wg=None, simdi=None, grup="wcpanel"):
     simdi = time.time() if simdi is None else simdi
-    el = el_sikismalari(_wg() if wg is None else wg)
+    metin = _wg() if wg is None else wg
+    el = el_sikismalari(metin or "")
     out = {ad: {"tur": a["tur"], "son_gun": son_gun(a["kaynaklar"]), "boyut": boyut(a["kaynaklar"]),
                 "el_sikisma": el.get(a["pub"]) if a["pub"] else None}
            for ad, a in arsivler(kayit, yeni, eski).items()}
-    common.save_json(cikti, {"zaman": common.now_iso(simdi), "arsivler": out})
+    # wg_ok: tünel bilgisi okundu mu (wc-saglik "hepsi ulaşılamıyor"u "okunamadı"dan böyle ayırır)
+    common.save_json(cikti, {"zaman": common.now_iso(simdi), "wg_ok": metin is not None, "arsivler": out})
     os.chmod(cikti, 0o640)
     if grup:
         shutil.chown(cikti, group=grup)

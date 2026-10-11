@@ -1,5 +1,6 @@
 """NetGSM genel SMS ucu (XML, 1:n): merkezden hizmet sağlayıcıya uyarı SMS'i. OTP ucu kullanılmaz; yeniden deneme yok.
 Parola ve istek gövdesi hiçbir yere yazılmaz."""
+import os
 import re
 import urllib.request
 from xml.sax.saxutils import escape
@@ -39,8 +40,13 @@ def yanit_kodu(metin):
     return metin.split()[0] if metin else ""
 
 
-def gonder(ayar, metin, numaralar, zaman_asimi=10, ac=urllib.request.urlopen):
-    """Dönen: gonderildi | mock | hata:<kod> (AYAR, NUMARA, AG, BILINMIYOR ya da NetGSM kodu)."""
+def gonder(ayar, metin, numaralar, zaman_asimi=10, ac=None):
+    """Dönen: gonderildi | mock | hata:<kod> (AYAR, NUMARA, AG, BILINMIYOR ya da NetGSM kodu).
+    WC_TEST ortamında (testler) gerçek gönderici hiç çalışmaz: sahte `ac` verilmediyse hata fırlatır."""
+    if ac is None:
+        if os.environ.get("WC_TEST"):
+            raise RuntimeError("WC_TEST: gerçek NetGSM isteği engellendi")
+        ac = urllib.request.urlopen
     if not ayar:
         return "hata:AYAR"
     if ayar.get("mock"):

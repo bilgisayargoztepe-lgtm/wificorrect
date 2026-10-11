@@ -49,6 +49,7 @@ YENI_CIHAZ_SUTUNLARI = (("admin_parola", "TEXT NOT NULL DEFAULT ''"), ("admin_tu
                         ("admin_ozet", "TEXT NOT NULL DEFAULT ''"), ("admin_yineleme", "INTEGER NOT NULL DEFAULT 0"))
 UYARI_VARSAYILAN = {"telefonlar": [], "acik": False, "gunluk_sinir": 20}
 UYARI_TELEFON_EN_COK = 3
+UYARI_SINIR_ARALIK = (2, 100)  # günlük uyarı SMS sınırı (yönetim formu da bunu kullanır)
 SORUN_SMS_ALANLARI = ("acilis_sms", "kapanis_sms")
 SMS_ALANLARI = ("usercode", "password", "msgheader", "appkey")
 LISANS_GUN = 365
@@ -319,14 +320,19 @@ class Veri:
             db.execute("UPDATE sorun SET kapanis = ? WHERE id = ? AND kapanis = ''", (self._simdi(), sorun_id))
 
     def sorun_sms(self, sorun_id, alan, deger):
-        """alan: acilis_sms | kapanis_sms; değer: gonderildi|mock|hata:<kod>|sinir|yok (kapanış SMS'i gerekmedi)."""
+        """alan: acilis_sms | kapanis_sms; değer: gonderildi|mock|hata:<kod>|sinir:<gün>|yok (kapanış SMS'i gerekmedi)."""
         if alan not in SORUN_SMS_ALANLARI:
             raise ValueError("Geçersiz SMS alanı.")
         with self._islem() as db:
             db.execute(f"UPDATE sorun SET {alan} = ? WHERE id = ?", (str(deger)[:64], sorun_id))
 
+    def sorun_metin(self, sorun_id, metin):
+        """Açık sorunun metni değişti (ör. disk yüzdesi): güncellenir, açılış zamanı ve SMS durumu aynı kalır."""
+        with self._islem() as db:
+            db.execute("UPDATE sorun SET metin = ? WHERE id = ?", (str(metin)[:200], sorun_id))
+
     def sorun_yeniden_ac(self, sorun_id):
-        """Kapanıp "düzeldi" SMS'i gitmeden dönen sorun aynı olayın devamıdır: kapanış silinir."""
+        """Kapanıp TEKRAR_SN temiz kalmadan dönen sorun aynı olayın devamıdır: kapanış silinir."""
         with self._islem() as db:
             db.execute("UPDATE sorun SET kapanis = '' WHERE id = ?", (sorun_id,))
 
@@ -373,15 +379,27 @@ class Veri:
                 tel.append("90" + n)
         if len(tel) > UYARI_TELEFON_EN_COK:
             raise ValueError(f"En çok {UYARI_TELEFON_EN_COK} telefon girilebilir.")
+        ham = d.get("gunluk_sinir", UYARI_VARSAYILAN["gunluk_sinir"])
         try:
-            sinir = int(d.get("gunluk_sinir", UYARI_VARSAYILAN["gunluk_sinir"]))
+            if isinstance(ham, (bool, float)):
+                raise ValueError
+            sinir = int(ham)
         except (TypeError, ValueError):
-            raise ValueError("Günlük SMS sınırı sayı olmalı.")
-        if sinir < 0:
-            raise ValueError("Günlük SMS sınırı eksi olamaz.")
+            raise ValueError("Günlük SMS sınırı tamsayı olmalı.")
+        if not UYARI_SINIR_ARALIK[0] <= sinir <= UYARI_SINIR_ARALIK[1]:  # son hak üst sınır bildiriminin: 1 olamaz
+            raise ValueError(f"Günlük SMS sınırı {UYARI_SINIR_ARALIK[0]} ile {UYARI_SINIR_ARALIK[1]} arasında olmalı.")
         a = {"telefonlar": tel, "acik": bool(d.get("acik")), "gunluk_sinir": sinir}
         with self._islem() as db:
             db.execute("INSERT OR REPLACE INTO ayar (anahtar, deger) VALUES ('uyari', ?)", (json.dumps(a),))
+
+    def saglik_son_tur(self):
+        """wc-saglik'in son tamamlanan turunun zamanı (ISO) ya da None (hiç çalışmadı)."""
+        r = self._bir("SELECT deger FROM ayar WHERE anahtar = 'saglik_son_tur'")
+        return r["deger"] if r else None
+
+    def saglik_son_tur_koy(self, zaman):
+        with self._islem() as db:
+            db.execute("INSERT OR REPLACE INTO ayar (anahtar, deger) VALUES ('saglik_son_tur', ?)", (str(zaman),))
 
     def sms_sayaci(self, gun):
         r = self._bir("SELECT deger FROM ayar WHERE anahtar = ?", "sms_sayac:" + gun)

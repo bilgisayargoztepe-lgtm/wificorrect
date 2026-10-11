@@ -55,8 +55,8 @@ pub struct Kaynak {
     pub sys: PathBuf,
     pub trafik: PathBuf,
     pub uptime: PathBuf,
-    /// komut çıktısı (systemctl is-active, ip addr); süre sınırlı
-    pub komut: Box<dyn Fn(&[&str]) -> String>,
+    /// komut çıktısı (systemctl is-active, ip addr); süre sınırlı; None: çalışmadı/zaman aşımı
+    pub komut: Box<dyn Fn(&[&str]) -> Option<String>>,
 }
 
 impl Kaynak {
@@ -66,37 +66,43 @@ impl Kaynak {
             sys: "/sys/class/net".into(),
             trafik: crate::trafik::DURUM_YOLU.into(),
             uptime: "/proc/uptime".into(),
-            komut: Box::new(|c: &[&str]| ortak::capture_timeout(c, 5).unwrap_or_default()),
+            komut: Box::new(|c: &[&str]| ortak::capture_timeout(c, 5)),
         }
     }
 }
 
-/// Raporu toplar (gerçek cihazda `Kaynak::sistem()`).
-pub fn topla(cfg: &Config, now: f64, k: &Kaynak) -> Girdi {
+/// Raporu toplar (gerçek cihazda `Kaynak::sistem()`). systemctl yanıt vermezse (zaman aşımı) rapor yok: "durdu"
+/// sanılıp yanlış kritik uyarı açılmasın; merkez raporun gelmediğini kendisi görür.
+pub fn topla(cfg: &Config, now: f64, k: &Kaynak) -> Result<Girdi, String> {
     let m = &cfg.main;
-    let servisler = SERVISLER.map(|(ad, birim)| (ad, (k.komut)(&["systemctl", "is-active", birim]).trim() == "active"));
+    let mut servisler = SERVISLER.map(|(ad, _)| (ad, false));
+    for (i, (_, birim)) in SERVISLER.iter().enumerate() {
+        let Some(c) = (k.komut)(&["systemctl", "is-active", birim]) else { return Err(format!("systemctl yanıt vermedi ({birim})")) };
+        servisler[i].1 = c.trim() == "active";
+    }
     let acik_sn = std::fs::read_to_string(&k.uptime)
         .ok()
         .and_then(|s| s.split_whitespace().next()?.parse::<f64>().ok())
         .map_or(0, |s| s.max(0.0) as u64);
-    let son_muhur = crate::muhur::chain_lines(&m.log_root).last().map(|l| l[0].clone()).filter(|g| tarih_mi(g)).unwrap_or_default();
+    // en yeni geçerli gün (zincirin son satırı bozuk ya da eski olabilir)
+    let son_muhur = crate::muhur::chain_lines(&m.log_root).into_iter().map(|l| l[0].clone()).filter(|g| tarih_mi(g)).max().unwrap_or_default();
     let wan_if = crate::ag::load(&k.ag).wan;
-    let wan = !wan_if.is_empty() && (k.komut)(&["ip", "-4", "-o", "addr", "show", "dev", &wan_if]).contains(" inet ");
+    let wan = !wan_if.is_empty() && (k.komut)(&["ip", "-4", "-o", "addr", "show", "dev", &wan_if]).unwrap_or_default().contains(" inet ");
     // bağlı = oturumu süren ve köprüde görülen cihaz (panel Özet ile aynı)
     let agda = std::fs::read(k.sys.join(&m.iface).join("brforward")).map(|b| ortak::kopruye_bagli(&b)).unwrap_or_default();
     let bagli = ortak::load_sessions(&m.state_root).iter().filter(|(mac, s)| !s.ip.is_empty() && s.expires_epoch > now && agda.contains(*mac)).count() as u64;
-    Girdi {
+    Ok(Girdi {
         surum: env!("CARGO_PKG_VERSION").into(),
         acik_sn,
         servisler,
-        disk_yuzde: ortak::disk_percent(&m.log_root).unwrap_or(0).min(100),
+        disk_yuzde: ortak::disk_percent(&m.log_root).unwrap_or(100).min(100), // okunamazsa dolu say: gizlemesin
         son_muhur,
         kayit_boslugu_1s: kayit_boslugu(&m.log_root, now),
         wan,
         sms_sorunu: cfg.sms.mock || !cfg.sms_missing().is_empty(),
         bagli,
         hiz_hata: crate::trafik::oku(&k.trafik).and_then(|d| d.hiz_hata).is_some_and(|h| !h.is_empty()),
-    }
+    })
 }
 
 fn tarih_mi(g: &str) -> bool {
@@ -131,7 +137,7 @@ pub fn gonder(m: &Merkez, rapor: &Value, http: &Http) -> Result<(), String> {
 /// `ctl saglik`: cihaz bağlı değilse bir şey yapılmaz (Ok(false)); bağlıysa rapor toplanıp gönderilir (Ok(true)).
 pub fn calistir(cfg: &Config, merkez_path: &Path, k: &Kaynak, http: &Http, now: f64) -> Result<bool, String> {
     let Some(m) = crate::merkez::oku(merkez_path) else { return Ok(false) };
-    gonder(&m, &rapor(&topla(cfg, now, k)), http)?;
+    gonder(&m, &rapor(&topla(cfg, now, k)?), http)?;
     Ok(true)
 }
 
@@ -153,7 +159,7 @@ mod tests {
             sys: root.join("sys"),
             trafik: root.join("trafik.json"),
             uptime: root.join("uptime"),
-            komut: Box::new(|_: &[&str]| String::new()),
+            komut: Box::new(|_: &[&str]| Some(String::new())),
         };
         (Config::parse(&text).unwrap(), root, k)
     }
@@ -229,14 +235,14 @@ mod tests {
         let now = 1_791_072_000.0;
         let lr = cfg.main.log_root.clone();
         std::fs::write(&k.uptime, "12345.67 9999.00\n").unwrap();
-        k.komut = Box::new(|c: &[&str]| match c {
+        k.komut = Box::new(|c: &[&str]| Some(match c {
             ["systemctl", "is-active", "dnsmasq"] => "failed\n".into(),
             ["systemctl", "is-active", _] => "active\n".into(),
             ["ip", "-4", "-o", "addr", "show", "dev", "enp3s0"] => "2: enp3s0    inet 192.168.1.10/24 brd 192.168.1.255 scope global dynamic enp3s0\n".into(),
             _ => String::new(),
-        });
+        }));
         std::fs::create_dir_all(&lr).unwrap();
-        std::fs::write(Path::new(&lr).join("zincir.txt"), format!("2026-10-09;{0};{0}\n2026-10-10;{0};{0}\n", "a".repeat(64))).unwrap();
+        std::fs::write(Path::new(&lr).join("zincir.txt"), format!("2026-10-09;{0};{0}\n2026-10-10;{0};{0}\n2026-10-08;{0};{0}\nbozuk-gun;{0};{0}\n", "a".repeat(64))).unwrap();
         // oturumlar: M1 köprüde görülüyor, M2 görülmüyor, M3 süresi dolmuş
         let s = |exp: f64| Session { phone: "5334553132".into(), ad: "A".into(), soyad: "B".into(), ip: "10.50.0.23".into(), session_id: "s".into(),
                                     start: ortak::now_iso(now - 60.0), start_epoch: now - 60.0, expires_epoch: exp };
@@ -252,17 +258,35 @@ mod tests {
         std::fs::write(br.join("brforward"), fdb).unwrap();
         crate::trafik::yaz(&k.trafik, &crate::trafik::Durum { zaman: now, hiz_hata: Some("tc: hata".into()), ..Default::default() }).unwrap();
         cfg.sms.mock = true;
-        let g = topla(&cfg, now, &k);
+        let g = topla(&cfg, now, &k).unwrap(); // son_muhur: son satır değil en yeni geçerli gün
         assert_eq!((g.acik_sn, g.son_muhur.as_str(), g.bagli, g.wan, g.hiz_hata, g.sms_sorunu, g.kayit_boslugu_1s), (12345, "2026-10-10", 1, true, true, true, false));
         assert_eq!(g.servisler, [("portal", true), ("panel", true), ("kaydedici", true), ("dnsmasq", false), ("guvenlik", true)]);
         assert_eq!(g.surum, env!("CARGO_PKG_VERSION"));
         assert!(g.disk_yuzde <= 100);
         // hiçbir şey yokken: boş/yanlış değerler, panik yok
         let (cfg2, _r, k2) = kur();
-        let g = topla(&cfg2, now, &k2);
+        let g = topla(&cfg2, now, &k2).unwrap();
         assert_eq!((g.acik_sn, g.son_muhur.as_str(), g.bagli, g.wan, g.hiz_hata), (0, "", 0, false, false));
         assert!(g.servisler.iter().all(|(_, d)| !d));
+        assert_eq!(g.disk_yuzde, 100); // log_root yok: statvfs okunamadı → dolu say, gizleme
         let _ = root;
+    }
+
+    #[test]
+    fn systemctl_zaman_asiminda_rapor_gitmez() {
+        let (cfg, root, mut k) = kur();
+        k.komut = Box::new(|c: &[&str]| match c {
+            ["systemctl", "is-active", "wificorrect-panel"] => None, // zaman aşımı
+            ["systemctl", "is-active", _] => Some("active\n".into()),
+            _ => Some(String::new()),
+        });
+        assert!(topla(&cfg, 1000.0, &k).is_err());
+        let p = root.join("merkez.json");
+        crate::merkez::kaydet(&p, &Merkez { numara: "4511643".into(), cihaz_anahtari: "a".into(), ..Default::default() }).unwrap();
+        let (h, c) = sahte(Ok((200, r#"{"tamam":true}"#)));
+        let e = calistir(&cfg, &p, &k, &*h, 1000.0).unwrap_err();
+        assert!(e.contains("systemctl") && !e.contains('\n'), "{e}"); // ctl tek satır yazar, çıkış 0
+        assert!(c.lock().unwrap().is_empty());
     }
 
     fn sahte(yanit: Result<(u16, &'static str), &'static str>) -> (Box<Http>, Arc<Mutex<Vec<(String, Value)>>>) {

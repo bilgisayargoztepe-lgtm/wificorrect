@@ -6,6 +6,7 @@ import re
 import time
 import urllib.parse
 
+import cihaz as cihaz_modulu
 import common
 import detay
 import durum as durum_modulu
@@ -102,9 +103,11 @@ class Yonetim(web.Taban):
     giris_aciklama = "Hizmet sağlayıcı girişi."
 
     def __init__(self, veri, kayitlar, saat=time.time, yonetici_yolu=yonetici.YONETICI,
-                 durum_yolu=durum_modulu.DURUM, kuyruk_ekle=kuyruk.ekle, gonder=netgsm.gonder):
+                 durum_yolu=durum_modulu.DURUM, kuyruk_ekle=kuyruk.ekle, gonder=netgsm.gonder, gecis=None, musteri_app=None):
         super().__init__(veri, kayitlar, saat)
         self.yonetici_yolu, self.durum_yolu, self.kuyruk_ekle, self.gonder = yonetici_yolu, durum_yolu, kuyruk_ekle, gonder
+        # cihaz paneline doğrudan geçiş: müşteri paneliyle aynı belirteç deposu ve cihaz adresi kuralı
+        self.gecis, self.musteri_app = gecis, musteri_app
 
     # --- Taban ---
     def dogrula(self, kul, pw):
@@ -196,6 +199,8 @@ class Yonetim(web.Taban):
             return yonlendir(f"/m/{n}")
         if (yontem, alt) == ("POST", "/serbest"):
             return self.serbest(ot, n, form, ip)
+        if (yontem, alt) == ("POST", "/cihaz-paneli"):
+            return self.cihaz_paneli(ot, n, ip)
         if (yontem, alt) == ("POST", "/lisans"):
             return self.lisans(ot, n, form, ip)
         if (yontem, alt) == ("POST", "/uyelik"):
@@ -297,6 +302,24 @@ class Yonetim(web.Taban):
             '<p class="alt">Parolayı müşteriye iletin (müşteri sayfasında da görünür). Müşteri cihazın giriş ekranına bu numara ve '
             f'parolayla girer.</p><p><a href="/m/{n}">Müşteri sayfası →</a></p>'), ot))
 
+    def _cihaz_adresi(self, n):
+        return self.musteri_app.cihaz_adresi(n) if self.musteri_app is not None and self.gecis is not None else None
+
+    def _cihaz_paneli_dugmesi(self, n, cs):
+        if not self._cihaz_adresi(n):
+            return '<span class="bos">şu an ulaşılamıyor (cihaz kapalı, tünel yok ya da lisans/üyelik kapalı)</span>'
+        return (f'<form method="post" action="/m/{n}/cihaz-paneli" class="satir-ici"><input type="hidden" name="csrf" value="{cs}">'
+                '<button>Cihaz paneline git</button></form>')
+
+    def cihaz_paneli(self, ot, n, ip):
+        """Müşteri parolası girmeden cihaz.wificorrect.com'a: tek kullanımlık 60 sn'lik geçiş belirteci (yönetici rolü)."""
+        if not self._cihaz_adresi(n):
+            return yanit_html(self.mesaj(ot, "Cihaza ulaşılamıyor",
+                                         "Cihaz kapalı, tünel yok ya da lisans/üyelik kapalı."), 409)
+        t = self.gecis.uret(str(n), self.saat(), self.veri.musteri(n)["ozet"], rol="yonetici")
+        self.veri.hareket("admin", ip, "YONETICI_CIHAZ_PANELI", n)
+        return yonlendir(cihaz_modulu.CIHAZ_GIRIS + t)
+
     def musteri_sayfasi(self, ot, n):
         m, c, d = self.veri.musteri(n), self.veri.bagli_cihaz(n), self._durum().get(str(n), {})
         cs = e(ot["csrf"])
@@ -317,7 +340,7 @@ class Yonetim(web.Taban):
                 ("Tünel adresi", e(c["tunel_ip"] or "—")), ("Sürüm", e(c["surum"] or "—")),
                 ("Bağlanma", e(c["baglanma"][:16])), ("Son eşitleme", e(c["son_eslesme"][:16] or "—")),
                 ("Son gelen gün", son), ("Arşiv", e(detay.boyut(d.get("boyut", 0)))),
-                ("Cihaz paneli", '<a href="https://panel.wificorrect.com">panel.wificorrect.com</a> (müşteri numarası ve parolasıyla)')])
+                ("Cihaz paneli", self._cihaz_paneli_dugmesi(n, cs))])
             cihaz += (f'<form method="post" action="/m/{n}/serbest"><input type="hidden" name="csrf" value="{cs}">'
                       f'<label for="o">Cihazı serbest bırakmak için müşteri numarasını yazın ({n})</label>'
                       '<input id="o" name="onay" inputmode="numeric" autocomplete="off" required>'

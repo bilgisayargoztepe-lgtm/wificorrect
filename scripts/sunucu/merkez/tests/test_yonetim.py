@@ -12,6 +12,9 @@ import yardim as Y  # noqa: E402
 import kayitlar  # noqa: E402
 import yonetici  # noqa: E402
 import yonetim as YN  # noqa: E402
+import cihaz as CZ  # noqa: E402
+import guvenlik as G  # noqa: E402
+import musteri as MU  # noqa: E402
 
 WG, SSH = "A" * 43 + "=", "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI c"
 PW = "yonetici-parola-1"
@@ -421,6 +424,46 @@ def test_uyari_csrf_siz_post_reddi():
                 assert Y.gonder(app, yol, c, form)[0] == 403, yol
         assert giden == [] and v.uyari_ayari()["gunluk_sinir"] == 20 and v.sms_sayaci("2026-09-21") == 0
 
+
+
+def test_yonetimden_cihaz_paneline_dogrudan_gecis():
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        v, k, saat = Y.ortam(tmp)
+        yol, dyol = os.path.join(tmp, "yonetici.json"), os.path.join(tmp, "durum.json")
+        yonetici.yaz(yol, "serkan", PW)
+        with open(dyol, "w", encoding="utf-8") as f:
+            json.dump({"zaman": "", "arsivler": {}}, f)
+        gecis = G.GecisBelirtecleri()
+        mu = MU.Musteri(v, k, saat, gecis=gecis)
+        cz = CZ.Cihaz(v, gecis, mu, saat)
+        app = YN.Yonetim(v, k, saat, yol, dyol, lambda *a: "0" * 16, gecis=gecis, musteri_app=mu)
+        c = Y.cerez(Y.giris(app, "serkan", PW))
+        n, pw = v.musteri_ekle(parola="musteri-parola-1")
+        v.cihaz_bagla(n, WG, SSH)
+        # tünel adresi yok → düğme yok, geçiş reddedilir
+        f = Y.al(app, f"/m/{n}", c)
+        s = f[2].decode()
+        assert "Cihaz paneline git" not in s and "şu an ulaşılamıyor" in s
+        t = Y.csrf(f)
+        assert Y.gonder(app, f"/m/{n}/cihaz-paneli", c, {"csrf": t})[0] == 409
+        v.cihaz_guncelle(v.bagli_cihaz(n)["id"], tunel_ip="10.99.0.11")
+        s = Y.al(app, f"/m/{n}", c)[2].decode()
+        assert f'action="/m/{n}/cihaz-paneli"' in s and "Cihaz paneline git" in s
+        assert Y.gonder(app, f"/m/{n}/cihaz-paneli", c, {"csrf": "yanlis"})[0] == 403
+        r = Y.gonder(app, f"/m/{n}/cihaz-paneli", c, {"csrf": t})
+        assert r[0] == 303 and r[1]["Location"].startswith("https://cihaz.wificorrect.com/_giris?t=")
+        assert v.hareketler(n)[0]["olay"] == "YONETICI_CIHAZ_PANELI"
+        h = {"Host": "cihaz.wificorrect.com"}
+        r = cz.istek("GET", "/_giris", h, "", "t=" + r[1]["Location"].split("t=", 1)[1], "1.2.3.4")
+        wcc = r[1]["Set-Cookie"].split(";")[0].split("=", 1)[1]
+        y = cz.istek("GET", "/cihaz-yetki", dict(h, Cookie=f"wcc={wcc}"), "", "", "1.2.3.4")
+        assert y[0] == 200 and y[1]["X-WFC-Cihaz"] == "10.99.0.11" and y[1]["X-WFC-Kullanici"] == str(n)
+        # müşterinin kendi cihaz oturumu yöneticinin çıkışıyla düşmez; yönetici müşteri sayfasına döner
+        mw = cz.oturumlar.create(str(n), "musteri", saat(), v.musteri(n)["ozet"])
+        r = cz.istek("GET", "/_cikis", dict(h, Cookie=f"wcc={wcc}"), "", "", "1.2.3.4")
+        assert r[0] == 303 and r[1]["Location"] == f"https://yonetim.wificorrect.com/m/{n}"
+        assert cz.istek("GET", "/cihaz-yetki", dict(h, Cookie=f"wcc={wcc}"), "", "", "1.2.3.4")[0] == 302
+        assert cz.istek("GET", "/cihaz-yetki", dict(h, Cookie=f"wcc={mw}"), "", "", "1.2.3.4")[0] == 200
 
 if __name__ == "__main__":
     for _name, _fn in sorted(globals().items()):

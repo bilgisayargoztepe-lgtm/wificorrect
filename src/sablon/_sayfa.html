@@ -47,6 +47,12 @@ button{display:block;width:100%;min-height:52px;margin-top:26px;border:1px solid
 button:active{background:var(--vurgu-koyu)}
 button.ikincil{margin-top:12px;background:#fff;color:var(--vurgu);border-color:var(--cizgi)}
 button.ikincil:active{background:var(--gok)}
+a.dugme{display:flex;align-items:center;justify-content:center;min-height:52px;margin:0 0 8px;border:1px solid var(--vurgu);border-radius:10px;background:#fff;color:var(--vurgu);font-size:1.0625rem;font-weight:600;text-decoration:none;-webkit-tap-highlight-color:transparent}
+a.dugme:active{background:var(--gok)}
+fieldset{margin:18px 0 0;padding:0;border:0}legend{padding:0;margin:0 0 8px;font-weight:600;font-size:.9375rem;color:var(--murekkep)}
+.secenek{display:flex;gap:20px;flex-wrap:wrap}.secenek .onay input{accent-color:var(--vurgu)}
+select#uyruk{display:block;width:100%;min-height:50px;padding:0 10px;border:1px solid var(--cizgi);border-radius:10px;background:#fff;color:var(--murekkep);font:inherit;font-size:1rem}
+form.misafir:has(input[value=pasaport]:checked) .alan-tc,form.misafir:has(input[value=tc]:checked) .alan-pasaport{display:none}
 .hata{margin:6px 0 0;color:var(--hata);font-size:.9375rem}
 .hata.genel{margin:0 0 16px;padding:12px 14px;border-left:3px solid var(--hata);border-radius:0 8px 8px 0;background:var(--hata-acik);color:#8c1d17}
 .not{margin:12px 0 0;font-size:.9375rem;color:var(--soluk)}

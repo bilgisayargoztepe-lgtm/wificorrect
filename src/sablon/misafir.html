@@ -1,0 +1,45 @@
+<h1>$baslik</h1>
+<p>$m_misafir_aciklama</p>
+<p class="hata genel">$hata_genel</p>
+<form method="post" action="$portal/misafir/dogrula" class="misafir">
+<input type="hidden" name="dst" value="$dst">
+<input type="hidden" name="dil" value="$dil_kod">
+<fieldset><legend>$m_kimlik_turu</legend>
+<div class="secenek">
+<label class="onay"><input type="radio" name="tur" value="tc" $tur_tc><span>$m_kimlik_tc</span></label>
+<label class="onay"><input type="radio" name="tur" value="pasaport" $tur_pasaport><span>$m_kimlik_pasaport</span></label>
+</div>
+</fieldset>
+<p class="hata">$hata_tur</p>
+<div class="alan-tc">
+<label for="tc">$m_tc_no</label>
+<input type="text" id="tc" name="tc" value="$tc" inputmode="numeric" autocomplete="off" maxlength="11">
+<p class="hata">$hata_tc</p>
+</div>
+<div class="alan-pasaport">
+<label for="pasaport">$m_pasaport_no</label>
+<input type="text" id="pasaport" name="pasaport" value="$pasaport" autocomplete="off" autocapitalize="characters" maxlength="24">
+<p class="hata">$hata_pasaport</p>
+<label for="uyruk">$m_uyruk</label>
+<select id="uyruk" name="uyruk">$uyruk_secenekleri_html</select>
+<p class="hata">$hata_uyruk</p>
+</div>
+<label for="kod">$m_misafir_kod</label>
+<input type="text" id="kod" name="kod" class="kod" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required>
+<p class="hata">$hata_kod</p>
+<div class="madde">
+<label class="onay"><input type="checkbox" name="riza" value="1" $riza_checked required><span>$riza_metni_html</span></label>
+<p class="hata">$hata_riza</p>
+</div>
+<div class="madde">
+<label class="onay"><input type="checkbox" name="sozlesme" value="1" $sozlesme_checked required><span>$m_sozlesme_onay</span></label>
+<details><summary>$m_sozlesme_baslik</summary><div class="metin">$sozlesme_html</div></details>
+<p class="hata">$hata_sozlesme</p>
+</div>
+<div class="madde">
+<details><summary>$m_aydinlatma_baslik</summary><div class="metin">$aydinlatma_html</div></details>
+<p class="not kucuk">$m_aydinlatma_not</p>
+</div>
+<button type="submit">$m_baglan</button>
+</form>
+<p class="not"><a href="$portal/?dil=$dil_kod">$m_sms_ile_giris</a></p>

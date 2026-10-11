@@ -186,8 +186,9 @@ pub fn day_file(root: &str, day: &str, name: &str) -> PathBuf {
     Path::new(root).join("gunluk").join(day).join(name)
 }
 
+/// Kişinin günlük dosyası; kimlik anahtarında `:` → `_` (`TC_…csv`, `PASAPORT_DE_…csv`), telefon aynen.
 pub fn user_file(root: &str, day: &str, phone: &str) -> PathBuf {
-    Path::new(root).join("gunluk").join(day).join("kullanicilar").join(format!("{phone}.csv"))
+    Path::new(root).join("gunluk").join(day).join("kullanicilar").join(format!("{}.csv", crate::kimlik::dosya_adi(phone)))
 }
 
 /// Güne hâlâ satır eklenebilir mi: bugün ya da geleceği, ya da klasörü duran ve mühürlenmemiş geçmiş gün.

@@ -5,7 +5,7 @@ use crate::ayar::Config;
 use crate::dil::{self, Dil};
 use crate::ortak::{self, Row, Runner, Session};
 use crate::sms::{self, Saglayici, Sonuc};
-use crate::ulkeler;
+use crate::{kimlik, misafir, ulkeler};
 use std::collections::{HashMap, VecDeque};
 use std::io::Read;
 use std::process::ExitCode;
@@ -89,6 +89,20 @@ struct Pending {
     nonce: u64,
 }
 
+/// Oturum açacak giriş: kişi anahtarı (telefon ya da kimlik), ad, soyad; `bitis` verilmişse oturum o anda biter
+/// (misafir kodu), yoksa ayardaki oturum süresi. `ek` OTURUM_BASLA'nın `ek` alanına `bitis=…`'ten sonra eklenir.
+struct Giris<'a> {
+    kisi: &'a str,
+    ad: &'a str,
+    soyad: &'a str,
+    bitis: Option<f64>,
+    ek: String,
+}
+
+/// Misafir kodu kaba kuvvet koruması: IP ve MAC başına bu kadar hata → kilit (SMS kod sayaçlarından ayrı).
+const MISAFIR_HATA_SINIRI: usize = 5;
+const MISAFIR_KILIT_SN: f64 = 15.0 * 60.0;
+
 pub struct Portal {
     pub cfg: Config,
     pending: Mutex<HashMap<String, Pending>>,
@@ -112,6 +126,7 @@ fn template(name: &str) -> &'static str {
         "kod" => include_str!("sablon/kod.html"),
         "basarili" => include_str!("sablon/basarili.html"),
         "hata" => include_str!("sablon/hata.html"),
+        "misafir" => include_str!("sablon/misafir.html"),
         _ => "",
     }
 }
@@ -342,6 +357,7 @@ impl Portal {
     /// Sayfanın üstündeki "TR | EN": istenen adres (`dst`) korunur; kod sayfasındaysa `sayfa=kod` ile kod sayfası
     /// yeni dilde yeniden açılır (bekleyen kod bellekte).
     fn dil_secimi(&self, page: &Page) -> String {
+        let yol = if page.tpl == "misafir" { "/misafir" } else { "/" };
         let mut ek = String::new();
         if page.tpl == "kod" {
             ek.push_str("&amp;sayfa=kod");
@@ -352,7 +368,7 @@ impl Portal {
         }
         let a = |x: Dil, ad: &str| {
             let cur = if x == page.dil { " aria-current=\"true\"" } else { "" };
-            format!("<a href=\"{}/?dil={}{ek}\" lang=\"{}\"{cur}>{ad}</a>", html_escape(&self.base_url), x.kod(), x.kod())
+            format!("<a href=\"{}{yol}?dil={}{ek}\" lang=\"{}\"{cur}>{ad}</a>", html_escape(&self.base_url), x.kod(), x.kod())
         };
         format!("<nav class=\"dil\" aria-label=\"{}\">{} | {}</nav>", dil::m(page.dil, "dil_secimi"), a(Dil::Tr, "TR"), a(Dil::En, "EN"))
     }
@@ -377,6 +393,7 @@ impl Portal {
             ("aydinlatma_html", metin_html_dil(&self.hukuki(d, &pm.aydinlatma, &pm.aydinlatma_en), d)),
             ("dst", dst.to_string()),
             ("ulke_secenekleri_html", ulkeler::options_html(form.get("ulke").map_or("TR", String::as_str))),
+            ("misafir_html", self.misafir_dugmesi(dst, d)),
         ];
         for k in ["hata_genel", "hata_ad", "hata_soyad", "hata_telefon", "hata_riza", "hata_sozlesme"] {
             let v = errors.iter().find(|(e, _)| *e == k).map(|(_, v)| v.clone()).unwrap_or_default();
@@ -673,31 +690,189 @@ impl Portal {
             self.audit("OTP_HATALI_KOD", ip, mac, &p.phone, "");
             return page;
         }
-        let Some(s) = self.open_session(ip, mac, &p) else {
+        let g = Giris { kisi: &p.phone, ad: &p.ad, soyad: &p.soyad, bitis: None, ek: format!("sozlesme=1 riza={}", u8::from(p.riza)) };
+        let Some(s) = self.open_session(ip, mac, &g) else {
             return self.error_page(dil::m(d, "baglanti_acilamadi"), d);
         };
         self.audit("OTP_BASARILI", ip, mac, &p.phone, &format!("oturum={}", s.session_id));
         self.success_page(&p.dst, d)
     }
 
-    /// §11.7 sırası. nft başarısızsa yeni oturum yazılmaz.
-    fn open_session(&self, ip: &str, mac: &str, p: &Pending) -> Option<Session> {
+    // --- misafir kodu (otel / yurt)
+    /// Giriş sayfasındaki ikinci yol; misafir kodu kapalıysa (ya da tür otel/yurt değilse) boş.
+    fn misafir_dugmesi(&self, dst: &str, d: Dil) -> String {
+        if !crate::ayar::misafir_kodu_acik(&self.cfg) {
+            return String::new();
+        }
+        let dst = if dst.is_empty() { String::new() } else { format!("&amp;dst={}", pct_encode(dst)) };
+        format!("<a class=\"dugme\" href=\"{}/misafir?dil={}{dst}\">{}</a>", html_escape(&self.base_url), d.kod(), html_escape(self.misafir_adi(d)))
+    }
+
+    /// Düğme / sayfa başlığı: Otel "Otel misafiriyim", Yurt "Yurt sakiniyim".
+    fn misafir_adi(&self, d: Dil) -> &'static str {
+        dil::m(d, if crate::ayar::isletme_turu(&self.cfg) == "yurt" { "misafir_dugme_yurt" } else { "misafir_dugme_otel" })
+    }
+
+    fn misafir_form(&self, form: &Form, errors: Vec<(&'static str, String)>, dst: &str, d: Dil) -> Page {
+        let f = |k: &str| form.get(k).cloned().unwrap_or_default();
+        let pm = &self.cfg.portal;
+        let tur = f("tur");
+        let uyruk = f("uyruk");
+        let secili = |a: &str| if tur == a || (a == "tc" && tur.is_empty()) { "checked".to_string() } else { String::new() };
+        let uyruklar: String = std::iter::once(format!("<option value=\"\">{}</option>", dil::m(d, "uyruk_secin")))
+            .chain(ulkeler::ULKELER.iter().map(|(iso, _, ad)| {
+                let sel = if *iso == uyruk { " selected" } else { "" };
+                format!("<option value=\"{iso}\"{sel}>{} {iso} · {}</option>", ulkeler::flag(iso), html_escape(ad))
+            }))
+            .collect();
+        let mut ctx = vec![
+            ("baslik", self.misafir_adi(d).to_string()),
+            ("tur_tc", secili("tc")),
+            ("tur_pasaport", secili("pasaport")),
+            ("tc", f("tc")),
+            ("pasaport", f("pasaport")),
+            ("uyruk_secenekleri_html", uyruklar),
+            ("sozlesme_checked", if f("sozlesme") == "1" { "checked".into() } else { String::new() }),
+            ("riza_checked", if f("riza") == "1" { "checked".into() } else { String::new() }),
+            ("riza_metni_html", html_escape(&self.hukuki(d, &pm.acik_riza, &pm.acik_riza_en)).replace('\n', "<br>")),
+            ("sozlesme_html", metin_html_dil(&self.hukuki(d, &pm.sozlesme, &pm.sozlesme_en), d)),
+            ("aydinlatma_html", metin_html_dil(&self.hukuki(d, &pm.aydinlatma, &pm.aydinlatma_en), d)),
+            ("dst", dst.to_string()),
+        ];
+        for k in ["hata_genel", "hata_tur", "hata_tc", "hata_pasaport", "hata_uyruk", "hata_kod", "hata_riza", "hata_sozlesme"] {
+            let v = errors.iter().find(|(e, _)| *e == k).map(|(_, v)| v.clone()).unwrap_or_default();
+            ctx.push((k, v));
+        }
+        Page::new("misafir", ctx, d)
+    }
+
+    /// GET /misafir. `None`: misafir kodu bu işletmede yok (HTTP katmanı ana sayfaya yönlendirir).
+    pub fn misafir_sayfasi(&self, ip: &str, mac: Option<&str>, dst: &str, d: Dil) -> Option<Page> {
+        if !crate::ayar::misafir_kodu_acik(&self.cfg) {
+            return None;
+        }
+        if let Some(pg) = self.hizmet_kapali(d) {
+            return Some(pg);
+        }
+        let Some(mac) = mac else { return Some(self.error_page(dil::m(d, "mac_yok"), d)) };
+        if self.session_for(ip, mac) || self.rehome(ip, mac) {
+            return Some(self.success_page(dst, d));
+        }
+        Some(self.misafir_form(&Form::new(), vec![], dst, d))
+    }
+
+    /// POST /misafir/dogrula: kimlik + kod eşleşirse kodun bitişine kadar internet. Kimlik yok / kod yanlış / süresi
+    /// dolmuş / iptal: tek ileti, IP ve MAC başına hata sayılır (5 → 15 dk; kilitliyken doğru kod da reddedilir).
+    /// Denetime kimlik ve kod yazılmaz (başarıda yalnızca maskeli kimlik).
+    pub fn misafir_dogrula(&self, ip: &str, mac: Option<&str>, form: &Form) -> Option<Page> {
+        if !crate::ayar::misafir_kodu_acik(&self.cfg) {
+            return None;
+        }
+        let d = Self::form_dil(form);
+        if let Some(pg) = self.hizmet_kapali(d) {
+            return Some(pg);
+        }
+        let get = |k: &str| form.get(k).map(String::as_str).unwrap_or("");
+        let dst = safe_dst(get("dst"));
+        let Some(mac) = mac else { return Some(self.error_page(dil::m(d, "mac_yok"), d)) };
+        // girilen kod forma geri yazılmaz
+        let mut geri = form.clone();
+        geri.remove("kod");
+        let now = (self.clock)();
+        let (ip_key, mac_key) = (format!("misafir_ip:{ip}"), format!("misafir_mac:{mac}"));
+        let kilitli = self.rl.count(&ip_key, MISAFIR_KILIT_SN, now) >= MISAFIR_HATA_SINIRI
+            || self.rl.count(&mac_key, MISAFIR_KILIT_SN, now) >= MISAFIR_HATA_SINIRI;
+        if kilitli {
+            self.audit("MISAFIR_HATALI", ip, mac, "", "red=kilit");
+            let msg = dil::f(d, "kilit", &[&((MISAFIR_KILIT_SN / 60.0) as u64).to_string()]);
+            return Some(self.misafir_form(&geri, vec![("hata_genel", msg)], &dst, d));
+        }
+        // biçim hataları (kodun var olup olmadığını söylemez, hata sayılmaz)
+        let mut errors = vec![];
+        let anahtar = match get("tur") {
+            "tc" => {
+                let t: String = get("tc").chars().filter(|c| !c.is_whitespace()).collect();
+                if kimlik::tc_gecerli(&t) {
+                    Some(kimlik::Kimlik::Tc(t).anahtar())
+                } else {
+                    errors.push(("hata_tc", dil::m(d, "hata_tc").to_string()));
+                    None
+                }
+            }
+            "pasaport" => {
+                let no = kimlik::pasaport_normal(get("pasaport"));
+                let uyruk = get("uyruk");
+                let uyruk_ok = ulkeler::ULKELER.iter().any(|(i, ..)| *i == uyruk);
+                if no.is_none() {
+                    errors.push(("hata_pasaport", dil::m(d, "hata_pasaport").to_string()));
+                }
+                if !uyruk_ok {
+                    errors.push(("hata_uyruk", dil::m(d, "hata_uyruk").to_string()));
+                }
+                no.filter(|_| uyruk_ok).map(|no| kimlik::Kimlik::Pasaport { uyruk: uyruk.to_string(), no }.anahtar())
+            }
+            _ => {
+                errors.push(("hata_tur", dil::m(d, "hata_kimlik_turu").to_string()));
+                None
+            }
+        };
+        let kod: String = get("kod").chars().filter(|c| !c.is_whitespace()).collect();
+        if kod.len() != 6 || !kod.bytes().all(|b| b.is_ascii_digit()) {
+            errors.push(("hata_kod", dil::m(d, "hata_misafir_kod").to_string()));
+        }
+        if get("riza") != "1" {
+            errors.push(("hata_riza", dil::m(d, "hata_riza").to_string()));
+        }
+        if get("sozlesme") != "1" {
+            errors.push(("hata_sozlesme", dil::m(d, "hata_sozlesme").to_string()));
+        }
+        let (Some(anahtar), true) = (anahtar, errors.is_empty()) else {
+            return Some(self.misafir_form(&geri, errors, &dst, d));
+        };
+        let wall = (self.wall)();
+        let kodlar = misafir::oku(&self.cfg.main.state_root);
+        let Some(k) = misafir::dogrula(&kodlar, &anahtar, &kod, wall).cloned() else {
+            self.rl.hit(&ip_key, now);
+            self.rl.hit(&mac_key, now);
+            self.audit("MISAFIR_HATALI", ip, mac, "", "");
+            return Some(self.misafir_form(&geri, vec![("hata_genel", dil::m(d, "misafir_eslesmedi").into())], &dst, d));
+        };
+        let ek = format!(
+            "sozlesme=1 riza=1 giris=misafir_kodu oda={} kod_bitis={} ureten={}",
+            k.oda,
+            ortak::now_iso(k.bitis),
+            k.ureten.replace(char::is_whitespace, "_")
+        );
+        let g = Giris { kisi: &k.kimlik, ad: &k.ad, soyad: &k.soyad, bitis: Some(k.bitis), ek };
+        let Some(s) = self.open_session(ip, mac, &g) else {
+            return Some(self.error_page(dil::m(d, "baglanti_acilamadi"), d));
+        };
+        self.audit("MISAFIR_BASARILI", ip, mac, &kimlik::maskele(&k.kimlik), &format!("oturum={}", s.session_id));
+        Some(self.success_page(&dst, d))
+    }
+
+    /// §11.7 sırası. nft başarısızsa yeni oturum yazılmaz. SMS ve misafir kodu aynı adımları kullanır; cihaz sınırı
+    /// kişi anahtarı (telefon ya da `TC:…`/`PASAPORT:…`) başına.
+    fn open_session(&self, ip: &str, mac: &str, g: &Giris) -> Option<Session> {
         let m = &self.cfg.main;
         let runner = &*self.runner;
         let _g = ortak::state_lock(&m.state_root).ok()?;
         let mut ses = ortak::load_sessions(&m.state_root);
         let now = (self.wall)();
+        let secs = g.bitis.map_or((m.session_minutes * 60) as f64, |b| b - now);
+        if secs < 1.0 {
+            return None; // kodun süresi bu arada doldu
+        }
         if ses.contains_key(mac) {
             ortak::close_session(&m.log_root, &mut ses, mac, "yeniden_giris", now, runner);
         }
         let mut same: Vec<(f64, String)> =
-            ses.iter().filter(|(_, s)| s.phone == p.phone).map(|(k, s)| (s.start_epoch, k.clone())).collect();
+            ses.iter().filter(|(_, s)| s.phone == g.kisi).map(|(k, s)| (s.start_epoch, k.clone())).collect();
         same.sort_by(|a, b| a.0.total_cmp(&b.0));
         while !same.is_empty() && same.len() >= m.max_devices_per_phone {
             let (_, old) = same.remove(0);
             ortak::close_session(&m.log_root, &mut ses, &old, "cihaz_limiti", now, runner);
         }
-        let secs = (m.session_minutes * 60) as f64;
         if !ortak::nft_add_cmd(mac, ip, secs).is_some_and(|c| runner(&c)) {
             let _ = ortak::save_sessions(&m.state_root, &ses);
             return None;
@@ -705,9 +880,9 @@ impl Portal {
         ortak::park_ip_holders(&m.log_root, &mut ses, mac, ip, now, runner);
         let zaman = ortak::now_iso(now);
         let s = Session {
-            phone: p.phone.clone(),
-            ad: p.ad.clone(),
-            soyad: p.soyad.clone(),
+            phone: g.kisi.into(),
+            ad: g.ad.into(),
+            soyad: g.soyad.into(),
             ip: ip.into(),
             session_id: ortak::random_hex(6),
             start: zaman.clone(),
@@ -725,7 +900,7 @@ impl Portal {
             .set("mac", mac)
             .set("ic_ip", ip)
             .set("oturum_id", &s.session_id)
-            .set("ek", format!("bitis={} sozlesme=1 riza={}", ortak::now_iso(now + secs), u8::from(p.riza)));
+            .set("ek", format!("bitis={} {}", ortak::now_iso(now + secs), g.ek));
         let day = ortak::day_of(&zaman).to_string();
         let written = ortak::append_user_rows(&m.log_root, &s, mac, &[basla.clone()])
             .and_then(|_| ortak::append_rows(&ortak::day_file(&m.log_root, &day, "oturum.csv"), &[basla]))
@@ -847,6 +1022,16 @@ fn handle(p: &Portal, per_ip: &RateLimiter, mut req: tiny_http::Request) {
                 let dst = safe_dst(q.get("dst").map(String::as_str).unwrap_or(""));
                 p.home_dil(&ip, mac, &dst, d, q.get("sayfa").is_some_and(|s| s == "kod"))
             }
+            "/misafir" => {
+                if q.get("dil").and_then(|v| dil::Dil::coz(v)).is_some() {
+                    extra.push(("Set-Cookie", dil::cerez_basligi(d)));
+                }
+                let dst = safe_dst(q.get("dst").map(String::as_str).unwrap_or(""));
+                match p.misafir_sayfasi(&ip, mac, &dst, d) {
+                    Some(pg) => pg,
+                    None => return git(req, format!("{base}/")),
+                }
+            }
             _ => return git(req, format!("{base}/")),
         },
         tiny_http::Method::Post => {
@@ -864,6 +1049,10 @@ fn handle(p: &Portal, per_ip: &RateLimiter, mut req: tiny_http::Request) {
                 "/kod-gonder" => p.send_code(&ip, mac, &form),
                 "/dogrula" => p.verify(&ip, mac, &form),
                 "/tekrar-gonder" => p.resend_dil(&ip, mac, d),
+                "/misafir/dogrula" => match p.misafir_dogrula(&ip, mac, &form) {
+                    Some(pg) => pg,
+                    None => return git(req, format!("{base}/")),
+                },
                 _ => return git(req, format!("{base}/")),
             }
         }
@@ -1332,6 +1521,241 @@ mod tests {
         assert_eq!(t.p.home_dil(IP, Some(MAC), "", Dil::En, false).tpl, "giris");
         t.advance(181.0); // kod süresi dolduysa form
         assert_eq!(t.p.home_dil(IP, Some(MAC), "", Dil::En, true).tpl, "giris");
+    }
+
+    // --- misafir kodu
+    const TC: &str = "10000000146"; // algoritmaya uyan uydurma numara
+    const TC_KEY: &str = "TC:10000000146";
+    const PAS_KEY: &str = "PASAPORT:DE:X1234567";
+
+    fn otel(tur: &'static str) -> impl FnOnce(&mut Config) {
+        move |c: &mut Config| {
+            c.main.isletme_turu = Some(tur.into());
+            c.giris.misafir_kodu = true;
+        }
+    }
+
+    /// Personelin panelden ürettiği kod (depoya yazılır).
+    fn kod_uret(t: &T, kimlik: &str, saat: u64, uretim: f64) -> misafir::Kod {
+        let mut k = misafir::oku(&t.p.cfg.main.state_root);
+        let (yeni, _) = misafir::uret(&mut k, kimlik, "Ali", "Veli", "101", saat, "mudur", uretim);
+        misafir::kaydet(&t.p.cfg.main.state_root, &k).unwrap();
+        yeni
+    }
+
+    fn mform(tur: &str, kimlik: &str, kod: &str) -> Form {
+        let mut f = form(&[("tur", tur), ("kod", kod), ("sozlesme", "1"), ("riza", "1"), ("dst", "http://neverssl.com/")]);
+        match tur {
+            "tc" => {
+                f.insert("tc".into(), kimlik.into());
+            }
+            _ => {
+                f.insert("pasaport".into(), kimlik.into());
+                f.insert("uyruk".into(), "DE".into());
+            }
+        }
+        f
+    }
+
+    fn baska(kod: &str) -> String {
+        if kod == "000000" { "111111".into() } else { "000000".into() }
+    }
+
+    #[test]
+    fn misafir_tc_ile_giris() {
+        let t = setup(otel("otel"));
+        let k = kod_uret(&t, TC_KEY, 24, WALL0);
+        let pg = t.p.misafir_sayfasi(IP, Some(MAC), "", Dil::Tr).unwrap();
+        assert_eq!((pg.tpl, pg.get("baslik")), ("misafir", "Otel misafiriyim"));
+        let pg = t.p.misafir_dogrula(IP, Some(MAC), &mform("tc", "100 0000 0146", &k.kod)).unwrap();
+        assert_eq!(pg.tpl, "basarili");
+        assert!(pg.get("bas_html").contains("url=http://neverssl.com/"));
+        let ses = ortak::load_sessions(&t.p.cfg.main.state_root);
+        assert_eq!((ses[MAC].phone.as_str(), ses[MAC].ad.as_str(), ses[MAC].soyad.as_str()), (TC_KEY, "Ali", "Veli"));
+        assert_eq!(ses[MAC].expires_epoch, k.bitis);
+        let calls = t.calls.lock().unwrap().clone();
+        assert!(calls.iter().any(|c| c.last().unwrap() == &format!("{{ {MAC} . {IP} timeout 86400s }}")));
+        // 5651: oturum satırı tam kimlikle, ek alanı; kişi dosyası güvenli adla; kişi listesi
+        let oturum = t.read("5651/gunluk/2026-09-29/oturum.csv");
+        let bitis = ortak::now_iso(k.bitis);
+        let satir = oturum.lines().find(|l| l.contains("OTURUM_BASLA")).unwrap();
+        assert!(satir.contains(TC_KEY), "{satir}");
+        assert!(satir.ends_with(&format!("bitis={bitis} sozlesme=1 riza=1 giris=misafir_kodu oda=101 kod_bitis={bitis} ureten=mudur")), "{satir}");
+        let user = t.read("5651/gunluk/2026-09-29/kullanicilar/TC_10000000146.csv");
+        assert!(user.contains(";KAYIT;TC:10000000146;Ali;Veli;") && user.contains(";OTURUM_BASLA;"));
+        assert!(t.read("5651/kullanicilar/index.csv").contains("TC:10000000146;Ali;Veli;"));
+        // denetim: kimlik ve kod yok, maskeli kimlik var
+        let a = t.audit_text();
+        assert!(a.contains("MISAFIR_BASARILI") && a.contains("100******46"), "{a}");
+        assert!(!a.contains(TC) && !a.contains(&k.kod), "{a}");
+        assert_eq!(t.sms_count(), 0);
+        // zaten bağlı: sayfa başarı
+        assert_eq!(t.p.misafir_sayfasi(IP, Some(MAC), "", Dil::Tr).unwrap().tpl, "basarili");
+    }
+
+    #[test]
+    fn misafir_pasaport_ile_giris() {
+        let t = setup(otel("yurt"));
+        let k = kod_uret(&t, PAS_KEY, 48, WALL0);
+        let pg = t.p.misafir_dogrula(IP, Some(MAC), &mform("pasaport", "x123-4567", &k.kod)).unwrap();
+        assert_eq!(pg.tpl, "basarili");
+        assert_eq!(ortak::load_sessions(&t.p.cfg.main.state_root)[MAC].phone, PAS_KEY);
+        assert!(t.read("5651/gunluk/2026-09-29/kullanicilar/PASAPORT_DE_X1234567.csv").contains(";KAYIT;PASAPORT:DE:X1234567;"));
+        let a = t.audit_text();
+        assert!(a.contains("DE X12***67") && !a.contains("X1234567"), "{a}");
+        // uyruk farklıysa eşleşmez
+        let mut f = mform("pasaport", "X1234567", &k.kod);
+        f.insert("uyruk".into(), "FR".into());
+        assert_eq!(t.p.misafir_dogrula("10.50.0.24", Some("aa:bb:cc:dd:ee:02"), &f).unwrap().get("hata_genel"), "Bilgiler eşleşmedi ya da kodun süresi doldu.");
+    }
+
+    #[test]
+    fn misafir_yanlis_kod_tek_mesaj() {
+        let t = setup(otel("otel"));
+        let k = kod_uret(&t, TC_KEY, 24, WALL0);
+        let iptal = kod_uret(&t, PAS_KEY, 24, WALL0);
+        let mut kodlar = misafir::oku(&t.p.cfg.main.state_root);
+        misafir::iptal(&mut kodlar, &iptal.kod_id);
+        misafir::kaydet(&t.p.cfg.main.state_root, &kodlar).unwrap();
+        let eski = kod_uret(&t, "TC:20000000046", 24, WALL0 - 25.0 * 3600.0); // süresi dolmuş
+        const TEK: &str = "Bilgiler eşleşmedi ya da kodun süresi doldu.";
+        let denemeler = [
+            mform("tc", TC, &baska(&k.kod)),          // kod yanlış
+            mform("tc", "11111111110", &k.kod),       // kimlik yok
+            mform("tc", "20000000046", &eski.kod),     // süresi dolmuş
+            mform("pasaport", "X1234567", &iptal.kod), // iptal edilmiş
+        ];
+        for (i, f) in denemeler.iter().enumerate() {
+            let pg = t.p.misafir_dogrula(IP, Some(MAC), f).unwrap();
+            assert_eq!((pg.tpl, pg.get("hata_genel")), ("misafir", TEK), "{i}");
+            assert!(pg.ctx.iter().all(|(k2, _)| *k2 != "kod"), "kod forma geri yazılmaz");
+        }
+        // İngilizce
+        let mut f = mform("tc", "20000000046", &eski.kod);
+        f.insert("dil".into(), "en".into());
+        let pg = t.p.misafir_dogrula("10.50.0.25", Some("aa:bb:cc:dd:ee:03"), &f).unwrap();
+        assert_eq!(pg.get("hata_genel"), "The details did not match or the code has expired.");
+        assert!(ortak::load_sessions(&t.p.cfg.main.state_root).is_empty());
+        // biçim hataları alan iletisi; hata sayılmaz
+        let pg = t.p.misafir_dogrula(IP, Some(MAC), &mform("tc", "10000000147", "12")).unwrap();
+        assert!(pg.get("hata_genel").is_empty() && !pg.get("hata_tc").is_empty() && !pg.get("hata_kod").is_empty());
+        let a = t.audit_text();
+        assert_eq!(a.matches("MISAFIR_HATALI").count(), 5, "{a}");
+        assert!(!a.contains(TC) && !a.contains("11111111110") && !a.contains("20000000046") && !a.contains("X1234567"), "{a}");
+    }
+
+    #[test]
+    fn misafir_kilit_ip_ve_mac() {
+        let t = setup(otel("otel"));
+        let k = kod_uret(&t, TC_KEY, 24, WALL0);
+        let yanlis = mform("tc", TC, &baska(&k.kod));
+        let dogru = mform("tc", TC, &k.kod);
+        const KILIT: &str = "Çok fazla hatalı deneme yapıldı. Lütfen 15 dakika sonra tekrar deneyin.";
+        // aynı IP, farklı MAC'ler: 5 hata → IP kilitli, doğru kod da reddedilir
+        for i in 0..5 {
+            t.p.misafir_dogrula(IP, Some(&format!("aa:bb:cc:dd:ee:1{i}")), &yanlis);
+        }
+        assert_eq!(t.p.misafir_dogrula(IP, Some("aa:bb:cc:dd:ee:20"), &dogru).unwrap().get("hata_genel"), KILIT);
+        // aynı MAC, farklı IP'ler: 5 hata → MAC kilitli
+        for i in 0..5 {
+            t.p.misafir_dogrula(&format!("10.50.0.{}", 30 + i), Some("aa:bb:cc:dd:ee:30"), &yanlis);
+        }
+        assert_eq!(t.p.misafir_dogrula("10.50.0.40", Some("aa:bb:cc:dd:ee:30"), &dogru).unwrap().get("hata_genel"), KILIT);
+        assert!(ortak::load_sessions(&t.p.cfg.main.state_root).is_empty());
+        // SMS doğrulama sayacından ayrı: SMS akışı kilitlenmez
+        assert_eq!(t.p.send_code(IP, Some("aa:bb:cc:dd:ee:20"), &good("5334553132")).tpl, "kod");
+        // başka IP ve MAC etkilenmez
+        assert_eq!(t.p.misafir_dogrula("10.50.0.41", Some("aa:bb:cc:dd:ee:41"), &dogru).unwrap().tpl, "basarili");
+        // 15 dk sonra kilit kalkar
+        t.advance(901.0);
+        assert_eq!(t.p.misafir_dogrula(IP, Some("aa:bb:cc:dd:ee:20"), &dogru).unwrap().tpl, "basarili");
+        assert!(t.audit_text().contains("red=kilit"));
+    }
+
+    #[test]
+    fn misafir_oturum_kod_bitisinde_biter() {
+        let t = setup(otel("otel"));
+        // kod 4 saat önce 1 haftalık üretildi: kalan süre 164 saat
+        let k = kod_uret(&t, TC_KEY, 168, WALL0 - 4.0 * 3600.0);
+        assert_eq!(t.p.misafir_dogrula(IP, Some(MAC), &mform("tc", TC, &k.kod)).unwrap().tpl, "basarili");
+        let s = &ortak::load_sessions(&t.p.cfg.main.state_root)[MAC];
+        assert_eq!(s.expires_epoch, WALL0 + 164.0 * 3600.0);
+        let kalan = (164 * 3600).to_string();
+        assert!(t.calls.lock().unwrap().iter().any(|c| c.last().unwrap() == &format!("{{ {MAC} . {IP} timeout {kalan}s }}")));
+        // ayardaki 30 günlük oturum süresi uygulanmaz
+        assert!(!t.calls.lock().unwrap().iter().any(|c| c.last().unwrap().contains("2592000s")));
+        let oturum = t.read("5651/gunluk/2026-09-29/oturum.csv");
+        assert!(oturum.contains(&format!("bitis={} ", ortak::now_iso(k.bitis))));
+    }
+
+    #[test]
+    fn kod_basina_cihaz_siniri() {
+        let t = setup(|c| {
+            otel("otel")(c);
+            c.main.max_devices_per_phone = 2;
+        });
+        let k = kod_uret(&t, TC_KEY, 24, WALL0);
+        let diger = kod_uret(&t, PAS_KEY, 24, WALL0);
+        assert_eq!(t.p.misafir_dogrula("10.50.0.29", Some("aa:bb:cc:dd:ee:09"), &mform("pasaport", "X1234567", &diger.kod)).unwrap().tpl, "basarili");
+        for i in 1..=3 {
+            t.advance(1.0);
+            let pg = t.p.misafir_dogrula(&format!("10.50.0.2{i}"), Some(&format!("aa:bb:cc:dd:ee:0{i}")), &mform("tc", TC, &k.kod));
+            assert_eq!(pg.unwrap().tpl, "basarili", "{i}");
+        }
+        let ses = ortak::load_sessions(&t.p.cfg.main.state_root);
+        assert_eq!(ses.keys().cloned().collect::<Vec<_>>(), vec!["aa:bb:cc:dd:ee:02", "aa:bb:cc:dd:ee:03", "aa:bb:cc:dd:ee:09"]);
+        let oturum = t.read("5651/gunluk/2026-09-29/oturum.csv");
+        assert!(oturum.lines().any(|l| l.contains("OTURUM_BITIS") && l.contains("aa:bb:cc:dd:ee:01") && l.contains("neden=cihaz_limiti")));
+    }
+
+    #[test]
+    fn kafede_misafir_yolu_yok() {
+        // kafe (misafir_kodu ayarı açık kalmış olsa da) ve otel ama kapalı: yol yok, düğme yok
+        for tweak in [otel("kafe"), otel("diger")] {
+            let t = setup(tweak);
+            kod_uret(&t, TC_KEY, 24, WALL0);
+            assert!(t.p.misafir_sayfasi(IP, Some(MAC), "", Dil::Tr).is_none());
+            assert!(t.p.misafir_dogrula(IP, Some(MAC), &mform("tc", TC, "123456")).is_none());
+            assert!(!t.p.render(&t.p.home(IP, Some(MAC), "")).contains("/misafir"));
+        }
+        let t = setup(|c| c.main.isletme_turu = Some("otel".into()));
+        assert!(t.p.misafir_sayfasi(IP, Some(MAC), "", Dil::Tr).is_none());
+        assert!(!t.p.render(&t.p.home(IP, Some(MAC), "")).contains("/misafir"));
+        // otel / yurt açık: türe göre düğme, dst ve dil korunur
+        let t = setup(otel("otel"));
+        let base = t.p.base_url.clone();
+        let html = t.p.render(&t.p.home(IP, Some(MAC), "http://a.com/"));
+        assert!(html.contains(&format!("<a class=\"dugme\" href=\"{base}/misafir?dil=tr&amp;dst=http%3A%2F%2Fa.com%2F\">Otel misafiriyim</a>")), "{html}");
+        assert!(t.p.render(&t.p.home_dil(IP, Some(MAC), "", Dil::En, false)).contains(">Hotel guest</a>"));
+        let t = setup(otel("yurt"));
+        assert!(t.p.render(&t.p.home(IP, Some(MAC), "")).contains(">Yurt sakiniyim</a>"));
+        let html = t.p.render(&t.p.misafir_sayfasi(IP, Some(MAC), "", Dil::En).unwrap());
+        assert!(html.contains("<h1>Dormitory resident</h1>") && html.contains("Enter the code given or sent to you by our staff"));
+        assert!(html.contains(&format!("href=\"{base}/misafir?dil=tr\"")) && html.contains(&format!("action=\"{base}/misafir/dogrula\"")));
+    }
+
+    #[test]
+    fn kupon_kelimesi_yok() {
+        let t = setup(otel("otel"));
+        let k = kod_uret(&t, TC_KEY, 24, WALL0);
+        for d in [Dil::Tr, Dil::En] {
+            let mut sayfalar = vec![
+                t.p.home_dil(IP, Some(MAC), "", d, false),
+                t.p.misafir_sayfasi(IP, Some(MAC), "", d).unwrap(),
+            ];
+            let mut f = mform("tc", TC, &baska(&k.kod));
+            f.insert("dil".into(), d.kod().into());
+            sayfalar.push(t.p.misafir_dogrula(IP, Some(MAC), &f).unwrap());
+            for pg in &sayfalar {
+                let html = t.p.render(pg).to_lowercase();
+                assert!(!html.contains("kupon") && !html.contains("coupon"), "{}", pg.tpl);
+            }
+        }
+        let html = t.p.render(&t.p.misafir_sayfasi(IP, Some(MAC), "", Dil::Tr).unwrap());
+        assert!(html.contains("Personelin size verdiği veya ilettiği kodu girin") && !html.contains("$m_"));
+        for tpl in ["giris", "misafir", "_sayfa", "basarili", "hata", "kod"] {
+            assert!(!template(tpl).to_lowercase().contains("kupon"), "{tpl}");
+        }
     }
 
     #[test]

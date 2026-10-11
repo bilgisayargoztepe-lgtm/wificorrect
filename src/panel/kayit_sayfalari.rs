@@ -436,7 +436,7 @@ impl Panel {
             match kayit::site_ara(cfg, aranan, &bas, &bit) {
                 Err(e) => sonuc = format!("<p class=\"hata\">{}</p>", h(&e)),
                 Ok(s) => {
-                    self.audit(cfg, req, Some(o), "PANEL_SITE_ARA", &format!("aranan={aranan} bas={bas} bit={bit} kisi={}", s.kisiler.len()));
+                    self.audit(cfg, req, Some(o), "PANEL_SITE_ARA", &format!("aranan={} bas={bas} bit={bit} kisi={}", kimlik::denetim_site(aranan), s.kisiler.len()));
                     let sir = sir(cfg);
                     let kisiler: Vec<Vec<String>> = s
                         .kisiler

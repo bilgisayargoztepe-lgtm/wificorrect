@@ -166,6 +166,39 @@ pub fn denetim_metni(s: &str) -> String {
     }
 }
 
+/// Site / IP aramasının denetime yazılacak hâli (düzeltme turu 4). Yalnızca gerçekten bir site ya da IP değeri ise
+/// yazıldığı gibi: IPv4 adresi (`Ipv4Addr`, başında sıfırlı sekizli kabul edilmez) ya da konak kısmında (şema, yol ve
+/// port atılınca) en az bir ASCII harf ve nokta bulunan alan adı/adres. Konak yalnızca `[A-Za-z0-9.-]`, içinde 5+ ardışık
+/// rakam yok; `@` (kullanıcı bilgisi) yok; konak dışındaki kısımda (yol, sorgu, port) toplam 5'ten az rakam. Değilse
+/// `denetim_metni` kuralı (5+ rakam → her rakam yıldız).
+pub fn denetim_site(s: &str) -> String {
+    if s.parse::<std::net::Ipv4Addr>().is_ok() || site_degeri_mi(s) {
+        s.to_string()
+    } else {
+        denetim_metni(s)
+    }
+}
+
+fn site_degeri_mi(s: &str) -> bool {
+    let govde = s.split_once("://").map_or(s, |(_, r)| r);
+    let son = govde.find(['/', '?', '#']).unwrap_or(govde.len());
+    let (konak_port, kalan) = govde.split_at(son);
+    let (konak, port) = konak_port.split_once(':').unwrap_or((konak_port, ""));
+    let rakam = |t: &str| t.chars().filter(|c| c.is_numeric()).count();
+    let mut dizi = 0;
+    let uzun_dizi = konak.chars().any(|c| {
+        dizi = if c.is_ascii_digit() { dizi + 1 } else { 0 };
+        dizi >= 5
+    });
+    !konak.is_empty()
+        && konak.chars().all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-')
+        && konak.contains('.')
+        && konak.chars().any(|c| c.is_ascii_alphabetic())
+        && !uzun_dizi
+        && port.chars().all(|c| c.is_ascii_digit())
+        && rakam(port) + rakam(kalan) < 5
+}
+
 /// HMAC-SHA256 (RFC 2104).
 fn hmac_sha256(anahtar: &[u8], veri: &[u8]) -> [u8; 32] {
     let mut k = [0u8; 64];
@@ -317,6 +350,25 @@ mod tests {
         // 5'ten az rakam: aynen
         for girdi in ["101", "bet", "ayşe", "oda 1010", "bet365.com"] {
             assert_eq!(denetim_metni(girdi), girdi);
+        }
+    }
+
+    #[test]
+    fn denetim_site_yalniz_site_ve_ip_aynen() {
+        for girdi in ["https://bet365.com/spor", "10.50.0.23", "bet365.com", "8.8.8.8", "m.bet365.com:8443/spor"] {
+            assert_eq!(denetim_site(girdi), girdi);
+        }
+        for (girdi, beklenen) in [
+            ("10000000146", "***********"),
+            ("ayşe 100 000 001 46", "ayşe *** *** *** **"),
+            ("TC:10000000146", "TC:***********"),
+            ("(10000000146)", "(***********)"),
+            ("100.000.001.46", "***.***.***.**"), // geçerli IPv4 değil (başında sıfır)
+            ("bet.com/10000000146", "bet.com/***********"), // yolda kimlik
+            ("10000000146@bet.com", "***********@bet.com"), // kullanıcı bilgisi
+            ("x10000000146.com", "x***********.com"), // konakta 5+ ardışık rakam
+        ] {
+            assert_eq!(denetim_site(girdi), beklenen, "{girdi:?}");
         }
     }
 

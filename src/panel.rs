@@ -3818,6 +3818,41 @@ mod tests {
     }
 
     #[test]
+    fn site_aramasi_denetimde_yalniz_site_ve_ip_aynen() {
+        let e = env();
+        let (tok, csrf) = setup_and_login(&e, "mudur", "sahip-parola-12");
+        give_reason(&e, &tok, &csrf);
+        kimlikli_kayitlar(&e);
+        let aynen = ["https://bet365.com/spor", "10.50.0.23", "bet365.com"];
+        let yildizli = [
+            ("10000000146", "***********"),
+            ("ayşe 100 000 001 46", "ayşe *** *** *** **"),
+            ("(10000000146)", "(***********)"),
+            ("100.000.001.46", "***.***.***.**"),
+        ];
+        // "TC:10000000146": site terimi "tc" (3 harften kısa) olduğu için arama reddedilir, denetime hiç yazılmaz
+        for q in aynen.iter().copied().chain(yildizli.iter().map(|(q, _)| *q)).chain(["TC:10000000146"]) {
+            let r = e.p.handle(&get("/ara", &[("q", q), ("bas", "2026-09-29"), ("bit", "2026-09-29")], &tok));
+            assert_eq!(r.status, 200, "{q}");
+        }
+        let audit = std::fs::read_to_string(e.root.join("5651/gunluk/2026-09-29/denetim.csv")).unwrap();
+        let degerler: Vec<&str> = audit
+            .lines()
+            .filter(|l| l.contains("PANEL_SITE_ARA"))
+            .filter_map(|l| l.split("aranan=").nth(1))
+            .map(|v| v.split(" bas=").next().unwrap_or(v))
+            .collect();
+        assert_eq!(degerler.len(), aynen.len() + yildizli.len(), "{degerler:?}");
+        for q in aynen {
+            assert!(degerler.contains(&q), "{q} aynen yazılmalı: {degerler:?}");
+        }
+        for (_, m) in yildizli {
+            assert!(degerler.contains(&m), "{m} bekleniyordu: {degerler:?}");
+        }
+        assert!(!audit.contains("10000000146") && !audit.contains("100.000.001.46") && !audit.contains("000 001"), "{audit}");
+    }
+
+    #[test]
     fn kisi_sayfasi_opak_kimlikle() {
         let e = env();
         let (tok, csrf) = setup_and_login(&e, "mudur", "sahip-parola-12");

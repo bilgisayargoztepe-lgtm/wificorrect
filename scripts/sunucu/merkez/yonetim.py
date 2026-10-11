@@ -29,6 +29,12 @@ def _epoch(iso):
         return None
 
 
+def yedek_gecikti(son_gun, simdi):
+    """Yedek gecikti: son gelen gün yok ya da GECIKME_GUN günden eski (TR takvimi). Liste ve uyarı (saglik.py) ortak."""
+    sinir = (datetime.datetime.fromtimestamp(simdi, common.TZ).date() - datetime.timedelta(days=GECIKME_GUN)).isoformat()
+    return not son_gun or son_gun < sinir
+
+
 def parola_alanlari(etiket="Parola"):
     """Yönetici parolayı iki kez yazar (yanlış yazılan parola müşteriye/cihaza gitmesin)."""
     return (f'<label for="p1">{etiket} (en az {guvenlik.EN_AZ} karakter)</label>'
@@ -100,10 +106,6 @@ class Yonetim(web.Taban):
         a = d.get("arsivler") if isinstance(d, dict) else None
         return a if isinstance(a, dict) else {}
 
-    def _sinir_gun(self):
-        bugun = datetime.datetime.fromtimestamp(self.saat(), common.TZ).date()
-        return (bugun - datetime.timedelta(days=GECIKME_GUN)).isoformat()
-
     def _ozet(self, m, c, d):
         """Bir müşterinin liste satırı bilgileri: (cihaz metni, son gün metni, sorunlu mu)."""
         simdi = self.saat()
@@ -118,7 +120,7 @@ class Yonetim(web.Taban):
         else:
             cihaz = f"son eşitleme {once(simdi - es)}" if c["son_eslesme"] else "henüz eşitlenmedi"
         sg = d.get("son_gun")
-        gecikti = not sg or sg < self._sinir_gun()
+        gecikti = yedek_gecikti(sg, simdi)
         son = e(sg or "—") + (' <b class="kotu">GECİKTİ</b>' if gecikti else "")
         sorunlu = gecikti or simdi - es > ESLESME_GECIKME_SN or c["durum"] == "serbest_birakiliyor"
         return cihaz, son, sorunlu

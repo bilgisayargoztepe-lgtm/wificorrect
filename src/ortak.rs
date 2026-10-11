@@ -75,6 +75,17 @@ pub fn kopruye_bagli(brforward: &[u8]) -> std::collections::BTreeSet<String> {
         .collect()
 }
 
+/// Klasörün bulunduğu diskin doluluğu (%), statvfs; okunamazsa `None`.
+pub fn disk_percent(path: &str) -> Option<u64> {
+    let p = std::ffi::CString::new(path).ok()?;
+    // SAFETY: statvfs yalnızca verilen yapıya yazar.
+    let mut st: libc::statvfs = unsafe { std::mem::zeroed() };
+    if unsafe { libc::statvfs(p.as_ptr(), &mut st) } != 0 || st.f_blocks == 0 {
+        return None;
+    }
+    Some(100 - (st.f_bavail as u64 * 100 / st.f_blocks as u64))
+}
+
 pub fn in_subnet(ip: &str, subnet: &str) -> bool {
     let (Ok(ip), Some((net, bits))) = (ip.parse::<std::net::Ipv4Addr>(), subnet.split_once('/')) else {
         return false;

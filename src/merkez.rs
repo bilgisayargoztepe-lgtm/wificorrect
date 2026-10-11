@@ -42,15 +42,26 @@ pub type Http = dyn Fn(&str, &str) -> Result<(u16, String), String> + Send + Syn
 /// curl argümanları: gövde (parola, cihaz anahtarı) standart girdiden gelir, komut satırında görünmez.
 /// Bağlanma 10 sn, toplam 25 sn (merkez ilk girişte kuyruğu en çok 15 sn bekler); panelin işçileri uzun bloklanmasın.
 pub fn curl_args(url: &str) -> Vec<String> {
-    ["-s", "--connect-timeout", "10", "--max-time", "25", "-X", "POST", "-H", "Content-Type: application/json", "--data-binary", "@-", "-w", "\n%{http_code}", url]
+    curl_args_sure(url, 25)
+}
+
+/// `curl_args`, toplam süre `max_sn` (bağlanma en çok 10 sn ya da `max_sn`).
+pub fn curl_args_sure(url: &str, max_sn: u32) -> Vec<String> {
+    let (bag, max) = (max_sn.min(10).to_string(), max_sn.to_string());
+    ["-s", "--connect-timeout", &bag, "--max-time", &max, "-X", "POST", "-H", "Content-Type: application/json", "--data-binary", "@-", "-w", "\n%{http_code}", url]
         .iter()
         .map(|s| s.to_string())
         .collect()
 }
 
 pub fn curl(yol: &str, govde: &str) -> Result<(u16, String), String> {
+    curl_sure(yol, govde, 25)
+}
+
+/// `curl`, toplam süre `max_sn` (sağlık raporu 10 sn).
+pub fn curl_sure(yol: &str, govde: &str, max_sn: u32) -> Result<(u16, String), String> {
     let mut c = Command::new("curl")
-        .args(curl_args(&format!("{API}{yol}")))
+        .args(curl_args_sure(&format!("{API}{yol}"), max_sn))
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
@@ -177,11 +188,11 @@ fn sms_uygula(cfg: &mut Config, s: &SmsAyari) -> Result<bool, String> {
 }
 
 /// Hata yanıtı ise (mesaj, kod).
-fn hata(v: &Value) -> Option<(String, String)> {
+pub fn hata(v: &Value) -> Option<(String, String)> {
     Some((metin(v, "hata")?, metin(v, "kod").unwrap_or_default()))
 }
 
-fn cagir(http: &Http, yol: &str, govde: &Value) -> Result<(u16, Value), String> {
+pub fn cagir(http: &Http, yol: &str, govde: &Value) -> Result<(u16, Value), String> {
     let (d, g) = http(yol, &govde.to_string())?;
     let v: Value = serde_json::from_str(&g).map_err(|_| format!("merkezden geçersiz yanıt (HTTP {d})"))?;
     Ok((d, v))

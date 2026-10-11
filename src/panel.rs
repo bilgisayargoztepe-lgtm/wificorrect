@@ -114,16 +114,6 @@ fn service_state(name: &str) -> String {
     format!("<span class=\"durum{}\">{}</span>", if ok { "" } else { " kotu" }, if ok { "çalışıyor".into() } else { h(&format!("DURMUŞ ({st})")) })
 }
 
-fn disk_percent(path: &str) -> Option<u64> {
-    let p = std::ffi::CString::new(path).ok()?;
-    // SAFETY: statvfs yalnızca verilen yapıya yazar.
-    let mut st: libc::statvfs = unsafe { std::mem::zeroed() };
-    if unsafe { libc::statvfs(p.as_ptr(), &mut st) } != 0 || st.f_blocks == 0 {
-        return None;
-    }
-    Some(100 - (st.f_bavail as u64 * 100 / st.f_blocks as u64))
-}
-
 // ---------------------------------------------------------------- ayar alanları
 #[derive(Clone, Copy)]
 enum Tur {
@@ -1077,7 +1067,7 @@ impl Panel {
             })
             .collect();
         let sms = ortak::sms_count(&m.state_root, &today);
-        let disk = disk_percent(&m.log_root);
+        let disk = ortak::disk_percent(&m.log_root);
         let mut uyarilar = vec![];
         let sms_down = cfg.sms.mock || !cfg.sms_missing().is_empty();
         if o.rol == Rol::Hizmet {

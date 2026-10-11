@@ -287,6 +287,15 @@ pub fn run(cfg: Config, args: &[String]) -> ExitCode {
                 }
             }
         }
+        // Kaydedici 5 dk'da bir başlatır: bağlı değilse sessiz; gönderilemezse tek satır (merkez raporun gelmediğini görür)
+        Some("saglik") => {
+            let http = |y: &str, g: &str| crate::merkez::curl_sure(y, g, 10);
+            let k = crate::saglik::Kaynak::sistem();
+            if let Err(e) = crate::saglik::calistir(&cfg, std::path::Path::new(crate::merkez::PATH), &k, &http, now) {
+                eprintln!("sağlık raporu gönderilemedi: {e}");
+            }
+            ExitCode::SUCCESS
+        }
         // Panel → Admin ayarları → Uzak erişim kaydedilince (ayrı systemd işinde)
         Some("uzak-uygula") => {
             let r = crate::uzak::uygula(&cfg, std::path::Path::new(crate::uzak::KEY), std::path::Path::new(crate::uzak::CONF), &runner);
@@ -412,7 +421,7 @@ pub fn run(cfg: Config, args: &[String]) -> ExitCode {
         _ => {
             eprintln!(
                 "Kullanım: wificorrect ctl <komut>\n  dhcp-olay <add|old|del> <mac> <ip> [ad]\n  yukle\n  oturumlar\n  \
-                 gun-kapat [YYYY-AA-GG] [--zorla]\n  dogrula [--son N]\n  temizle [--kuru]\n  yedekle\n  ara ...  (ayrıntı: ctl ara)\n  disa-aktar --baslangic G --bitis G --cikti DOSYA\n  ag-uygula | ag-gecis DOSYA | ag-onayla | ag-geri-al | ag-ilk\n  filtre-uygula\n  hiz-uygula\n  admin-parola\n  merkez-eslesme"
+                 gun-kapat [YYYY-AA-GG] [--zorla]\n  dogrula [--son N]\n  temizle [--kuru]\n  yedekle\n  ara ...  (ayrıntı: ctl ara)\n  disa-aktar --baslangic G --bitis G --cikti DOSYA\n  ag-uygula | ag-gecis DOSYA | ag-onayla | ag-geri-al | ag-ilk\n  filtre-uygula\n  hiz-uygula\n  admin-parola\n  merkez-eslesme\n  saglik"
             );
             ExitCode::from(2)
         }

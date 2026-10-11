@@ -168,8 +168,10 @@ const MERKEZ_SMS: &[&str] = &["sms.mock", "sms.provider", "netgsm.usercode", "ne
 const ALANLAR: &[Alan] = &[
     Alan { key: "main.unvan", label: "İşletme unvanı (vergi levhasındaki unvan yazılmalıdır)", tur: Tur::Metin(unvan_ok), grup: "İşletme", admin: false },
     Alan { key: "main.site_name", label: "İşletme adı", tur: Tur::Metin(|s| !s.trim().is_empty() && chars_ok(s, 40, |c| c.is_alphanumeric() || " .-'&".contains(c))), grup: "İşletme", admin: false },
+    Alan { key: "main.isletme_turu", label: "İşletme türü", tur: Tur::Secim(crate::ayar::ISLETME_TURLERI), grup: "İşletme", admin: false },
     Alan { key: "main.session_minutes", label: "Oturum süresi (dakika; 43200 = 30 gün)", tur: Tur::Sayi(30, 64800), grup: "İşletme", admin: false },
     Alan { key: "main.max_devices_per_phone", label: "Bir telefona en fazla cihaz", tur: Tur::Sayi(1, 10), grup: "İşletme", admin: false },
+    Alan { key: "giris.misafir_kodu", label: "Misafir kodu ile giriş (personelin ürettiği kodla; T.C. kimlik ya da pasaport)", tur: Tur::Evet, grup: "Giriş yöntemleri", admin: false },
     Alan { key: "limits.sms_per_phone_15min", label: "Numara başına SMS / 15 dk", tur: Tur::Sayi(1, 20), grup: "SMS sınırları", admin: true },
     Alan { key: "limits.sms_per_phone_day", label: "Numara başına SMS / gün", tur: Tur::Sayi(1, 50), grup: "SMS sınırları", admin: true },
     Alan { key: "limits.sms_per_mac_hour", label: "Cihaz başına SMS / saat", tur: Tur::Sayi(1, 50), grup: "SMS sınırları", admin: true },
@@ -267,6 +269,9 @@ fn get_field(c: &Config, key: &str) -> String {
     match key {
         "main.site_name" => c.main.site_name.clone(),
         "main.unvan" => c.main.unvan.clone(),
+        // seçilmemiş tür boş döner: formda "Seçin" görünür, kaydetmek türü kendiliğinden yazmaz
+        "main.isletme_turu" => c.main.isletme_turu.as_ref().map_or(String::new(), |_| crate::ayar::isletme_turu(c).to_string()),
+        "giris.misafir_kodu" => b(c.giris.misafir_kodu),
         "uzak.enabled" => b(c.uzak.enabled),
         "uzak.sunucu" => c.uzak.sunucu.clone(),
         "uzak.sunucu_anahtar" => c.uzak.sunucu_anahtar.clone(),
@@ -302,6 +307,8 @@ fn set_field(c: &mut Config, key: &str, v: &str) {
     match key {
         "main.site_name" => c.main.site_name = v.trim().into(),
         "main.unvan" => c.main.unvan = v.split_whitespace().collect::<Vec<_>>().join(" "),
+        "main.isletme_turu" => c.main.isletme_turu = Some(v.into()),
+        "giris.misafir_kodu" => c.giris.misafir_kodu = v == "1",
         "uzak.enabled" => c.uzak.enabled = v == "1",
         "uzak.sunucu" => c.uzak.sunucu = v.into(),
         "uzak.sunucu_anahtar" => c.uzak.sunucu_anahtar = v.into(),
@@ -344,6 +351,12 @@ fn salt_okunur(a: &Alan, cfg: &Config, bagli: bool) -> Option<&'static str> {
     }
 }
 
+/// Alan bu işletme türünde sayfada var mı (giriş yöntemleri türe göre görünür). Görünmeyen alan formdan değişmez.
+fn gorunur(a: &Alan, cfg: &Config) -> bool {
+    let tur = crate::ayar::isletme_turu(cfg);
+    crate::ayar::GirisYontemi::HEPSI.iter().find(|y| a.key.strip_prefix("giris.") == Some(y.kimlik())).is_none_or(|y| y.gorunur(tur))
+}
+
 /// Ayarlar sayfasının (admin=false) ya da Admin ayarları sayfasının (admin=true) alanları.
 fn fields(admin: bool) -> impl Iterator<Item = &'static Alan> {
     ALANLAR.iter().filter(move |a| a.admin == admin)
@@ -354,7 +367,7 @@ fn validate(admin: bool, form: &Form, cfg: &Config, bagli: bool) -> Result<Vec<(
     let mut changes = vec![];
     let mut errors = HashMap::new();
     for a in fields(admin) {
-        if salt_okunur(a, cfg, bagli).is_some() {
+        if salt_okunur(a, cfg, bagli).is_some() || !gorunur(a, cfg) {
             continue;
         }
         let old = get_field(cfg, a.key);
@@ -388,6 +401,8 @@ fn validate(admin: bool, form: &Form, cfg: &Config, bagli: bool) -> Result<Vec<(
             },
             Tur::Secim(opts) => match raw {
                 None => continue,
+                // hiç seçilmemiş alan ("Seçin") seçilmemiş kalabilir
+                Some(v) if v.is_empty() && old.is_empty() => continue,
                 Some(v) if opts.iter().any(|(k, _)| *k == v) => v,
                 Some(_) => {
                     errors.insert(a.key, "Geçersiz seçim.".into());
@@ -1086,13 +1101,15 @@ impl Panel {
         if sms as f64 >= cfg.limits.sms_global_day as f64 * 0.8 {
             uyarilar.push(format!("Günlük SMS tavanına yaklaşıldı ({sms} / {}).", cfg.limits.sms_global_day));
         }
-        let uyari_html = if uyarilar.is_empty() {
+        let mut uyari_li: String = uyarilar.iter().map(|u| format!("<li>{}</li>", h(u))).collect();
+        if cfg.main.isletme_turu.is_none() {
+            // seçilmemiş = anahtar yok (eski cihazlar); seçilince (kafe dahil) kalkar
+            uyari_li.insert_str(0, "<li>İşletme türünüzü seçin: <a href=\"/ayarlar#main-isletme_turu\">Ayarlar → İşletme türü</a></li>");
+        }
+        let uyari_html = if uyari_li.is_empty() {
             String::new()
         } else {
-            format!(
-                "<section class=\"kutu ozet-uyari\"><h2>Uyarılar</h2><ul class=\"uyarilar\">{}</ul></section>",
-                uyarilar.iter().map(|u| format!("<li>{}</li>", h(u))).collect::<String>()
-            )
+            format!("<section class=\"kutu ozet-uyari\"><h2>Uyarılar</h2><ul class=\"uyarilar\">{uyari_li}</ul></section>")
         };
         let kisayol: String = KISAYOLLAR.iter().map(|(yol, d, ad)| format!("<a href=\"{yol}\">{}{}</a>", simge(d), h(ad))).collect();
         // telefon ve MAC yok: yalnızca ad soyad, IP ve bağlanma saati
@@ -1347,6 +1364,9 @@ impl Panel {
         let mut groups: Vec<(&str, String)> = vec![];
         let bagli = crate::merkez::oku(&self.merkez_path).is_some();
         for a in fields(admin) {
+            if !gorunur(a, cfg) {
+                continue;
+            }
             let cur = form.and_then(|f| f.get(a.key).cloned()).unwrap_or_else(|| get_field(cfg, a.key));
             let id = a.key.replace('.', "-");
             let err = errors.get(a.key).map_or(String::new(), |e| format!("<div class=\"hata\">{}</div>", h(e)));
@@ -1366,7 +1386,10 @@ impl Panel {
                     format!("<label class=\"secim\"><input type=\"checkbox\" name=\"{}\" value=\"1\"{}> {}</label>", a.key, if on { " checked" } else { "" }, h(a.label))
                 }
                 Tur::Secim(opts) => {
-                    let o: String = opts.iter().map(|(k, l)| format!("<option value=\"{k}\"{}>{}</option>", if *k == cur { " selected" } else { "" }, h(l))).collect();
+                    let mut o: String = opts.iter().map(|(k, l)| format!("<option value=\"{k}\"{}>{}</option>", if *k == cur { " selected" } else { "" }, h(l))).collect();
+                    if cur.is_empty() {
+                        o.insert_str(0, "<option value=\"\" selected>— Seçin —</option>");
+                    }
                     format!("<label for=\"{id}\">{}</label><select id=\"{id}\" name=\"{}\">{o}</select>{err}", h(a.label), a.key)
                 }
                 Tur::Gizli(_) => {
@@ -1388,11 +1411,23 @@ impl Panel {
                 None => groups.push((a.grup, html)),
             }
         }
+        if !admin {
+            // değiştirilemeyen yöntemler (SMS) bilgi satırı olarak, bölümün başında
+            let bilgi: String = crate::ayar::GirisYontemi::HEPSI
+                .iter()
+                .filter(|y| !y.degistirilebilir())
+                .map(|y| format!("<p class=\"not\">{}: <b>her zaman açık</b></p>", h(y.ad())))
+                .collect();
+            match groups.iter_mut().find(|(g, _)| *g == "Giriş yöntemleri") {
+                Some((_, s)) => s.insert_str(0, &bilgi),
+                None => groups.push(("Giriş yöntemleri", bilgi)),
+            }
+        }
         let mut body = format!("<form method=\"post\" action=\"{}\">{}", if admin { "/admin-ayarlari" } else { "/ayarlar" }, csrf_input(o));
-        // tek grup (Ayarlar → İşletme): grup adı bölüm başlığıyla aynı, tekrar yazılmaz
+        // Ayarlar → İşletme: "İşletme" grubunun adı bölüm başlığıyla aynı, tekrar yazılmaz
         let tek = groups.len() == 1;
         for (g, inner) in &groups {
-            if tek {
+            if tek || (!admin && *g == "İşletme") {
                 body.push_str(&format!("<section class=\"kart\"><div>{inner}</div></section>"));
             } else {
                 body.push_str(&format!("<section class=\"kart grup\"><h2>{}</h2><div>{inner}</div></section>", h(g)));
@@ -1542,7 +1577,7 @@ impl Panel {
 
     fn ayarlar_post(&self, mut cfg: Config, req: &Req, o: &Oturum, admin: bool) -> Resp {
         let back = if admin { "/admin-ayarlari" } else { "/ayarlar" };
-        let changes = match validate(admin, &req.form, &cfg, crate::merkez::oku(&self.merkez_path).is_some()) {
+        let mut changes = match validate(admin, &req.form, &cfg, crate::merkez::oku(&self.merkez_path).is_some()) {
             Ok(c) => c,
             Err(errors) => {
                 let req2 = Req { query: [("m".to_string(), "Geçersiz değerler var, düzeltip tekrar kaydedin.".to_string()), ("e".to_string(), "1".to_string())].into(), ..clone_req(req) };
@@ -1554,6 +1589,16 @@ impl Panel {
         }
         for (k, _, new) in &changes {
             set_field(&mut cfg, k, new);
+        }
+        // türde görünmeyen giriş yöntemi aynı kayıtta kapanır (ör. otel → kafe: misafir kodu kapalı)
+        let tur = crate::ayar::isletme_turu(&cfg).to_string();
+        if cfg.giris.misafir_kodu && !crate::ayar::GirisYontemi::MisafirKodu.gorunur(&tur) {
+            cfg.giris.misafir_kodu = false;
+            match changes.iter_mut().find(|(k, _, _)| *k == "giris.misafir_kodu") {
+                Some(c) => c.2 = b(false),
+                None => changes.push(("giris.misafir_kodu", b(true), b(false))),
+            }
+            changes.retain(|(_, old, new)| old != new);
         }
         if !cfg.sms.mock {
             let eksik = cfg.sms_missing();
@@ -1571,7 +1616,13 @@ impl Panel {
             return redirect(back, Some((&e, true)));
         }
         for (k, old, new) in &changes {
-            self.audit(&cfg, req, Some(o), "PANEL_AYAR", &describe(k, old, new));
+            if *k == "main.isletme_turu" {
+                // ayrı olay: tür seçimi (spec §1); hiç seçilmemişse eski=secilmemis
+                let eski = if old.is_empty() { "secilmemis" } else { old.as_str() };
+                self.audit(&cfg, req, Some(o), "PANEL_ISLETME_TURU", &format!("eski={eski} yeni={new}"));
+            } else {
+                self.audit(&cfg, req, Some(o), "PANEL_AYAR", &describe(k, old, new));
+            }
         }
         if changes.iter().any(|(k, _, _)| k.starts_with("uzak.")) {
             // tünel ayrı işte kurulur (/etc/wireguard panelden yazılamaz; sunucu adı çözülürken panel beklemesin)
@@ -2461,6 +2512,91 @@ mod tests {
         let c = Config::load(&e.p.cfg_path).unwrap();
         assert_eq!((c.main.session_minutes, c.netgsm.password.as_str(), c.sms.mock), (1440, "", true));
         assert!(e.calls.lock().unwrap().iter().any(|c| c.join(" ") == "systemctl restart wificorrect-portal"));
+    }
+
+    #[test]
+    fn tur_secilmemisse_ozet_uyarisi() {
+        let e = env();
+        let (tok, csrf) = setup_and_login(&e, "mudur", "sahip-parola-12");
+        let uyari = "İşletme türünüzü seçin";
+        let ozet = e.p.handle(&req("GET", "/", &[], Some(&tok))).body;
+        assert!(ozet.contains(uyari) && ozet.contains("href=\"/ayarlar#main-isletme_turu\""));
+        let page = e.p.handle(&req("GET", "/ayarlar", &[], Some(&tok))).body;
+        assert!(page.contains("name=\"main.isletme_turu\"") && page.contains("<option value=\"\" selected>— Seçin —</option>"));
+        // başka ayarı kaydetmek (tür "Seçin"de) türü kendiliğinden yazmaz
+        let r = e.p.handle(&req("POST", "/ayarlar", &[("csrf", &csrf), ("main.isletme_turu", ""), ("main.session_minutes", "1440")], Some(&tok)));
+        assert_eq!(r.status, 303);
+        let c = Config::load(&e.p.cfg_path).unwrap();
+        assert_eq!((c.main.session_minutes, c.main.isletme_turu.as_deref()), (1440, None));
+        assert!(!std::fs::read_to_string(&e.p.cfg_path).unwrap().contains("isletme_turu"));
+        assert!(e.p.handle(&req("GET", "/", &[], Some(&tok))).body.contains(uyari));
+        // geçersiz tür reddedilir
+        let r = e.p.handle(&req("POST", "/ayarlar", &[("csrf", &csrf), ("main.isletme_turu", "otel'")], Some(&tok)));
+        assert!(r.status == 200 && r.body.contains("Geçersiz seçim"));
+        // kafe seçilince (varsayılanla aynı olsa da) uyarı kalkar
+        e.p.handle(&req("POST", "/ayarlar", &[("csrf", &csrf), ("main.isletme_turu", "kafe")], Some(&tok)));
+        assert_eq!(Config::load(&e.p.cfg_path).unwrap().main.isletme_turu.as_deref(), Some("kafe"));
+        assert!(!e.p.handle(&req("GET", "/", &[], Some(&tok))).body.contains(uyari));
+        assert!(e.p.handle(&req("GET", "/ayarlar", &[], Some(&tok))).body.contains("<option value=\"kafe\" selected>Kafe/Restoran</option>"));
+        assert!(denetim_satirlari(&e, "PANEL_ISLETME_TURU")[0].contains("eski=secilmemis yeni=kafe"));
+    }
+
+    #[test]
+    fn tur_degisimi_denetime() {
+        let e = env();
+        let (tok, csrf) = setup_and_login(&e, "mudur", "sahip-parola-12");
+        e.p.handle(&req("POST", "/ayarlar", &[("csrf", &csrf), ("main.isletme_turu", "kafe")], Some(&tok)));
+        e.p.handle(&req("POST", "/ayarlar", &[("csrf", &csrf), ("main.isletme_turu", "otel")], Some(&tok)));
+        let satirlar = denetim_satirlari(&e, "PANEL_ISLETME_TURU");
+        assert_eq!(satirlar.len(), 2);
+        assert!(satirlar[1].contains("eski=kafe yeni=otel") && satirlar[1].contains("kullanici="), "{}", satirlar[1]);
+        // tür değişimi ayrıca PANEL_AYAR olarak yazılmaz
+        assert!(!denetim_satirlari(&e, "PANEL_AYAR").iter().any(|l| l.contains("isletme_turu")));
+        assert_eq!(crate::ayar::isletme_turu(&Config::load(&e.p.cfg_path).unwrap()), "otel");
+    }
+
+    #[test]
+    fn misafir_kodu_yalniz_otel_yurtta_gorunur() {
+        let e = env();
+        let (tok, csrf) = setup_and_login(&e, "mudur", "sahip-parola-12");
+        let ayarlar = || e.p.handle(&req("GET", "/ayarlar", &[], Some(&tok))).body;
+        let kutu = "name=\"giris.misafir_kodu\"";
+        // seçilmemiş (kafe gibi): yalnızca SMS bilgi satırı
+        let page = ayarlar();
+        assert!(page.contains("Giriş yöntemleri") && page.contains("SMS: <b>her zaman açık</b>") && !page.contains(kutu));
+        // türde görünmeyen kutu elle gönderilse de yok sayılır
+        e.p.handle(&req("POST", "/ayarlar", &[("csrf", &csrf), ("giris.misafir_kodu", "1"), ("main.session_minutes", "1440")], Some(&tok)));
+        assert!(!Config::load(&e.p.cfg_path).unwrap().giris.misafir_kodu);
+        for (tur, gorunur) in [("kafe", false), ("diger", false), ("yurt", true), ("otel", true)] {
+            e.p.handle(&req("POST", "/ayarlar", &[("csrf", &csrf), ("main.isletme_turu", tur)], Some(&tok)));
+            assert_eq!(ayarlar().contains(kutu), gorunur, "{tur}");
+        }
+        e.p.handle(&req("POST", "/ayarlar", &[("csrf", &csrf), ("main.isletme_turu", "otel"), ("giris.misafir_kodu", "1")], Some(&tok)));
+        let c = Config::load(&e.p.cfg_path).unwrap();
+        assert!(c.giris.misafir_kodu && crate::ayar::misafir_kodu_acik(&c));
+        assert!(ayarlar().contains("value=\"1\" checked> Misafir kodu"));
+        // kutu işaretsiz gönderilirse kapanır
+        e.p.handle(&req("POST", "/ayarlar", &[("csrf", &csrf), ("main.isletme_turu", "otel")], Some(&tok)));
+        assert!(!Config::load(&e.p.cfg_path).unwrap().giris.misafir_kodu);
+    }
+
+    #[test]
+    fn turden_cikinca_misafir_kodu_kapanir() {
+        let e = env();
+        let (tok, csrf) = setup_and_login(&e, "mudur", "sahip-parola-12");
+        e.p.handle(&req("POST", "/ayarlar", &[("csrf", &csrf), ("main.isletme_turu", "yurt")], Some(&tok)));
+        e.p.handle(&req("POST", "/ayarlar", &[("csrf", &csrf), ("main.isletme_turu", "yurt"), ("giris.misafir_kodu", "1")], Some(&tok)));
+        assert!(crate::ayar::misafir_kodu_acik(&Config::load(&e.p.cfg_path).unwrap()));
+        // aynı kayıtta tür kafe'ye çekilir, kutu işaretli gelse de misafir kodu kapanır
+        let r = e.p.handle(&req("POST", "/ayarlar", &[("csrf", &csrf), ("main.isletme_turu", "kafe"), ("giris.misafir_kodu", "1")], Some(&tok)));
+        assert_eq!(r.status, 303);
+        let c = Config::load(&e.p.cfg_path).unwrap();
+        assert_eq!((c.main.isletme_turu.as_deref(), c.giris.misafir_kodu), (Some("kafe"), false));
+        let ayar = denetim_satirlari(&e, "PANEL_AYAR");
+        assert!(ayar.last().is_some_and(|l| l.contains("giris.misafir_kodu: 1 → 0")), "{ayar:?}");
+        // yeniden otel: kod kendiliğinden açılmaz
+        e.p.handle(&req("POST", "/ayarlar", &[("csrf", &csrf), ("main.isletme_turu", "otel")], Some(&tok)));
+        assert!(!crate::ayar::misafir_kodu_acik(&Config::load(&e.p.cfg_path).unwrap()));
     }
 
     #[test]

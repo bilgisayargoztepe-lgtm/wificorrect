@@ -240,8 +240,11 @@ pub enum Eslesme {
     Taninmadi,
 }
 
-pub fn eslesme(m: &mut Merkez, isletme_adi: &str, unvan: &str, temizlendi: bool, http: &Http, now: f64) -> Result<Eslesme, String> {
+pub fn eslesme(m: &mut Merkez, isletme_adi: &str, unvan: &str, isletme_turu: &str, temizlendi: bool, http: &Http, now: f64) -> Result<Eslesme, String> {
     let mut govde = json!({"cihaz_anahtari": m.cihaz_anahtari, "isletme_adi": isletme_adi, "unvan": unvan, "surum": env!("CARGO_PKG_VERSION")});
+    if !isletme_turu.is_empty() {
+        govde["isletme_turu"] = Value::String(isletme_turu.into()); // yönetimde müşteri listesinde görünür
+    }
     if temizlendi {
         govde["temizlendi"] = Value::Bool(true);
     }
@@ -321,7 +324,7 @@ pub fn temizlendi_bildir(m: &Merkez, http: &Http, deneme: u32, bekle: &dyn Fn())
         if i > 0 {
             bekle();
         }
-        match eslesme(&mut m.clone(), "", "", true, http, 0.0) {
+        match eslesme(&mut m.clone(), "", "", "", true, http, 0.0) {
             Ok(Eslesme::Serbest) | Ok(Eslesme::Taninmadi) => return Ok(()),
             Ok(Eslesme::Bagli { .. }) => return Err("merkez cihazı serbest bırakmadı".into()),
             Err(e) => son = e,
@@ -387,7 +390,7 @@ mod tests {
         let mut m = ornek();
         let b = ekli(r#"{"durum":"bagli","tuz":"a1b2c3d4","ozet":"ee38d08b3d6573ecc281263ad6259d2e7ee39f37d6b8958b3180906580a44495","yineleme":120000,"uyelik":"aktif"}"#, &oz);
         let (h, _) = sahte(vec![Ok((200, b))]);
-        assert!(matches!(eslesme(&mut m, "", "", false, &*h, 1.0), Ok(Eslesme::Bagli { ek, .. }) if ek.admin.is_some() && ek.sms.is_some()));
+        assert!(matches!(eslesme(&mut m, "", "", "", false, &*h, 1.0), Ok(Eslesme::Bagli { ek, .. }) if ek.admin.is_some() && ek.sms.is_some()));
     }
 
     fn sms_ek(mock: bool, usercode: &str, password: &str, msgheader: &str) -> SmsAyari {
@@ -516,15 +519,27 @@ mod tests {
         let yeni = crate::hesap::digest("yeni-parola-1", "ff", 120_000);
         let govde: &'static str = Box::leak(format!(r#"{{"durum":"bagli","tuz":"ff","ozet":"{yeni}","yineleme":120000,"uyelik":"aktif"}}"#).into_boxed_str());
         let (h, c) = sahte(vec![Ok((200, govde)), Ok((200, r#"{"durum":"serbest"}"#)), Ok((401, r#"{"hata":"Cihaz tanınmadı.","kod":"taninmadi"}"#)), Err("yok")]);
-        assert!(matches!(eslesme(&mut m, "Bocafe", "Ltd", false, &*h, 5000.0), Ok(Eslesme::Bagli { uyelik, .. }) if uyelik == "aktif"));
+        assert!(matches!(eslesme(&mut m, "Bocafe", "Ltd", "otel", false, &*h, 5000.0), Ok(Eslesme::Bagli { uyelik, .. }) if uyelik == "aktif"));
         assert!(dogrula(&m, "yeni-parola-1") && m.son_eslesme == 5000.0);
         let g = c.lock().unwrap()[0].1.clone(); // kopya: kilit tutulursa sonraki sahte çağrı kilitlenir
         assert_eq!((g["cihaz_anahtari"].as_str(), g["isletme_adi"].as_str(), g.get("temizlendi")), (Some("gizli-anahtar"), Some("Bocafe"), None));
-        assert!(matches!(eslesme(&mut m, "", "", true, &*h, 0.0), Ok(Eslesme::Serbest)));
+        assert!(matches!(eslesme(&mut m, "", "", "", true, &*h, 0.0), Ok(Eslesme::Serbest)));
         assert_eq!(c.lock().unwrap()[1].1["temizlendi"], serde_json::Value::Bool(true));
-        assert!(matches!(eslesme(&mut m, "", "", false, &*h, 0.0), Ok(Eslesme::Taninmadi)));
-        assert!(eslesme(&mut m, "", "", false, &*h, 0.0).is_err());
+        assert!(matches!(eslesme(&mut m, "", "", "", false, &*h, 0.0), Ok(Eslesme::Taninmadi)));
+        assert!(eslesme(&mut m, "", "", "", false, &*h, 0.0).is_err());
         assert!(dogrula(&m, "yeni-parola-1")); // hata yanıtları özeti değiştirmez
+    }
+
+    #[test]
+    fn eslesme_govdesinde_tur() {
+        let mut m = ornek();
+        let (h, c) = sahte(vec![Ok((200, r#"{"durum":"serbest"}"#)), Ok((200, r#"{"durum":"serbest"}"#))]);
+        // ctl merkez-eslesme geçerli türü gönderir: ayarda yoksa kafe
+        let cfg = crate::ayar::Config::parse("").unwrap();
+        eslesme(&mut m, "Bocafe", "Ltd", crate::ayar::isletme_turu(&cfg), false, &*h, 0.0).unwrap();
+        eslesme(&mut m, "Bocafe", "Ltd", "yurt", false, &*h, 0.0).unwrap();
+        let c = c.lock().unwrap();
+        assert_eq!((c[0].1["isletme_turu"].as_str(), c[1].1["isletme_turu"].as_str()), (Some("kafe"), Some("yurt")));
     }
 
     #[test]
@@ -579,7 +594,7 @@ mod tests {
         assert!(hizmet_acik(&p, gun));
         // eşitleme lisansı günceller
         let (h, _) = sahte(vec![Ok((200, r#"{"durum":"bagli","tuz":"a1b2c3d4","ozet":"x","yineleme":120000,"uyelik":"aktif","lisans":"askida","lisans_bitis":"2027-01-01"}"#))]);
-        eslesme(&mut m, "", "", false, &*h, gun).unwrap();
+        eslesme(&mut m, "", "", "", false, &*h, gun).unwrap();
         assert_eq!((m.lisans.as_str(), m.lisans_bitis.as_str()), ("askida", "2027-01-01"));
     }
 

@@ -38,9 +38,19 @@ fn dosya(state_root: impl AsRef<Path>) -> std::path::PathBuf {
     state_root.as_ref().join("misafir_kodlari.json")
 }
 
-/// Eksik/bozuk dosya boş liste sayılır.
+/// Yalnızca OKUMA için (portal doğrulaması: bozuk dosya → hiçbir kod eşleşmez, kapalı kalır).
+/// Yazan her yol (panel üret/iptal/uzat, temizle) `oku_kesin` kullanmalı, Err'de kaydetmeden çıkmalı.
 pub fn oku(state_root: impl AsRef<Path>) -> Vec<Kod> {
     std::fs::read(dosya(state_root)).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default()
+}
+
+/// Yazmadan önce okuma: dosya yoksa boş, var ama okunamıyor/bozuksa hata (üzerine yazılıp etkin kodlar silinmesin).
+pub fn oku_kesin(state_root: impl AsRef<Path>) -> Result<Vec<Kod>, String> {
+    match std::fs::read(dosya(state_root)) {
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(Vec::new()),
+        Err(e) => Err(format!("Misafir kodları okunamadı ({e}).")),
+        Ok(b) => serde_json::from_slice(&b).map_err(|_| "Misafir kodları okunamadı (dosya bozuk).".to_string()),
+    }
 }
 
 pub fn kaydet(state_root: impl AsRef<Path>, kodlar: &[Kod]) -> std::io::Result<()> {
@@ -109,10 +119,10 @@ pub fn iptal(kodlar: &mut [Kod], kod_id: &str) -> Option<Kod> {
     Some(k.clone())
 }
 
-/// Mevcut bitişin üzerine ekler; iptal edilmiş kod uzatılamaz. Yeni bitişi döner.
-pub fn uzat(kodlar: &mut [Kod], kod_id: &str, sure_saat: u64, _now: f64) -> Option<f64> {
+/// Mevcut bitişin (süresi dolmuşsa şimdinin) üzerine ekler; iptal edilmiş kod uzatılamaz. Yeni bitişi döner.
+pub fn uzat(kodlar: &mut [Kod], kod_id: &str, sure_saat: u64, now: f64) -> Option<f64> {
     let k = kodlar.iter_mut().find(|k| k.kod_id == kod_id && !k.iptal)?;
-    k.bitis += sure_saat as f64 * 3600.0;
+    k.bitis = k.bitis.max(now) + sure_saat as f64 * 3600.0;
     Some(k.bitis)
 }
 
@@ -202,7 +212,7 @@ mod tests {
         let mut k = Vec::new();
         let c = bir(&mut k, TC, 24);
         assert_eq!(dogrula(&k, TC, &c.kod, NOW + 1.0).map(|x| x.oda.as_str()), Some("101"));
-        assert!(dogrula(&k, TC, "0000000", NOW).is_none());
+        assert!(dogrula(&k, TC, if c.kod == "000000" { "000001" } else { "000000" }, NOW).is_none());
         assert!(dogrula(&k, "TC:11111111110", &c.kod, NOW).is_none());
         assert!(dogrula(&k, TC, &c.kod, c.bitis).is_none());
         assert!(dogrula(&k, TC, &c.kod, c.bitis + 1.0).is_none());
@@ -237,5 +247,31 @@ mod tests {
         std::fs::write(kok.join("misafir_kodlari.json"), b"bozuk").unwrap();
         assert!(oku(&kok).is_empty());
         let _ = std::fs::remove_dir_all(&kok);
+    }
+
+    #[test]
+    fn oku_kesin_bozuk_dosyayi_korur() {
+        let kok = std::env::temp_dir().join(format!("wfc-misafir-{}", ortak::random_hex(4)));
+        assert_eq!(oku_kesin(&kok), Ok(Vec::new()));
+        std::fs::create_dir_all(&kok).unwrap();
+        let y = kok.join("misafir_kodlari.json");
+        std::fs::write(&y, b"bozuk").unwrap();
+        assert!(oku_kesin(&kok).is_err());
+        assert_eq!(std::fs::read(&y).unwrap(), b"bozuk");
+        let mut k = Vec::new();
+        bir(&mut k, TC, 24);
+        kaydet(&kok, &k).unwrap();
+        assert_eq!(oku_kesin(&kok).unwrap(), k);
+        let _ = std::fs::remove_dir_all(&kok);
+    }
+
+    #[test]
+    fn uzat_suresi_dolmusu_simdiden_uzatir() {
+        let mut k = Vec::new();
+        let c = bir(&mut k, TC, 24);
+        let simdi = c.bitis + 10_000.0;
+        let yeni = uzat(&mut k, &c.kod_id, 24, simdi).unwrap();
+        assert_eq!(yeni, simdi + 86400.0);
+        assert!(dogrula(&k, TC, &c.kod, simdi + 1.0).is_some());
     }
 }

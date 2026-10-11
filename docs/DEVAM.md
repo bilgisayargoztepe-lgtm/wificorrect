@@ -1,4 +1,4 @@
-# Devir notu — kaldığın yerden devam (2026-10-11)
+# Devir notu — kaldığın yerden devam (2026-10-11, akşam)
 
 Bu dosya, projeye yeni bir oturumda/hesapta devam eden ajan içindir. Önce bunu, sonra `CLAUDE.md`'deki belgeleri oku.
 
@@ -42,9 +42,9 @@ Cihaz: Debian 13 + Rust ikilisi `wificorrect` (`src/`). Merkez: Python stdlib (`
 Canlı müşteri: **Göztepe Bilgisayar = 1537344**, cihaz 192.168.1.110.
 
 ## Dallar ve durum (2026-10-11)
-Repo `bilgisayargoztepe-lgtm/wificorrect` (avsharbeyi'den devredildi). Her şey **`main`**'de (PR #3 uzak-panel, #4 ozet-tasarim,
-#5 hiz-olcer birleşti; PR #2 kapatıldı). **v0.3.0** yayında (ISO + .deb; `WFC_SSH_PUB` = `~/.ssh/bocafe.pub`).
-Canlı cihaz `hiz-olcer` (ec74ddf ≈ main) çalıştırıyor; merkez değişmedi.
+Repo `bilgisayargoztepe-lgtm/wificorrect` (avsharbeyi'den devredildi). Her şey **`main`**'de (PR #3–#8 birleşti; #2 kapatıldı).
+**v0.3.0** yayında (ISO + .deb; `WFC_SSH_PUB` = `~/.ssh/bocafe.pub`). Canlı cihaz ve merkez main'i çalıştırıyor (2026-10-11).
+Merkez her güncellemede yeniden başlar ve bellekteki oturumlar düşer (yönetime yeniden giriş gerekir).
 
 Bitenler (canlıda):
 - ISO (Debian netinst + preseed + .deb), GitHub'da QEMU duman testi (`iso.yml`), `release.yml` yalnızca `v*` etiketinde.
@@ -60,14 +60,21 @@ Bitenler (canlıda):
   kadar), Yavaşlatılmış cihazlar bölümü; izinli cihazlar da görünür. Kabul: `scripts/hiz-deneme.sh` (sahte istemci; WAN'ı
   ~100 sn doldurur, sakin saatte) 2026-10-10'da 5/5 PASS. Canlıya kurulum ölü adam anahtarıyla yapıldı.
 
+- **Merkezde sağlık izleme + SMS uyarısı** (spec `docs/superpowers/specs/2026-10-11-saglik-izleme-design.md`): cihaz 5 dk'da
+  bir `/api/saglik`; merkezde `wc-saglik.timer` kurallar + NetGSM genel SMS (`netgsm.py`); Yönetim'de "Sağlık izleme: son tur",
+  Açık sorunlar, müşteri sağlık kartı, sorun geçmişi, **Uyarı ayarları** (telefon + deneme SMS'i; kullanıcı henüz girmedi).
+  Merkez testleri `WC_TEST` ile gerçek SMS'i reddeder.
+- Yönetim → müşteri sayfası **"Cihaz paneline git"** (yönetici geçiş belirteci; çıkış yönetime döner, müşteri oturumu düşmez).
+- Caddy düzeltmeleri (PR #8): `header_up Cookie "…" ""` Caddy 2.6.2'de Cookie'yi EZİYORDU (cihaz oturumu her istekte
+  yenileniyor, formlar CSRF'ye takılıyordu) → `"wcc=[^;]*" "_"`; CSP `form-action`'a panel ve yönetim eklendi (çıkış).
+  Caddyfile değişikliğini kurmadan önce sunucuda `caddy adapt --config … --adapter caddyfile` ile denetle.
+- Küçük işler (PR #6): bozuk `hiz_sinir.json`'un üzerine yazılmaz; 10 sn yenileme yalnızca `/oturumlar`; panel tam genişlik.
+
 ## Sıradaki işler
-1. Önerilen sonraki özellikler (kullanıcı seçecek): donanım bekçisi (watchdog — J1900 donuyor), merkezden uzaktan güncelleme
-   (apt deposu), merkezde sağlık izleme + uyarı, online ödeme (`veri.lisans_uzat`), personel kodu ile giriş, aylık rapor,
-   hazır engel listeleri, imzalı resmi talep raporu. Zaman damgası: kontör alınınca (merkezde). İki aşamalı giriş istenmedi.
-2. Hız özelliğinin ertelenmiş küçükleri (ledger'da): bozuk `hiz_sinir.json` sonraki yazımda bütün sınırları siler; 10 sn
-   yenileme Kullanıcılar sayfasındaki formlara yazılanı siler; her /cihazlar bakışı iki kişisel veri satırı yazar
-   (OTURUMLAR + YAVASLATILMIS); `hiz_sinir.json`'daki adlar saklama süresine tabi değil (KVKK kararı kullanıcıda).
-3. Geniş ekranda içerik 1320 px'te duruyor (tam genişlik önerildi, kullanıcı karar vermedi).
+Kullanıcının onayladığı sıra (2026-10-11; donanım bekçisi hariç): ~~1 küçük işler~~ · ~~2 sağlık izleme~~ ·
+**3 merkezden uzaktan güncelleme** (apt deposu) · 4 hazır engel listeleri · 5 aylık rapor · 6 personel kodu ile giriş ·
+7 imzalı resmi talep raporu · 8 online ödeme (`veri.lisans_uzat`). Zaman damgası: kontör alınınca. İki aşamalı giriş istenmedi.
+Ertelenmiş küçük bulgular: `.superpowers/sdd/*/progress.md` (yalnızca bu makinede).
 
 ## Açık küçük notlar
 - AP (TP-Link TL-WA901ND, 10.50.0.2) menzili zayıf; kullanıcı sonra ilgilenecek (iletim gücü High, kanal 1/6/11, 20 MHz).

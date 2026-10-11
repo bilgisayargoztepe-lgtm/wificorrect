@@ -474,12 +474,15 @@ def test_bayat_durumda_degerlendirme_yok_gunde_bir_sms():
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
         o = Ortam(tmp)
         o.musteri(el_yas=None)
-        for d in ({}, {"zaman": common.now_iso(T0 - 1000), "arsivler": {}}, {"zaman": "bozuk", "arsivler": {}}):
+        for d in ({}, {"zaman": "bozuk", "arsivler": {}}, {"zaman": common.now_iso(T0 - 1000), "arsivler": {}},
+                  {"zaman": common.now_iso(T0 - 2000), "arsivler": {}}):
             S.calistir(o.v, d, gonder=o.g, simdi=T0)
-        assert o.v.acik_sorunlar() == [] and o.g.giden == ["WifiCorrect: izleme çalışmıyor (durum.json yok)"]
+        # neden türü başına günde bir: aynı neden ikinci kez gitmez, farklı neden ötekini yutmaz
+        assert o.v.acik_sorunlar() == [] and o.g.giden == ["WifiCorrect: izleme çalışmıyor (durum.json yok)",
+                                                         "WifiCorrect: izleme çalışmıyor (durum.json bayat)"]
         S.calistir(o.v, {"zaman": common.now_iso(T0), "arsivler": {}}, gonder=o.g, simdi=T0 + 86400 + 1000)
-        assert o.g.giden[1:] == ["WifiCorrect: izleme çalışmıyor (durum.json bayat)"]  # ertesi gün yine bir kez
-        assert len([r for r in o.v.hareketler() if r["olay"] == "UYARI_SMS"]) == 2 and o.v.sms_sayaci(BUGUN) == 1
+        assert o.g.giden[2:] == ["WifiCorrect: izleme çalışmıyor (durum.json bayat)"]  # ertesi gün yine bir kez
+        assert len([r for r in o.v.hareketler() if r["olay"] == "UYARI_SMS"]) == 3 and o.v.sms_sayaci(BUGUN) == 2
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
         o = Ortam(tmp, acik=False)
         S.calistir(o.v, {}, gonder=o.g, simdi=T0)
@@ -511,6 +514,29 @@ def test_tunel_bilgisi_okunamadi_toplu_ulasilamiyor_acilmaz():
         o.el[b] = 60  # biri ayakta: ötekinin düşmesi gerçek
         o.tur(300)
         assert list(o.acik(a)) == ["ulasilamiyor"] and o.v.acik_sorunlar(b) == []
+        o.el[a] = o.el[b] = None  # aynı gün durum.json bayatlarsa o ayrı bir neden: yine bildirilir
+        o.tur(300), o.tur(300)
+        S.calistir(o.v, {"zaman": common.now_iso(o.t[0] - 1000), "arsivler": {}}, gonder=o.g, simdi=o.t[0])
+        assert o.g.giden[1:] == ["WifiCorrect: izleme çalışmıyor (durum.json bayat)"]
+
+
+def test_tunel_kaydi_olmayan_cihaz_toplu_kopmaya_sayilmaz():
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        # (a) iki yeni cihaz, ikisinin de kaydı yok: kurallar normal çalışır, tünel SMS'i yok
+        o = Ortam(tmp)
+        a, cid = o.musteri(el_yas="yok")
+        o.musteri(el_yas="yok")
+        o.v.saglik_kaydet(cid, rapor(kaydedici=False))
+        o.tur(rapor_yaz=False), o.tur(600, rapor_yaz=False)
+        assert list(o.acik(a)) == ["kayit_durdu"] and len(o.g.giden) == 1 and "5651 kaydı durdu" in o.g.giden[0]
+        assert not any("izleme" in g for g in o.g.giden)
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        # (b) biri yeni (kayıt yok), öteki gerçekten düşmüş: düşen için ulaşılamıyor açılır
+        o = Ortam(tmp)
+        o.musteri(el_yas="yok")
+        b, _ = o.musteri(el_yas=700)
+        o.tur(), o.tur(600)
+        assert list(o.acik(b)) == ["ulasilamiyor"] and o.g.giden == [f"WifiCorrect {b} Göztepe: Cihaz ulaşılamıyor (20:15'ten beri)"]
 
 
 def test_arsiv_kaydi_yoksa_ulasilamiyor_ve_yedek_acilmaz():

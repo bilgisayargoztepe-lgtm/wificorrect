@@ -145,10 +145,11 @@ class Uyari:
             dk = max(1, round(((_epoch(s["kapanis"]) or self.simdi) - (_epoch(s["acilis"]) or self.simdi)) / 60))
             self._kaydet(s, "kapanis_sms", self._gonder(f"WifiCorrect {_kim(m, c)}: {s['metin']} düzeldi ({dk} dk sürdü)"), "kapanış")
 
-    def izleme_bozuk(self, neden):
-        """İzleme çalışamadı: günde bir SMS (aynı gönderici; açık/kapalı ve günlük sınır geçerli)."""
+    def izleme_bozuk(self, kod, neden):
+        """İzleme çalışamadı: neden türü (kod) başına günde bir SMS; biri ötekini yutmaz. Aynı gönderici; açık/kapalı
+        ve günlük sınır geçerli."""
         print(f"wc-saglik: izleme çalışmıyor: {neden}", file=sys.stderr)
-        if self.acik and self.veri.gunluk_bayrak("izleme_sms", self.gun):
+        if self.acik and self.veri.gunluk_bayrak(f"izleme_sms:{kod}", self.gun):
             r = self._gonder(IZLEME_METNI.format(neden))
             self.veri.hareket("saglik", "-", "UYARI_SMS", None, f"izleme çalışmıyor ({neden}): {r}")
 
@@ -209,7 +210,7 @@ def _musteri_turu(veri, u, m, c, d, simdi):
 
 
 def _ulasilamaz(d, zaman):
-    el = d.get("el_sikisma") if isinstance(d, dict) else None
+    el = d.get("el_sikisma")
     return not isinstance(el, (int, float)) or zaman - el > ULASILAMIYOR_SN
 
 
@@ -219,17 +220,18 @@ def calistir(veri, durum, gonder=netgsm.gonder, simdi=None):
     zaman = _epoch(durum.get("zaman")) if isinstance(durum, dict) else None
     # wc-durum çalışmıyorsa her cihaz "ulaşılamıyor" görünürdü: hiçbir sorun açılıp kapanmaz, günde bir SMS
     if zaman is None:
-        return u.izleme_bozuk("durum.json yok")
+        return u.izleme_bozuk("durum_yok", "durum.json yok")
     if simdi - zaman > DURUM_BAYAT_SN:
-        return u.izleme_bozuk("durum.json bayat")
+        return u.izleme_bozuk("durum_bayat", "durum.json bayat")
     arsivler = durum.get("arsivler") if isinstance(durum.get("arsivler"), dict) else {}
     cihazlar = veri.cihazlar()
     musteriler = {m["numara"]: m for m in veri.musteriler()}
     kayit = {n: (arsivler.get(str(n)) if isinstance(arsivler.get(str(n)), dict) else None) for n in musteriler}
-    izlenen = [n for n, m in musteriler.items() if kapsam(m, cihazlar.get(n), simdi) == "tam"]
+    # kaydı olmayan (yeni bağlanmış, arşivi henüz yok) cihazın tüneli bilinmez: toplu kopma hesabına girmez
+    izlenen = [n for n, m in musteriler.items() if kapsam(m, cihazlar.get(n), simdi) == "tam" and kayit[n] is not None]
     if len(izlenen) >= 2 and all(_ulasilamaz(kayit[n], zaman) for n in izlenen):
-        # hepsi birden düştü: büyük olasılıkla `wg show` okunamadı (ya da merkezin ağı); SMS bütçesi yakılmaz
-        return u.izleme_bozuk("tünel bilgisi okunamadı")
+        # kaydı olan hepsi birden düştü: büyük olasılıkla `wg show` okunamadı (ya da merkezin ağı); SMS bütçesi yakılmaz
+        return u.izleme_bozuk("tunel_okunamadi", "tünel bilgisi okunamadı")
     hatalar = 0
     for n, m in musteriler.items():
         d = kayit[n]
@@ -242,7 +244,7 @@ def calistir(veri, durum, gonder=netgsm.gonder, simdi=None):
             print(f"wc-saglik: {n}: {type(h).__name__}: {h}", file=sys.stderr)
     u.bilgi_toplu(musteriler, cihazlar)
     if hatalar:
-        u.izleme_bozuk(f"{hatalar} müşteride hata")
+        u.izleme_bozuk("musteri_hatasi", f"{hatalar} müşteride hata")
 
 
 def main(db=merkez.DB, durum_yolu=durum_modulu.DURUM, gonder=netgsm.gonder):
@@ -260,7 +262,7 @@ def main(db=merkez.DB, durum_yolu=durum_modulu.DURUM, gonder=netgsm.gonder):
         traceback.print_exc()
         try:  # en iyi çaba: haber ver, burada da düşme
             if veri is not None:
-                Uyari(veri, gonder, time.time()).izleme_bozuk(f"hata: {type(h).__name__}")
+                Uyari(veri, gonder, time.time()).izleme_bozuk("hata", f"hata: {type(h).__name__}")
         except Exception:
             traceback.print_exc()
         return 1

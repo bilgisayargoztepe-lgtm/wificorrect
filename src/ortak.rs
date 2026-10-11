@@ -528,6 +528,22 @@ pub fn move_session(root: &str, sessions: &mut Sessions, mac: &str, new_ip: &str
     true
 }
 
+/// Süren oturumun bitişini değiştirir (misafir kodu uzatıldı). nft öğesinin süresi yerinde değiştirilemez
+/// (`add` var olan öğeye dokunmaz, `update` yalnızca kural içinde): öğe silinip yeni kalan süreyle yeniden eklenir
+/// (arada milisaniyelik boşluk). Eklenemezse eski süreyle geri konur, oturum değişmez → false. IP'siz oturumda yalnızca kayıt.
+pub fn oturum_uzat(sessions: &mut Sessions, mac: &str, yeni_bitis: f64, now: f64, runner: &Runner) -> bool {
+    let Some(s) = sessions.get_mut(mac) else { return false };
+    if !s.ip.is_empty() {
+        run_opt(runner, nft_del_cmd(mac, &s.ip));
+        if !run_opt(runner, nft_add_cmd(mac, &s.ip, yeni_bitis - now)) {
+            run_opt(runner, nft_add_cmd(mac, &s.ip, s.expires_epoch - now));
+            return false;
+        }
+    }
+    s.expires_epoch = yeni_bitis;
+    true
+}
+
 // ---------------------------------------------------------------- IP → MAC
 /// dnsmasq kira dosyası: `bitis_epoch mac ip hostname clientid`.
 pub fn parse_leases(text: &str) -> BTreeMap<String, String> {

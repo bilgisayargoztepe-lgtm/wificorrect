@@ -22,6 +22,7 @@ mod hareketler;
 mod hiz_sayfasi;
 mod kayit_sayfalari;
 mod metinler;
+mod misafir_sayfasi;
 mod portlar;
 
 pub type Clock = dyn Fn() -> f64 + Send + Sync;
@@ -457,7 +458,7 @@ pub struct Panel {
     baglan_kilit: std::sync::Mutex<()>,
 }
 
-const MENU: &[(&str, &str)] = &[("/", "Özet"), ("/cihazlar", "Kullanıcılar"), ("/kayitlar", "Kayıtlar"), ("/ayarlar", "Ayarlar"), ("/admin", "Admin")];
+const MENU: &[(&str, &str)] = &[("/", "Özet"), ("/cihazlar", "Kullanıcılar"), ("/misafir-kodlari", "Misafir kodları"), ("/kayitlar", "Kayıtlar"), ("/ayarlar", "Ayarlar"), ("/admin", "Admin")];
 
 /// Menü grupları tek sayfadır; eski sayfalar bu sayfada alt alta bölüm olur (2026-10-08, kullanıcı isteği).
 /// (grup, eski yol, bölüm id, başlık, yalnızca admin). Eski yollar ayrıca açılır (hata/arama sonucu, ayrıntı).
@@ -485,6 +486,7 @@ fn menu_grubu(path: &str) -> &'static str {
     match path {
         "/kullanici" => return "/kayitlar",
         "/admin-kilidi" => return "/admin",
+        p if p == "/misafir-kodlari" || p.starts_with("/misafir-kodlari/") => return "/misafir-kodlari",
         _ => {}
     }
     BOLUMLER
@@ -501,6 +503,7 @@ const SIMGE_AYAR: &str = "M4 6h16M4 12h16M4 18h16M9 4v4M15 10v4M7 16v4";
 const SIMGE_KILIT: &str = "M6 11h12v10H6zM8 11V7a4 4 0 0 1 8 0v4";
 const SIMGE_ARA: &str = "M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zM16 16l5 5";
 const SIMGE_YASAK: &str = "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM5.6 5.6l12.8 12.8";
+const SIMGE_BILET: &str = "M3 7h18v3a2 2 0 0 0 0 4v3H3v-3a2 2 0 0 0 0-4zM9 7v10";
 const SIMGE_MENU: &str = "M3 6h18M3 12h18M3 18h18";
 
 fn simge(d: &str) -> String {
@@ -513,6 +516,7 @@ fn menu_simgesi(yol: &str) -> &'static str {
         "/cihazlar" => SIMGE_WIFI,
         "/kayitlar" => SIMGE_KAYIT,
         "/ayarlar" => SIMGE_AYAR,
+        "/misafir-kodlari" => SIMGE_BILET,
         _ => SIMGE_KILIT,
     }
 }
@@ -623,6 +627,7 @@ impl Panel {
                 let grup = menu_grubu(&req.path);
                 let links: String = MENU
                     .iter()
+                    .filter(|(p, _)| *p != "/misafir-kodlari" || crate::ayar::misafir_kodu_acik(cfg))
                     .map(|(p, l)| {
                         let act = if *p == grup { " class=\"aktif\" aria-current=\"page\"" } else { "" };
                         format!("<a href=\"{p}\"{act}>{}{}</a>", simge(menu_simgesi(p)), h(l))
@@ -948,6 +953,7 @@ impl Panel {
                 self.audit(&cfg, req, Some(&o), "PANEL_YENIDEN_BASLAT", "");
                 redirect("/sistem", Some((if ok { "Portal ve kaydedici yeniden başlatıldı." } else { "Yeniden başlatılamadı!" }, !ok)))
             }
+            (_, p) if p == "/misafir-kodlari" || p.starts_with("/misafir-kodlari/") => self.misafir_kodlari(&cfg, req, &o, now),
             ("GET", "/sifre") => self.sifre(&cfg, req, &o, ""),
             ("POST", "/sifre") => self.sifre_post(&cfg, req, &o),
             _ => text(404, "Sayfa bulunamadı"),
@@ -3284,5 +3290,310 @@ mod tests {
         crate::trafik::yaz(&e.p.trafik_path, &d).unwrap();
         let s = e.p.handle(&get("/cihazlar", &[], &tok)).body;
         assert!(!bolum_of(&s, "oturumlar").contains("mesaj hata")); // eski ölçüm: tablo da ölçüm göstermez
+    }
+
+    // --- misafir kodları
+
+    const TC1: &str = "10000000146";
+    const TC2: &str = "11111111110";
+    const MISAFIR_MAC: &str = "aa:bb:cc:dd:ee:07";
+
+    /// İşletme türü ve misafir kodu ayarı (doğrudan ayar dosyasına)
+    fn misafir_ac(e: &Env, tur: &str, acik: bool) {
+        let mut c = Config::load(&e.p.cfg_path).unwrap();
+        c.main.isletme_turu = Some(tur.into());
+        c.giris.misafir_kodu = acik;
+        c.save(&e.p.cfg_path).unwrap();
+    }
+
+    fn kodlar(e: &Env) -> Vec<crate::misafir::Kod> {
+        crate::misafir::oku(&Config::load(&e.p.cfg_path).unwrap().main.state_root)
+    }
+
+    fn uret_tc(e: &Env, tok: &str, csrf: &str, tc: &str, oda: &str, sure: &str) -> Resp {
+        e.p.handle(&req("POST", "/misafir-kodlari/uret",
+            &[("csrf", csrf), ("ad", "Ali"), ("soyad", "Veli"), ("tur", "tc"), ("tc", tc), ("oda", oda), ("sure", sure)], Some(tok)))
+    }
+
+    /// Kişi anahtarıyla açık misafir oturumu (portalın açacağı gibi)
+    fn misafir_oturumu(e: &Env, mac: &str, anahtar: &str, ip: &str, bitis: f64) {
+        let state = Config::load(&e.p.cfg_path).unwrap().main.state_root;
+        let mut ses = ortak::load_sessions(&state);
+        ses.insert(mac.into(), ortak::Session {
+            phone: anahtar.into(), ad: "Ali".into(), soyad: "Veli".into(), ip: ip.into(), session_id: format!("s-{mac}"),
+            start: "2026-09-29T21:00:00+03:00".into(), start_epoch: 1_790_705_000.0, expires_epoch: bitis,
+        });
+        ortak::save_sessions(&state, &ses).unwrap();
+    }
+
+    fn oturumlar_of(e: &Env) -> ortak::Sessions {
+        ortak::load_sessions(&Config::load(&e.p.cfg_path).unwrap().main.state_root)
+    }
+
+    #[test]
+    fn misafir_kodu_kapaliyken_404() {
+        let e = env();
+        let (tok, csrf) = setup_and_login(&e, "mudur", "sahip-parola-12");
+        let yollar = |e: &Env| {
+            [
+                e.p.handle(&get("/misafir-kodlari", &[], &tok)).status,
+                uret_tc(e, &tok, &csrf, TC1, "101", "24").status,
+                e.p.handle(&req("POST", "/misafir-kodlari/iptal", &[("csrf", &csrf), ("id", "x")], Some(&tok))).status,
+                e.p.handle(&req("POST", "/misafir-kodlari/uzat", &[("csrf", &csrf), ("id", "x"), ("sure", "24")], Some(&tok))).status,
+                e.p.handle(&get("/misafir-kodlari/fis", &[("id", "x")], &tok)).status,
+            ]
+        };
+        for (tur, acik) in [("otel", false), ("kafe", true), ("diger", true)] {
+            misafir_ac(&e, tur, acik);
+            assert_eq!(yollar(&e), [404; 5], "{tur} {acik}");
+            assert!(!e.p.handle(&get("/", &[], &tok)).body.contains("href=\"/misafir-kodlari\""));
+        }
+        assert!(kodlar(&e).is_empty());
+        misafir_ac(&e, "yurt", true);
+        let ozet = e.p.handle(&get("/", &[], &tok)).body;
+        assert_eq!(menu_linkleri(&ozet), ["/", "/cihazlar", "/misafir-kodlari", "/kayitlar", "/ayarlar", "/admin"]);
+        let s = e.p.handle(&get("/misafir-kodlari", &[], &tok));
+        assert_eq!(s.status, 200);
+        assert!(s.body.contains("href=\"/misafir-kodlari\" class=\"aktif\"") && s.body.contains("Kod üret") && s.body.contains("Aktif kod yok"));
+        assert_eq!(e.p.handle(&get("/misafir-kodlari/yok", &[], &tok)).status, 404);
+    }
+
+    #[test]
+    fn kod_uret_tc_ve_pasaport() {
+        let e = env();
+        let (tok, csrf) = setup_and_login(&e, "mudur", "sahip-parola-12");
+        misafir_ac(&e, "otel", true);
+        // geçersiz TC: 400, form geri dolar, hiçbir şey yazılmaz
+        let r = uret_tc(&e, &tok, &csrf, "10000000145", "101", "24");
+        assert_eq!(r.status, 400);
+        assert!(r.body.contains("T.C. kimlik numarası geçersiz.") && r.body.contains("value=\"Ali\""));
+        assert!(kodlar(&e).is_empty());
+        for (alan, deger, hata) in [("oda", "1 01", "Oda numarası 1-10"), ("oda", "", "Oda numarası 1-10"), ("sure", "25", "Geçerlilik süresini seçin"), ("ad", "A", "Ad 2-40")] {
+            let mut f = vec![("csrf", csrf.as_str()), ("ad", "Ali"), ("soyad", "Veli"), ("tur", "tc"), ("tc", TC1), ("oda", "101"), ("sure", "24")];
+            f.retain(|(k, _)| *k != alan);
+            f.push((alan, deger));
+            let r = e.p.handle(&req("POST", "/misafir-kodlari/uret", &f, Some(&tok)));
+            assert!(r.status == 400 && r.body.contains(hata), "{alan}={deger}");
+        }
+        assert!(kodlar(&e).is_empty());
+        // geçerli TC (boşluklu yazım da)
+        let r = uret_tc(&e, &tok, &csrf, " 1000000014 6", "101", "48");
+        assert_eq!(r.status, 303);
+        let k = kodlar(&e);
+        assert_eq!(k.len(), 1);
+        assert_eq!((k[0].kimlik.as_str(), k[0].oda.as_str(), k[0].ad.as_str(), k[0].ureten.as_str()), ("TC:10000000146", "101", "Ali", MUSTERI));
+        assert_eq!(k[0].bitis, 1_790_705_134.0 + 48.0 * 3600.0);
+        assert!(loc(&r).starts_with(&format!("/misafir-kodlari/fis?id={}&m=", k[0].kod_id)), "{}", loc(&r));
+        // pasaport: geçersiz uyruk ve numara reddedilir; geçerlisi büyük harfe çevrilir
+        let pas = |no: &str, uyruk: &str| {
+            e.p.handle(&req("POST", "/misafir-kodlari/uret",
+                &[("csrf", &csrf), ("ad", "John"), ("soyad", "Smith"), ("tur", "pasaport"), ("pasaport", no), ("uyruk", uyruk), ("oda", "A-12"), ("sure", "168")], Some(&tok)))
+        };
+        let r = pas("x1234567", "ZZ");
+        assert!(r.status == 400 && r.body.contains("Uyruğu seçin."));
+        let r = pas("x12", "DE");
+        assert!(r.status == 400 && r.body.contains("Pasaport numarası"));
+        assert_eq!(kodlar(&e).len(), 1);
+        assert_eq!(pas("x1234567", "DE").status, 303);
+        let k = kodlar(&e);
+        assert_eq!((k[1].kimlik.as_str(), k[1].oda.as_str()), ("PASAPORT:DE:X1234567", "A-12"));
+        // tür seçilmemiş
+        let r = e.p.handle(&req("POST", "/misafir-kodlari/uret", &[("csrf", &csrf), ("ad", "Ali"), ("soyad", "Veli"), ("oda", "1"), ("sure", "24")], Some(&tok)));
+        assert!(r.status == 400 && r.body.contains("Kimlik türünü seçin"));
+        // CSRF'siz üretilmez
+        let r = e.p.handle(&req("POST", "/misafir-kodlari/uret", &[("ad", "Ali"), ("soyad", "Veli"), ("tur", "tc"), ("tc", TC2), ("oda", "1"), ("sure", "24")], Some(&tok)));
+        assert_eq!(r.status, 403);
+        assert_eq!(kodlar(&e).len(), 2);
+    }
+
+    #[test]
+    fn liste_maskeli_ve_url_de_kimlik_yok() {
+        let e = env();
+        let (tok, csrf) = setup_and_login(&e, "mudur", "sahip-parola-12");
+        misafir_ac(&e, "otel", true);
+        let r1 = uret_tc(&e, &tok, &csrf, TC1, "101", "24");
+        let r2 = e.p.handle(&req("POST", "/misafir-kodlari/uret",
+            &[("csrf", &csrf), ("ad", "John"), ("soyad", "Smith"), ("tur", "pasaport"), ("pasaport", "X1234567"), ("uyruk", "DE"), ("oda", "202"), ("sure", "72")], Some(&tok)));
+        for r in [&r1, &r2] {
+            assert!(!loc(r).contains(TC1) && !loc(r).contains("X1234567"), "{}", loc(r));
+        }
+        let k = kodlar(&e);
+        let s = e.p.handle(&get("/misafir-kodlari", &[], &tok)).body;
+        assert!(s.contains("<code>100******46</code>") && s.contains("<code>DE X12***67</code>"), "maskeli");
+        assert!(s.contains("Ali Veli") && s.contains("John Smith") && s.contains("T.C.") && s.contains("Yabancı"));
+        assert!(!s.contains(TC1) && !s.contains("X1234567"), "tam kimlik sayfada yok");
+        for c in &k {
+            assert!(!s.contains(&format!(">{}<", c.kod)), "kod listede görünmez");
+            assert!(s.contains(&format!("href=\"/misafir-kodlari/fis?id={}\"", c.kod_id)));
+        }
+        // bütün adresler (bağlantı ve form hedefi) yalnızca kod_id taşır
+        for parca in s.split("href=\"").skip(1).chain(s.split("action=\"").skip(1)) {
+            let adres = parca.split('"').next().unwrap();
+            assert!(!adres.contains(TC1) && !adres.contains("X1234567") && k.iter().all(|c| !adres.contains(&c.kod)), "{adres}");
+        }
+        // bakış kişisel veri olarak denetimde; Panel hareketleri etiketi
+        assert!(!denetim_satirlari(&e, "PANEL_MISAFIR_KODLARI").is_empty());
+        assert!(hareketler::olay_adi("PANEL_MISAFIR_KODLARI").contains("Misafir kodlarına baktı"));
+        assert!(hareketler::olay_adi("PANEL_MISAFIR_KODU").contains("üret/iptal/uzat"));
+    }
+
+    #[test]
+    fn iptal_oturumu_kapatir() {
+        let e = env();
+        let (tok, csrf) = setup_and_login(&e, "mudur", "sahip-parola-12");
+        misafir_ac(&e, "otel", true);
+        uret_tc(&e, &tok, &csrf, TC1, "101", "24");
+        let k = kodlar(&e)[0].clone();
+        misafir_oturumu(&e, MISAFIR_MAC, "TC:10000000146", "10.50.0.31", k.bitis);
+        misafir_oturumu(&e, AYSE, "905334553132", "10.50.0.23", 9e9); // başkası: dokunulmaz
+        let r = e.p.handle(&req("POST", "/misafir-kodlari/iptal", &[("csrf", &csrf), ("id", &k.kod_id)], Some(&tok)));
+        assert!(loc(&r).starts_with("/misafir-kodlari?m=") && !loc(&r).contains("e=1"), "{}", loc(&r));
+        assert!(kodlar(&e)[0].iptal);
+        let ses = oturumlar_of(&e);
+        assert!(!ses.contains_key(MISAFIR_MAC) && ses.contains_key(AYSE));
+        let calls: Vec<String> = e.calls.lock().unwrap().iter().map(|c| c.join(" ")).collect();
+        assert!(calls.contains(&format!("nft delete element inet hotspot auth {{ {MISAFIR_MAC} . 10.50.0.31 }}")), "{calls:?}");
+        assert!(calls.contains(&"conntrack -D -s 10.50.0.31".to_string()));
+        let oturum = std::fs::read_to_string(e.root.join("5651/gunluk/2026-09-29/oturum.csv")).unwrap();
+        assert!(oturum.lines().any(|l| l.contains("OTURUM_BITIS") && l.contains("TC:10000000146") && l.contains("neden=kod_iptal")), "{oturum}");
+        // listeden düştü; ikinci iptal hata
+        assert!(e.p.handle(&get("/misafir-kodlari", &[], &tok)).body.contains("Aktif kod yok"));
+        let r = e.p.handle(&req("POST", "/misafir-kodlari/iptal", &[("csrf", &csrf), ("id", &k.kod_id)], Some(&tok)));
+        assert!(loc(&r).contains("e=1"));
+        assert_eq!(denetim_satirlari(&e, "PANEL_MISAFIR_KODU").iter().filter(|l| l.contains("islem=iptal")).count(), 1);
+    }
+
+    #[test]
+    fn uzatma_oturumu_uzatir() {
+        let e = env();
+        let (tok, csrf) = setup_and_login(&e, "mudur", "sahip-parola-12");
+        misafir_ac(&e, "otel", true);
+        uret_tc(&e, &tok, &csrf, TC1, "101", "24");
+        let k = kodlar(&e)[0].clone();
+        misafir_oturumu(&e, MISAFIR_MAC, "TC:10000000146", "10.50.0.31", k.bitis);
+        misafir_oturumu(&e, "aa:bb:cc:dd:ee:08", "TC:10000000146", "", k.bitis); // IP'siz bekleyen
+        e.calls.lock().unwrap().clear();
+        let r = e.p.handle(&req("POST", "/misafir-kodlari/uzat", &[("csrf", &csrf), ("id", &k.kod_id), ("sure", "48")], Some(&tok)));
+        assert!(loc(&r).starts_with("/misafir-kodlari?m=") && !loc(&r).contains("e=1"), "{}", loc(&r));
+        let yeni = 1_790_705_134.0 + 72.0 * 3600.0;
+        assert_eq!(kodlar(&e)[0].bitis, yeni);
+        let ses = oturumlar_of(&e);
+        assert_eq!(ses[MISAFIR_MAC].expires_epoch, yeni);
+        assert_eq!(ses["aa:bb:cc:dd:ee:08"].expires_epoch, yeni);
+        let calls: Vec<String> = e.calls.lock().unwrap().iter().map(|c| c.join(" ")).collect();
+        assert_eq!(calls, [
+            format!("nft delete element inet hotspot auth {{ {MISAFIR_MAC} . 10.50.0.31 }}"),
+            format!("nft add element inet hotspot auth {{ {MISAFIR_MAC} . 10.50.0.31 timeout 259200s }}"),
+        ]);
+        // geçersiz süre
+        let r = e.p.handle(&req("POST", "/misafir-kodlari/uzat", &[("csrf", &csrf), ("id", &k.kod_id), ("sure", "5")], Some(&tok)));
+        assert!(loc(&r).contains("e=1"));
+        assert_eq!(kodlar(&e)[0].bitis, yeni);
+        let d = denetim_satirlari(&e, "PANEL_MISAFIR_KODU");
+        assert!(d.iter().any(|l| l.contains("islem=uzat") && l.contains("sure=48") && l.contains("uzayan=2")), "{d:?}");
+    }
+
+    #[test]
+    fn uzatma_nft_hatasinda_oturum_degismez() {
+        let mut ses = ortak::Sessions::new();
+        ses.insert(MISAFIR_MAC.into(), ortak::Session {
+            phone: "TC:10000000146".into(), ad: "A".into(), soyad: "B".into(), ip: "10.50.0.31".into(), session_id: "s".into(),
+            start: String::new(), start_epoch: 0.0, expires_epoch: 2000.0,
+        });
+        let calls = Arc::new(Mutex::new(Vec::new()));
+        let c2 = calls.clone();
+        let runner = move |c: &[String]| {
+            let s = c.join(" ");
+            let ok = !s.contains("timeout 9000s"); // yeni süre eklenemez
+            c2.lock().unwrap().push(s);
+            ok
+        };
+        assert!(!ortak::oturum_uzat(&mut ses, MISAFIR_MAC, 10_000.0, 1000.0, &runner));
+        assert_eq!(ses[MISAFIR_MAC].expires_epoch, 2000.0);
+        assert_eq!(calls.lock().unwrap().last().unwrap(), &format!("nft add element inet hotspot auth {{ {MISAFIR_MAC} . 10.50.0.31 timeout 1000s }}"));
+        assert!(ortak::oturum_uzat(&mut ses, MISAFIR_MAC, 5000.0, 1000.0, &|_: &[String]| true));
+        assert_eq!(ses[MISAFIR_MAC].expires_epoch, 5000.0);
+    }
+
+    #[test]
+    fn ayni_kimlik_yeni_kod_eskiyi_iptal_eder() {
+        let e = env();
+        let (tok, csrf) = setup_and_login(&e, "mudur", "sahip-parola-12");
+        misafir_ac(&e, "otel", true);
+        uret_tc(&e, &tok, &csrf, TC1, "101", "24");
+        uret_tc(&e, &tok, &csrf, TC2, "102", "24");
+        let ilk = kodlar(&e)[0].clone();
+        misafir_oturumu(&e, MISAFIR_MAC, "TC:10000000146", "10.50.0.31", ilk.bitis);
+        misafir_oturumu(&e, AYSE, "TC:11111111110", "10.50.0.23", ilk.bitis);
+        let r = uret_tc(&e, &tok, &csrf, TC1, "105", "48");
+        assert!(loc(&r).contains("&m=") && !loc(&r).contains("e=1"));
+        let k = kodlar(&e);
+        assert_eq!(k.len(), 3);
+        assert!(k[0].iptal && !k[1].iptal && !k[2].iptal && k[2].oda == "105");
+        let ses = oturumlar_of(&e);
+        assert!(!ses.contains_key(MISAFIR_MAC) && ses.contains_key(AYSE), "yalnızca aynı kimliğin oturumu kapanır");
+        let oturum = std::fs::read_to_string(e.root.join("5651/gunluk/2026-09-29/oturum.csv")).unwrap();
+        assert!(oturum.lines().any(|l| l.contains("TC:10000000146") && l.contains("neden=kod_iptal")));
+        let s = e.p.handle(&get("/misafir-kodlari", &[], &tok)).body;
+        assert_eq!(s.matches("<code>100******46</code>").count(), 1, "aynı kişinin tek aktif kodu");
+        let d = denetim_satirlari(&e, "PANEL_MISAFIR_KODU");
+        assert!(d.last().unwrap().contains(&format!("onceki_iptal={} kapanan=1", ilk.kod_id)), "{d:?}");
+    }
+
+    #[test]
+    fn denetimde_kod_ve_kimlik_yok() {
+        let e = env();
+        let (tok, csrf) = setup_and_login(&e, "mudur", "sahip-parola-12");
+        misafir_ac(&e, "otel", true);
+        uret_tc(&e, &tok, &csrf, TC1, "101", "24");
+        e.p.handle(&req("POST", "/misafir-kodlari/uret",
+            &[("csrf", &csrf), ("ad", "John"), ("soyad", "Smith"), ("tur", "pasaport"), ("pasaport", "X1234567"), ("uyruk", "DE"), ("oda", "202"), ("sure", "72")], Some(&tok)));
+        let k = kodlar(&e);
+        e.p.handle(&get("/misafir-kodlari/fis", &[("id", &k[0].kod_id)], &tok));
+        e.p.handle(&get("/misafir-kodlari", &[], &tok));
+        e.p.handle(&req("POST", "/misafir-kodlari/uzat", &[("csrf", &csrf), ("id", &k[0].kod_id), ("sure", "24")], Some(&tok)));
+        e.p.handle(&req("POST", "/misafir-kodlari/iptal", &[("csrf", &csrf), ("id", &k[1].kod_id)], Some(&tok)));
+        uret_tc(&e, &tok, &csrf, "10000000145", "101", "24"); // hatalı form da yazmaz
+        let denetim = std::fs::read_to_string(e.root.join("5651/gunluk/2026-09-29/denetim.csv")).unwrap();
+        let d = denetim_satirlari(&e, "PANEL_MISAFIR_KODU");
+        for islem in ["uret", "uzat", "iptal"] {
+            assert!(d.iter().any(|l| l.contains(&format!("islem={islem}"))), "{islem}");
+        }
+        assert!(d.iter().any(|l| l.contains("oda=101") && l.contains("tur=tc") && l.contains("bitis=2026-09-30T21:05:34+03:00")), "{d:?}");
+        assert!(d.iter().any(|l| l.contains("oda=202") && l.contains("tur=pasaport")));
+        assert!(!denetim.contains(TC1) && !denetim.contains("10000000145") && !denetim.contains("X1234567"), "{denetim}");
+        for c in &k {
+            // kod 6 hane: başka bir alanın parçası olabilir, ayrı bir değer olarak geçmemeli
+            assert!(!denetim.split([';', ' ', '=']).any(|t| t == c.kod), "kod denetimde: {denetim}");
+        }
+    }
+
+    #[test]
+    fn fis_bitis_ve_iki_dil() {
+        let e = env();
+        let (tok, csrf) = setup_and_login(&e, "mudur", "sahip-parola-12");
+        misafir_ac(&e, "otel", true);
+        let r = uret_tc(&e, &tok, &csrf, TC1, "101", "168");
+        assert!(loc(&r).starts_with("/misafir-kodlari/fis?id="));
+        let k = kodlar(&e)[0].clone();
+        let mut q = get("/misafir-kodlari/fis", &[("id", &k.kod_id)], &tok);
+        q.query.insert("m".into(), "Kod üretildi.".into());
+        let s = e.p.handle(&q);
+        assert_eq!(s.status, 200);
+        let b = &s.body;
+        assert!(b.contains(&format!("<div class=\"kod\">{}</div>", k.kod)), "kod büyük");
+        assert!(b.contains("<b>06.10.2026 21:05</b>"), "1 hafta sonrası, TR saati");
+        assert!(b.contains("Ali Veli") && b.contains("<b>101</b>") && b.contains("Bocafe Göztepe"));
+        assert!(b.contains("'Otel misafiriyim'e dokunun") && b.contains("tap 'Hotel guest'"));
+        assert!(b.contains("@media print") && b.contains("Yazdırmak için Ctrl+P") && b.contains("Kod üretildi."));
+        assert!(!b.contains(TC1) && !b.to_lowercase().contains("kupon"));
+        assert_eq!(misafir_sayfasi::tarih_saat(1_790_705_134.0), "29.09.2026 21:05");
+        misafir_ac(&e, "yurt", true);
+        let b = e.p.handle(&q).body;
+        assert!(b.contains("'Yurt sakiniyim'e dokunun") && b.contains("tap 'Dormitory resident'"));
+        // bilinmeyen ya da iptal edilmiş kodun fişi yok
+        assert!(loc(&e.p.handle(&get("/misafir-kodlari/fis", &[("id", "yok")], &tok))).contains("e=1"));
+        e.p.handle(&req("POST", "/misafir-kodlari/iptal", &[("csrf", &csrf), ("id", &k.kod_id)], Some(&tok)));
+        assert!(loc(&e.p.handle(&q)).contains("e=1"));
     }
 }

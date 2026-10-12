@@ -3,13 +3,16 @@
 mod ag;
 mod ayar;
 mod ctl;
+mod dil;
 mod fabrika;
 mod filtre;
 mod hiz;
 mod hesap;
 mod kayit;
 mod kaydedici;
+mod kimlik;
 mod merkez;
+mod misafir;
 mod muhur;
 mod ortak;
 mod panel;

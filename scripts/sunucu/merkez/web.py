@@ -26,7 +26,8 @@ td.cubuk{width:100%}td.cubuk span{display:block;height:10px;background:#0a6ebd;b
 td.n{text-align:right;font-weight:600;min-width:3ch}.bos{color:#9aa3b2}a{color:#0a6ebd}h2{font-size:17px;margin:0 0 8px}h3{font-size:15px;margin:12px 0 4px}
 details{border:1px solid #e3e7ee;border-radius:10px;margin:8px 0;background:#fff}summary{cursor:pointer;padding:10px 12px}details>div{padding:0 12px 12px}
 .kaydir{overflow-x:auto}table.detay th{font-size:13px;color:#5b6475}ul.gunler{list-style:none;margin:0;padding:0 12px 12px}ul.gunler li{padding:4px 0}
-form.ara{display:flex;gap:8px}form.ara input{flex:1}form.ara button{margin:0}"""
+form.ara{display:flex;gap:8px;flex-wrap:wrap}form.ara input{flex:1;min-width:10em}form.ara button{margin:0}
+form.ara select{width:auto}form.ara input.uyruk{flex:0 0 5.5em;min-width:0}"""
 e = detay.e
 SINIF_GENIS = ' class="genis"'
 
@@ -217,14 +218,16 @@ class Taban:
         self.veri.hareket(self.kim(ot), ip, "GORUNTULEME", musteri, f"{tam_yol} · {g[0]}")
         return None
 
-    def kayit_sayfasi(self, ot, numara, alt, sorgu, onek, ip, baslik):
-        """alt: '/', '/gun/<gün>', '/ara'. Kişi verisi açan sayfalar gerekçe ister (sayılar ve boş arama formu istemez)."""
+    def kayit_sayfasi(self, ot, numara, alt, sorgu, onek, ip, baslik, yontem="GET", form=None):
+        """alt: '/', '/gun/<gün>', '/ara'. Kişi verisi açan sayfalar gerekçe ister (sayılar ve boş arama formu istemez).
+        Arama yalnızca POST'la yapılır (telefon/kimlik adrese, tarayıcı geçmişine ve hareket kaydına girmez)."""
         arsivler = self.veri.arsivler(numara)
+        if yontem == "POST" and alt != "/ara":
+            return None
         if alt == "/":
-            return yanit_html(self.sayfa(baslik, self.kayitlar.ozet_html(baslik, arsivler, self.saat(), onek), ot))
-        q = (urllib.parse.parse_qs(sorgu).get("q") or [""])[0].strip()
-        if alt.startswith("/gun/") or (alt == "/ara" and q):
-            r = self.gerekce_iste(ot, onek + alt + ("?" + sorgu if sorgu else ""), numara, ip)
+            return yanit_html(self.sayfa(baslik, self.kayitlar.ozet_html(baslik, arsivler, self.saat(), onek, ot["csrf"]), ot))
+        if alt.startswith("/gun/") or yontem == "POST":
+            r = self.gerekce_iste(ot, onek + alt + ("?" + sorgu if sorgu and yontem == "GET" else ""), numara, ip)
             if r:
                 return r
         if alt.startswith("/gun/"):
@@ -234,5 +237,6 @@ class Taban:
                 return yanit_html(self.mesaj(ot, "Bulunamadı", "Bu gün için kayıt yok."), 404)
             return yanit_html(self.sayfa(detay.tarih(gun), h, ot))
         if alt == "/ara":
-            return yanit_html(self.sayfa("Arama", self.kayitlar.ara_html(arsivler, sorgu, onek), ot))
+            h = self.kayitlar.ara_html(arsivler, form if yontem == "POST" else None, onek, ot["csrf"])
+            return yanit_html(self.sayfa("Arama", h, ot))
         return None

@@ -8,12 +8,19 @@ const METINLER: &[(&str, &str, &str)] = &[
     ("aydinlatma", "KVKK Aydınlatma Metni", "Giriş sayfasında \"KVKK Aydınlatma Metni\" bağlantısıyla açılır; onay kutusu yoktur. \"* \" ile başlayan satırlar madde listesi olur."),
     ("acik_riza", "Açık Rıza Metni", "Giriş sayfasında onay kutusunun yanında yazar; işaretlemek zorunludur. [vergi levhası unvanı] yerine Ayarlar'daki işletme unvanı yazılır."),
     ("sozlesme", "İnternet Kullanıcı Sözleşmesi", "Müşteri \"okudum, kabul ediyorum\" kutusunu işaretlemeden devam edemez."),
+    ("aydinlatma_en", "KVKK Aydınlatma Metni (İngilizce)", EN_NOT),
+    ("acik_riza_en", "Açık Rıza Metni (İngilizce)", EN_NOT),
+    ("sozlesme_en", "İnternet Kullanıcı Sözleşmesi (İngilizce)", EN_NOT),
 ];
+const EN_NOT: &str = "Giriş sayfasında EN seçildiğinde gösterilir; boş bırakılırsa Türkçesi gösterilir. İŞLETMECİ yalnızca işletme adıyla değişir (ek eklenmez).";
 
 fn field<'a>(cfg: &'a Config, key: &str) -> &'a str {
     match key {
         "aydinlatma" => &cfg.portal.aydinlatma,
         "acik_riza" => &cfg.portal.acik_riza,
+        "aydinlatma_en" => &cfg.portal.aydinlatma_en,
+        "acik_riza_en" => &cfg.portal.acik_riza_en,
+        "sozlesme_en" => &cfg.portal.sozlesme_en,
         _ => &cfg.portal.sozlesme,
     }
 }
@@ -54,6 +61,9 @@ impl Panel {
                 match *key {
                     "aydinlatma" => cfg.portal.aydinlatma = v,
                     "acik_riza" => cfg.portal.acik_riza = v,
+                    "aydinlatma_en" => cfg.portal.aydinlatma_en = v,
+                    "acik_riza_en" => cfg.portal.acik_riza_en = v,
+                    "sozlesme_en" => cfg.portal.sozlesme_en = v,
                     _ => cfg.portal.sozlesme = v,
                 }
             }

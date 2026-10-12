@@ -23,6 +23,10 @@ pub struct Main {
     pub leases_file: String,
     /// Kayıtlar cihazda kaç gün kalır (730 = 2 yıl); yalnızca yedeklenmiş günler silinir.
     pub retention_days: u64,
+    /// İşletme türü: kafe | otel | yurt | diger. Anahtar yoksa "seçilmemiş" (Özet uyarısı); davranış kafe gibi.
+    /// Yalnızca sahip türü seçip kaydedince yazılır (None yazılmaz; başka ayarı kaydetmek anahtarı eklemez).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub isletme_turu: Option<String>,
 }
 
 impl Default for Main {
@@ -40,6 +44,7 @@ impl Default for Main {
             state_root: "/srv/hotspot/state".into(),
             leases_file: "/var/lib/misc/dnsmasq.leases".into(),
             retention_days: 730,
+            isletme_turu: None,
         }
     }
 }
@@ -170,6 +175,10 @@ pub struct PortalMetin {
     pub aydinlatma: String,
     pub acik_riza: String,
     pub sozlesme: String,
+    /// İngilizce giriş sayfası için (boşsa Türkçesi gösterilir); İŞLETMECİ yalnızca adla değişir (ek yok).
+    pub aydinlatma_en: String,
+    pub acik_riza_en: String,
+    pub sozlesme_en: String,
 }
 
 impl Default for PortalMetin {
@@ -178,6 +187,9 @@ impl Default for PortalMetin {
             aydinlatma: include_str!("sablon/aydinlatma.txt").trim().to_string(),
             acik_riza: include_str!("sablon/acik_riza.txt").trim().to_string(),
             sozlesme: include_str!("sablon/sozlesme.txt").trim().to_string(),
+            aydinlatma_en: String::new(),
+            acik_riza_en: String::new(),
+            sozlesme_en: String::new(),
         }
     }
 }
@@ -203,6 +215,80 @@ pub struct Filtre {
     pub istisnalar: Vec<String>,
 }
 
+/// İşletme türleri (değer, etiket); ilk öğe varsayılan davranış.
+pub const ISLETME_TURLERI: &[(&str, &str)] = &[("kafe", "Kafe/Restoran"), ("otel", "Otel/Pansiyon"), ("yurt", "Yurt"), ("diger", "Diğer")];
+
+/// Sahibin seçtiği tür; anahtar yoksa ya da tanınmıyorsa (elle bozulmuş) None = "seçilmemiş".
+pub fn isletme_turu_secili(cfg: &Config) -> Option<&str> {
+    cfg.main.isletme_turu.as_deref().filter(|t| ISLETME_TURLERI.iter().any(|(k, _)| k == t))
+}
+
+/// Geçerli işletme türü: seçilmemişse `kafe`.
+pub fn isletme_turu(cfg: &Config) -> &str {
+    isletme_turu_secili(cfg).unwrap_or("kafe")
+}
+
+/// Giriş yöntemleri ayarı (`[giris]`). SMS her zaman açıktır, anahtarı yok.
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+#[serde(default)]
+pub struct Giris {
+    /// Misafir kodu ile giriş (yalnızca otel/yurt türünde açılabilir; tür başka bir şeye çekilince kapanır)
+    pub misafir_kodu: bool,
+}
+
+/// Misafirin internete çıkma yolları. Yeni yöntem (ör. kupon) yeni öğe + görünürlük/açıklık kuralıyla eklenir.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum GirisYontemi {
+    Sms,
+    MisafirKodu,
+}
+
+impl GirisYontemi {
+    pub const HEPSI: &'static [GirisYontemi] = &[GirisYontemi::Sms, GirisYontemi::MisafirKodu];
+
+    /// Ayar anahtarı (`giris.<kimlik>`)
+    pub fn kimlik(&self) -> &'static str {
+        match self {
+            GirisYontemi::Sms => "sms",
+            GirisYontemi::MisafirKodu => "misafir_kodu",
+        }
+    }
+
+    pub fn ad(&self) -> &'static str {
+        match self {
+            GirisYontemi::Sms => "SMS",
+            GirisYontemi::MisafirKodu => "Misafir kodu",
+        }
+    }
+
+    /// Panelden açılıp kapatılabilir mi (SMS her zaman açık)
+    pub fn degistirilebilir(&self) -> bool {
+        !matches!(self, GirisYontemi::Sms)
+    }
+
+    /// Bu işletme türünde ayarlarda görünür ve açılabilir mi
+    pub fn gorunur(&self, tur: &str) -> bool {
+        match self {
+            GirisYontemi::Sms => true,
+            GirisYontemi::MisafirKodu => matches!(tur, "otel" | "yurt"),
+        }
+    }
+
+    /// Şu an kullanılabilir mi: türde görünür ve ayarda açık
+    pub fn acik(&self, cfg: &Config) -> bool {
+        self.gorunur(isletme_turu(cfg))
+            && match self {
+                GirisYontemi::Sms => true,
+                GirisYontemi::MisafirKodu => cfg.giris.misafir_kodu,
+            }
+    }
+}
+
+/// Misafir kodu ile giriş kullanılabilir mi (açık ve tür otel/yurt).
+pub fn misafir_kodu_acik(cfg: &Config) -> bool {
+    GirisYontemi::MisafirKodu.acik(cfg)
+}
+
 /// Portalsız geçen (`[[allow]]`, ör. AP, personel; trafiği yine kaydedilir) ya da yasaklı (`[[ban]]`) cihaz.
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct Device {
@@ -223,6 +309,7 @@ pub struct Config {
     pub filtre: Filtre,
     pub portal: PortalMetin,
     pub uzak: Uzak,
+    pub giris: Giris,
     pub allow: Vec<Device>,
     pub ban: Vec<Device>,
 }
@@ -304,5 +391,30 @@ mod tests {
         assert_eq!(back.allow.len(), 2);
         assert_eq!(Config::devices(&c.allow).into_iter().collect::<Vec<_>>(), vec![("aa:bb:cc:dd:ee:99".into(), "AP".into())]);
         assert!(Config::parse("[main\n").is_err());
+    }
+
+    #[test]
+    fn isletme_turu_ve_giris_yontemleri() {
+        // eski ayar dosyası (anahtarsız) yüklenir: seçilmemiş, davranış kafe, misafir kodu kapalı
+        let c = Config::parse("[main]\nsite_name = 'Bocafe'\n").unwrap();
+        assert_eq!((c.main.isletme_turu.as_deref(), isletme_turu(&c), misafir_kodu_acik(&c)), (None, "kafe", false));
+        // seçilmemiş tür yazılmaz (başka ayarın kaydı anahtarı eklemez)
+        assert!(!toml::to_string_pretty(&c).unwrap().contains("isletme_turu"));
+        let mut c = Config::parse("[main]\nisletme_turu = 'otel'\n[giris]\nmisafir_kodu = true\n").unwrap();
+        assert_eq!((isletme_turu(&c), misafir_kodu_acik(&c)), ("otel", true));
+        let back = Config::parse(&toml::to_string_pretty(&c).unwrap()).unwrap();
+        assert_eq!((back.main.isletme_turu.as_deref(), back.giris.misafir_kodu), (Some("otel"), true));
+        c.main.isletme_turu = Some("kafe".into()); // ayar açık kalsa da türde görünmez → kullanılamaz
+        assert!(!misafir_kodu_acik(&c));
+        c.main.isletme_turu = Some("bilinmeyen".into()); // elle bozulmuş: seçilmemiş sayılır, davranış kafe
+        assert_eq!((isletme_turu(&c), isletme_turu_secili(&c)), ("kafe", None));
+        c.main.isletme_turu = Some("yurt".into());
+        assert_eq!(isletme_turu_secili(&c), Some("yurt"));
+        for (tur, gorunur) in [("kafe", false), ("otel", true), ("yurt", true), ("diger", false)] {
+            assert_eq!(GirisYontemi::MisafirKodu.gorunur(tur), gorunur, "{tur}");
+            assert!(GirisYontemi::Sms.gorunur(tur));
+        }
+        assert!(GirisYontemi::Sms.acik(&Config::default()) && !GirisYontemi::Sms.degistirilebilir());
+        assert_eq!(GirisYontemi::HEPSI.iter().map(|y| y.kimlik()).collect::<Vec<_>>(), ["sms", "misafir_kodu"]);
     }
 }

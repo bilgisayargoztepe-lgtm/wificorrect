@@ -6,6 +6,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import yardim as Y  # noqa: E402
 import kayitlar as K  # noqa: E402
+import detay as D  # noqa: E402
 
 
 def test_birden_cok_arsiv_birlesir_ilki_gecerli():
@@ -19,8 +20,10 @@ def test_birden_cok_arsiv_birlesir_ilki_gecerli():
         Y.gun_yaz(tmp, "bocafe", "2026-09-20", dizin={"5330000001": {"ad": "Ayşe", "gunler": ["2026-09-01"]}})
         Y.gun_yaz(tmp, "bocafe", "2026-09-01")
         assert k.gunler(["100001", "bocafe"]) == {"2026-09-20": "100001", "2026-09-01": "bocafe"}
-        s = k.ara_html(["100001", "bocafe"], "q=ay%C5%9Fe", "/m/100001/kayitlar")
-        assert 'href="/m/100001/kayitlar/gun/2026-09-20#k5330000001"' in s and "/gun/2026-09-01#k" in s
+        s = k.ara_html(["100001", "bocafe"], {"q": "ayşe"}, "/m/100001/kayitlar")
+        capa = "k" + D.opak(k.sir(), "5330000001")
+        assert f'href="/m/100001/kayitlar/gun/2026-09-20#{capa}"' in s and f"/gun/2026-09-01#{capa}" in s
+        assert 'method="post"' in k.ara_html(["100001"], None, "") and "Ayşe" not in k.ara_html(["100001"], None, "")
 
 
 def test_ozet_gun_ve_bilinmeyen():

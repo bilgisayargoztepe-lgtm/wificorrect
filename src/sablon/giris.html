@@ -1,29 +1,31 @@
-<h1>$site_ye hoş geldiniz</h1>
-<p>İnternete bağlanmak için bilgilerinizi girin ve telefonunuza gelen kodu onaylayın.</p>
+<h1>$m_giris_baslik</h1>
+<p>$m_giris_aciklama</p>
+$misafir_html
 <p class="hata genel">$hata_genel</p>
 <form method="post" action="$portal/kod-gonder">
 <input type="hidden" name="dst" value="$dst">
-<label for="ad">Ad</label>
+<input type="hidden" name="dil" value="$dil_kod">
+<label for="ad">$m_ad</label>
 <input type="text" id="ad" name="ad" value="$ad" autocomplete="given-name" maxlength="40" required>
 <p class="hata">$hata_ad</p>
-<label for="soyad">Soyad</label>
+<label for="soyad">$m_soyad</label>
 <input type="text" id="soyad" name="soyad" value="$soyad" autocomplete="family-name" maxlength="40" required>
 <p class="hata">$hata_soyad</p>
-<label for="telefon">Cep telefonu</label>
-<div class="tel"><select name="ulke" aria-label="Ülke kodu">$ulke_secenekleri_html</select><input type="tel" id="telefon" name="telefon" value="$telefon" inputmode="tel" autocomplete="tel-national" placeholder="5XX XXX XX XX" maxlength="20" required></div>
+<label for="telefon">$m_telefon</label>
+<div class="tel"><select name="ulke" aria-label="$m_ulke_kodu">$ulke_secenekleri_html</select><input type="tel" id="telefon" name="telefon" value="$telefon" inputmode="tel" autocomplete="tel-national" placeholder="5XX XXX XX XX" maxlength="20" required></div>
 <p class="hata">$hata_telefon</p>
 <div class="madde">
 <label class="onay"><input type="checkbox" name="riza" value="1" $riza_checked required><span>$riza_metni_html</span></label>
 <p class="hata">$hata_riza</p>
 </div>
 <div class="madde">
-<label class="onay"><input type="checkbox" name="sozlesme" value="1" $sozlesme_checked required><span>İnternet Kullanıcı Sözleşmesi'ni okudum, kabul ediyorum.</span></label>
-<details><summary>İnternet Kullanıcı Sözleşmesi</summary><div class="metin">$sozlesme_html</div></details>
+<label class="onay"><input type="checkbox" name="sozlesme" value="1" $sozlesme_checked required><span>$m_sozlesme_onay</span></label>
+<details><summary>$m_sozlesme_baslik</summary><div class="metin">$sozlesme_html</div></details>
 <p class="hata">$hata_sozlesme</p>
 </div>
 <div class="madde">
-<details><summary>KVKK Aydınlatma Metni</summary><div class="metin">$aydinlatma_html</div></details>
-<p class="not kucuk">Kişisel verilerinizin nasıl işlendiğini öğrenmek için KVKK Aydınlatma Metni'ne dokunun.</p>
+<details><summary>$m_aydinlatma_baslik</summary><div class="metin">$aydinlatma_html</div></details>
+<p class="not kucuk">$m_aydinlatma_not</p>
 </div>
-<button type="submit">Kod Gönder</button>
+<button type="submit">$m_kod_gonder</button>
 </form>

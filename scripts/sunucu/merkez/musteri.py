@@ -69,10 +69,10 @@ class Musteri(web.Taban):
 
     def sayfalar(self, ot, token, yontem, yol, sorgu, form, ip):
         n = int(ot["user"])
-        if yontem == "GET" and (yol == "/" or yol.startswith("/gun/") or yol == "/ara"):
+        if (yontem == "GET" and (yol == "/" or yol.startswith("/gun/") or yol == "/ara")) or (yontem, yol) == ("POST", "/ara"):
             c = self.veri.bagli_cihaz(n)
             baslik = c["isletme_adi"] if c is not None and c["isletme_adi"] else f"Müşteri {n}"
-            return self.kayit_sayfasi(ot, n, yol, sorgu, "", ip, baslik)
+            return self.kayit_sayfasi(ot, n, yol, sorgu, "", ip, baslik, yontem, form)
         if yol == "/cihaz" and yontem == "GET":
             if self.cihaz_adresi(n) and "yok" not in urllib.parse.parse_qs(sorgu):  # yok=1: Caddy cihaza ulaşamadı → döngü olmasın
                 ozet = self.veri.musteri(n)["ozet"]

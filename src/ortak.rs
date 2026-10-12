@@ -186,8 +186,9 @@ pub fn day_file(root: &str, day: &str, name: &str) -> PathBuf {
     Path::new(root).join("gunluk").join(day).join(name)
 }
 
+/// Kişinin günlük dosyası; kimlik anahtarında `:` → `_` (`TC_…csv`, `PASAPORT_DE_…csv`), telefon aynen.
 pub fn user_file(root: &str, day: &str, phone: &str) -> PathBuf {
-    Path::new(root).join("gunluk").join(day).join("kullanicilar").join(format!("{phone}.csv"))
+    Path::new(root).join("gunluk").join(day).join("kullanicilar").join(format!("{}.csv", crate::kimlik::dosya_adi(phone)))
 }
 
 /// Güne hâlâ satır eklenebilir mi: bugün ya da geleceği, ya da klasörü duran ve mühürlenmemiş geçmiş gün.
@@ -526,6 +527,37 @@ pub fn move_session(root: &str, sessions: &mut Sessions, mac: &str, new_ip: &str
     let s = s.clone();
     ip_row(root, &s, mac, &old_ip, now);
     true
+}
+
+/// Süren oturumun bitişini değiştirir (misafir kodu uzatıldı). nft öğesinin süresi yerinde değiştirilemez
+/// (`add` var olan öğeye dokunmaz, `update` yalnızca kural içinde): sil + yeniden ekle **tek nft çağrısında** (`;` ile
+/// ayrılmış komutlar tek işlem/batch olarak uygulanır: ya ikisi birden ya hiçbiri; arada boşluk yok). Başarısızsa eski öğe
+/// yerinde kalır, oturum değişmez → false. IP'siz oturumda yalnızca kayıt. Süre = yeni bitiş − şimdi (koddan uzun olamaz).
+pub fn oturum_uzat(sessions: &mut Sessions, mac: &str, yeni_bitis: f64, now: f64, runner: &Runner) -> bool {
+    let Some(s) = sessions.get_mut(mac) else { return false };
+    if !s.ip.is_empty() && !run_opt(runner, nft_uzat_cmd(mac, &s.ip, yeni_bitis - now)) {
+        return false;
+    }
+    s.expires_epoch = yeni_bitis;
+    true
+}
+
+/// Uzatılan oturum için `OTURUM_UZATILDI` (oturum.csv + kişi dosyası). Resmi talep IP araması oturumun hâlâ açık
+/// olduğunu bu satırdan da anlar: geriye bakış en son uzatmaya ulaşsa yeter.
+pub fn oturum_uzatildi_yaz(root: &str, s: &Session, mac: &str, now: f64, ureten: &str) {
+    let row = session_row("OTURUM_UZATILDI", &now_iso(now), s, mac)
+        .set("ad", &s.ad)
+        .set("soyad", &s.soyad)
+        .set("ek", format!("yeni_bitis={} ureten={}", now_iso(s.expires_epoch), ureten.replace(char::is_whitespace, "_")));
+    write_session_row(root, s, mac, row);
+}
+
+/// `nft delete element … ; add element … timeout Ns` — tek çağrı, tek işlem (atomik).
+pub fn nft_uzat_cmd(mac: &str, ip: &str, seconds: f64) -> Option<Cmd> {
+    let mut c = nft_del_cmd(mac, ip)?;
+    c.push(";".into());
+    c.extend(nft_add_cmd(mac, ip, seconds)?.into_iter().skip(1)); // "nft" bir kez
+    Some(c)
 }
 
 // ---------------------------------------------------------------- IP → MAC

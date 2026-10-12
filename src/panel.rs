@@ -22,6 +22,7 @@ mod hareketler;
 mod hiz_sayfasi;
 mod kayit_sayfalari;
 mod metinler;
+mod misafir_sayfasi;
 mod portlar;
 
 pub type Clock = dyn Fn() -> f64 + Send + Sync;
@@ -168,8 +169,10 @@ const MERKEZ_SMS: &[&str] = &["sms.mock", "sms.provider", "netgsm.usercode", "ne
 const ALANLAR: &[Alan] = &[
     Alan { key: "main.unvan", label: "İşletme unvanı (vergi levhasındaki unvan yazılmalıdır)", tur: Tur::Metin(unvan_ok), grup: "İşletme", admin: false },
     Alan { key: "main.site_name", label: "İşletme adı", tur: Tur::Metin(|s| !s.trim().is_empty() && chars_ok(s, 40, |c| c.is_alphanumeric() || " .-'&".contains(c))), grup: "İşletme", admin: false },
+    Alan { key: "main.isletme_turu", label: "İşletme türü", tur: Tur::Secim(crate::ayar::ISLETME_TURLERI), grup: "İşletme", admin: false },
     Alan { key: "main.session_minutes", label: "Oturum süresi (dakika; 43200 = 30 gün)", tur: Tur::Sayi(30, 64800), grup: "İşletme", admin: false },
     Alan { key: "main.max_devices_per_phone", label: "Bir telefona en fazla cihaz", tur: Tur::Sayi(1, 10), grup: "İşletme", admin: false },
+    Alan { key: "giris.misafir_kodu", label: "Misafir kodu ile giriş (personelin ürettiği kodla; T.C. kimlik ya da pasaport)", tur: Tur::Evet, grup: "Giriş yöntemleri", admin: false },
     Alan { key: "limits.sms_per_phone_15min", label: "Numara başına SMS / 15 dk", tur: Tur::Sayi(1, 20), grup: "SMS sınırları", admin: true },
     Alan { key: "limits.sms_per_phone_day", label: "Numara başına SMS / gün", tur: Tur::Sayi(1, 50), grup: "SMS sınırları", admin: true },
     Alan { key: "limits.sms_per_mac_hour", label: "Cihaz başına SMS / saat", tur: Tur::Sayi(1, 50), grup: "SMS sınırları", admin: true },
@@ -267,6 +270,9 @@ fn get_field(c: &Config, key: &str) -> String {
     match key {
         "main.site_name" => c.main.site_name.clone(),
         "main.unvan" => c.main.unvan.clone(),
+        // seçilmemiş (yok ya da tanınmayan) tür boş döner: formda "Seçin" görünür, kaydetmek türü kendiliğinden yazmaz
+        "main.isletme_turu" => crate::ayar::isletme_turu_secili(c).unwrap_or_default().to_string(),
+        "giris.misafir_kodu" => b(c.giris.misafir_kodu),
         "uzak.enabled" => b(c.uzak.enabled),
         "uzak.sunucu" => c.uzak.sunucu.clone(),
         "uzak.sunucu_anahtar" => c.uzak.sunucu_anahtar.clone(),
@@ -302,6 +308,8 @@ fn set_field(c: &mut Config, key: &str, v: &str) {
     match key {
         "main.site_name" => c.main.site_name = v.trim().into(),
         "main.unvan" => c.main.unvan = v.split_whitespace().collect::<Vec<_>>().join(" "),
+        "main.isletme_turu" => c.main.isletme_turu = Some(v.into()),
+        "giris.misafir_kodu" => c.giris.misafir_kodu = v == "1",
         "uzak.enabled" => c.uzak.enabled = v == "1",
         "uzak.sunucu" => c.uzak.sunucu = v.into(),
         "uzak.sunucu_anahtar" => c.uzak.sunucu_anahtar = v.into(),
@@ -344,6 +352,12 @@ fn salt_okunur(a: &Alan, cfg: &Config, bagli: bool) -> Option<&'static str> {
     }
 }
 
+/// Alan bu işletme türünde sayfada var mı (giriş yöntemleri türe göre görünür). Görünmeyen alan formdan değişmez.
+fn gorunur(a: &Alan, cfg: &Config) -> bool {
+    let tur = crate::ayar::isletme_turu(cfg);
+    crate::ayar::GirisYontemi::HEPSI.iter().find(|y| a.key.strip_prefix("giris.") == Some(y.kimlik())).is_none_or(|y| y.gorunur(tur))
+}
+
 /// Ayarlar sayfasının (admin=false) ya da Admin ayarları sayfasının (admin=true) alanları.
 fn fields(admin: bool) -> impl Iterator<Item = &'static Alan> {
     ALANLAR.iter().filter(move |a| a.admin == admin)
@@ -354,7 +368,7 @@ fn validate(admin: bool, form: &Form, cfg: &Config, bagli: bool) -> Result<Vec<(
     let mut changes = vec![];
     let mut errors = HashMap::new();
     for a in fields(admin) {
-        if salt_okunur(a, cfg, bagli).is_some() {
+        if salt_okunur(a, cfg, bagli).is_some() || !gorunur(a, cfg) {
             continue;
         }
         let old = get_field(cfg, a.key);
@@ -388,6 +402,8 @@ fn validate(admin: bool, form: &Form, cfg: &Config, bagli: bool) -> Result<Vec<(
             },
             Tur::Secim(opts) => match raw {
                 None => continue,
+                // hiç seçilmemiş alan ("Seçin") seçilmemiş kalabilir
+                Some(v) if v.is_empty() && old.is_empty() => continue,
                 Some(v) if opts.iter().any(|(k, _)| *k == v) => v,
                 Some(_) => {
                     errors.insert(a.key, "Geçersiz seçim.".into());
@@ -442,7 +458,7 @@ pub struct Panel {
     baglan_kilit: std::sync::Mutex<()>,
 }
 
-const MENU: &[(&str, &str)] = &[("/", "Özet"), ("/cihazlar", "Kullanıcılar"), ("/kayitlar", "Kayıtlar"), ("/ayarlar", "Ayarlar"), ("/admin", "Admin")];
+const MENU: &[(&str, &str)] = &[("/", "Özet"), ("/cihazlar", "Kullanıcılar"), ("/misafir-kodlari", "Misafir kodları"), ("/kayitlar", "Kayıtlar"), ("/ayarlar", "Ayarlar"), ("/admin", "Admin")];
 
 /// Menü grupları tek sayfadır; eski sayfalar bu sayfada alt alta bölüm olur (2026-10-08, kullanıcı isteği).
 /// (grup, eski yol, bölüm id, başlık, yalnızca admin). Eski yollar ayrıca açılır (hata/arama sonucu, ayrıntı).
@@ -470,6 +486,7 @@ fn menu_grubu(path: &str) -> &'static str {
     match path {
         "/kullanici" => return "/kayitlar",
         "/admin-kilidi" => return "/admin",
+        p if p == "/misafir-kodlari" || p.starts_with("/misafir-kodlari/") => return "/misafir-kodlari",
         _ => {}
     }
     BOLUMLER
@@ -486,6 +503,7 @@ const SIMGE_AYAR: &str = "M4 6h16M4 12h16M4 18h16M9 4v4M15 10v4M7 16v4";
 const SIMGE_KILIT: &str = "M6 11h12v10H6zM8 11V7a4 4 0 0 1 8 0v4";
 const SIMGE_ARA: &str = "M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zM16 16l5 5";
 const SIMGE_YASAK: &str = "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM5.6 5.6l12.8 12.8";
+const SIMGE_BILET: &str = "M3 7h18v3a2 2 0 0 0 0 4v3H3v-3a2 2 0 0 0 0-4zM9 7v10";
 const SIMGE_MENU: &str = "M3 6h18M3 12h18M3 18h18";
 
 fn simge(d: &str) -> String {
@@ -498,6 +516,7 @@ fn menu_simgesi(yol: &str) -> &'static str {
         "/cihazlar" => SIMGE_WIFI,
         "/kayitlar" => SIMGE_KAYIT,
         "/ayarlar" => SIMGE_AYAR,
+        "/misafir-kodlari" => SIMGE_BILET,
         _ => SIMGE_KILIT,
     }
 }
@@ -608,6 +627,7 @@ impl Panel {
                 let grup = menu_grubu(&req.path);
                 let links: String = MENU
                     .iter()
+                    .filter(|(p, _)| *p != "/misafir-kodlari" || crate::ayar::misafir_kodu_acik(cfg))
                     .map(|(p, l)| {
                         let act = if *p == grup { " class=\"aktif\" aria-current=\"page\"" } else { "" };
                         format!("<a href=\"{p}\"{act}>{}{}</a>", simge(menu_simgesi(p)), h(l))
@@ -894,12 +914,12 @@ impl Panel {
                 redirect("/", None)
             }
             ("GET", "/kayitlar/gun") => self.kayit_gun(&cfg, req, &o),
-            ("GET", "/kayitlar/dosya") => self.kayit_dosya(&cfg, req, &o),
+            ("GET" | "POST", "/kayitlar/dosya") => self.kayit_dosya(&cfg, req, &o),
             ("GET", "/kayitlar/indir") => self.kayit_indir(&cfg, req, &o),
             ("GET", "/kayitlar/gun-indir") => self.kayit_gun_indir(&cfg, req, &o),
-            ("GET", "/kullanicilar") => self.kullanicilar(&cfg, req, &o),
+            ("GET" | "POST", "/kullanicilar") => self.kullanicilar(&cfg, req, &o),
             ("GET", "/kullanici") => self.kullanici(&cfg, req, &o),
-            ("GET", "/talep") => self.talep(&cfg, req, &o, now),
+            ("GET" | "POST", "/talep") => self.talep(&cfg, req, &o, now),
             ("GET", "/ara") => self.site_ara(&cfg, req, &o, now),
             ("GET", "/talep/paket") => self.talep_paket(&cfg, req, &o),
             ("GET", "/yasakli-siteler") => self.filtre_sayfa(&cfg, req, &o),
@@ -933,6 +953,7 @@ impl Panel {
                 self.audit(&cfg, req, Some(&o), "PANEL_YENIDEN_BASLAT", "");
                 redirect("/sistem", Some((if ok { "Portal ve kaydedici yeniden başlatıldı." } else { "Yeniden başlatılamadı!" }, !ok)))
             }
+            (_, p) if p == "/misafir-kodlari" || p.starts_with("/misafir-kodlari/") => self.misafir_kodlari(&cfg, req, &o, now),
             ("GET", "/sifre") => self.sifre(&cfg, req, &o, ""),
             ("POST", "/sifre") => self.sifre_post(&cfg, req, &o),
             _ => text(404, "Sayfa bulunamadı"),
@@ -1086,13 +1107,15 @@ impl Panel {
         if sms as f64 >= cfg.limits.sms_global_day as f64 * 0.8 {
             uyarilar.push(format!("Günlük SMS tavanına yaklaşıldı ({sms} / {}).", cfg.limits.sms_global_day));
         }
-        let uyari_html = if uyarilar.is_empty() {
+        let mut uyari_li: String = uyarilar.iter().map(|u| format!("<li>{}</li>", h(u))).collect();
+        if crate::ayar::isletme_turu_secili(cfg).is_none() {
+            // seçilmemiş = anahtar yok (eski cihazlar) ya da tanınmayan değer; seçilince (kafe dahil) kalkar
+            uyari_li.insert_str(0, "<li>İşletme türünüzü seçin: <a href=\"/ayarlar#main-isletme_turu\">Ayarlar → İşletme türü</a></li>");
+        }
+        let uyari_html = if uyari_li.is_empty() {
             String::new()
         } else {
-            format!(
-                "<section class=\"kutu ozet-uyari\"><h2>Uyarılar</h2><ul class=\"uyarilar\">{}</ul></section>",
-                uyarilar.iter().map(|u| format!("<li>{}</li>", h(u))).collect::<String>()
-            )
+            format!("<section class=\"kutu ozet-uyari\"><h2>Uyarılar</h2><ul class=\"uyarilar\">{uyari_li}</ul></section>")
         };
         let kisayol: String = KISAYOLLAR.iter().map(|(yol, d, ad)| format!("<a href=\"{yol}\">{}{}</a>", simge(d), h(ad))).collect();
         // telefon ve MAC yok: yalnızca ad soyad, IP ve bağlanma saati
@@ -1185,7 +1208,7 @@ impl Panel {
             let left = ((s.expires_epoch - now).max(0.0) as u64) / 60;
             let hucreler = vec![
                 rozet(mac),
-                h(&format!("+{}", s.phone)),
+                h(&crate::kimlik::goster(&s.phone)),
                 h(&format!("{} {}", s.ad, s.soyad)),
                 format!("<code>{}</code>", h(mac)),
                 if s.ip.is_empty() { "<span class=\"not\">beklemede</span>".into() } else { h(&s.ip) },
@@ -1246,7 +1269,7 @@ impl Panel {
              <p class=\"not\">Bu sayfadaki her görüntüleme, arama ve indirme kimin yaptığıyla birlikte kaydedilir ve hizmet sağlayıcı tarafından denetlenir.</p>{arac}{}\
              <p class=\"not\">{}</p>",
             table(
-                &["Durum", "Telefon", "Ad soyad", "MAC", "IP", "↓ İndirme Mb/sn", "↑ Yükleme Mb/sn", "Bugün MB", "Başlangıç", "Kalan", "Yavaşlat", ""],
+                &["Durum", "Telefon / Kimlik", "Ad soyad", "MAC", "IP", "↓ İndirme Mb/sn", "↑ Yükleme Mb/sn", "Bugün MB", "Başlangıç", "Kalan", "Yavaşlat", ""],
                 &rows,
                 "Bağlı kullanıcı yok"
             ),
@@ -1347,6 +1370,9 @@ impl Panel {
         let mut groups: Vec<(&str, String)> = vec![];
         let bagli = crate::merkez::oku(&self.merkez_path).is_some();
         for a in fields(admin) {
+            if !gorunur(a, cfg) {
+                continue;
+            }
             let cur = form.and_then(|f| f.get(a.key).cloned()).unwrap_or_else(|| get_field(cfg, a.key));
             let id = a.key.replace('.', "-");
             let err = errors.get(a.key).map_or(String::new(), |e| format!("<div class=\"hata\">{}</div>", h(e)));
@@ -1366,7 +1392,10 @@ impl Panel {
                     format!("<label class=\"secim\"><input type=\"checkbox\" name=\"{}\" value=\"1\"{}> {}</label>", a.key, if on { " checked" } else { "" }, h(a.label))
                 }
                 Tur::Secim(opts) => {
-                    let o: String = opts.iter().map(|(k, l)| format!("<option value=\"{k}\"{}>{}</option>", if *k == cur { " selected" } else { "" }, h(l))).collect();
+                    let mut o: String = opts.iter().map(|(k, l)| format!("<option value=\"{k}\"{}>{}</option>", if *k == cur { " selected" } else { "" }, h(l))).collect();
+                    if cur.is_empty() {
+                        o.insert_str(0, "<option value=\"\" selected>— Seçin —</option>");
+                    }
                     format!("<label for=\"{id}\">{}</label><select id=\"{id}\" name=\"{}\">{o}</select>{err}", h(a.label), a.key)
                 }
                 Tur::Gizli(_) => {
@@ -1388,11 +1417,23 @@ impl Panel {
                 None => groups.push((a.grup, html)),
             }
         }
+        if !admin {
+            // değiştirilemeyen yöntemler (SMS) bilgi satırı olarak, bölümün başında
+            let bilgi: String = crate::ayar::GirisYontemi::HEPSI
+                .iter()
+                .filter(|y| !y.degistirilebilir())
+                .map(|y| format!("<p class=\"not\">{}: <b>her zaman açık</b></p>", h(y.ad())))
+                .collect();
+            match groups.iter_mut().find(|(g, _)| *g == "Giriş yöntemleri") {
+                Some((_, s)) => s.insert_str(0, &bilgi),
+                None => groups.push(("Giriş yöntemleri", bilgi)),
+            }
+        }
         let mut body = format!("<form method=\"post\" action=\"{}\">{}", if admin { "/admin-ayarlari" } else { "/ayarlar" }, csrf_input(o));
-        // tek grup (Ayarlar → İşletme): grup adı bölüm başlığıyla aynı, tekrar yazılmaz
+        // Ayarlar → İşletme: "İşletme" grubunun adı bölüm başlığıyla aynı, tekrar yazılmaz
         let tek = groups.len() == 1;
         for (g, inner) in &groups {
-            if tek {
+            if tek || (!admin && *g == "İşletme") {
                 body.push_str(&format!("<section class=\"kart\"><div>{inner}</div></section>"));
             } else {
                 body.push_str(&format!("<section class=\"kart grup\"><h2>{}</h2><div>{inner}</div></section>", h(g)));
@@ -1542,7 +1583,7 @@ impl Panel {
 
     fn ayarlar_post(&self, mut cfg: Config, req: &Req, o: &Oturum, admin: bool) -> Resp {
         let back = if admin { "/admin-ayarlari" } else { "/ayarlar" };
-        let changes = match validate(admin, &req.form, &cfg, crate::merkez::oku(&self.merkez_path).is_some()) {
+        let mut changes = match validate(admin, &req.form, &cfg, crate::merkez::oku(&self.merkez_path).is_some()) {
             Ok(c) => c,
             Err(errors) => {
                 let req2 = Req { query: [("m".to_string(), "Geçersiz değerler var, düzeltip tekrar kaydedin.".to_string()), ("e".to_string(), "1".to_string())].into(), ..clone_req(req) };
@@ -1554,6 +1595,16 @@ impl Panel {
         }
         for (k, _, new) in &changes {
             set_field(&mut cfg, k, new);
+        }
+        // türde görünmeyen giriş yöntemi aynı kayıtta kapanır (ör. otel → kafe: misafir kodu kapalı)
+        let tur = crate::ayar::isletme_turu(&cfg).to_string();
+        if cfg.giris.misafir_kodu && !crate::ayar::GirisYontemi::MisafirKodu.gorunur(&tur) {
+            cfg.giris.misafir_kodu = false;
+            match changes.iter_mut().find(|(k, _, _)| *k == "giris.misafir_kodu") {
+                Some(c) => c.2 = b(false),
+                None => changes.push(("giris.misafir_kodu", b(true), b(false))),
+            }
+            changes.retain(|(_, old, new)| old != new);
         }
         if !cfg.sms.mock {
             let eksik = cfg.sms_missing();
@@ -1571,7 +1622,13 @@ impl Panel {
             return redirect(back, Some((&e, true)));
         }
         for (k, old, new) in &changes {
-            self.audit(&cfg, req, Some(o), "PANEL_AYAR", &describe(k, old, new));
+            if *k == "main.isletme_turu" {
+                // ayrı olay: tür seçimi (spec §1); hiç seçilmemişse eski=secilmemis
+                let eski = if old.is_empty() { "secilmemis" } else { old.as_str() };
+                self.audit(&cfg, req, Some(o), "PANEL_ISLETME_TURU", &format!("eski={eski} yeni={new}"));
+            } else {
+                self.audit(&cfg, req, Some(o), "PANEL_AYAR", &describe(k, old, new));
+            }
         }
         if changes.iter().any(|(k, _, _)| k.starts_with("uzak.")) {
             // tünel ayrı işte kurulur (/etc/wireguard panelden yazılamaz; sunucu adı çözülürken panel beklemesin)
@@ -2156,7 +2213,7 @@ mod tests {
         let s = e.p.handle(&req("GET", "/cihazlar", &[], Some(&tok))).body;
         let r = satir_of(&s, "Ayşe");
         assert!(r.contains("<td>38,4</td>") && r.contains("<td>2,1</td>") && r.contains("<td>4.820</td>"), "{r}");
-        let basliklar = ["Durum", "Telefon", "Ad soyad", "MAC", "IP", "↓ İndirme Mb/sn", "↑ Yükleme Mb/sn", "Bugün MB", "Başlangıç", "Kalan", "Yavaşlat", ""];
+        let basliklar = ["Durum", "Telefon / Kimlik", "Ad soyad", "MAC", "IP", "↓ İndirme Mb/sn", "↑ Yükleme Mb/sn", "Bugün MB", "Başlangıç", "Kalan", "Yavaşlat", ""];
         let thead: String = basliklar.iter().map(|b| format!("<th>{}</th>", h(b))).collect();
         assert!(s.contains(&thead), "başlıklar");
         assert_eq!((mbps(0), mbps(38_449_999), mbps(1_250_000_000)), ("0,0".into(), "38,4".into(), "1250,0".into()));
@@ -2464,6 +2521,107 @@ mod tests {
     }
 
     #[test]
+    fn tur_secilmemisse_ozet_uyarisi() {
+        let e = env();
+        let (tok, csrf) = setup_and_login(&e, "mudur", "sahip-parola-12");
+        let uyari = "İşletme türünüzü seçin";
+        let ozet = e.p.handle(&req("GET", "/", &[], Some(&tok))).body;
+        assert!(ozet.contains(uyari) && ozet.contains("href=\"/ayarlar#main-isletme_turu\""));
+        let page = e.p.handle(&req("GET", "/ayarlar", &[], Some(&tok))).body;
+        assert!(page.contains("name=\"main.isletme_turu\"") && page.contains("<option value=\"\" selected>— Seçin —</option>"));
+        // başka ayarı kaydetmek (tür "Seçin"de) türü kendiliğinden yazmaz
+        let r = e.p.handle(&req("POST", "/ayarlar", &[("csrf", &csrf), ("main.isletme_turu", ""), ("main.session_minutes", "1440")], Some(&tok)));
+        assert_eq!(r.status, 303);
+        let c = Config::load(&e.p.cfg_path).unwrap();
+        assert_eq!((c.main.session_minutes, c.main.isletme_turu.as_deref()), (1440, None));
+        assert!(!std::fs::read_to_string(&e.p.cfg_path).unwrap().contains("isletme_turu"));
+        assert!(e.p.handle(&req("GET", "/", &[], Some(&tok))).body.contains(uyari));
+        // geçersiz tür reddedilir
+        let r = e.p.handle(&req("POST", "/ayarlar", &[("csrf", &csrf), ("main.isletme_turu", "otel'")], Some(&tok)));
+        assert!(r.status == 200 && r.body.contains("Geçersiz seçim"));
+        // kafe seçilince (varsayılanla aynı olsa da) uyarı kalkar
+        e.p.handle(&req("POST", "/ayarlar", &[("csrf", &csrf), ("main.isletme_turu", "kafe")], Some(&tok)));
+        assert_eq!(Config::load(&e.p.cfg_path).unwrap().main.isletme_turu.as_deref(), Some("kafe"));
+        assert!(!e.p.handle(&req("GET", "/", &[], Some(&tok))).body.contains(uyari));
+        assert!(e.p.handle(&req("GET", "/ayarlar", &[], Some(&tok))).body.contains("<option value=\"kafe\" selected>Kafe/Restoran</option>"));
+        assert!(denetim_satirlari(&e, "PANEL_ISLETME_TURU")[0].contains("eski=secilmemis yeni=kafe"));
+    }
+
+    #[test]
+    fn taninmayan_tur_secilmemis_sayilir() {
+        let e = env();
+        let (tok, csrf) = setup_and_login(&e, "mudur", "sahip-parola-12");
+        let mut c = Config::load(&e.p.cfg_path).unwrap();
+        c.main.isletme_turu = Some("x".into()); // elle bozulmuş değer
+        c.save(&e.p.cfg_path).unwrap();
+        assert_eq!(crate::ayar::isletme_turu(&c), "kafe"); // davranış kafe
+        assert!(e.p.handle(&req("GET", "/", &[], Some(&tok))).body.contains("İşletme türünüzü seçin"));
+        assert!(e.p.handle(&req("GET", "/ayarlar", &[], Some(&tok))).body.contains("<option value=\"\" selected>— Seçin —</option>"));
+        e.p.handle(&req("POST", "/ayarlar", &[("csrf", &csrf), ("main.isletme_turu", "otel")], Some(&tok)));
+        assert_eq!(Config::load(&e.p.cfg_path).unwrap().main.isletme_turu.as_deref(), Some("otel"));
+        assert!(denetim_satirlari(&e, "PANEL_ISLETME_TURU")[0].contains("eski=secilmemis yeni=otel"));
+        assert!(!e.p.handle(&req("GET", "/", &[], Some(&tok))).body.contains("İşletme türünüzü seçin"));
+    }
+
+    #[test]
+    fn tur_degisimi_denetime() {
+        let e = env();
+        let (tok, csrf) = setup_and_login(&e, "mudur", "sahip-parola-12");
+        e.p.handle(&req("POST", "/ayarlar", &[("csrf", &csrf), ("main.isletme_turu", "kafe")], Some(&tok)));
+        e.p.handle(&req("POST", "/ayarlar", &[("csrf", &csrf), ("main.isletme_turu", "otel")], Some(&tok)));
+        let satirlar = denetim_satirlari(&e, "PANEL_ISLETME_TURU");
+        assert_eq!(satirlar.len(), 2);
+        assert!(satirlar[1].contains("eski=kafe yeni=otel") && satirlar[1].contains("kullanici="), "{}", satirlar[1]);
+        // tür değişimi ayrıca PANEL_AYAR olarak yazılmaz
+        assert!(!denetim_satirlari(&e, "PANEL_AYAR").iter().any(|l| l.contains("isletme_turu")));
+        assert_eq!(crate::ayar::isletme_turu(&Config::load(&e.p.cfg_path).unwrap()), "otel");
+    }
+
+    #[test]
+    fn misafir_kodu_yalniz_otel_yurtta_gorunur() {
+        let e = env();
+        let (tok, csrf) = setup_and_login(&e, "mudur", "sahip-parola-12");
+        let ayarlar = || e.p.handle(&req("GET", "/ayarlar", &[], Some(&tok))).body;
+        let kutu = "name=\"giris.misafir_kodu\"";
+        // seçilmemiş (kafe gibi): yalnızca SMS bilgi satırı
+        let page = ayarlar();
+        assert!(page.contains("Giriş yöntemleri") && page.contains("SMS: <b>her zaman açık</b>") && !page.contains(kutu));
+        // türde görünmeyen kutu elle gönderilse de yok sayılır
+        e.p.handle(&req("POST", "/ayarlar", &[("csrf", &csrf), ("giris.misafir_kodu", "1"), ("main.session_minutes", "1440")], Some(&tok)));
+        assert!(!Config::load(&e.p.cfg_path).unwrap().giris.misafir_kodu);
+        for (tur, gorunur) in [("kafe", false), ("diger", false), ("yurt", true), ("otel", true)] {
+            e.p.handle(&req("POST", "/ayarlar", &[("csrf", &csrf), ("main.isletme_turu", tur)], Some(&tok)));
+            assert_eq!(ayarlar().contains(kutu), gorunur, "{tur}");
+        }
+        e.p.handle(&req("POST", "/ayarlar", &[("csrf", &csrf), ("main.isletme_turu", "otel"), ("giris.misafir_kodu", "1")], Some(&tok)));
+        let c = Config::load(&e.p.cfg_path).unwrap();
+        assert!(c.giris.misafir_kodu && crate::ayar::misafir_kodu_acik(&c));
+        assert!(ayarlar().contains("value=\"1\" checked> Misafir kodu"));
+        // kutu işaretsiz gönderilirse kapanır
+        e.p.handle(&req("POST", "/ayarlar", &[("csrf", &csrf), ("main.isletme_turu", "otel")], Some(&tok)));
+        assert!(!Config::load(&e.p.cfg_path).unwrap().giris.misafir_kodu);
+    }
+
+    #[test]
+    fn turden_cikinca_misafir_kodu_kapanir() {
+        let e = env();
+        let (tok, csrf) = setup_and_login(&e, "mudur", "sahip-parola-12");
+        e.p.handle(&req("POST", "/ayarlar", &[("csrf", &csrf), ("main.isletme_turu", "yurt")], Some(&tok)));
+        e.p.handle(&req("POST", "/ayarlar", &[("csrf", &csrf), ("main.isletme_turu", "yurt"), ("giris.misafir_kodu", "1")], Some(&tok)));
+        assert!(crate::ayar::misafir_kodu_acik(&Config::load(&e.p.cfg_path).unwrap()));
+        // aynı kayıtta tür kafe'ye çekilir, kutu işaretli gelse de misafir kodu kapanır
+        let r = e.p.handle(&req("POST", "/ayarlar", &[("csrf", &csrf), ("main.isletme_turu", "kafe"), ("giris.misafir_kodu", "1")], Some(&tok)));
+        assert_eq!(r.status, 303);
+        let c = Config::load(&e.p.cfg_path).unwrap();
+        assert_eq!((c.main.isletme_turu.as_deref(), c.giris.misafir_kodu), (Some("kafe"), false));
+        let ayar = denetim_satirlari(&e, "PANEL_AYAR");
+        assert!(ayar.last().is_some_and(|l| l.contains("giris.misafir_kodu: 1 → 0")), "{ayar:?}");
+        // yeniden otel: kod kendiliğinden açılmaz
+        e.p.handle(&req("POST", "/ayarlar", &[("csrf", &csrf), ("main.isletme_turu", "otel")], Some(&tok)));
+        assert!(!crate::ayar::misafir_kodu_acik(&Config::load(&e.p.cfg_path).unwrap()));
+    }
+
+    #[test]
     fn provider_sets_secrets_write_only_and_validates() {
         let e = env();
         let (tok, csrf) = setup_and_login(&e, "admin", "hizmet-parola-1");
@@ -2587,7 +2745,7 @@ mod tests {
         assert!(page.contains("2026-09-29") && page.contains("açık") && page.contains("mühürlü"));
         let page = e.p.handle(&get("/kayitlar/gun", &[("gun", d)], &tok)).body;
         assert!(page.contains("dns.csv.gz") && page.contains("Ayşe Yılmaz")); // kişi dosyasının sahibi
-        let page = e.p.handle(&get("/kayitlar/dosya", &[("gun", d), ("dosya", "dns.csv.gz"), ("q", "ORNEK")], &tok)).body;
+        let page = e.p.handle(&req("POST", "/kayitlar/dosya", &[("csrf", &csrf), ("gun", d), ("dosya", "dns.csv.gz"), ("q", "ORNEK")], Some(&tok))).body;
         assert!(page.contains("www.ornek.com") && !page.contains("haber.example") && page.contains("1 satır"));
         for bad in ["../../zincir.txt", "../2026-09-29/dhcp.csv", "MANIFEST.sha256"] {
             assert_eq!(e.p.handle(&get("/kayitlar/indir", &[("gun", d), ("dosya", bad)], &tok)).status, 404, "{bad}");
@@ -2600,15 +2758,26 @@ mod tests {
         let r = e.p.handle(&get("/kayitlar/gun-indir", &[("gun", d)], &tok));
         assert!(r.file.is_some() && r.headers.iter().any(|(_, v)| v.contains("kayit_2026-09-27.tar")));
 
-        let page = e.p.handle(&get("/kullanicilar", &[("q", "ayşe")], &tok)).body;
+        let page = e.p.handle(&req("POST", "/kullanicilar", &[("csrf", &csrf), ("q", "ayşe")], Some(&tok))).body;
         assert!(page.contains("+905334553132") && page.contains("1 kişi"));
-        let page = e.p.handle(&get("/kullanici", &[("tel", "905334553132")], &tok)).body;
-        assert!(page.contains("OTURUM_BASLA") && page.contains("2026-09-27"));
-        assert_eq!(e.p.handle(&get("/kullanici", &[("tel", "../x")], &tok)).status, 404);
+        let k = crate::kimlik::opak(&crate::kimlik::sir_oku_ya_uret(&cfg.main.state_root), "905334553132");
+        assert!(page.contains(&format!("href=\"/kullanici?k={k}\"")));
+        let page = e.p.handle(&get("/kullanici", &[("k", &k)], &tok)).body;
+        assert!(page.contains("OTURUM_BASLA") && page.contains("2026-09-27") && page.contains("905334553132"));
+        for bad in ["../x", "905334553132", "0000000000000000"] {
+            assert_eq!(e.p.handle(&get("/kullanici", &[("k", bad)], &tok)).status, 404, "{bad}");
+        }
 
-        let page = e.p.handle(&get("/talep", &[("tur", "ic-ip"), ("deger", "10.50.0.23"), ("zaman", "2026-09-27 11:00")], &tok)).body;
+        let talep = |f: &[(&str, &str)]| {
+            let mut v = vec![("csrf", csrf.as_str())];
+            v.extend_from_slice(f);
+            e.p.handle(&req("POST", "/talep", &v, Some(&tok))).body
+        };
+        let page = talep(&[("tur", "ic-ip"), ("deger", "10.50.0.23"), ("zaman", "2026-09-27 11:00")]);
         assert!(page.contains("O anda açık oturum") && page.contains("905334553132"));
-        let page = e.p.handle(&get("/talep", &[("tur", "ic-ip"), ("deger", "10.50.0.23"), ("zaman", "dün")], &tok)).body;
+        // GET adreste değer taşımaz: arama yapmaz
+        assert!(!e.p.handle(&get("/talep", &[("tur", "ic-ip"), ("deger", "10.50.0.23"), ("zaman", "2026-09-27 11:00")], &tok)).body.contains("O anda açık oturum"));
+        let page = talep(&[("tur", "ic-ip"), ("deger", "10.50.0.23"), ("zaman", "dün")]);
         assert!(page.contains("Zaman geçersiz"));
         let r = e.p.handle(&get("/talep/paket", &[("bas", "2026-09-27"), ("bit", "2026-09-29")], &tok));
         assert!(r.file.is_some());
@@ -2713,7 +2882,7 @@ mod tests {
         give_reason(&e, &tok, &csrf);
         e.p.handle(&get("/oturumlar", &[], &tok));
         e.p.handle(&get("/kullanicilar", &[], &tok));
-        e.p.handle(&get("/kullanicilar", &[("q", "ayşe")], &tok));
+        e.p.handle(&req("POST", "/kullanicilar", &[("csrf", &csrf), ("q", "ayşe")], Some(&tok)));
         assert!(e.p.handle(&get("/kullanicilar", &[], &tok)).body.contains("hizmet sağlayıcı tarafından denetlenir"));
         let r = e.p.handle(&get("/panel-hareketleri", &[], &tok)); // sahip kendi izini admin parolası olmadan göremez/silemez
         assert!(r.body.contains("action=\"/admin-kilidi\"") && !r.body.contains("Bağlı kullanıcılara baktı"));
@@ -2738,20 +2907,23 @@ mod tests {
     fn owner_must_give_reason_before_personal_data() {
         let e = env();
         let (tok, csrf) = setup_and_login(&e, "mudur", "sahip-parola-12");
-        let r = e.p.handle(&get("/kullanicilar", &[("q", "ayşe")], &tok));
-        assert!(r.body.contains("Gerekçe gerekli") && r.body.contains("value=\"/kullanicilar?q=ay%C5%9Fe\"")); // dönüş adresi korunur
-        assert!(e.p.handle(&get("/kullanici", &[("tel", "905334553132")], &tok)).body.contains("Gerekçe gerekli"));
+        let r = e.p.handle(&get("/kayitlar/gun", &[("gun", "2026-09-29")], &tok));
+        assert!(r.body.contains("Gerekçe gerekli") && r.body.contains("value=\"/kayitlar/gun?gun=2026-09-29\"")); // dönüş adresi korunur
+        let r = e.p.handle(&req("POST", "/kullanicilar", &[("csrf", &csrf), ("q", "ayşe")], Some(&tok)));
+        assert!(r.body.contains("Gerekçe gerekli") && r.body.contains("value=\"/kullanicilar\"")); // aranan değer dönüş adresine girmez
+        assert!(e.p.handle(&get("/kullanici", &[("k", "0123456789abcdef")], &tok)).body.contains("Gerekçe gerekli"));
         assert!(!e.p.handle(&get("/talep", &[], &tok)).body.contains("Gerekçe gerekli")); // boş talep formu açılır
-        assert!(e.p.handle(&get("/talep", &[("tur", "telefon"), ("deger", "05334553132")], &tok)).body.contains("Gerekçe gerekli"));
+        let r = e.p.handle(&req("POST", "/talep", &[("csrf", &csrf), ("tur", "tc"), ("deger", "10000000146")], Some(&tok)));
+        assert!(r.body.contains("Gerekçe gerekli") && !r.body.contains("10000000146"));
         assert!(!e.p.handle(&get("/oturumlar", &[], &tok)).body.contains("Gerekçe gerekli")); // bağlı cihazlar gerekçesiz
         // kısa gerekçe olmaz; başka siteye dönüş olmaz
         let r = e.p.handle(&req("POST", "/gerekce", &[("csrf", &csrf), ("gerekce", "bakıyorum"), ("donus", "/kullanicilar")], Some(&tok)));
         assert!(r.body.contains("10-200 karakter"));
         let r = e.p.handle(&req("POST", "/gerekce", &[("csrf", &csrf), ("gerekce", "Emniyet / savcılık talebi"), ("donus", "//kotu.example/x")], Some(&tok)));
         assert_eq!(loc(&r), "/");
-        let r = e.p.handle(&req("POST", "/gerekce", &[("csrf", &csrf), ("gerekce", "Emniyet / savcılık talebi"), ("donus", "/kullanicilar?q=ay%C5%9Fe")], Some(&tok)));
-        assert_eq!(loc(&r), "/kullanicilar?q=ay%C5%9Fe");
-        assert!(!e.p.handle(&get("/kullanicilar", &[("q", "ayşe")], &tok)).body.contains("Gerekçe gerekli"));
+        let r = e.p.handle(&req("POST", "/gerekce", &[("csrf", &csrf), ("gerekce", "Emniyet / savcılık talebi"), ("donus", "/kullanicilar")], Some(&tok)));
+        assert_eq!(loc(&r), "/kayitlar#kullanicilar"); // eski yol grup sayfasındaki bölüme gider
+        assert!(!e.p.handle(&req("POST", "/kullanicilar", &[("csrf", &csrf), ("q", "ayşe")], Some(&tok))).body.contains("Gerekçe gerekli"));
         let audit = std::fs::read_to_string(e.root.join("5651/gunluk/2026-09-29/denetim.csv")).unwrap();
         assert!(audit.contains("PANEL_GEREKCE") && audit.contains("ara=ayşe gerekce=Emniyet / savcılık talebi")); // her bakışa eklenir
         // süre dolunca yeniden sorulur
@@ -2776,6 +2948,24 @@ mod tests {
         assert!(e.calls.lock().unwrap().iter().any(|c| c.join(" ") == "systemctl restart wificorrect-portal"));
         let audit = std::fs::read_to_string(e.root.join("5651/gunluk/2026-09-29/denetim.csv")).unwrap();
         assert!(audit.contains("PANEL_PORTAL_METIN") && audit.contains("aydinlatma(41 karakter)") && audit.contains("acik_riza(10 karakter)"));
+    }
+
+    #[test]
+    fn portal_metinleri_ingilizce_alanlar() {
+        let e = env();
+        let (tok, csrf) = setup_and_login(&e, "mudur", "sahip-parola-12");
+        let page = e.p.handle(&get("/portal-metinleri", &[], &tok)).body;
+        assert!(page.contains("KVKK Aydınlatma Metni (İngilizce)") && page.contains("name=\"acik_riza_en\"") && page.contains("name=\"sozlesme_en\""));
+        let c0 = Config::load(&e.p.cfg_path).unwrap();
+        let (a, r, s) = (c0.portal.aydinlatma.clone(), c0.portal.acik_riza.clone(), c0.portal.sozlesme.clone());
+        let f = [("csrf", csrf.as_str()), ("aydinlatma", a.as_str()), ("acik_riza", r.as_str()), ("sozlesme", s.as_str()), ("aydinlatma_en", "Data controller: <X>"), ("acik_riza_en", "I consent"), ("sozlesme_en", "")];
+        assert!(!loc(&e.p.handle(&req("POST", "/portal-metinleri", &f, Some(&tok)))).contains("e=1"));
+        let c = Config::load(&e.p.cfg_path).unwrap();
+        assert_eq!((c.portal.aydinlatma_en.as_str(), c.portal.acik_riza_en.as_str(), c.portal.sozlesme_en.as_str()), ("Data controller: <X>", "I consent", ""));
+        assert_eq!(c.portal.aydinlatma, a); // Türkçeler değişmedi
+        assert!(e.p.handle(&get("/portal-metinleri", &[], &tok)).body.contains("Data controller: &lt;X&gt;"));
+        let audit = std::fs::read_to_string(e.root.join("5651/gunluk/2026-09-29/denetim.csv")).unwrap();
+        assert!(audit.contains("PANEL_PORTAL_METIN") && audit.contains("aydinlatma_en(20 karakter) acik_riza_en(9 karakter)") && !audit.contains("sozlesme_en("));
     }
 
     #[test]
@@ -3132,5 +3322,606 @@ mod tests {
         crate::trafik::yaz(&e.p.trafik_path, &d).unwrap();
         let s = e.p.handle(&get("/cihazlar", &[], &tok)).body;
         assert!(!bolum_of(&s, "oturumlar").contains("mesaj hata")); // eski ölçüm: tablo da ölçüm göstermez
+    }
+
+    // --- misafir kodları
+
+    const TC1: &str = "10000000146";
+    const TC2: &str = "11111111110";
+    const MISAFIR_MAC: &str = "aa:bb:cc:dd:ee:07";
+
+    /// İşletme türü ve misafir kodu ayarı (doğrudan ayar dosyasına)
+    fn misafir_ac(e: &Env, tur: &str, acik: bool) {
+        let mut c = Config::load(&e.p.cfg_path).unwrap();
+        c.main.isletme_turu = Some(tur.into());
+        c.giris.misafir_kodu = acik;
+        c.save(&e.p.cfg_path).unwrap();
+    }
+
+    fn kodlar(e: &Env) -> Vec<crate::misafir::Kod> {
+        crate::misafir::oku(&Config::load(&e.p.cfg_path).unwrap().main.state_root)
+    }
+
+    fn uret_tc(e: &Env, tok: &str, csrf: &str, tc: &str, oda: &str, sure: &str) -> Resp {
+        e.p.handle(&req("POST", "/misafir-kodlari/uret",
+            &[("csrf", csrf), ("ad", "Ali"), ("soyad", "Veli"), ("tur", "tc"), ("tc", tc), ("oda", oda), ("sure", sure)], Some(tok)))
+    }
+
+    /// Kişi anahtarıyla açık misafir oturumu (portalın açacağı gibi)
+    fn misafir_oturumu(e: &Env, mac: &str, anahtar: &str, ip: &str, bitis: f64) {
+        let state = Config::load(&e.p.cfg_path).unwrap().main.state_root;
+        let mut ses = ortak::load_sessions(&state);
+        ses.insert(mac.into(), ortak::Session {
+            phone: anahtar.into(), ad: "Ali".into(), soyad: "Veli".into(), ip: ip.into(), session_id: format!("s-{mac}"),
+            start: "2026-09-29T21:00:00+03:00".into(), start_epoch: 1_790_705_000.0, expires_epoch: bitis,
+        });
+        ortak::save_sessions(&state, &ses).unwrap();
+    }
+
+    fn oturumlar_of(e: &Env) -> ortak::Sessions {
+        ortak::load_sessions(&Config::load(&e.p.cfg_path).unwrap().main.state_root)
+    }
+
+    #[test]
+    fn misafir_kodu_kapaliyken_404() {
+        let e = env();
+        let (tok, csrf) = setup_and_login(&e, "mudur", "sahip-parola-12");
+        let yollar = |e: &Env| {
+            [
+                e.p.handle(&get("/misafir-kodlari", &[], &tok)).status,
+                uret_tc(e, &tok, &csrf, TC1, "101", "24").status,
+                e.p.handle(&req("POST", "/misafir-kodlari/iptal", &[("csrf", &csrf), ("id", "x")], Some(&tok))).status,
+                e.p.handle(&req("POST", "/misafir-kodlari/uzat", &[("csrf", &csrf), ("id", "x"), ("sure", "24")], Some(&tok))).status,
+                e.p.handle(&get("/misafir-kodlari/fis", &[("id", "x")], &tok)).status,
+            ]
+        };
+        for (tur, acik) in [("otel", false), ("kafe", true), ("diger", true)] {
+            misafir_ac(&e, tur, acik);
+            assert_eq!(yollar(&e), [404; 5], "{tur} {acik}");
+            assert!(!e.p.handle(&get("/", &[], &tok)).body.contains("href=\"/misafir-kodlari\""));
+        }
+        assert!(kodlar(&e).is_empty());
+        misafir_ac(&e, "yurt", true);
+        let ozet = e.p.handle(&get("/", &[], &tok)).body;
+        assert_eq!(menu_linkleri(&ozet), ["/", "/cihazlar", "/misafir-kodlari", "/kayitlar", "/ayarlar", "/admin"]);
+        let s = e.p.handle(&get("/misafir-kodlari", &[], &tok));
+        assert_eq!(s.status, 200);
+        assert!(s.body.contains("href=\"/misafir-kodlari\" class=\"aktif\"") && s.body.contains("Kod üret") && s.body.contains("Aktif kod yok"));
+        assert_eq!(e.p.handle(&get("/misafir-kodlari/yok", &[], &tok)).status, 404);
+    }
+
+    #[test]
+    fn kod_uret_tc_ve_pasaport() {
+        let e = env();
+        let (tok, csrf) = setup_and_login(&e, "mudur", "sahip-parola-12");
+        misafir_ac(&e, "otel", true);
+        // geçersiz TC: 400, form geri dolar, hiçbir şey yazılmaz
+        let r = uret_tc(&e, &tok, &csrf, "10000000145", "101", "24");
+        assert_eq!(r.status, 400);
+        assert!(r.body.contains("T.C. kimlik numarası geçersiz.") && r.body.contains("value=\"Ali\""));
+        assert!(kodlar(&e).is_empty());
+        for (alan, deger, hata) in [("oda", "1 01", "Oda numarası 1-10"), ("oda", "", "Oda numarası 1-10"), ("sure", "25", "Geçerlilik süresini seçin"), ("ad", "A", "Ad 2-40")] {
+            let mut f = vec![("csrf", csrf.as_str()), ("ad", "Ali"), ("soyad", "Veli"), ("tur", "tc"), ("tc", TC1), ("oda", "101"), ("sure", "24")];
+            f.retain(|(k, _)| *k != alan);
+            f.push((alan, deger));
+            let r = e.p.handle(&req("POST", "/misafir-kodlari/uret", &f, Some(&tok)));
+            assert!(r.status == 400 && r.body.contains(hata), "{alan}={deger}");
+        }
+        assert!(kodlar(&e).is_empty());
+        // geçerli TC (boşluklu yazım da)
+        let r = uret_tc(&e, &tok, &csrf, " 1000000014 6", "101", "48");
+        assert_eq!(r.status, 303);
+        let k = kodlar(&e);
+        assert_eq!(k.len(), 1);
+        assert_eq!((k[0].kimlik.as_str(), k[0].oda.as_str(), k[0].ad.as_str(), k[0].ureten.as_str()), ("TC:10000000146", "101", "Ali", MUSTERI));
+        assert_eq!(k[0].bitis, 1_790_705_134.0 + 48.0 * 3600.0);
+        assert!(loc(&r).starts_with(&format!("/misafir-kodlari/fis?id={}&m=", k[0].kod_id)), "{}", loc(&r));
+        // pasaport: geçersiz uyruk ve numara reddedilir; geçerlisi büyük harfe çevrilir
+        let pas = |no: &str, uyruk: &str| {
+            e.p.handle(&req("POST", "/misafir-kodlari/uret",
+                &[("csrf", &csrf), ("ad", "John"), ("soyad", "Smith"), ("tur", "pasaport"), ("pasaport", no), ("uyruk", uyruk), ("oda", "A-12"), ("sure", "168")], Some(&tok)))
+        };
+        let r = pas("x1234567", "ZZ");
+        assert!(r.status == 400 && r.body.contains("Uyruğu seçin."));
+        let r = pas("x12", "DE");
+        assert!(r.status == 400 && r.body.contains("Pasaport numarası"));
+        assert_eq!(kodlar(&e).len(), 1);
+        assert_eq!(pas("x1234567", "DE").status, 303);
+        let k = kodlar(&e);
+        assert_eq!((k[1].kimlik.as_str(), k[1].oda.as_str()), ("PASAPORT:DE:X1234567", "A-12"));
+        // tür seçilmemiş
+        let r = e.p.handle(&req("POST", "/misafir-kodlari/uret", &[("csrf", &csrf), ("ad", "Ali"), ("soyad", "Veli"), ("oda", "1"), ("sure", "24")], Some(&tok)));
+        assert!(r.status == 400 && r.body.contains("Kimlik türünü seçin"));
+        // CSRF'siz üretilmez
+        let r = e.p.handle(&req("POST", "/misafir-kodlari/uret", &[("ad", "Ali"), ("soyad", "Veli"), ("tur", "tc"), ("tc", TC2), ("oda", "1"), ("sure", "24")], Some(&tok)));
+        assert_eq!(r.status, 403);
+        assert_eq!(kodlar(&e).len(), 2);
+    }
+
+    #[test]
+    fn liste_maskeli_ve_url_de_kimlik_yok() {
+        let e = env();
+        let (tok, csrf) = setup_and_login(&e, "mudur", "sahip-parola-12");
+        misafir_ac(&e, "otel", true);
+        let r1 = uret_tc(&e, &tok, &csrf, TC1, "101", "24");
+        let r2 = e.p.handle(&req("POST", "/misafir-kodlari/uret",
+            &[("csrf", &csrf), ("ad", "John"), ("soyad", "Smith"), ("tur", "pasaport"), ("pasaport", "X1234567"), ("uyruk", "DE"), ("oda", "202"), ("sure", "72")], Some(&tok)));
+        for r in [&r1, &r2] {
+            assert!(!loc(r).contains(TC1) && !loc(r).contains("X1234567"), "{}", loc(r));
+        }
+        let k = kodlar(&e);
+        let s = e.p.handle(&get("/misafir-kodlari", &[], &tok)).body;
+        assert!(s.contains("<code>100******46</code>") && s.contains("<code>DE X12***67</code>"), "maskeli");
+        assert!(s.contains("Ali Veli") && s.contains("John Smith") && s.contains("T.C.") && s.contains("Yabancı"));
+        assert!(!s.contains(TC1) && !s.contains("X1234567"), "tam kimlik sayfada yok");
+        for c in &k {
+            assert!(!s.contains(&format!(">{}<", c.kod)), "kod listede görünmez");
+            assert!(s.contains(&format!("href=\"/misafir-kodlari/fis?id={}\"", c.kod_id)));
+        }
+        // bütün adresler (bağlantı ve form hedefi) yalnızca kod_id taşır
+        for parca in s.split("href=\"").skip(1).chain(s.split("action=\"").skip(1)) {
+            let adres = parca.split('"').next().unwrap();
+            assert!(!adres.contains(TC1) && !adres.contains("X1234567") && k.iter().all(|c| !adres.contains(&c.kod)), "{adres}");
+        }
+        // bakış kişisel veri olarak denetimde; Panel hareketleri etiketi
+        assert!(!denetim_satirlari(&e, "PANEL_MISAFIR_KODLARI").is_empty());
+        assert!(hareketler::olay_adi("PANEL_MISAFIR_KODLARI").contains("Misafir kodlarına baktı"));
+        assert!(hareketler::olay_adi("PANEL_MISAFIR_KODU").contains("üret/iptal/uzat"));
+    }
+
+    #[test]
+    fn iptal_oturumu_kapatir() {
+        let e = env();
+        let (tok, csrf) = setup_and_login(&e, "mudur", "sahip-parola-12");
+        misafir_ac(&e, "otel", true);
+        uret_tc(&e, &tok, &csrf, TC1, "101", "24");
+        let k = kodlar(&e)[0].clone();
+        misafir_oturumu(&e, MISAFIR_MAC, "TC:10000000146", "10.50.0.31", k.bitis);
+        misafir_oturumu(&e, AYSE, "905334553132", "10.50.0.23", 9e9); // başkası: dokunulmaz
+        let r = e.p.handle(&req("POST", "/misafir-kodlari/iptal", &[("csrf", &csrf), ("id", &k.kod_id)], Some(&tok)));
+        assert!(loc(&r).starts_with("/misafir-kodlari?m=") && !loc(&r).contains("e=1"), "{}", loc(&r));
+        assert!(kodlar(&e)[0].iptal);
+        let ses = oturumlar_of(&e);
+        assert!(!ses.contains_key(MISAFIR_MAC) && ses.contains_key(AYSE));
+        let calls: Vec<String> = e.calls.lock().unwrap().iter().map(|c| c.join(" ")).collect();
+        assert!(calls.contains(&format!("nft delete element inet hotspot auth {{ {MISAFIR_MAC} . 10.50.0.31 }}")), "{calls:?}");
+        assert!(calls.contains(&"conntrack -D -s 10.50.0.31".to_string()));
+        let oturum = std::fs::read_to_string(e.root.join("5651/gunluk/2026-09-29/oturum.csv")).unwrap();
+        assert!(oturum.lines().any(|l| l.contains("OTURUM_BITIS") && l.contains("TC:10000000146") && l.contains("neden=kod_iptal")), "{oturum}");
+        // listeden düştü; ikinci iptal hata
+        assert!(e.p.handle(&get("/misafir-kodlari", &[], &tok)).body.contains("Aktif kod yok"));
+        let r = e.p.handle(&req("POST", "/misafir-kodlari/iptal", &[("csrf", &csrf), ("id", &k.kod_id)], Some(&tok)));
+        assert!(loc(&r).contains("e=1"));
+        assert_eq!(denetim_satirlari(&e, "PANEL_MISAFIR_KODU").iter().filter(|l| l.contains("islem=iptal")).count(), 1);
+    }
+
+    #[test]
+    fn uzatma_oturumu_uzatir() {
+        let e = env();
+        let (tok, csrf) = setup_and_login(&e, "mudur", "sahip-parola-12");
+        misafir_ac(&e, "otel", true);
+        uret_tc(&e, &tok, &csrf, TC1, "101", "24");
+        let k = kodlar(&e)[0].clone();
+        misafir_oturumu(&e, MISAFIR_MAC, "TC:10000000146", "10.50.0.31", k.bitis);
+        misafir_oturumu(&e, "aa:bb:cc:dd:ee:08", "TC:10000000146", "", k.bitis); // IP'siz bekleyen
+        e.calls.lock().unwrap().clear();
+        let r = e.p.handle(&req("POST", "/misafir-kodlari/uzat", &[("csrf", &csrf), ("id", &k.kod_id), ("sure", "48")], Some(&tok)));
+        assert!(loc(&r).starts_with("/misafir-kodlari?m=") && !loc(&r).contains("e=1"), "{}", loc(&r));
+        let yeni = 1_790_705_134.0 + 72.0 * 3600.0;
+        assert_eq!(kodlar(&e)[0].bitis, yeni);
+        let ses = oturumlar_of(&e);
+        assert_eq!(ses[MISAFIR_MAC].expires_epoch, yeni);
+        assert_eq!(ses["aa:bb:cc:dd:ee:08"].expires_epoch, yeni);
+        let calls: Vec<String> = e.calls.lock().unwrap().iter().map(|c| c.join(" ")).collect();
+        // sil + ekle tek nft çağrısında (tek işlem): arada öğesiz an yok
+        assert_eq!(calls, [format!(
+            "nft delete element inet hotspot auth {{ {MISAFIR_MAC} . 10.50.0.31 }} ; add element inet hotspot auth {{ {MISAFIR_MAC} . 10.50.0.31 timeout 259200s }}"
+        )]);
+        // geçersiz süre
+        let r = e.p.handle(&req("POST", "/misafir-kodlari/uzat", &[("csrf", &csrf), ("id", &k.kod_id), ("sure", "5")], Some(&tok)));
+        assert!(loc(&r).contains("e=1"));
+        assert_eq!(kodlar(&e)[0].bitis, yeni);
+        let d = denetim_satirlari(&e, "PANEL_MISAFIR_KODU");
+        assert!(d.iter().any(|l| l.contains("islem=uzat") && l.contains("sure=48") && l.contains("uzayan=2")), "{d:?}");
+        // her uzayan oturum için 5651 kaydı (resmi talep IP araması oturumu buradan da bulur)
+        let oturum = std::fs::read_to_string(e.root.join("5651/gunluk/2026-09-29/oturum.csv")).unwrap();
+        let uz: Vec<&str> = oturum.lines().filter(|l| l.contains(";OTURUM_UZATILDI;")).collect();
+        assert_eq!(uz.len(), 2, "{oturum}");
+        let beklenen = format!("yeni_bitis={} ureten={}", ortak::now_iso(yeni), kodlar(&e)[0].ureten); // kodu üreten hesapla aynı
+        assert!(uz.iter().all(|l| l.contains("TC:10000000146") && l.ends_with(&beklenen)), "{uz:?}");
+        assert!(uz.iter().any(|l| l.contains(MISAFIR_MAC) && l.contains("10.50.0.31")));
+    }
+
+    #[test]
+    fn uzatma_nft_hatasinda_oturum_degismez() {
+        let mut ses = ortak::Sessions::new();
+        ses.insert(MISAFIR_MAC.into(), ortak::Session {
+            phone: "TC:10000000146".into(), ad: "A".into(), soyad: "B".into(), ip: "10.50.0.31".into(), session_id: "s".into(),
+            start: String::new(), start_epoch: 0.0, expires_epoch: 2000.0,
+        });
+        let calls = Arc::new(Mutex::new(Vec::new()));
+        let c2 = calls.clone();
+        let runner = move |c: &[String]| {
+            c2.lock().unwrap().push(c.to_vec());
+            false // işlem reddedildi: nft hiçbirini uygulamaz, eski öğe yerinde
+        };
+        assert!(!ortak::oturum_uzat(&mut ses, MISAFIR_MAC, 10_000.0, 1000.0, &runner));
+        assert_eq!(ses[MISAFIR_MAC].expires_epoch, 2000.0);
+        let calls = calls.lock().unwrap().clone();
+        assert_eq!(calls.len(), 1, "tek çağrı, geri koyma yok: {calls:?}");
+        let c = &calls[0];
+        assert_eq!(c[0], "nft");
+        assert_eq!(c.iter().filter(|x| x.as_str() == "nft").count(), 1);
+        assert!(c.join(" ").ends_with(&format!("; add element inet hotspot auth {{ {MISAFIR_MAC} . 10.50.0.31 timeout 9000s }}")));
+        // geçersiz MAC/IP: hiçbir komut yok
+        assert!(ortak::nft_uzat_cmd("bozuk", "10.50.0.31", 10.0).is_none() && ortak::nft_uzat_cmd(MISAFIR_MAC, "1.2.3", 10.0).is_none());
+        assert!(ortak::oturum_uzat(&mut ses, MISAFIR_MAC, 5000.0, 1000.0, &|_: &[String]| true));
+        assert_eq!(ses[MISAFIR_MAC].expires_epoch, 5000.0);
+    }
+
+    /// sessions.json yazılamasın: geçici dosya yolu klasör (root için de açılamaz)
+    fn oturum_kaydini_boz(e: &Env) {
+        let state = Config::load(&e.p.cfg_path).unwrap().main.state_root;
+        std::fs::create_dir_all(std::path::Path::new(&state).join("sessions.tmp")).unwrap();
+    }
+
+    #[test]
+    fn oturum_kaydi_yazilamazsa_basari_denmez() {
+        let e = env();
+        let (tok, csrf) = setup_and_login(&e, "mudur", "sahip-parola-12");
+        misafir_ac(&e, "otel", true);
+        uret_tc(&e, &tok, &csrf, TC1, "101", "24");
+        uret_tc(&e, &tok, &csrf, TC2, "102", "24");
+        let k = kodlar(&e);
+        misafir_oturumu(&e, MISAFIR_MAC, "TC:10000000146", "10.50.0.31", k[0].bitis);
+        misafir_oturumu(&e, AYSE, "TC:11111111110", "10.50.0.23", k[1].bitis);
+        oturum_kaydini_boz(&e);
+        // uzatma: hata mesajı, denetimde hatali
+        let r = e.p.handle(&req("POST", "/misafir-kodlari/uzat", &[("csrf", &csrf), ("id", &k[1].kod_id), ("sure", "24")], Some(&tok)));
+        assert!(loc(&r).contains("e=1") && loc(&r).contains(&pct("Oturum kaydı yazılamadı")), "{}", loc(&r));
+        assert!(denetim_satirlari(&e, "PANEL_MISAFIR_KODU").last().unwrap().contains("uzayan=0 hatali=1"));
+        // iptal
+        let r = e.p.handle(&req("POST", "/misafir-kodlari/iptal", &[("csrf", &csrf), ("id", &k[0].kod_id)], Some(&tok)));
+        assert!(loc(&r).contains("e=1") && loc(&r).contains(&pct("Oturum kaydı yazılamadı; servisleri yeniden başlatın.")), "{}", loc(&r));
+        assert!(denetim_satirlari(&e, "PANEL_MISAFIR_KODU").last().unwrap().contains("kapanan=1 hatali=1"));
+        // aynı kimliğe yeni kod (eskisi iptal, oturum kapanır): yine hata
+        let r = uret_tc(&e, &tok, &csrf, TC2, "103", "24");
+        assert!(loc(&r).starts_with("/misafir-kodlari/fis?id=") && loc(&r).ends_with("&e=1"), "{}", loc(&r));
+        assert!(denetim_satirlari(&e, "PANEL_MISAFIR_KODU").last().unwrap().ends_with("hatali=1"));
+    }
+
+    #[test]
+    fn ayni_kimlik_yeni_kod_eskiyi_iptal_eder() {
+        let e = env();
+        let (tok, csrf) = setup_and_login(&e, "mudur", "sahip-parola-12");
+        misafir_ac(&e, "otel", true);
+        uret_tc(&e, &tok, &csrf, TC1, "101", "24");
+        uret_tc(&e, &tok, &csrf, TC2, "102", "24");
+        let ilk = kodlar(&e)[0].clone();
+        misafir_oturumu(&e, MISAFIR_MAC, "TC:10000000146", "10.50.0.31", ilk.bitis);
+        misafir_oturumu(&e, AYSE, "TC:11111111110", "10.50.0.23", ilk.bitis);
+        let r = uret_tc(&e, &tok, &csrf, TC1, "105", "48");
+        assert!(loc(&r).contains("&m=") && !loc(&r).contains("e=1"));
+        let k = kodlar(&e);
+        assert_eq!(k.len(), 3);
+        assert!(k[0].iptal && !k[1].iptal && !k[2].iptal && k[2].oda == "105");
+        let ses = oturumlar_of(&e);
+        assert!(!ses.contains_key(MISAFIR_MAC) && ses.contains_key(AYSE), "yalnızca aynı kimliğin oturumu kapanır");
+        let oturum = std::fs::read_to_string(e.root.join("5651/gunluk/2026-09-29/oturum.csv")).unwrap();
+        assert!(oturum.lines().any(|l| l.contains("TC:10000000146") && l.contains("neden=kod_iptal")));
+        let s = e.p.handle(&get("/misafir-kodlari", &[], &tok)).body;
+        assert_eq!(s.matches("<code>100******46</code>").count(), 1, "aynı kişinin tek aktif kodu");
+        let d = denetim_satirlari(&e, "PANEL_MISAFIR_KODU");
+        assert!(d.last().unwrap().contains(&format!("onceki_iptal={} kapanan=1", ilk.kod_id)), "{d:?}");
+    }
+
+    #[test]
+    fn denetimde_kod_ve_kimlik_yok() {
+        let e = env();
+        let (tok, csrf) = setup_and_login(&e, "mudur", "sahip-parola-12");
+        misafir_ac(&e, "otel", true);
+        uret_tc(&e, &tok, &csrf, TC1, "101", "24");
+        e.p.handle(&req("POST", "/misafir-kodlari/uret",
+            &[("csrf", &csrf), ("ad", "John"), ("soyad", "Smith"), ("tur", "pasaport"), ("pasaport", "X1234567"), ("uyruk", "DE"), ("oda", "202"), ("sure", "72")], Some(&tok)));
+        let k = kodlar(&e);
+        e.p.handle(&get("/misafir-kodlari/fis", &[("id", &k[0].kod_id)], &tok));
+        e.p.handle(&get("/misafir-kodlari", &[], &tok));
+        e.p.handle(&req("POST", "/misafir-kodlari/uzat", &[("csrf", &csrf), ("id", &k[0].kod_id), ("sure", "24")], Some(&tok)));
+        e.p.handle(&req("POST", "/misafir-kodlari/iptal", &[("csrf", &csrf), ("id", &k[1].kod_id)], Some(&tok)));
+        uret_tc(&e, &tok, &csrf, "10000000145", "101", "24"); // hatalı form da yazmaz
+        let denetim = std::fs::read_to_string(e.root.join("5651/gunluk/2026-09-29/denetim.csv")).unwrap();
+        let d = denetim_satirlari(&e, "PANEL_MISAFIR_KODU");
+        for islem in ["uret", "uzat", "iptal"] {
+            assert!(d.iter().any(|l| l.contains(&format!("islem={islem}"))), "{islem}");
+        }
+        assert!(d.iter().any(|l| l.contains("oda=101") && l.contains("tur=tc") && l.contains("bitis=2026-09-30T21:05:34+03:00")), "{d:?}");
+        assert!(d.iter().any(|l| l.contains("oda=202") && l.contains("tur=pasaport")));
+        assert!(!denetim.contains(TC1) && !denetim.contains("10000000145") && !denetim.contains("X1234567"), "{denetim}");
+        for c in &k {
+            // kod 6 hane: başka bir alanın parçası olabilir, ayrı bir değer olarak geçmemeli
+            assert!(!denetim.split([';', ' ', '=']).any(|t| t == c.kod), "kod denetimde: {denetim}");
+        }
+    }
+
+    #[test]
+    fn fis_bitis_ve_iki_dil() {
+        let e = env();
+        let (tok, csrf) = setup_and_login(&e, "mudur", "sahip-parola-12");
+        misafir_ac(&e, "otel", true);
+        let r = uret_tc(&e, &tok, &csrf, TC1, "101", "168");
+        assert!(loc(&r).starts_with("/misafir-kodlari/fis?id="));
+        let k = kodlar(&e)[0].clone();
+        let mut q = get("/misafir-kodlari/fis", &[("id", &k.kod_id)], &tok);
+        q.query.insert("m".into(), "Kod üretildi.".into());
+        let s = e.p.handle(&q);
+        assert_eq!(s.status, 200);
+        let b = &s.body;
+        assert!(b.contains(&format!("<div class=\"kod\">{}</div>", k.kod)), "kod büyük");
+        assert!(b.contains("<b>06.10.2026 21:05</b>"), "1 hafta sonrası, TR saati");
+        assert!(b.contains("Ali Veli") && b.contains("<b>101</b>") && b.contains("Bocafe Göztepe"));
+        assert!(b.contains("'Otel misafiriyim'e dokunun") && b.contains("tap 'Hotel guest'"));
+        assert!(b.contains("@media print") && b.contains("Yazdırmak için Ctrl+P") && b.contains("Kod üretildi."));
+        assert!(!b.contains(TC1) && !b.to_lowercase().contains("kupon"));
+        assert_eq!(misafir_sayfasi::tarih_saat(1_790_705_134.0), "29.09.2026 21:05");
+        // süresi dolmuş (iptal edilmemiş) kodun fişi açılır ama kod gösterilmez
+        let state = Config::load(&e.p.cfg_path).unwrap().main.state_root;
+        let mut dolmus = kodlar(&e);
+        dolmus[0].bitis = 1_790_705_000.0;
+        crate::misafir::kaydet(&state, &dolmus).unwrap();
+        let b = e.p.handle(&q).body;
+        assert!(!b.contains(&format!(">{}<", k.kod)) && b.contains("Süresi doldu / Expired") && b.contains("Bu kodun süresi doldu."), "{b}");
+        crate::misafir::kaydet(&state, &[k.clone()]).unwrap();
+        misafir_ac(&e, "yurt", true);
+        let b = e.p.handle(&q).body;
+        assert!(b.contains("'Yurt sakiniyim'e dokunun") && b.contains("tap 'Dormitory resident'"));
+        // bilinmeyen ya da iptal edilmiş kodun fişi yok
+        assert!(loc(&e.p.handle(&get("/misafir-kodlari/fis", &[("id", "yok")], &tok))).contains("e=1"));
+        e.p.handle(&req("POST", "/misafir-kodlari/iptal", &[("csrf", &csrf), ("id", &k.kod_id)], Some(&tok)));
+        assert!(loc(&e.p.handle(&q)).contains("e=1"));
+    }
+
+    // --- T7: kimlik maskeleme ve opak kişi kimliği
+    const KIMLIK_TC: &str = "TC:10000000146";
+    const KIMLIK_PAS: &str = "PASAPORT:DE:X1234567";
+
+    /// TC'li ve pasaportlu misafir: açık oturum + oturum.csv + kişi dosyası + kişi listesi + DNS satırı (bugün)
+    fn kimlikli_kayitlar(e: &Env) -> Config {
+        let cfg = Config::load(&e.p.cfg_path).unwrap();
+        let root = cfg.main.log_root.clone();
+        for (i, k) in [KIMLIK_TC, KIMLIK_PAS].into_iter().enumerate() {
+            let (mac, ip) = (format!("aa:bb:cc:dd:ee:3{i}"), format!("10.50.0.3{i}"));
+            misafir_oturumu(e, &mac, k, &ip, 9e9);
+            let row = Row::new("OTURUM_BASLA", "2026-09-29T21:00:00+03:00").set("telefon", k).set("ad", "Ali").set("soyad", "Veli")
+                .set("mac", &mac).set("ic_ip", &ip).set("oturum_id", &format!("s-{mac}")).set("ek", "giris=misafir_kodu oda=101");
+            ortak::append_rows(&ortak::day_file(&root, "2026-09-29", "oturum.csv"), &[row.clone()]).unwrap();
+            ortak::append_rows(&ortak::user_file(&root, "2026-09-29", k), &[row]).unwrap();
+            ortak::upsert_index(&root, k, "Ali", "Veli", "2026-09-29T21:00:00+03:00").unwrap();
+            ortak::append_rows(&ortak::day_file(&root, "2026-09-29", "dns.csv"), &[Row::new("DNS", "2026-09-29T21:01:00+03:00")
+                .set("telefon", k).set("mac", &mac).set("ic_ip", &ip).set("alan_adi", "www.ornek.com")]).unwrap();
+        }
+        cfg
+    }
+
+    /// Sayfadaki bütün adresler: href, action ve Location
+    fn adresler(r: &Resp) -> Vec<String> {
+        let mut v: Vec<String> = ["href=\"", "action=\""]
+            .iter()
+            .flat_map(|a| r.body.split(a).skip(1).map(|x| x.split('"').next().unwrap_or("").to_string()))
+            .collect();
+        v.push(loc(r).to_string());
+        v
+    }
+
+    fn kimlik_yok(ad: &str, metin: &str) {
+        for t in ["10000000146", "X1234567", "TC_", "TC:", "TC%3A", "PASAPORT"] {
+            assert!(!metin.contains(t), "{ad}: {t} sızdı: {metin}");
+        }
+    }
+
+    #[test]
+    fn tam_kimlik_sizmaz() {
+        let e = env();
+        let (tok, csrf) = setup_and_login(&e, "mudur", "sahip-parola-12");
+        give_reason(&e, &tok, &csrf);
+        let cfg = kimlikli_kayitlar(&e);
+        let sir = crate::kimlik::sir_oku_ya_uret(&cfg.main.state_root);
+        let mut sayfalar = vec![
+            ("Özet", e.p.handle(&get("/", &[], &tok))),
+            ("Bağlı kullanıcılar", e.p.handle(&get("/oturumlar", &[], &tok))),
+            ("Kullanıcılar grubu", e.p.handle(&get("/cihazlar", &[], &tok))),
+            ("Kayıtlar grubu", e.p.handle(&get("/kayitlar", &[], &tok))),
+            ("Kullanıcılar", e.p.handle(&get("/kullanicilar", &[], &tok))),
+            ("Kayıt günü", e.p.handle(&get("/kayitlar/gun", &[("gun", "2026-09-29")], &tok))),
+            ("Site arama", e.p.handle(&get("/ara", &[("q", "ornek"), ("bas", "2026-09-29"), ("bit", "2026-09-29")], &tok))),
+        ];
+        for k in [KIMLIK_TC, KIMLIK_PAS] {
+            sayfalar.push(("Kişi sayfası", e.p.handle(&get("/kullanici", &[("k", &crate::kimlik::opak(&sir, k))], &tok))));
+        }
+        for (ad, r) in &sayfalar {
+            assert_eq!(r.status, 200, "{ad}");
+            kimlik_yok(ad, &r.body);
+            for a in adresler(r) {
+                kimlik_yok(ad, &a);
+            }
+        }
+        // maskeli hâlleri görünür
+        let liste = &sayfalar[4].1.body;
+        assert!(liste.contains("100******46") && liste.contains("DE X12***67") && liste.contains("Ali Veli"), "{liste}");
+        assert!(sayfalar[1].1.body.contains("100******46") && sayfalar[1].1.body.contains("DE X12***67"));
+        assert!(sayfalar[5].1.body.contains("kullanicilar/100******46.csv"));
+        assert!(sayfalar[6].1.body.contains("100******46") && sayfalar[7].1.body.contains("100******46"));
+        // kimlikle arama POST: sonuç maskeli; aranan değer yalnızca arama kutusunda (kullanıcının yazdığı) durur
+        let r = e.p.handle(&req("POST", "/kullanicilar", &[("csrf", &csrf), ("q", "10000000146")], Some(&tok)));
+        assert!(r.body.contains("1 kişi") && r.body.contains("100******46"));
+        kimlik_yok("Kullanıcı araması", &r.body.replace("value=\"10000000146\"", ""));
+        for a in adresler(&r) {
+            kimlik_yok("Kullanıcı araması adresi", &a);
+        }
+        // resmi talep: sonuç 5651 kaydıdır, tam; form POST
+        let r = e.p.handle(&req("POST", "/talep", &[("csrf", &csrf), ("tur", "tc"), ("deger", "10000000146")], Some(&tok)));
+        assert!(r.body.contains("TC:10000000146 oturumları") && r.body.contains("method=\"post\" action=\"/talep\""), "{}", r.body);
+        let r = e.p.handle(&req("POST", "/talep", &[("csrf", &csrf), ("tur", "pasaport"), ("deger", "x1234567"), ("uyruk", "de")], Some(&tok)));
+        assert!(r.body.contains("PASAPORT:DE:X1234567 oturumları"));
+        let r = e.p.handle(&req("POST", "/talep", &[("csrf", &csrf), ("tur", "oda"), ("deger", "101")], Some(&tok)));
+        assert!(r.body.contains("Oda 101: misafir oturumları") && r.body.contains("TC:10000000146"));
+        // yalnız rakamlı pasaport ve boşluklu TC de denetime maskeli girer (talep, kullanıcı ve satır araması)
+        let post = |yol: &str, f: &[(&str, &str)]| {
+            let mut v = vec![("csrf", csrf.as_str())];
+            v.extend_from_slice(f);
+            e.p.handle(&req("POST", yol, &v, Some(&tok)))
+        };
+        post("/talep", &[("tur", "pasaport"), ("deger", "123456789")]);
+        post("/talep", &[("tur", "tc"), ("deger", "100 000 001 46")]);
+        post("/kullanicilar", &[("q", "100 000 001 46")]);
+        post("/kullanicilar", &[("q", "123456789")]);
+        post("/kayitlar/dosya", &[("gun", "2026-09-29"), ("dosya", "oturum.csv"), ("q", "123456789")]);
+        // önekli / küçük harfli / uyruk:no / başka ayraçlı yazımlar da (düzeltme turu 2)
+        post("/kullanicilar", &[("q", "TC:10000000146")]);
+        post("/kullanicilar", &[("q", "pasaport:de:x1234567")]);
+        post("/kullanicilar", &[("q", "100.000.001.46")]);
+        post("/kayitlar/dosya", &[("gun", "2026-09-29"), ("dosya", "oturum.csv"), ("q", "10000000146,")]);
+        post("/talep", &[("tur", "pasaport"), ("deger", "de:x1234567")]);
+        // düzeltme turu 3: serbest metinde 5+ rakam varsa her rakam yıldız (hangi ayraçla yazılırsa yazılsın)
+        let saldiri = [
+            "ayşe 100 000 001 46", "(10000000146)", "\"10000000146\"", "TC=10000000146", "TC_10000000146", "100_000_001_46",
+            "１００００００００１４６", "TC：10000000146", "100–000–001–46", "100·000·001·46", "10000000146\u{200B}",
+        ];
+        for q in saldiri {
+            post("/kullanicilar", &[("q", q)]);
+            post("/kayitlar/dosya", &[("gun", "2026-09-29"), ("dosya", "oturum.csv"), ("q", q)]);
+        }
+        post("/kullanicilar", &[("q", "101")]);
+        post("/kayitlar/dosya", &[("gun", "2026-09-29"), ("dosya", "oturum.csv"), ("q", "bet")]);
+        post("/kayitlar/dosya", &[("gun", "2026-09-29"), ("dosya", "oturum.csv"), ("q", "10.50.0.23:44321")]);
+        // denetim kaydına kimlik tam girmez
+        let audit = std::fs::read_to_string(e.root.join("5651/gunluk/2026-09-29/denetim.csv")).unwrap();
+        assert!(audit.contains("PANEL_TALEP_ARA") && audit.contains("deger=100******46") && audit.contains("deger=DE X12***67"));
+        assert!(audit.contains("PANEL_KULLANICI_ARA") && audit.contains("ara=***********"));
+        // her serbest arama değerinde 5 ve daha uzun rakam dizisi yok; kısa arama ve IP'nin noktalaması aynen
+        let degerler: Vec<&str> = audit
+            .lines()
+            .filter_map(|l| l.split("ara=").nth(1))
+            .map(|v| v.split(" gerekce=").next().unwrap_or(v))
+            .collect();
+        assert!(degerler.len() >= 2 * 11 + 3, "{degerler:?}");
+        for v in &degerler {
+            let mut dizi = 0;
+            for c in v.chars() {
+                dizi = if c.is_numeric() { dizi + 1 } else { 0 };
+                assert!(dizi < 5, "denetimde rakam dizisi: {v}");
+            }
+        }
+        assert!(degerler.contains(&"101") && degerler.contains(&"bet") && degerler.contains(&"**.**.*.**:*****"), "{degerler:?}");
+        assert!(audit.contains("kisi=100******46")); // kişi sayfası bakışı
+        assert!(!audit.contains("10000000146") && !audit.to_uppercase().contains("X1234567") && !audit.contains("100.000.001.46"), "{audit}");
+        assert!(!audit.contains("123456789") && !audit.contains("000 001") && audit.contains("deger=?? 123****89"), "{audit}");
+    }
+
+    #[test]
+    fn site_aramasi_denetimde_yalniz_site_ve_ip_aynen() {
+        let e = env();
+        let (tok, csrf) = setup_and_login(&e, "mudur", "sahip-parola-12");
+        give_reason(&e, &tok, &csrf);
+        kimlikli_kayitlar(&e);
+        let aynen = ["https://bet365.com/spor", "10.50.0.23", "bet365.com"];
+        let yildizli = [
+            ("10000000146", "***********"),
+            ("ayşe 100 000 001 46", "ayşe *** *** *** **"),
+            ("(10000000146)", "(***********)"),
+            ("100.000.001.46", "***.***.***.**"),
+        ];
+        // "TC:10000000146": site terimi "tc" (3 harften kısa) olduğu için arama reddedilir, denetime hiç yazılmaz
+        for q in aynen.iter().copied().chain(yildizli.iter().map(|(q, _)| *q)).chain(["TC:10000000146"]) {
+            let r = e.p.handle(&get("/ara", &[("q", q), ("bas", "2026-09-29"), ("bit", "2026-09-29")], &tok));
+            assert_eq!(r.status, 200, "{q}");
+        }
+        let audit = std::fs::read_to_string(e.root.join("5651/gunluk/2026-09-29/denetim.csv")).unwrap();
+        let degerler: Vec<&str> = audit
+            .lines()
+            .filter(|l| l.contains("PANEL_SITE_ARA"))
+            .filter_map(|l| l.split("aranan=").nth(1))
+            .map(|v| v.split(" bas=").next().unwrap_or(v))
+            .collect();
+        assert_eq!(degerler.len(), aynen.len() + yildizli.len(), "{degerler:?}");
+        for q in aynen {
+            assert!(degerler.contains(&q), "{q} aynen yazılmalı: {degerler:?}");
+        }
+        for (_, m) in yildizli {
+            assert!(degerler.contains(&m), "{m} bekleniyordu: {degerler:?}");
+        }
+        assert!(!audit.contains("10000000146") && !audit.contains("100.000.001.46") && !audit.contains("000 001"), "{audit}");
+    }
+
+    #[test]
+    fn kisi_sayfasi_opak_kimlikle() {
+        let e = env();
+        let (tok, csrf) = setup_and_login(&e, "mudur", "sahip-parola-12");
+        give_reason(&e, &tok, &csrf);
+        let cfg = kimlikli_kayitlar(&e);
+        let sir = crate::kimlik::sir_oku_ya_uret(&cfg.main.state_root);
+        let k = crate::kimlik::opak(&sir, KIMLIK_TC);
+        assert_eq!(k.len(), 16);
+        // listedeki bağlantı opak kimlikle
+        let liste = e.p.handle(&get("/kullanicilar", &[], &tok)).body;
+        assert!(liste.contains(&format!("href=\"/kullanici?k={k}\"")));
+        let r = e.p.handle(&get("/kullanici", &[("k", &k)], &tok));
+        assert_eq!(r.status, 200);
+        assert!(r.body.contains("100******46") && r.body.contains("OTURUM_BASLA") && r.body.contains("Ali Veli") && r.body.contains("2026-09-29"));
+        // kişi dosyası bağlantısı da opak
+        assert!(r.body.contains(&format!("dosya=kullanicilar%2F{k}.csv")), "{}", r.body);
+        // ham anahtar, başka sırla üretilmiş kimlik ya da eski ?tel= adresi açılmaz
+        let baska = crate::kimlik::opak(b"baska-sir", KIMLIK_TC);
+        for bad in [KIMLIK_TC, "10000000146", baska.as_str(), ""] {
+            assert_eq!(e.p.handle(&get("/kullanici", &[("k", bad)], &tok)).status, 404, "{bad}");
+        }
+        assert_eq!(e.p.handle(&get("/kullanici", &[("tel", "10000000146")], &tok)).status, 404);
+        // kişi listesinden çıkmış kişi de günlerin dosyalarından bulunur
+        std::fs::remove_file(std::path::Path::new(&cfg.main.log_root).join("kullanicilar/index.csv")).unwrap();
+        assert_eq!(e.p.handle(&get("/kullanici", &[("k", &k)], &tok)).status, 200);
+    }
+
+    #[test]
+    fn kayit_dosyasinda_tam_deger() {
+        let e = env();
+        let (tok, csrf) = setup_and_login(&e, "mudur", "sahip-parola-12");
+        give_reason(&e, &tok, &csrf);
+        let cfg = kimlikli_kayitlar(&e);
+        let sir = crate::kimlik::sir_oku_ya_uret(&cfg.main.state_root);
+        let opak = crate::kimlik::opak(&sir, KIMLIK_TC);
+        let u = format!("kullanicilar/{opak}.csv");
+        // görüntüleyici: 5651 kaydının kendisi, tam değer; başlıkta maskeli
+        let r = e.p.handle(&get("/kayitlar/dosya", &[("gun", "2026-09-29"), ("dosya", &u)], &tok));
+        assert_eq!(r.status, 200);
+        assert!(r.body.contains("TC:10000000146") && r.body.contains("100******46"), "{}", r.body);
+        // satır araması POST; sonuç tam
+        let r = e.p.handle(&req("POST", "/kayitlar/dosya", &[("csrf", &csrf), ("gun", "2026-09-29"), ("dosya", &u), ("q", "10000000146")], Some(&tok)));
+        assert!(r.body.contains("TC:10000000146") && r.body.contains("1 satır"));
+        // genel dosyada da tam
+        let r = e.p.handle(&get("/kayitlar/dosya", &[("gun", "2026-09-29"), ("dosya", "oturum.csv")], &tok));
+        assert!(r.body.contains("TC:10000000146") && r.body.contains("PASAPORT:DE:X1234567"));
+        // indirme: içerik tam, dosya adı (indirme geçmişi) opak
+        let r = e.p.handle(&get("/kayitlar/indir", &[("gun", "2026-09-29"), ("dosya", &u)], &tok));
+        assert_eq!(r.status, 200);
+        let mut icerik = String::new();
+        r.file.as_ref().unwrap().try_clone().unwrap().read_to_string(&mut icerik).unwrap();
+        assert!(icerik.contains("TC:10000000146"));
+        let ad = r.headers.iter().find(|(k, _)| k == "Content-Disposition").unwrap().1.clone();
+        assert!(!ad.contains("10000000146") && ad.contains(&opak), "{ad}");
+        // gerçek dosya adıyla (eski yer imi) gelinirse opak adrese yönlenir; sayfadaki hiçbir adreste gerçek ad yok
+        let r = e.p.handle(&get("/kayitlar/dosya", &[("gun", "2026-09-29"), ("dosya", "kullanicilar/TC_10000000146.csv"), ("s", "1")], &tok));
+        assert_eq!(r.status, 303);
+        assert_eq!(loc(&r), format!("/kayitlar/dosya?gun=2026-09-29&dosya=kullanicilar%2F{opak}.csv&s=1"));
+        let r = e.p.handle(&get("/kayitlar/indir", &[("gun", "2026-09-29"), ("dosya", "kullanicilar/TC_10000000146.csv")], &tok));
+        assert_eq!((r.status, loc(&r).to_string()), (303, format!("/kayitlar/indir?gun=2026-09-29&dosya=kullanicilar%2F{opak}.csv")));
+        // POST (satır araması) gerçek adla gelse de sayfadaki bağlantılar, gizli alan ve form opak
+        let r = e.p.handle(&req("POST", "/kayitlar/dosya", &[("csrf", &csrf), ("gun", "2026-09-29"), ("dosya", "kullanicilar/TC_10000000146.csv"), ("q", "oturum")], Some(&tok)));
+        assert_eq!(r.status, 200);
+        for a in adresler(&r) {
+            assert!(!a.contains("TC_") && !a.contains("PASAPORT_") && !a.contains("10000000146"), "{a}");
+        }
+        assert!(!r.body.contains("value=\"kullanicilar/TC_") && r.body.contains(&format!("value=\"kullanicilar/{opak}.csv\"")));
+        assert_eq!(e.p.handle(&get("/kayitlar/dosya", &[("gun", "2026-09-29"), ("dosya", "kullanicilar/0123456789abcdef.csv")], &tok)).status, 404);
+        let audit = std::fs::read_to_string(e.root.join("5651/gunluk/2026-09-29/denetim.csv")).unwrap();
+        assert!(audit.contains("dosya=kullanicilar/100******46.csv") && !audit.contains("10000000146"), "{audit}");
     }
 }

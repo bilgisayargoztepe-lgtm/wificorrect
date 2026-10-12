@@ -8,7 +8,8 @@ import shutil
 import common
 from istatistik import GUN_RE, satirlar, tamam_mi
 
-TEL_RE = re.compile(r"\d{10}")
+DOSYA_ADI_RE = re.compile(r"[A-Za-z0-9_]{6,40}")
+ODA_RE = re.compile(r"(?:^|\s)oda=(\S+)")
 SITE_SINIRI = 100
 BAGLANTI_SINIRI = 50
 
@@ -46,12 +47,17 @@ def index_oku(kafe_dizini):
         return {}
 
 
+def dosya_adi(anahtar):
+    """Cihazdaki kimlik::dosya_adi: `:` → `_`, yalnızca [A-Za-z0-9_] (TC_…, PASAPORT_DE_…, telefon aynen)."""
+    return "".join(c for c in anahtar.replace(":", "_") if c.isascii() and (c.isalnum() or c == "_"))
+
+
 def _kayit_adi(gun_dizini, tel):
-    """Gün klasöründeki kullanicilar/<tel>.csv.gz'nin KAYIT satırından (ad, soyad) ya da None."""
-    k = os.path.join(gun_dizini, "kullanicilar")
-    if not TEL_RE.fullmatch(tel) or os.path.islink(k):
+    """Gün klasöründeki kullanicilar/<dosya_adi>.csv.gz'nin KAYIT satırından (ad, soyad) ya da None."""
+    k, ad = os.path.join(gun_dizini, "kullanicilar"), dosya_adi(tel)
+    if not DOSYA_ADI_RE.fullmatch(ad) or os.path.islink(k):
         return None
-    for r in satirlar(os.path.join(k, tel + ".csv.gz")):
+    for r in satirlar(os.path.join(k, ad + ".csv.gz")):
         if r.get("olay") == "KAYIT" and r.get("ad"):
             return r["ad"], r.get("soyad", "")
     return None
@@ -128,15 +134,27 @@ def gun_ozeti(gun_dizini, index):
     return sonuc
 
 
+def odalar(k):
+    """Kişinin o gün misafir koduyla açtığı oturumların odaları (oturum `ek`'indeki `oda=<no>`, büyük harf)."""
+    out = set()
+    for o in k.get("oturumlar") or []:
+        m = ODA_RE.search(o.get("ek") or "") if isinstance(o, dict) else None
+        if m:
+            out.add(m.group(1).upper())
+    return sorted(out)
+
+
 def dizin_kaydi(ozet):
-    """Arama dizini için özetten yalnızca gereken: (gün, [(telefon, ad, soyad)]) — tam özetler bellekte tutulmaz."""
-    return ozet["gun"], [(k["telefon"], k["ad"], k["soyad"]) for k in ozet["kisiler"]]
+    """Arama dizini için özetten yalnızca gereken: (gün, [(telefon, ad, soyad, odalar)]) — tam özetler bellekte tutulmaz.
+    Odalar özetin oturum notlarından çıkarılır (eski özet dosyaları da aynı biçimde okunur)."""
+    return ozet["gun"], [(k["telefon"], k["ad"], k["soyad"], odalar(k)) for k in ozet["kisiler"]]
 
 
 def kisi_dizini_guncelle(detay_dizini, yeni, grup):
-    """kisiler.json: {telefon: {ad, soyad, gunler (yeni→eski)}}. `yeni`: dizin_kaydi listesi. Dizinde hiç görünmeyen
+    """kisiler.json: {telefon: {ad, soyad, gunler (yeni→eski), odalar {oda: [gün]}}}. `yeni`: dizin_kaydi listesi. Dizinde hiç görünmeyen
     özet günleri (görev özet ile dizin arasında kesildiyse) dosyadan tek tek okunup eklenir; özet dosyası olmayan
-    günler çıkarılır. Dizin yoksa ya da bozuksa tüm özetlerden böyle yeniden kurulur. Ad en yeni günden gelir."""
+    günler çıkarılır. Dizin yoksa, bozuksa ya da oda bilgisi olmayan eski biçimdeyse tüm özetlerden böyle yeniden kurulur.
+    Ad en yeni günden gelir."""
     yol = os.path.join(detay_dizini, "kisiler.json")
     mevcut = {a[:-5] for a in os.listdir(detay_dizini) if a.endswith(".json") and GUN_RE.fullmatch(a[:-5])}
     try:
@@ -144,6 +162,8 @@ def kisi_dizini_guncelle(detay_dizini, yeni, grup):
             dizin = json.load(f)
         if not isinstance(dizin, dict):
             raise ValueError("kisiler.json sözlük değil")
+        if any(not isinstance(x, dict) or not isinstance(x.get("odalar"), dict) for x in dizin.values()):
+            dizin = {}  # oda alanından önceki biçim: bir kez baştan kurulur
     except (FileNotFoundError, ValueError):
         dizin = {}
     bilinen = {g for e in dizin.values() for g in e.get("gunler", [])} | {g for g, _ in yeni}
@@ -155,16 +175,21 @@ def kisi_dizini_guncelle(detay_dizini, yeni, grup):
         except (OSError, ValueError, KeyError, TypeError):
             continue  # bozuk özet aramayı durdurmasın
     for gun, kisiler in sorted(kayitlar):
-        for tel, ad, soyad in kisiler:
-            e = dizin.setdefault(tel, {"ad": "", "soyad": "", "gunler": []})
+        for tel, ad, soyad, *oda in kisiler:
+            e = dizin.setdefault(tel, {"ad": "", "soyad": "", "gunler": [], "odalar": {}})
             if ad and (not e["gunler"] or gun >= max(e["gunler"])):
                 e["ad"], e["soyad"] = ad, soyad
             if gun not in e["gunler"]:
                 e["gunler"].append(gun)
+            for o in (oda[0] if oda else ()):
+                if gun not in e["odalar"].setdefault(o, []):
+                    e["odalar"][o].append(gun)
     for tel in list(dizin):
         gunler = sorted({g for g in dizin[tel].get("gunler", []) if g in mevcut}, reverse=True)
         if gunler:
             dizin[tel]["gunler"] = gunler
+            o = {k: sorted(g for g in v if g in mevcut) for k, v in dizin[tel]["odalar"].items()}
+            dizin[tel]["odalar"] = {k: v for k, v in sorted(o.items()) if v}
         else:
             del dizin[tel]
     _yaz(yol, dict(sorted(dizin.items())), grup)

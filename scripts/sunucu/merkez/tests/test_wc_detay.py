@@ -31,7 +31,7 @@ def test_cihaz_metni_her_yerde_kacisli():
              oturumlar=[{"olay": kotu, "zaman": "2026-09-27T<u>9:0", "ic_ip": kotu, "ek": kotu}],
              siteler=[{"alan": kotu, "sayi": 1, "ilk": "2026-09-27T<i>x", "son": ""}],
              baglantilar=[{"zaman": "", "protokol": kotu, "hedef_ip": kotu, "hedef_port": kotu}])
-    g = D.kisi_html(k) + D.ara_icerik("x", [('"><img>' + A, {"ad": kotu, "soyad": "", "gunler": ["2026-09-27"]})])
+    g = D.kisi_html(k, b"s") + D.ara_icerik("x", [('"><img>' + A, {"ad": kotu, "soyad": "", "gunler": ["2026-09-27"]})], b"s")
     for parca in ("<script", "<img", "<!--", "<u>", "<i>"):
         assert parca not in g, parca
 
@@ -47,9 +47,11 @@ def test_onek_butun_baglantilarda():
     on = "/m/100001/kayitlar"
     assert f'action="{on}/ara"' in D.arama_formu("x", on)
     assert f'href="{on}/gun/2026-09-30"' in D.gunler_html(["2026-09-30"], {}, on)
-    assert f'href="{on}/"' in D.gun_icerik("2026-09-30", {"kisiler": []}, on)
-    s = D.ara_icerik("ay", [("5330000001", {"ad": "Ayşe", "gunler": ["2026-09-30"]})], on)
-    assert f'href="{on}/gun/2026-09-30#k5330000001"' in s and f'href="{on}/"' in s and f'action="{on}/ara"' in s
+    assert f'href="{on}/"' in D.gun_icerik("2026-09-30", {"kisiler": []}, b"s", on)
+    s = D.ara_icerik("ay", [("5330000001", {"ad": "Ayşe", "gunler": ["2026-09-30"]})], b"s", on)
+    capa = "k" + D.opak(b"s", "5330000001")
+    assert f'href="{on}/gun/2026-09-30#{capa}"' in s and f'href="{on}/"' in s and f'action="{on}/ara"' in s
+    assert f'id="{capa}"' in D.kisi_html({"telefon": "5330000001"}, b"s") and "#k5330000001" not in s
     assert 'href="/gun/' not in s and 'href="/"' not in s
 
 

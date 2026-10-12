@@ -24,7 +24,7 @@ def ortam(tmp):
     ist, det = os.path.join(tmp, "ist"), os.path.join(tmp, "detay")
     os.makedirs(ist)
     os.makedirs(det)
-    return v, kayitlar.Kayitlar(ist, det), saat
+    return v, kayitlar.Kayitlar(ist, det, os.path.join(tmp, "kisi_sir")), saat
 
 
 def sayi_yaz(tmp, ad, sayilar):

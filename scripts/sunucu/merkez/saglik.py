@@ -64,9 +64,10 @@ def kapsam(m, c, simdi):
     return "tam"
 
 
-def sorunlar(m, c, rapor, rapor_zaman, el_sikisma, son_gun, simdi, arsiv_var=True):
+def sorunlar(m, c, rapor, rapor_zaman, el_sikisma, son_gun, simdi, arsiv_var=True, hedef=None):
     """Saf kurallar. Dönen: [(tur, metin, onem)]. arsiv_var=False: durum.json'da cihazın kaydı yok (yeni bağlandı, arşivi
-    henüz yok): tünel bilinmez → ulaşılamıyor/rapor yok açılmaz; yedek gecikmesi bağlanma gününden sayılır."""
+    henüz yok): tünel bilinmez → ulaşılamıyor/rapor yok açılmaz; yedek gecikmesi bağlanma gününden sayılır.
+    hedef: cihaza kurdurulması istenen paket sürümü (yoksa None); o sürümün denemesi başarısızsa uyarı."""
     k = kapsam(m, c, simdi)
     if k is None:
         return []
@@ -90,6 +91,10 @@ def sorunlar(m, c, rapor, rapor_zaman, el_sikisma, son_gun, simdi, arsiv_var=Tru
             out.append(("disk_dolu", f"Disk dolu (%{rapor['disk_yuzde']})", "uyari"))
         if rapor and rapor.get("sms_sorunu"):
             out.append(("sms_calismiyor", "SMS çalışmıyor", "uyari"))
+        g = rapor.get("guncelleme") if rapor else None
+        if (hedef and isinstance(g, dict) and g.get("sonuc") in ("geri_alindi", "hata") and g.get("surum") == hedef
+                and rapor.get("paket") != hedef):
+            out.append(("guncelleme_basarisiz", f"Güncelleme başarısız ({hedef})", "uyari"))
     try:
         bitis = datetime.date.fromisoformat(m["lisans_bitis"])
     except (TypeError, ValueError):
@@ -193,8 +198,10 @@ def _musteri_turu(veri, u, m, c, d, simdi):
         if s:
             rapor, rz = s["rapor"], _epoch(s["zaman"])
     d_ = d or {}
+    hedef = veri.cihaz_hedefi(m)
     yeni = {t: (metin, onem) for t, metin, onem in
-            sorunlar(m, c, rapor, rz, d_.get("el_sikisma"), d_.get("son_gun"), simdi, arsiv_var=d is not None)}
+            sorunlar(m, c, rapor, rz, d_.get("el_sikisma"), d_.get("son_gun"), simdi, arsiv_var=d is not None,
+                    hedef=hedef["surum"] if hedef else None)}
     acik = {s["tur"]: s for s in veri.acik_sorunlar(n)}
     tam = kapsam(m, c, simdi) == "tam"
     for tur, s in acik.items():

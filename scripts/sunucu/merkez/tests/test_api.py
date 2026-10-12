@@ -250,6 +250,145 @@ def test_saglik_govde_siniri_ve_hiz_siniri():
         assert sonuc[:20] == [200] * 20 and sonuc[20] == 429
 
 
+def _surumlu(tmp, kanal="test", hedef="0.4.1"):
+    api, v, q, saat = kur(tmp)
+    dizin = os.path.join(tmp, "sur")
+    os.makedirs(dizin)
+    api.surum_dizini = dizin
+    n, pw = v.musteri_ekle()
+    _, j = giris(api, n, pw)
+    for s in ("0.4.0", "0.4.1", "0.3.9"):
+        b = f"deb-{s}".encode()
+        with open(os.path.join(dizin, s + ".deb"), "wb") as f:
+            f.write(b)
+        v.surum_ekle(s, "ab" * 32, len(b), "yerel")
+    v.kanal_hedef_koy("test", hedef)
+    v.guncelleme_kanali_koy(n, kanal)
+    return api, v, n, j["cihaz_anahtari"], saat
+
+
+_ip = [0]
+
+
+def rapor_yolla(api, k, **ek):
+    _ip[0] += 1  # istek hız sınırına takılmasın
+    return post(api, "/api/saglik", {"cihaz_anahtari": k, "rapor": dict(RAPOR, **ek)}, "203.0.113.%d" % _ip[0])
+
+
+def test_rapor_paket_ve_guncelleme_alanlari():
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        api, v, n, k, _ = _surumlu(tmp)
+        cid = v.bagli_cihaz(n)["id"]
+        assert rapor_yolla(api, k)[0] == 200  # eski biçim
+        assert "paket" not in v.saglik(cid)["rapor"] and "guncelleme" not in v.saglik(cid)["rapor"]
+        g = {"surum": "0.4.1", "sonuc": "geri_alindi", "zaman": 5}
+        assert rapor_yolla(api, k, paket="0.4.0", guncelleme=g)[0] == 200
+        r = v.saglik(cid)["rapor"]
+        assert r["paket"] == "0.4.0" and r["guncelleme"] == g
+        olaylar = [h for h in v.hareketler(n) if h["olay"] == "GUNCELLEME_SONUC"]
+        assert len(olaylar) == 1 and "surum=0.4.1" in olaylar[0]["ayrinti"] and "sonuc=geri_alindi" in olaylar[0]["ayrinti"]
+        assert rapor_yolla(api, k, paket="0.4.0", guncelleme=g)[0] == 200  # değişmedi: yeni hareket yok
+        assert len([h for h in v.hareketler(n) if h["olay"] == "GUNCELLEME_SONUC"]) == 1
+        for kotu in (dict(g, sonuc="x"), dict(g, surum="1.2"), dict(g, zaman=-1), dict(g, zaman=True), "x", dict(g, ek=1)):
+            assert rapor_yolla(api, k, guncelleme=kotu)[0] == 400, kotu
+        for kotu in ("v" * 41, 5, "1.2", "../x"):
+            assert rapor_yolla(api, k, paket=kotu)[0] == 400, kotu
+        assert rapor_yolla(api, k, paket="", guncelleme=None)[0] == 200
+
+
+def test_guncelleme_hedefi_kanal_lisans_ve_hemen():
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        api, v, n, k, saat = _surumlu(tmp)
+        d, r = rapor_yolla(api, k)
+        assert r == {"tamam": True, "guncelleme": {"surum": "0.4.1", "sha256": "ab" * 32, "boyut": 9, "hemen": False}}
+        v.guncelleme_hemen_koy(n, 100, "0.4.1")
+        assert rapor_yolla(api, k)[1]["guncelleme"]["hemen"] is True
+        assert rapor_yolla(api, k, guncelleme={"surum": "0.4.1", "sonuc": "hata", "zaman": 50})[1]["guncelleme"]["hemen"] is True
+        assert rapor_yolla(api, k, guncelleme={"surum": "0.4.1", "sonuc": "tamam", "zaman": 200})[1]["guncelleme"]["hemen"] is False
+        assert v.musteri(n)["guncelleme_hemen"] == 0
+        v.guncelleme_kanali_koy(n, "kapali")
+        assert "guncelleme" not in rapor_yolla(api, k)[1]
+        v.guncelleme_kanali_koy(n, "kararli")  # kararlı kanalın hedefi yok
+        assert "guncelleme" not in rapor_yolla(api, k)[1]
+        v.kanal_hedef_koy("kararli", "0.4.0")
+        assert rapor_yolla(api, k)[1]["guncelleme"]["surum"] == "0.4.0"
+        v.kanal_hedef_koy("kararli", "9.9.9")  # sürüm kaydı yok
+        assert "guncelleme" not in rapor_yolla(api, k)[1]
+        v.kanal_hedef_koy("kararli", "0.4.0")
+        v.askiya_al(n, True)
+        assert "guncelleme" not in rapor_yolla(api, k)[1]
+        v.askiya_al(n, False)
+        v.lisans_ayarla(n, "2020-01-01")
+        assert "guncelleme" not in rapor_yolla(api, k)[1]
+        v.kanal_hedef_koy("kararli", None)
+        assert v.kanal_hedef("kararli") is None
+
+
+def test_hemen_bayragi_hedef_surume_bagli():
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        api, v, n, k, _ = _surumlu(tmp)
+        # bayrak başka bir hedef için konmuştu: gönderilmez, sağlık raporunda temizlenir
+        v.guncelleme_hemen_koy(n, 100, "0.4.0")
+        assert rapor_yolla(api, k)[1]["guncelleme"]["hemen"] is False
+        assert v.musteri(n)["guncelleme_hemen"] == 0 and v.musteri(n)["guncelleme_hemen_surum"] == ""
+        # cihaz zaten hedefte: sonuç gelmeyecek, bayrak temizlenir
+        v.guncelleme_hemen_koy(n, 100, "0.4.1")
+        assert rapor_yolla(api, k, paket="0.4.0")[1]["guncelleme"]["hemen"] is True
+        assert v.musteri(n)["guncelleme_hemen"] == 100
+        assert rapor_yolla(api, k, paket="0.4.1")[1]["guncelleme"]["hemen"] is False
+        assert v.musteri(n)["guncelleme_hemen"] == 0
+        # hedef kalktı (kanal kapalı): bayrak temizlenir, kanal yeniden açılınca eski bayrak geri gelmez
+        v.guncelleme_hemen_koy(n, 100, "0.4.1")
+        v.guncelleme_kanali_koy(n, "kapali")
+        assert "guncelleme" not in rapor_yolla(api, k)[1]
+        assert v.musteri(n)["guncelleme_hemen"] == 0
+        v.guncelleme_kanali_koy(n, "test")
+        assert rapor_yolla(api, k)[1]["guncelleme"]["hemen"] is False
+
+
+def test_onceki_paketin_sha256_si():
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        api, v, n, k, _ = _surumlu(tmp)
+        v.surum_ekle("0.4.0", "cd" * 32, 9, "yerel")
+        assert "onceki_sha256" not in rapor_yolla(api, k)[1]["guncelleme"]  # paket bildirilmedi
+        assert rapor_yolla(api, k, paket="0.4.0")[1]["guncelleme"]["onceki_sha256"] == "cd" * 32
+        assert "onceki_sha256" not in rapor_yolla(api, k, paket="0.2.0")[1]["guncelleme"]  # depoda yok
+        assert "onceki_sha256" not in rapor_yolla(api, k, paket="")[1]["guncelleme"]
+
+
+def test_api_paket_yetkisi():
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        api, v, n, k, _ = _surumlu(tmp)
+
+        def paket(surum, anahtar=k):
+            return api.istek("POST", "/api/paket", {}, json.dumps({"cihaz_anahtari": anahtar, "surum": surum}), "", "198.51.100.77")
+        d, h, g = paket("0.4.1")
+        assert d == 200 and g == b"deb-0.4.1" and h["Content-Type"] == "application/octet-stream" and h["Cache-Control"] == "no-store"
+        d, _, g = paket("0.4.0")
+        assert d == 403 and json.loads(g)["kod"] == "yetki"
+        rapor_yolla(api, k, paket="0.4.0")  # geri dönüş paketi: raporlanan sürüm
+        d, _, g = paket("0.4.0")
+        assert d == 200 and g == b"deb-0.4.0"
+        assert paket("0.3.9")[0] == 403
+        assert paket("../x")[0] == 403
+        assert paket("0.4.1", "bilinmeyen")[0] == 401
+        v.askiya_al(n, True)
+        assert paket("0.4.1")[0] == 403 and paket("0.4.0")[0] == 403
+        v.askiya_al(n, False)
+        assert paket("0.4.0")[0] == 200
+        v.lisans_ayarla(n, "2020-01-01")
+        assert paket("0.4.1")[0] == 403 and paket("0.4.0")[0] == 403
+        v.lisans_uzat(n)
+        v.uyelik(n, "bitti")
+        assert paket("0.4.0")[0] == 403
+        v.uyelik(n, "aktif")
+        v.serbest_birak(n)
+        assert paket("0.4.1")[0] == 403 and paket("0.4.0")[0] == 403
+        v.serbest_iptal(n)
+        os.remove(os.path.join(api.surum_dizini, "0.4.1.deb"))
+        assert paket("0.4.1")[0] == 404
+
+
 if __name__ == "__main__":
     for _name, _fn in sorted(globals().items()):
         if _name.startswith("test_") and callable(_fn):

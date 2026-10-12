@@ -10,7 +10,8 @@ install -d -m 755 /var/lib/wificorrect
 systemctl mask hostapd.service >/dev/null 2>&1 || true
 systemctl disable nftables.service >/dev/null 2>&1 || true
 systemctl enable dnsmasq.service wificorrect-guvenlik.service wificorrect-ag-acilis.service wificorrect-kaydedici.service \
-  wificorrect-panel.service wificorrect-portal.service wificorrect-wifi.service wificorrect-gece.timer wificorrect-gun-kapat.timer >/dev/null
+  wificorrect-panel.service wificorrect-portal.service wificorrect-wifi.service wificorrect-gece.timer wificorrect-gun-kapat.timer \
+  wificorrect-guncelleme-denetle.timer >/dev/null
 if command -v update-grub >/dev/null; then
   update-grub || echo "wificorrect: update-grub başarısız; açılış ayarları uygulanmadı" >&2
 fi
@@ -19,4 +20,5 @@ if [ -d /run/systemd/system ]; then
   systemctl daemon-reload
   sysctl -q -p /etc/wificorrect/conntrack.sysctl || true
   systemctl try-restart wificorrect-portal.service wificorrect-kaydedici.service wificorrect-panel.service
+  systemctl start wificorrect-guncelleme-denetle.timer || true
 fi

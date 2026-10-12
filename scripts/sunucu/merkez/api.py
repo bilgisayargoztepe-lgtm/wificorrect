@@ -6,6 +6,7 @@ import time
 
 import guvenlik
 import kuyruk
+import surumler
 import veri as veri_modulu
 
 GOVDE_SINIRI = 4096
@@ -66,6 +67,12 @@ def _tarih(v):
         return False
 
 
+def _guncelleme_sonucu(g):
+    ok = (isinstance(g, dict) and set(g) == {"surum", "sonuc", "zaman"} and isinstance(g["surum"], str)
+          and surumler.SURUM_RE.fullmatch(g["surum"]) and g["sonuc"] in ("tamam", "geri_alindi", "hata") and _tam(g["zaman"], 0))
+    return {a: g[a] for a in ("surum", "sonuc", "zaman")} if ok else False
+
+
 def saglik_temizle(r):
     """Cihaz sağlık raporunu sıkı doğrular; yalnızca bilinen alanlarla yeni sözlük döner, bozuksa None."""
     if not isinstance(r, dict):
@@ -84,18 +91,31 @@ def saglik_temizle(r):
     t = {a: r[a] for a in ("surum", "acik_sn", "disk_yuzde", "son_muhur", "bagli")}
     t["servisler"] = {a: sv[a] for a in SAGLIK_SERVISLER}
     t.update({a: r[a] for a in SAGLIK_BOOL})
+    if "paket" in r:  # uzaktan güncelleme: cihazda kurulu paket sürümü
+        p = r["paket"]
+        if not (isinstance(p, str) and len(p) <= 40 and (p == "" or surumler.SURUM_RE.fullmatch(p))):
+            return None
+        t["paket"] = p
+    if "guncelleme" in r:  # son güncelleme denemesinin sonucu
+        g = r["guncelleme"]
+        if g is not None:
+            g = _guncelleme_sonucu(g)
+            if g is False:
+                return None
+        t["guncelleme"] = g
     return t
 
 
 class Api:
-    def __init__(self, veri, saat=time.time, kuyruk_ekle=kuyruk.ekle, kuyruk_bekle=kuyruk.bekle):
-        self.veri, self.saat = veri, saat
+    def __init__(self, veri, saat=time.time, kuyruk_ekle=kuyruk.ekle, kuyruk_bekle=kuyruk.bekle,
+                 surum_dizini=surumler.DIZIN):
+        self.veri, self.saat, self.surum_dizini = veri, saat, surum_dizini
         self.kuyruk_ekle, self.kuyruk_bekle = kuyruk_ekle, kuyruk_bekle
         self.kilit, self.hiz = guvenlik.GirisKilidi(), guvenlik.HizSiniri(20, 60)
 
     def istek(self, yontem, yol, basliklar, govde, sorgu="", ip=""):
         uclar = {"/api/giris": self.giris, "/api/eslesme": self.eslesme, "/api/parola": self.parola,
-                "/api/saglik": self.saglik}
+                "/api/saglik": self.saglik, "/api/paket": self.paket}
         if yontem != "POST" or yol not in uclar:
             return _hata(404, "yok", "Bulunamadı.")
         if len(govde) > GOVDE_SINIRI:
@@ -186,5 +206,47 @@ class Api:
         if r is None:
             return _hata(400, "gecersiz", "Geçersiz rapor.")
         if c["durum"] != "serbest_birakiliyor":  # serbest bırakılan cihazın raporu yazılmaz
+            onceki = (self.veri.saglik(c["id"]) or {}).get("rapor", {}).get("guncelleme")
             self.veri.saglik_kaydet(c["id"], r)
-        return _json(200, {"tamam": True})
+            g = r.get("guncelleme")
+            if g is not None:
+                if g["zaman"] > self.veri.musteri(c["musteri"])["guncelleme_hemen"]:
+                    self.veri.guncelleme_hemen_koy(c["musteri"], 0)  # "hemen" isteği bu denemeyle tüketildi
+                if g != onceki:
+                    self.veri.hareket(f"cihaz:{c['id']}", ip, "GUNCELLEME_SONUC", c["musteri"],
+                                      f"surum={g['surum']} sonuc={g['sonuc']}")
+        yanit = {"tamam": True}
+        m = self.veri.musteri(c["musteri"])
+        hedef = self.veri.cihaz_hedefi(m)
+        if m["guncelleme_hemen"] > 0 and (hedef is None or m["guncelleme_hemen_surum"] != hedef["surum"]
+                                         or r.get("paket") == hedef["surum"]):
+            # sonuç gelmeyecek (hedef yok/değişti, cihaz zaten hedefte): bayrak kalıp sonra pencereyi atlamasın
+            self.veri.guncelleme_hemen_koy(c["musteri"], 0)
+            hedef = dict(hedef, hemen=False) if hedef else None
+        if hedef is not None:
+            p = r.get("paket")
+            k = self.veri.surum(p) if p else None
+            if k is not None:  # geri dönüş paketi (cihazda kurulu sürüm) depoda: cihaz indirdiğini bununla doğrular
+                hedef["onceki_sha256"] = k["sha256"]
+            yanit["guncelleme"] = hedef
+        return _json(200, yanit)
+
+    def paket(self, b, ip):
+        c = self.veri.cihaz_anahtarla(b.get("cihaz_anahtari"))
+        if c is None:
+            return _hata(401, "taninmadi", "Cihaz tanınmadı.")
+        s = b.get("surum")
+        m = self.veri.musteri(c["musteri"])
+        if c["durum"] != "bagli" or not self.veri.hizmet_acik(m):  # bırakılan / lisansı ya da üyeliği kapalı cihaza paket verilmez
+            return _hata(403, "yetki", "Bu paket için yetkiniz yok.")
+        hedef = self.veri.cihaz_hedefi(m)
+        rapor = (self.veri.saglik(c["id"]) or {}).get("rapor", {})
+        if not (isinstance(s, str) and surumler.SURUM_RE.fullmatch(s)
+                and (s == (hedef or {}).get("surum") or s == rapor.get("paket"))):  # ikincisi geri dönüş paketi için
+            return _hata(403, "yetki", "Bu paket için yetkiniz yok.")
+        try:
+            with open(surumler.paket_yolu(self.surum_dizini, s), "rb") as f:
+                icerik = f.read()
+        except OSError:
+            return _hata(404, "yok", "Paket bulunamadı.")
+        return 200, {"Content-Type": "application/octet-stream", "Cache-Control": "no-store"}, icerik

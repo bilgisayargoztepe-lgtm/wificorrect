@@ -316,10 +316,41 @@ pub fn run(cfg: Config, args: &[String]) -> ExitCode {
         Some("saglik") => {
             let http = |y: &str, g: &str| crate::merkez::curl_sure(y, g, 10);
             let k = crate::saglik::Kaynak::sistem();
-            if let Err(e) = crate::saglik::calistir(&cfg, std::path::Path::new(crate::merkez::PATH), &k, &http, now) {
-                eprintln!("sağlık raporu gönderilemedi: {e}");
+            match crate::saglik::calistir(&cfg, std::path::Path::new(crate::merkez::PATH), &k, &http, now) {
+                Ok(Some(h)) => {
+                    // karar Kur ise hedef.json yazılır ve güncelleme ayrı systemd işinde başlar (birim varsa systemd reddeder)
+                    let kurulu = crate::guncelleme::kurulu(&*k.komut);
+                    let baslat = || {
+                        let c: Vec<String> = ["systemd-run", "--collect", "--unit", "wfc-guncelle", "/usr/local/bin/wificorrect", "ctl", "guncelle"].map(String::from).to_vec();
+                        ortak::run(&c);
+                    };
+                    crate::guncelleme::hedefi_isle(&k.guncelleme, &h, &kurulu, now, &baslat);
+                }
+                Ok(None) => {}
+                Err(e) => eprintln!("sağlık raporu gönderilemedi: {e}"),
             }
             ExitCode::SUCCESS
+        }
+        // `ctl saglik` başlatır (systemd-run --unit wfc-guncelle): hedef sürümü indirir, doğrular, kurar
+        Some("guncelle") => {
+            let Some(m) = crate::merkez::oku(std::path::Path::new(crate::merkez::PATH)) else {
+                eprintln!("cihaz merkeze bağlı değil");
+                return ExitCode::from(1);
+            };
+            let indir = |y: &str, g: &str, c: &std::path::Path| crate::merkez::indir(y, g, c, 300);
+            // apt-get uzun sürebilir (bağımlılıklar Debian deposundan iner)
+            let komut = |c: &[&str]| ortak::run_timeout(&c.iter().map(|s| s.to_string()).collect::<Vec<_>>(), 3600);
+            let kurulu = crate::guncelleme::kurulu(&|c: &[&str]| ortak::capture_timeout(c, 30));
+            match crate::guncelleme::calistir_guncelle(&cfg, &crate::guncelleme::Yollar::sistem(), &m, &indir, &komut, &kurulu, now) {
+                Ok(s) => {
+                    println!("{s}");
+                    ExitCode::SUCCESS
+                }
+                Err(e) => {
+                    eprintln!("{e}");
+                    ExitCode::from(1)
+                }
+            }
         }
         // Panel → Admin ayarları → Uzak erişim kaydedilince (ayrı systemd işinde)
         Some("uzak-uygula") => {
@@ -448,7 +479,7 @@ pub fn run(cfg: Config, args: &[String]) -> ExitCode {
         _ => {
             eprintln!(
                 "Kullanım: wificorrect ctl <komut>\n  dhcp-olay <add|old|del> <mac> <ip> [ad]\n  yukle\n  oturumlar\n  \
-                 gun-kapat [YYYY-AA-GG] [--zorla]\n  dogrula [--son N]\n  temizle [--kuru]\n  yedekle\n  ara ...  (ayrıntı: ctl ara)\n  disa-aktar --baslangic G --bitis G --cikti DOSYA\n  ag-uygula | ag-gecis DOSYA | ag-onayla | ag-geri-al | ag-ilk\n  filtre-uygula\n  hiz-uygula\n  admin-parola\n  merkez-eslesme\n  saglik"
+                 gun-kapat [YYYY-AA-GG] [--zorla]\n  dogrula [--son N]\n  temizle [--kuru]\n  yedekle\n  ara ...  (ayrıntı: ctl ara)\n  disa-aktar --baslangic G --bitis G --cikti DOSYA\n  ag-uygula | ag-gecis DOSYA | ag-onayla | ag-geri-al | ag-ilk\n  filtre-uygula\n  hiz-uygula\n  admin-parola\n  merkez-eslesme\n  saglik\n  guncelle"
             );
             ExitCode::from(2)
         }

@@ -40,13 +40,17 @@ CREATE TABLE IF NOT EXISTS sorun (
   onem TEXT NOT NULL, acilis TEXT NOT NULL, kapanis TEXT NOT NULL DEFAULT '',
   acilis_sms TEXT NOT NULL DEFAULT '', kapanis_sms TEXT NOT NULL DEFAULT '');
 CREATE INDEX IF NOT EXISTS sorun_musteri ON sorun(musteri, kapanis);
+CREATE TABLE IF NOT EXISTS surum (
+  surum TEXT PRIMARY KEY, sha256 TEXT NOT NULL, boyut INTEGER NOT NULL, kaynak TEXT NOT NULL, zaman TEXT NOT NULL);
 """
 CIHAZ_ALANLARI = {"tunel_ip", "isletme_adi", "unvan", "surum", "son_eslesme", "isletme_turu"}
 # Cihazın eşitlemede bildirdiği işletme türü (cihaz ayarı main.isletme_turu); başka değer saklanmaz
 ISLETME_TURLERI = {"kafe": "Kafe/Restoran", "otel": "Otel/Pansiyon", "yurt": "Yurt", "diger": "Diğer"}
 # Sonradan eklenen müşteri sütunları (eski veritabanına ALTER ile eklenir)
 YENI_SUTUNLAR = (("parola_acik", "TEXT NOT NULL DEFAULT ''"), ("lisans_bitis", "TEXT NOT NULL DEFAULT ''"),
-                 ("askida", "INTEGER NOT NULL DEFAULT 0"))
+                 ("askida", "INTEGER NOT NULL DEFAULT 0"), ("guncelleme_kanali", "TEXT NOT NULL DEFAULT 'kararli'"),
+                 ("guncelleme_hemen", "REAL NOT NULL DEFAULT 0"), ("guncelleme_hemen_surum", "TEXT NOT NULL DEFAULT ''"))
+GUNCELLEME_KANALLARI = ("kararli", "test", "kapali")
 YENI_CIHAZ_SUTUNLARI = (("admin_parola", "TEXT NOT NULL DEFAULT ''"), ("admin_tuz", "TEXT NOT NULL DEFAULT ''"),
                         ("admin_ozet", "TEXT NOT NULL DEFAULT ''"), ("admin_yineleme", "INTEGER NOT NULL DEFAULT 0"),
                         ("isletme_turu", "TEXT NOT NULL DEFAULT ''"))
@@ -269,6 +273,66 @@ class Veri:
     def temizlendi(self, cid):
         with self._islem() as db:
             db.execute("UPDATE cihaz SET durum = 'serbest', ayrilma = ? WHERE id = ?", (self._simdi(), cid))
+
+    # --- sürüm deposu ve güncelleme kanalları (uzaktan güncelleme) ---
+    @staticmethod
+    def _surum_sirasi(s):
+        return tuple(int(x) for x in s.split("."))
+
+    def surum_ekle(self, surum, sha256, boyut, kaynak):
+        with self._islem() as db:
+            db.execute("INSERT OR REPLACE INTO surum (surum, sha256, boyut, kaynak, zaman) VALUES (?, ?, ?, ?, ?)",
+                       (surum, sha256, int(boyut), kaynak, self._simdi()))
+
+    def surumler(self):
+        """Yeniden eskiye, sürüm numarasına göre (0.10.0 > 0.9.2)."""
+        satirlar = [dict(r) for r in self._hepsi("SELECT * FROM surum")]
+        return sorted(satirlar, key=lambda r: self._surum_sirasi(r["surum"]), reverse=True)
+
+    def surum(self, surum):
+        r = self._bir("SELECT * FROM surum WHERE surum = ?", surum)
+        return dict(r) if r else None
+
+    def kanal_hedef(self, kanal):
+        r = self._bir("SELECT deger FROM ayar WHERE anahtar = ?", "kanal_" + kanal)
+        return r["deger"] if r else None
+
+    def kanal_hedef_koy(self, kanal, surum):
+        if kanal not in GUNCELLEME_KANALLARI or kanal == "kapali":
+            raise ValueError(kanal)
+        with self._islem() as db:
+            if surum is None:
+                db.execute("DELETE FROM ayar WHERE anahtar = ?", ("kanal_" + kanal,))
+            else:
+                db.execute("INSERT OR REPLACE INTO ayar (anahtar, deger) VALUES (?, ?)", ("kanal_" + kanal, surum))
+
+    def guncelleme_kanali_koy(self, numara, kanal):
+        if kanal not in GUNCELLEME_KANALLARI:
+            raise ValueError(kanal)
+        with self._islem() as db:
+            db.execute("UPDATE musteri SET guncelleme_kanali = ? WHERE numara = ?", (kanal, numara))
+
+    def guncelleme_hemen_koy(self, numara, epoch, surum=""):
+        """"Şimdi güncelle" bayrağı, basıldığı andaki hedef sürümle; epoch 0 = bayrak yok."""
+        with self._islem() as db:
+            db.execute("UPDATE musteri SET guncelleme_hemen = ?, guncelleme_hemen_surum = ? WHERE numara = ?",
+                       (float(epoch), surum if epoch else "", numara))
+
+    def hizmet_acik(self, m):
+        """Üyelik aktif, askıda değil, lisans süresi dolmamış."""
+        return m["uyelik"] == "aktif" and self.lisans_durumu(m)[0] == "aktif"
+
+    def cihaz_hedefi(self, m):
+        """Cihazın kurması istenen paket {surum, sha256, boyut, hemen} ya da None (kanal kapalı/hedefsiz, lisans ya da üyelik kapalı)."""
+        kanal = m["guncelleme_kanali"]
+        if kanal == "kapali" or not self.hizmet_acik(m):
+            return None
+        hedef = self.kanal_hedef(kanal)
+        k = self.surum(hedef) if hedef else None
+        if k is None:
+            return None
+        hemen = m["guncelleme_hemen"] > 0 and m["guncelleme_hemen_surum"] == k["surum"]  # bayrak başka hedef içinse geçmez
+        return {"surum": k["surum"], "sha256": k["sha256"], "boyut": k["boyut"], "hemen": hemen}
 
     # --- bütün cihazlarda tek admin parolası (2026-10-08, kullanıcı kararı): yalnızca özet saklanır ---
     # ponytail: cihaz başına admin_* sütunları (2026-10-05) artık kullanılmıyor; eski veritabanında boş durur.

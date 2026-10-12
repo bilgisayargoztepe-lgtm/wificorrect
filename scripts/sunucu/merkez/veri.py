@@ -316,10 +316,14 @@ class Veri:
         with self._islem() as db:
             db.execute("UPDATE musteri SET guncelleme_hemen = ? WHERE numara = ?", (float(epoch), numara))
 
+    def hizmet_acik(self, m):
+        """Üyelik aktif, askıda değil, lisans süresi dolmamış."""
+        return m["uyelik"] == "aktif" and self.lisans_durumu(m)[0] == "aktif"
+
     def cihaz_hedefi(self, m):
         """Cihazın kurması istenen paket {surum, sha256, boyut, hemen} ya da None (kanal kapalı/hedefsiz, lisans ya da üyelik kapalı)."""
         kanal = m["guncelleme_kanali"]
-        if kanal == "kapali" or m["uyelik"] != "aktif" or self.lisans_durumu(m)[0] != "aktif":
+        if kanal == "kapali" or not self.hizmet_acik(m):
             return None
         hedef = self.kanal_hedef(kanal)
         k = self.surum(hedef) if hedef else None

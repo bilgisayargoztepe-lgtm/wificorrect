@@ -226,7 +226,10 @@ class Api:
         if c is None:
             return _hata(401, "taninmadi", "Cihaz tanınmadı.")
         s = b.get("surum")
-        hedef = self.veri.cihaz_hedefi(self.veri.musteri(c["musteri"]))
+        m = self.veri.musteri(c["musteri"])
+        if c["durum"] != "bagli" or not self.veri.hizmet_acik(m):  # bırakılan / lisansı ya da üyeliği kapalı cihaza paket verilmez
+            return _hata(403, "yetki", "Bu paket için yetkiniz yok.")
+        hedef = self.veri.cihaz_hedefi(m)
         rapor = (self.veri.saglik(c["id"]) or {}).get("rapor", {})
         if not (isinstance(s, str) and surumler.SURUM_RE.fullmatch(s)
                 and (s == (hedef or {}).get("surum") or s == rapor.get("paket"))):  # ikincisi geri dönüş paketi için

@@ -340,6 +340,19 @@ def test_api_paket_yetkisi():
         assert paket("0.3.9")[0] == 403
         assert paket("../x")[0] == 403
         assert paket("0.4.1", "bilinmeyen")[0] == 401
+        v.askiya_al(n, True)
+        assert paket("0.4.1")[0] == 403 and paket("0.4.0")[0] == 403
+        v.askiya_al(n, False)
+        assert paket("0.4.0")[0] == 200
+        v.lisans_ayarla(n, "2020-01-01")
+        assert paket("0.4.1")[0] == 403 and paket("0.4.0")[0] == 403
+        v.lisans_uzat(n)
+        v.uyelik(n, "bitti")
+        assert paket("0.4.0")[0] == 403
+        v.uyelik(n, "aktif")
+        v.serbest_birak(n)
+        assert paket("0.4.1")[0] == 403 and paket("0.4.0")[0] == 403
+        v.serbest_iptal(n)
         os.remove(os.path.join(api.surum_dizini, "0.4.1.deb"))
         assert paket("0.4.1")[0] == 404
 

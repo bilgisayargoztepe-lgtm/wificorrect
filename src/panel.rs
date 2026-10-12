@@ -556,13 +556,6 @@ fn bolum_simgesi(id: &str) -> &'static str {
     }
 }
 
-/// Özet'in üstündeki kısayol kutuları: (bağlantı, simge, ad)
-const KISAYOLLAR: &[(&str, &str, &str)] = &[
-    ("/cihazlar#oturumlar", SIMGE_WIFI, "Bağlı kullanıcılar"),
-    ("/kayitlar#site-ara", SIMGE_ARA, "Site / IP ara"),
-    ("/cihazlar#yasakli-siteler", SIMGE_YASAK, "Yasaklı siteler"),
-];
-
 /// Özet listelerinde en çok bu kadar satır; fazlası "Tümü" bağlantısıyla
 const OZET_SATIR: usize = 10;
 
@@ -1071,12 +1064,17 @@ impl Panel {
         let today = ortak::day_of(&ortak::now_iso(now)).to_string();
         // bağlı = oturumu süren ve son 5 dakikada ağda görülen cihaz (Cihazlar sayfasındaki yeşil "Bağlı" ile aynı)
         let agda = std::fs::read(self.sys.join(&m.iface).join("brforward")).map(|b| ortak::kopruye_bagli(&b)).unwrap_or_default();
-        let mut bagli: Vec<ortak::Session> = ortak::load_sessions(&m.state_root)
+        // bağlı süresi kaydedicinin varlık kaydından (15 dk'dan kısa kopma süreyi sıfırlamaz)
+        let varlik = ortak::varlik_oku(&m.state_root);
+        let mut bagli: Vec<(ortak::Session, u64)> = ortak::load_sessions(&m.state_root)
             .into_iter()
             .filter(|(mac, s)| !s.ip.is_empty() && s.expires_epoch > now && agda.contains(mac))
-            .map(|(_, s)| s)
+            .map(|(mac, s)| {
+                let dk = ortak::bagli_dakika(varlik.get(&mac), now);
+                (s, dk)
+            })
             .collect();
-        bagli.sort_by(|a, b| b.start_epoch.total_cmp(&a.start_epoch)); // son bağlanan üstte
+        bagli.sort_by(|a, b| a.1.cmp(&b.1).then(b.0.start_epoch.total_cmp(&a.0.start_epoch))); // son bağlanan üstte
         let mut yeni: Vec<[String; 5]> = ortak::read_index(&m.log_root).into_values().filter(|r| r[3].starts_with(&today)).collect();
         yeni.sort_by(|a, b| b[3].cmp(&a[3]));
         let kisiler: BTreeSet<String> = std::fs::read_to_string(ortak::day_file(&m.log_root, &today, "oturum.csv"))
@@ -1088,7 +1086,6 @@ impl Panel {
             })
             .collect();
         let sms = ortak::sms_count(&m.state_root, &today);
-        let disk = ortak::disk_percent(&m.log_root);
         let mut uyarilar = vec![];
         let sms_down = cfg.sms.mock || !cfg.sms_missing().is_empty();
         if o.rol == Rol::Hizmet {
@@ -1117,8 +1114,7 @@ impl Panel {
         } else {
             format!("<section class=\"kutu ozet-uyari\"><h2>Uyarılar</h2><ul class=\"uyarilar\">{uyari_li}</ul></section>")
         };
-        let kisayol: String = KISAYOLLAR.iter().map(|(yol, d, ad)| format!("<a href=\"{yol}\">{}{}</a>", simge(d), h(ad))).collect();
-        // telefon ve MAC yok: yalnızca ad soyad, IP ve bağlanma saati
+        // telefon, MAC ve IP yok: yalnızca ad soyad ve bağlı olduğu dakika
         let liste = |satirlar: Vec<String>, toplam: usize, bos: &str, tumu: &str| -> String {
             if satirlar.is_empty() {
                 return format!("<p class=\"not\">{}</p>", h(bos));
@@ -1130,7 +1126,7 @@ impl Panel {
             bagli
                 .iter()
                 .take(OZET_SATIR)
-                .map(|s| format!("<li><b>{}</b><span>{} · {}</span></li>", h(&format!("{} {}", s.ad, s.soyad)), h(&s.ip), h(&kisa_zaman(&s.start, &today))))
+                .map(|(s, dk)| format!("<li><b><i class=\"nokta\"></i>{}</b><span>{dk} dk</span></li>", h(&format!("{} {}", s.ad, s.soyad))))
                 .collect(),
             bagli.len(),
             "Şu an bağlı kullanıcı yok.",
@@ -1142,35 +1138,18 @@ impl Panel {
             "Bugün yeni üye yok.",
             "/kayitlar#kullanicilar",
         );
-        let sinir = cfg.limits.sms_global_day.max(1);
-        let sms_p = (sms * 100 / sinir).min(100);
-        let halka = |p: u64, deger: &str, ad: &str, alt: &str| {
-            format!(
-                "<div class=\"halka{}\"><b style=\"--p:{p}\"><span>{}</span></b>{}<small>{}</small></div>",
-                if p >= 80 { " dolu" } else { "" },
-                h(deger),
-                h(ad),
-                h(alt)
-            )
-        };
         let body = format!(
-            "<nav class=\"kisayol\" aria-label=\"Kısayollar\">{kisayol}</nav>{uyari_html}\
+            "{uyari_html}\
              <div class=\"ozet-izgara\">\
              <section class=\"kutu\"><h2>Bağlı Kullanıcılar</h2>{bagli_html}</section>\
              <div class=\"ozet-sag\">\
              <section class=\"kutu\"><dl class=\"sayilar\"><div><dt>Bağlı kullanıcı</dt><dd>{}</dd></div>\
              <div><dt>Bugün farklı kullanıcı</dt><dd>{}</dd></div><div><dt>Bugün yeni üye</dt><dd>{}</dd></div></dl></section>\
              <section class=\"kutu\"><h2>Bugün Yeni Üyeler</h2>{yeni_html}</section>\
-             </div></div>\
-             <section class=\"kutu\"><h2>SMS ve Disk</h2><div class=\"halkalar\">{}{}</div></section>",
+             </div></div>",
             bagli.len(),
             kisiler.len(),
             yeni.len(),
-            halka(sms_p, &format!("{sms}"), "Bugün SMS", &format!("günlük sınır {}", cfg.limits.sms_global_day)),
-            match disk {
-                Some(p) => halka(p, &format!("%{p}"), "Kayıt diski", "dolu"),
-                None => halka(0, "?", "Kayıt diski", "okunamadı"),
-            },
         );
         self.page(cfg, req, Some(o), "Özet", &body)
     }
@@ -2348,6 +2327,12 @@ mod tests {
             });
         }
         ortak::save_sessions(&cfg.main.state_root, &ses).unwrap();
+        // ...:01 25 dk'dır bağlı (kaydedicinin varlık kaydı)
+        let now = 1_790_705_134.0;
+        let g = std::collections::BTreeSet::from(["aa:bb:cc:dd:ee:01".to_string()]);
+        ortak::varlik_guncelle(&cfg.main.state_root, &g, now - 25.0 * 60.0).unwrap();
+        ortak::varlik_guncelle(&cfg.main.state_root, &g, now - 800.0).unwrap(); // aralar 15 dk'dan kısa
+        ortak::varlik_guncelle(&cfg.main.state_root, &g, now - 30.0).unwrap();
         // yalnızca ...:01 ağda (son 5 dk)
         let sys = e.root.join("sys-ozet");
         std::fs::create_dir_all(sys.join(&cfg.main.iface)).unwrap();
@@ -2360,16 +2345,15 @@ mod tests {
         let s = e.p.handle(&req("GET", "/", &[], Some(&tok))).body;
         let kutu = |baslik: &str| s.split(&format!("<h2>{baslik}</h2>")).nth(1).unwrap().split("</section>").next().unwrap().to_string();
         let bagli = kutu("Bağlı Kullanıcılar");
-        assert!(bagli.contains("<b>Ayşe Yılmaz</b><span>10.50.0.23 · 20:14</span>") && !bagli.contains("Mehmet"), "{bagli}");
+        assert!(bagli.contains("<b><i class=\"nokta\"></i>Ayşe Yılmaz</b><span>25 dk</span>") && !bagli.contains("Mehmet"), "{bagli}");
+        assert!(!bagli.contains("10.50.0.23") && !bagli.contains("20:14"), "özette IP ve tarih yok: {bagli}");
         let yeni = kutu("Bugün Yeni Üyeler");
         assert!(yeni.contains("<b>Zeynep Ak</b><span>19:40</span>") && !yeni.contains("Eski"), "{yeni}");
         assert!(s.contains("<dt>Bağlı kullanıcı</dt><dd>1</dd>") && s.contains("<dt>Bugün yeni üye</dt><dd>1</dd>"));
         assert!(!s.contains("905334553132") && !s.contains("aa:bb:cc"), "özette telefon ve MAC yok");
-        for k in ["/cihazlar#oturumlar", "/kayitlar#site-ara", "/cihazlar#yasakli-siteler"] {
-            assert!(s.contains(&format!("<a href=\"{k}\">")), "{k}");
-        }
-        assert!(!s.contains("href=\"/kayitlar#gunler\"") && !s.contains("href=\"/ayarlar#isletme\""), "menüde olanlar kısayolda yok");
-        assert!(kutu("SMS ve Disk").contains("Bugün SMS") && s.contains("for=\"menu-ac\""));
+        // sade özet: kısayol kutuları ve SMS/Disk halkaları yok (menüde zaten var)
+        assert!(!s.contains("aria-label=\"Kısayollar\"") && !s.contains("SMS ve Disk") && !s.contains("class=\"halka"), "{s}");
+        assert!(s.contains("for=\"menu-ac\""));
         let audit = std::fs::read_to_string(e.root.join("5651/gunluk/2026-09-29/denetim.csv")).unwrap();
         assert!(audit.contains("PANEL_OZET"));
         assert_eq!(kisa_zaman("2026-09-28T08:05:00+03:00", "2026-09-29"), "28.09 08:05");

@@ -523,6 +523,12 @@ impl Kaydedici {
             }
         }
         drop(_g);
+        // özetteki bağlı süresi: oturumu süren ve köprüde (son 5 dk trafik) görülen cihazlar
+        let agda = std::fs::read(self.sys.join(&self.cfg.main.iface).join("brforward")).map(|b| ortak::kopruye_bagli(&b)).unwrap_or_default();
+        let gorulen = ses.iter().filter(|(mac, s)| !s.ip.is_empty() && s.expires_epoch > now && agda.contains(*mac)).map(|(mac, _)| mac.clone()).collect();
+        if let Err(e) = ortak::varlik_guncelle(&state, &gorulen, now) {
+            eprintln!("kaydedici: bağlı süresi yazılamadı: {e}");
+        }
         self.check_disk(now);
         self.check_wan(now);
         self.check_uzak(now);

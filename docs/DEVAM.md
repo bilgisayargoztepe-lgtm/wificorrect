@@ -43,7 +43,8 @@ Canlı müşteri: **Göztepe Bilgisayar = 1537344**, cihaz 192.168.1.110.
 
 ## Dallar ve durum (2026-10-12)
 Repo `bilgisayargoztepe-lgtm/wificorrect` (avsharbeyi'den devredildi). Her şey **`main`**'de (PR #3–#12 birleşti; #2 kapatıldı).
-**v0.4.3** etiketlendi (2026-10-12; ISO + .deb, `release.yml`; `WFC_SSH_PUB` = `~/.ssh/bocafe.pub`). Canlı cihaz artık **paketli**
+**v0.4.4** yayında (2026-10-12; tarihler gün.ay.yıl, PR #13; ISO + .deb, `release.yml`; `WFC_SSH_PUB` = `~/.ssh/bocafe.pub`). Canlı cihaz 0.4.4'e
+**merkezden uzaktan güncellemeyle** geçti (GitHub → Sürümler → test kanalı → Şimdi güncelle; ilk gerçek kullanım). Cihaz **paketli**
 (dpkg `wificorrect` 0.4.3, yerelde derlenmiş; elle geçiş ölü adam anahtarıyla) ve merkez main'i çalıştırıyor.
 **Cihaza kurulum artık `gelistir.sh` ile değil**: yeni sürüm → `v*` etiketi → Yönetim → Sürümler → "GitHub'dan al" → test kanalı
 hedefi + Göztepe (test kanalında) "Şimdi güncelle". Acil yerel deneme: cihazda `scripts/paket.sh` ile .deb, sunucuda

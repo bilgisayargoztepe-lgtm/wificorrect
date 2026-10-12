@@ -66,7 +66,7 @@ p{margin:0 0 12px}
 .dar{max-width:28rem}
 form.satir.kart{margin-bottom:20px}
 
-/* özet: kısayol kutuları, çerçeveli kutular, sayılar, halkalar */
+/* özet ve grup sayfaları: kısayol kutuları, çerçeveli kutular, sayılar */
 .kisayol{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:20px;margin:0 0 24px}
 .kisayol a{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;min-height:76px;padding:12px 8px;border:1px solid var(--cizgi2);background:var(--yuzey);color:var(--murekkep);text-decoration:none;font-size:.875rem;line-height:1.25;text-align:center;transition:background-color var(--hiz),border-color var(--hiz)}
 .kisayol a svg{width:26px;height:26px;color:var(--koyu3)}
@@ -83,19 +83,13 @@ form.satir.kart{margin-bottom:20px}
 .liste li + li{border-top:1px solid var(--cizgi)}
 .liste li span{color:var(--soluk);text-align:right;white-space:nowrap}
 .liste li b{font-weight:500;overflow-wrap:anywhere}
+.liste .nokta{display:inline-block;width:9px;height:9px;margin-right:9px;border-radius:50%;background:var(--iyi);vertical-align:1px}
 .tumu{display:block;padding:10px 0 4px;font-size:.875rem}
 .sayilar{margin:0}
 .sayilar div{display:flex;justify-content:space-between;align-items:baseline;gap:16px;padding:11px 0}
 .sayilar div + div{border-top:1px solid var(--cizgi)}
 .sayilar dt{font-size:.9375rem}
 .sayilar dd{margin:0;font-size:1.25rem;font-weight:600;font-variant-numeric:tabular-nums}
-.halkalar{display:flex;flex-wrap:wrap;justify-content:space-around;gap:24px;padding:16px 0 8px}
-.halka{display:flex;flex-direction:column;align-items:center;gap:10px;font-size:.9375rem;text-align:center}
-.halka b{display:grid;place-items:center;width:96px;height:96px;border-radius:50%;background:conic-gradient(var(--iyi) calc(var(--p) * 1%),var(--cizgi) 0);font-weight:500;font-variant-numeric:tabular-nums}
-.halka b::before{content:"";grid-area:1/1;width:80px;height:80px;border-radius:50%;background:var(--zemin)}
-.halka b span{grid-area:1/1;position:relative}
-.halka.dolu b{background:conic-gradient(var(--tehlike) calc(var(--p) * 1%),var(--cizgi) 0)}
-.halka small{color:var(--soluk)}
 
 /* anahtar–değer listesi */
 .bilgi{margin:0 0 12px;max-width:44rem}

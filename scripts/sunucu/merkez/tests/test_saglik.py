@@ -225,6 +225,21 @@ def test_serbest_askida_kuralsiz():
     assert turler(m={**M, "uyelik": "bitti"}, el=None, sg=None) == []
 
 
+def test_kural_guncelleme_basarisiz():
+    def t(r, hedef="1.2.0"):
+        return [x for x, _, _ in S.sorunlar(M, C, r, T0 - 60, T0 - 60, BUGUN, T0, hedef=hedef)]
+    g = {"surum": "1.2.0", "sonuc": "geri_alindi", "zaman": 1}
+    assert t(rapor(paket="1.1.0", guncelleme=g)) == ["guncelleme_basarisiz"]
+    assert t(rapor(paket="1.1.0", guncelleme=dict(g, sonuc="hata"))) == ["guncelleme_basarisiz"]
+    s = S.sorunlar(M, C, rapor(paket="1.1.0", guncelleme=g), T0 - 60, T0 - 60, BUGUN, T0, hedef="1.2.0")
+    assert s == [("guncelleme_basarisiz", "Güncelleme başarısız (1.2.0)", "uyari")]
+    assert t(rapor(paket="1.2.0", guncelleme=g)) == []  # paket hedefe eşit
+    assert t(rapor(paket="1.1.0", guncelleme=dict(g, sonuc="tamam"))) == []
+    assert t(rapor(paket="1.1.0", guncelleme=dict(g, surum="1.1.5"))) == []  # başka sürümün denemesi
+    assert t(rapor(paket="1.1.0", guncelleme=g), hedef=None) == []
+    assert t(rapor(paket="1.1.0")) == [] and t(rapor(paket="1.1.0", guncelleme=None)) == []
+
+
 class Sahte:
     """Sahte NetGSM: hiçbir ağ isteği yok."""
     def __init__(self, sonuc="gonderildi"):

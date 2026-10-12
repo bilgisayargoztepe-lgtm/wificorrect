@@ -20,7 +20,7 @@ WG, SSH = "A" * 43 + "=", "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI c"
 PW = "yonetici-parola-1"
 
 
-def kur(tmp, durum=None, gonderilen=None):
+def kur(tmp, durum=None, gonderilen=None, **yeni_ek):
     v, k, saat = Y.ortam(tmp)
     yol, dyol = os.path.join(tmp, "yonetici.json"), os.path.join(tmp, "durum.json")
     yonetici.yaz(yol, "serkan", PW)
@@ -31,6 +31,7 @@ def kur(tmp, durum=None, gonderilen=None):
         gonderilen.append((ayar, metin, list(numaralar)))
         return "gonderildi"
     ek = {"gonder": sahte} if gonderilen is not None else {}
+    ek.update(yeni_ek)
     app = YN.Yonetim(v, k, saat, yol, dyol, lambda islem, veri: isler.append((islem, veri)) or "0" * 16, **ek)
     c = Y.cerez(Y.giris(app, "serkan", PW))
     return app, v, saat, c, isler
@@ -464,6 +465,137 @@ def test_yonetimden_cihaz_paneline_dogrudan_gecis():
         assert r[0] == 303 and r[1]["Location"] == f"https://yonetim.wificorrect.com/m/{n}"
         assert cz.istek("GET", "/cihaz-yetki", dict(h, Cookie=f"wcc={wcc}"), "", "", "1.2.3.4")[0] == 302
         assert cz.istek("GET", "/cihaz-yetki", dict(h, Cookie=f"wcc={mw}"), "", "", "1.2.3.4")[0] == 200
+
+
+# --- uzaktan güncelleme: Sürümler sayfası, müşteri kartı, liste sütunu ---
+def _surum_ekle(v, s="1.2.0"):
+    v.surum_ekle(s, "ab" * 32, 2048, "github")
+
+
+def test_surumler_yonetici_disina_kapali_ve_tablo():
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        app, v, _, c, _ = kur(tmp)
+        assert Y.al(app, "/surumler", "")[0] in (302, 303, 401, 403)
+        n, _ = v.musteri_ekle()
+        cid, _ = v.cihaz_bagla(n, WG, SSH)
+        _surum_ekle(v)
+        v.saglik_kaydet(cid, {"paket": "1.2.0"})
+        s = Y.al(app, "/surumler", c)[2].decode()
+        assert "1.2.0" in s and "github" in s and "ab" * 6 in s and "ab" * 7 not in s
+        assert 'href="/surumler"' in s
+        satir = re.search(r"<tr><td>1\.2\.0</td>.*?</tr>", s, re.S).group(0)
+        assert "<td>1</td>" in satir  # kurulu cihaz sayısı
+
+
+def test_surumler_github_al_mesaji_ve_hareket():
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        cagri = []
+
+        def sahte(v_, dizin, getir):
+            cagri.append(dizin)
+            v_.surum_ekle("1.3.0", "cd" * 32, 10, "github")
+            return ["1.3.0"], ["1.2.9: SHA256 tutmuyor"]
+        app, v, _, c, _ = kur(tmp, surum_dizini=os.path.join(tmp, "sd"), github_al=sahte)
+        t = Y.csrf(Y.al(app, "/surumler", c))
+        assert Y.gonder(app, "/surumler/al", c, {"csrf": "yanlis"})[0] == 403 and cagri == []
+        r = Y.gonder(app, "/surumler/al", c, {"csrf": t})
+        s = r[2].decode()
+        assert r[0] == 200 and "1.3.0" in s and "SHA256 tutmuyor" in s and cagri == [os.path.join(tmp, "sd")]
+        assert v.surum("1.3.0") is not None
+        assert any(h["olay"] == "SURUM_ALINDI" and "surum=1.3.0" in h["ayrinti"] for h in v.hareketler())
+
+
+def test_surumler_github_listesi_alinamazsa_hata_mesaji():
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        def bozuk(v_, dizin, getir):
+            raise OSError("ag yok")
+        app, v, _, c, _ = kur(tmp, github_al=bozuk)
+        t = Y.csrf(Y.al(app, "/surumler", c))
+        r = Y.gonder(app, "/surumler/al", c, {"csrf": t})
+        assert r[0] == 200 and "alınamadı" in r[2].decode().lower()
+
+
+def test_surumler_hedef_secimi():
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        app, v, _, c, _ = kur(tmp)
+        _surum_ekle(v)
+        t = Y.csrf(Y.al(app, "/surumler", c))
+        assert Y.gonder(app, "/surumler/hedef", c, {"csrf": "yanlis", "kanal": "test", "surum": "1.2.0"})[0] == 403
+        r = Y.gonder(app, "/surumler/hedef", c, {"csrf": t, "kanal": "test", "surum": "1.2.0"})
+        assert r[0] == 303 and v.kanal_hedef("test") == "1.2.0"
+        assert any(h["olay"] == "KANAL_HEDEF" and "kanal=test" in h["ayrinti"] and "surum=1.2.0" in h["ayrinti"] for h in v.hareketler())
+        assert 'value="1.2.0" selected' in Y.al(app, "/surumler", c)[2].decode()
+        # geçersiz sürüm / kanal reddedilir, değişmez
+        assert Y.gonder(app, "/surumler/hedef", c, {"csrf": t, "kanal": "test", "surum": "9.9.9"})[0] == 400
+        assert Y.gonder(app, "/surumler/hedef", c, {"csrf": t, "kanal": "kapali", "surum": "1.2.0"})[0] == 400
+        assert Y.gonder(app, "/surumler/hedef", c, {"csrf": t, "kanal": "kararli", "surum": "../x"})[0] == 400
+        assert v.kanal_hedef("test") == "1.2.0" and v.kanal_hedef("kararli") is None
+        # boş = hedef yok
+        assert Y.gonder(app, "/surumler/hedef", c, {"csrf": t, "kanal": "test", "surum": ""})[0] == 303
+        assert v.kanal_hedef("test") is None
+
+
+def test_musteri_guncelleme_karti_kanal_ve_hemen():
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        app, v, saat, c, _ = kur(tmp)
+        n, _ = v.musteri_ekle()
+        cid, _ = v.cihaz_bagla(n, WG, SSH)
+        _surum_ekle(v)
+        v.kanal_hedef_koy("kararli", "1.2.0")
+        f = Y.al(app, f"/m/{n}", c)
+        s, t = f[2].decode(), Y.csrf(f)
+        assert "Güncelleme" in s and f'action="/m/{n}/guncelleme"' in s and f'action="/m/{n}/guncelleme-hemen"' in s
+        assert "Hedef sürüm" in s and "1.2.0" in s
+        # CSRF'siz POST reddedilir
+        assert Y.gonder(app, f"/m/{n}/guncelleme", c, {"kanal": "test"})[0] == 403
+        assert Y.gonder(app, f"/m/{n}/guncelleme-hemen", c, {"csrf": "yanlis"})[0] == 403
+        assert v.musteri(n)["guncelleme_kanali"] == "kararli" and v.musteri(n)["guncelleme_hemen"] == 0
+        assert Y.gonder(app, f"/m/{n}/guncelleme", c, {"csrf": t, "kanal": "bilinmez"})[0] == 400
+        assert Y.gonder(app, f"/m/{n}/guncelleme", c, {"csrf": t, "kanal": "test"})[0] == 303
+        assert v.musteri(n)["guncelleme_kanali"] == "test"
+        assert any(h["olay"] == "GUNCELLEME_KANALI" and h["musteri"] == n and "kanal=test" in h["ayrinti"] for h in v.hareketler(n))
+        v.guncelleme_kanali_koy(n, "kararli")
+        assert "bekleniyor" not in Y.al(app, f"/m/{n}", c)[2].decode()
+        assert Y.gonder(app, f"/m/{n}/guncelleme-hemen", c, {"csrf": t})[0] == 303
+        assert v.musteri(n)["guncelleme_hemen"] == saat()
+        assert any(h["olay"] == "GUNCELLEME_HEMEN" for h in v.hareketler(n))
+        assert "bekleniyor" in Y.al(app, f"/m/{n}", c)[2].decode()
+
+
+def test_musteri_guncelleme_karti_paket_sonuc_gecmis():
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        app, v, _, c, _ = kur(tmp)
+        n, _ = v.musteri_ekle()
+        cid, _ = v.cihaz_bagla(n, WG, SSH)
+        assert "Paketsiz kurulum" not in Y.al(app, f"/m/{n}", c)[2].decode()
+        v.saglik_kaydet(cid, {"paket": ""})
+        assert "Paketsiz kurulum — uzaktan güncellenmez" in Y.al(app, f"/m/{n}", c)[2].decode()
+        v.saglik_kaydet(cid, {"paket": "1.1.0", "guncelleme": {"surum": "1.2.0", "sonuc": "geri_alindi", "zaman": 1790000000}})
+        for i in range(12):
+            v.hareket(f"cihaz:{cid}", "10.99.0.11", "GUNCELLEME_SONUC", n, f"surum=1.0.{i} sonuc=hata")
+        s = Y.al(app, f"/m/{n}", c)[2].decode()
+        assert "Kurulu paket" in s and "1.1.0" in s and "geri_alindi" in s
+        assert s.count("surum=1.0.") == 10 and "surum=1.0.11 " in s and "surum=1.0.1 " not in s
+
+
+def test_liste_surum_sutunu_hedefle_farkli_sari():
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        app, v, _, c, _ = kur(tmp)
+        n1, _ = v.musteri_ekle()
+        c1, _ = v.cihaz_bagla(n1, WG, SSH)
+        n2, _ = v.musteri_ekle()
+        c2, _ = v.cihaz_bagla(n2, "B" * 43 + "=", SSH)
+        n3, _ = v.musteri_ekle()
+        _surum_ekle(v)
+        v.kanal_hedef_koy("kararli", "1.2.0")
+        v.saglik_kaydet(c1, {"paket": "1.1.0"})
+        v.saglik_kaydet(c2, {"paket": "1.2.0"})
+        s = Y.al(app, "/", c)[2].decode()
+        assert "<th>Sürüm</th>" in s
+        sat = {n: re.search(rf'<tr><td><a href="/m/{n}">.*?</tr>', s, re.S).group(0) for n in (n1, n2, n3)}
+        assert 'class="uyarisi">1.1.0' in sat[n1] and 'class="uyarisi"' not in sat[n2] and "1.2.0" in sat[n2]
+        assert "—" in sat[n3] and 'class="uyarisi"' not in sat[n3]
+
 
 if __name__ == "__main__":
     for _name, _fn in sorted(globals().items()):

@@ -14,6 +14,7 @@ import guvenlik
 import kayitlar as kayitlar_modulu
 import kuyruk
 import netgsm
+import surumler
 import veri as veri_modulu
 import web
 import yonetici
@@ -108,11 +109,13 @@ class Yonetim(web.Taban):
     giris_aciklama = "Hizmet sağlayıcı girişi."
 
     def __init__(self, veri, kayitlar, saat=time.time, yonetici_yolu=yonetici.YONETICI,
-                 durum_yolu=durum_modulu.DURUM, kuyruk_ekle=kuyruk.ekle, gonder=netgsm.gonder, gecis=None, musteri_app=None):
+                 durum_yolu=durum_modulu.DURUM, kuyruk_ekle=kuyruk.ekle, gonder=netgsm.gonder, gecis=None, musteri_app=None,
+                 github_al=surumler.github_al, getir=surumler.getir, surum_dizini=surumler.DIZIN):
         super().__init__(veri, kayitlar, saat)
         self.yonetici_yolu, self.durum_yolu, self.kuyruk_ekle, self.gonder = yonetici_yolu, durum_yolu, kuyruk_ekle, gonder
         # cihaz paneline doğrudan geçiş: müşteri paneliyle aynı belirteç deposu ve cihaz adresi kuralı
         self.gecis, self.musteri_app = gecis, musteri_app
+        self.github_al, self.getir, self.surum_dizini = github_al, getir, surum_dizini  # uzaktan güncelleme sürüm deposu
 
     # --- Taban ---
     def dogrula(self, kul, pw):
@@ -138,7 +141,7 @@ class Yonetim(web.Taban):
 
     def menu(self, ot):
         return ('<a href="/">Müşteriler</a><a href="/yeni">Yeni müşteri</a><a href="/hareketler">Hareketler</a>'
-                '<a href="/sms">SMS ayarları</a><a href="/uyari">Uyarı ayarları</a><a href="/admin-parolasi">Admin parolası</a><a href="/eski-arsivler">Eski arşivler</a><a href="/hesabim">Hesabım</a>')
+                '<a href="/surumler">Sürümler</a><a href="/sms">SMS ayarları</a><a href="/uyari">Uyarı ayarları</a><a href="/admin-parolasi">Admin parolası</a><a href="/eski-arsivler">Eski arşivler</a><a href="/hesabim">Hesabım</a>')
 
     # --- yardımcılar ---
     def _durum(self):
@@ -181,6 +184,12 @@ class Yonetim(web.Taban):
             return self.eski_arsivler(ot, yontem, form, ip)
         if yol == "/sms":
             return self.sms(ot, yontem, form, ip)
+        if (yontem, yol) == ("GET", "/surumler"):
+            return self.surumler_sayfasi(ot)
+        if (yontem, yol) == ("POST", "/surumler/al"):
+            return self.surum_al(ot, ip)
+        if (yontem, yol) == ("POST", "/surumler/hedef"):
+            return self.kanal_hedef(ot, form, ip)
         if yol == "/uyari":
             return self.uyari(ot, yontem, form, ip)
         if (yontem, yol) == ("POST", "/uyari/deneme"):
@@ -204,6 +213,10 @@ class Yonetim(web.Taban):
             return yonlendir(f"/m/{n}")
         if (yontem, alt) == ("POST", "/serbest"):
             return self.serbest(ot, n, form, ip)
+        if (yontem, alt) == ("POST", "/guncelleme"):
+            return self.guncelleme_kanali(ot, n, form, ip)
+        if (yontem, alt) == ("POST", "/guncelleme-hemen"):
+            return self.guncelleme_hemen(ot, n, ip)
         if (yontem, alt) == ("POST", "/cihaz-paneli"):
             return self.cihaz_paneli(ot, n, ip)
         if (yontem, alt) == ("POST", "/lisans"):
@@ -239,6 +252,7 @@ class Yonetim(web.Taban):
                 kritik.setdefault(x["musteri"], []).append(x["metin"])
         for m in self.veri.musteriler():
             n, c = m["numara"], cihazlar.get(m["numara"])
+            paket = self._paket(m, c)
             ad = c["isletme_adi"] if c is not None else ""
             tur = isletme_turu(c)
             if q and q not in str(n) and q not in detay.tr_kucuk(ad) and q not in detay.tr_kucuk(m["not_"]):
@@ -255,15 +269,124 @@ class Yonetim(web.Taban):
             sorunlu = sorunlu or ldurum != "aktif"
             satirlar.append((not sorunlu, n,
                              f'<tr><td><a href="/m/{n}">{n}</a></td><td>{e(ad or "—")}<br><span class="alt">{e(m["not_"])}</span></td>'
-                             f'<td>{e(tur)}</td><td>{cihaz}</td><td>{son}</td><td>{e(yedi)}</td><td>{lisans}</td><td>{e(uyelik)}</td></tr>'))
+                             f'<td>{e(tur)}</td><td>{cihaz}</td><td>{paket}</td><td>{son}</td><td>{e(yedi)}</td><td>{lisans}</td><td>{e(uyelik)}</td></tr>'))
         satirlar.sort()
         tablo = ('<div class="kaydir"><table class="detay"><tr><th>No</th><th>İşletme / not</th><th>Tür</th><th>Cihaz</th>'
-                 '<th>Son gelen gün</th><th>Son 7 gün</th><th>Lisans</th><th>Üyelik</th></tr>' + "".join(s[2] for s in satirlar)
+                 '<th>Sürüm</th><th>Son gelen gün</th><th>Son 7 gün</th><th>Lisans</th><th>Üyelik</th></tr>' + "".join(s[2] for s in satirlar)
                  + "</table></div>") if satirlar else '<p class="alt">Müşteri yok.</p>'
         ara = (f'<form class="ara" method="get" action="/"><input name="q" value="{e(q)}" placeholder="Numara, işletme adı ya da not">'
                '<button>Ara</button></form>')
         return yanit_html(self.sayfa("Müşteriler", self._acik_sorunlar_karti(acik, cihazlar)
                                      + kart(f"<h1>Müşteriler</h1>{self._izleme_satiri()}{ara}") + kart(tablo), ot, genis=True))
+
+    def _kurulu_paket(self, c):
+        """Cihazın son raporundaki kurulu paket sürümü: "1.2.0", "" (paketsiz kurulum) ya da None (rapor yok / eski sürüm)."""
+        s = self.veri.saglik(c["id"]) if c is not None else None
+        r = s["rapor"] if s and isinstance(s["rapor"], dict) else {}
+        p = r.get("paket")
+        return p if isinstance(p, str) else None
+
+    def _paket(self, m, c):
+        """Liste hücresi: kurulu paket; hedeften farklıysa sarı."""
+        p = self._kurulu_paket(c)
+        if p is None:
+            return "—"
+        if p == "":
+            return "paketsiz"
+        hedef = self.veri.cihaz_hedefi(m)
+        return f'<span class="uyarisi">{e(p)}</span>' if hedef and hedef["surum"] != p else e(p)
+
+    # --- sürümler (uzaktan güncelleme) ---
+    def surumler_sayfasi(self, ot):
+        cs = e(ot["csrf"])
+        kurulu = {}
+        for c in self.veri.cihazlar().values():
+            p = self._kurulu_paket(c)
+            if p:
+                kurulu[p] = kurulu.get(p, 0) + 1
+        liste = self.veri.surumler()
+        satirlar = "".join(
+            f'<tr><td>{e(x["surum"])}</td><td>{e(x["kaynak"])}</td><td>{e(x["zaman"][:16])}</td><td>{e(detay.boyut(x["boyut"]))}</td>'
+            f'<td>{e(x["sha256"][:12])}</td><td>{kurulu.get(x["surum"], 0)}</td></tr>' for x in liste)
+        tablo = ('<div class="kaydir"><table class="detay"><tr><th>Sürüm</th><th>Kaynak</th><th>Tarih</th><th>Boyut</th>'
+                 f'<th>sha256</th><th>Kurulu cihaz</th></tr>{satirlar}</table></div>') if liste else '<p class="alt">Depoda sürüm yok.</p>'
+        al = (f'<form method="post" action="/surumler/al"><input type="hidden" name="csrf" value="{cs}">'
+              "<button>GitHub'dan yeni sürümleri al</button></form>")
+        hedefler = ""
+        for kanal, ad in (("kararli", "Kararlı"), ("test", "Test")):
+            secili = self.veri.kanal_hedef(kanal)
+            sec = '<option value="">Hedef yok</option>' + "".join(
+                f'<option value="{e(x["surum"])}"{" selected" if x["surum"] == secili else ""}>{e(x["surum"])}</option>' for x in liste)
+            hedefler += (f'<form method="post" action="/surumler/hedef" class="ara"><input type="hidden" name="csrf" value="{cs}">'
+                         f'<input type="hidden" name="kanal" value="{kanal}"><label for="k-{kanal}">{ad} kanal hedefi</label>'
+                         f'<select id="k-{kanal}" name="surum">{sec}</select><button>Kaydet</button></form>')
+        return yanit_html(self.sayfa("Sürümler", kart("<h1>Sürümler</h1>" + al + tablo)
+                                     + kart("<h2>Kanal hedefleri</h2>" + hedefler
+                                            + '<p class="alt">Cihazlar kendi kanalının hedefini bir sonraki sağlık raporunda (5 dk) '
+                                              "öğrenir ve kurar; hedef yoksa o kanaldaki cihazlar güncellenmez.</p>"), ot, genis=True))
+
+    def surum_al(self, ot, ip):
+        try:
+            eklenen, hatalar = self.github_al(self.veri, self.surum_dizini, self.getir)
+        except Exception as h:  # liste alınamadı: sayfa düşmez, mesaj gösterilir
+            self.veri.hareket("admin", ip, "SURUM_AL_HATA", None, str(h)[:200])
+            return yanit_html(self.mesaj(ot, "Sürümler alınamadı", f"GitHub sürüm listesi alınamadı: {h}"))
+        for s in eklenen:
+            self.veri.hareket("admin", ip, "SURUM_ALINDI", None, f"surum={s}")
+        metin = ("Eklenen: " + ", ".join(eklenen) + ". ") if eklenen else "Yeni sürüm yok. "
+        if hatalar:
+            metin += "Alınamayanlar: " + "; ".join(hatalar)
+        return yanit_html(self.mesaj(ot, "Sürümler", metin.strip()))
+
+    def kanal_hedef(self, ot, form, ip):
+        kanal, sv = form.get("kanal", ""), form.get("surum", "")
+        if kanal not in ("kararli", "test") or (sv and (not surumler.SURUM_RE.fullmatch(sv) or self.veri.surum(sv) is None)):
+            return yanit_html(self.mesaj(ot, "Hedef kaydedilmedi", "Kanal ya da sürüm geçersiz (sürüm depoda olmalı)."), 400)
+        self.veri.kanal_hedef_koy(kanal, sv or None)
+        self.veri.hareket("admin", ip, "KANAL_HEDEF", None, f"kanal={kanal} surum={sv or '-'}")
+        return yonlendir("/surumler")
+
+    def guncelleme_kanali(self, ot, n, form, ip):
+        kanal = form.get("kanal", "")
+        if kanal not in veri_modulu.GUNCELLEME_KANALLARI:
+            return yanit_html(self.mesaj(ot, "Kanal kaydedilmedi", "Geçersiz kanal."), 400)
+        self.veri.guncelleme_kanali_koy(n, kanal)
+        self.veri.hareket("admin", ip, "GUNCELLEME_KANALI", n, f"kanal={kanal}")
+        return yonlendir(f"/m/{n}")
+
+    def guncelleme_hemen(self, ot, n, ip):
+        self.veri.guncelleme_hemen_koy(n, self.saat())
+        self.veri.hareket("admin", ip, "GUNCELLEME_HEMEN", n)
+        return yonlendir(f"/m/{n}")
+
+    def _guncelleme_karti(self, m, c, cs):
+        n = m["numara"]
+        p = self._kurulu_paket(c)
+        kurulu = "—" if p is None else ("Paketsiz kurulum — uzaktan güncellenmez" if p == "" else e(p))
+        hedef = self.veri.cihaz_hedefi(m)
+        s = self.veri.saglik(c["id"]) if c is not None else None
+        g = (s["rapor"] if s and isinstance(s["rapor"], dict) else {}).get("guncelleme")
+        if isinstance(g, dict):
+            z = g.get("zaman")
+            zaman = (datetime.datetime.fromtimestamp(z, common.TZ).strftime("%Y-%m-%d %H:%M")
+                     if isinstance(z, (int, float)) and not isinstance(z, bool) and z > 0 else "")
+            son = f'{e(g.get("surum", "?"))} · {e(g.get("sonuc", "?"))} · {e(zaman)}'
+        else:
+            son = "—"
+        kanallar = {"kararli": "Kararlı", "test": "Test", "kapali": "Kapalı (güncellenmez)"}
+        sec = "".join(f'<option value="{k}"{" selected" if k == m["guncelleme_kanali"] else ""}>{ad}</option>' for k, ad in kanallar.items())
+        bekliyor = '<b class="uyarisi">bekleniyor</b>' if m["guncelleme_hemen"] > 0 else "—"
+        gecmis = detay._tablo(("Zaman", "Ayrıntı"),
+                              [(h["zaman"][:16], h["ayrinti"]) for h in self.veri.hareketler(n, 300)
+                               if h["olay"] == "GUNCELLEME_SONUC"][:10], "Güncelleme denemesi yok.")
+        return (bilgi_tablosu([("Kurulu paket", kurulu), ("Hedef sürüm", e(hedef["surum"]) if hedef else "—"),
+                               ("Son sonuç", son), ("Şimdi güncelle", bekliyor)])
+                + f'<form method="post" action="/m/{n}/guncelleme" class="ara"><input type="hidden" name="csrf" value="{cs}">'
+                  f'<select name="kanal" aria-label="Güncelleme kanalı">{sec}</select><button>Kanalı kaydet</button></form>'
+                + f'<form method="post" action="/m/{n}/guncelleme-hemen"><input type="hidden" name="csrf" value="{cs}">'
+                  "<button>Şimdi güncelle</button></form>"
+                  '<p class="alt">Cihaz hedefi sağlık raporunda (5 dk) görür; "şimdi güncelle" bekleme penceresini atlar.</p>'
+                + "<h3>Geçmiş</h3>" + gecmis)
 
     def _izleme_satiri(self):
         """wc-saglik'in son turu: hep görünür; 15 dk'dan eskiyse ya da hiç yoksa kırmızı (zamanlayıcı durmuş olabilir)."""
@@ -381,6 +504,7 @@ class Yonetim(web.Taban):
                                    for x in self.veri.cihaz_gecmisi(n)], "Henüz cihaz yok.")
         return yanit_html(self.sayfa(f"Müşteri {n}", kart(f"<h1>Müşteri {n}</h1>{bilgi}") + kart(f"<h2>Cihaz</h2>{cihaz}")
                                      + kart(f"<h2>Sağlık</h2>{self._saglik_tablosu(c)}")
+                                     + kart(f"<h2>Güncelleme</h2>{self._guncelleme_karti(m, c, cs)}")
                                      + kart(f"<h2>Sorun geçmişi</h2>{self._sorun_gecmisi(n)}")
                                      + kart(f"<h2>İşlemler</h2>{islemler}") + kart(f"<h2>Cihaz geçmişi</h2>{gecmis}"), ot, genis=True))
 

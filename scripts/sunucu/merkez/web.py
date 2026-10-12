@@ -18,7 +18,7 @@ h1{font-size:20px;margin:0 0 4px}.alt{color:#5b6475;font-size:14px;margin:0}
 label{display:block;font-size:14px;margin:12px 0 4px}input,select{width:100%;padding:10px 12px;border:1px solid #c9d0db;border-radius:8px;font:inherit}
 input[type=checkbox]{width:auto}button{background:#0a6ebd;color:#fff;border:0;border-radius:999px;padding:10px 18px;font:inherit;cursor:pointer;margin-top:16px}
 button.ikincil{background:#fff;color:#0a6ebd;border:1px solid #0a6ebd;margin:0;padding:4px 14px}button.tehlike{background:#a4262c}
-.hata{background:#fdecec;color:#a4262c;padding:10px 12px;border-radius:8px;margin:12px 0 0}.kotu{color:#a4262c}
+.hata{background:#fdecec;color:#a4262c;padding:10px 12px;border-radius:8px;margin:12px 0 0}.kotu{color:#a4262c}.uyarisi{color:#8a5a00;font-weight:600}
 .tamam{background:#e7f6ec;color:#1e6b34;padding:10px 12px;border-radius:8px;margin:12px 0 0}
 .sir{font:600 22px ui-monospace,Consolas,monospace;letter-spacing:1px;user-select:all}
 table{width:100%;border-collapse:collapse;margin-bottom:8px}td,th{padding:6px 4px;border-bottom:1px solid #eef1f5;font-size:14px;text-align:left;vertical-align:top}

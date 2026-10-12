@@ -73,7 +73,7 @@ class Kayitlar:
             satirlar = []
             for g in gunler:
                 n = sayilar.get(g.isoformat())
-                tarih = f"<td>{g:%d.%m}</td><td>{detay.KISA_GUN[g.weekday()]}</td>"
+                tarih = f"<td>{common.tarih_goster(g.isoformat())}</td><td>{detay.KISA_GUN[g.weekday()]}</td>"
                 if n is None:
                     satirlar.append(f'<tr>{tarih}<td class="cubuk"></td><td class="n bos">—</td></tr>')
                 else:
@@ -81,7 +81,7 @@ class Kayitlar:
                     satirlar.append(f'<tr>{tarih}<td class="cubuk"><span style="width:{n * 100 // enbuyuk}%"></span></td>'
                                     f'<td class="n">{n}</td></tr>')
             tablo = "<table>" + "".join(satirlar) + "</table>"
-        son = (f'<p class="alt">Son güncelleme: {datetime.datetime.fromtimestamp(guncel, common.TZ):%d.%m.%Y %H:%M}</p>'
+        son = (f'<p class="alt">Son güncelleme: {common.tarih_goster(common.now_iso(guncel))}</p>'
                if guncel else "")
         return (f'<div class="kart"><h1>{e(baslik)}</h1>'
                 '<p class="alt">Son 30 gün · her gün internete çıkan farklı kişi sayısı</p></div>'

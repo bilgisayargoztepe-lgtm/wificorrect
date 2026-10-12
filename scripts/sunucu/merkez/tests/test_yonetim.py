@@ -183,7 +183,7 @@ def test_parola_gorunur_ve_lisans_yonetimi():
         app, v, _, c, _ = kur(tmp)
         n, pw = v.musteri_ekle("Göztepe Bilgisayar")
         s = Y.al(app, f"/m/{n}", c)[2].decode()
-        assert pw in s and "2027-09-21" in s and "Lisans" in s
+        assert pw in s and "21.09.2027" in s and "Lisans" in s and "2027-09-21" not in s  # ekranda gün.ay.yıl
         t = Y.csrf(Y.al(app, f"/m/{n}", c))
         assert Y.gonder(app, f"/m/{n}/lisans", c, {"csrf": t, "islem": "uzat"})[0] == 303
         assert v.musteri(n)["lisans_bitis"] == "2028-09-20"
@@ -191,6 +191,10 @@ def test_parola_gorunur_ve_lisans_yonetimi():
         assert v.musteri(n)["askida"] == 1
         Y.gonder(app, f"/m/{n}/lisans", c, {"csrf": t, "islem": "ac"})
         assert v.musteri(n)["askida"] == 0
+        Y.gonder(app, f"/m/{n}/lisans", c, {"csrf": t, "islem": "tarih", "tarih": "2026-09-01"})
+        assert v.musteri(n)["lisans_bitis"] == "2026-09-01"
+        Y.gonder(app, f"/m/{n}/lisans", c, {"csrf": t, "islem": "tarih", "tarih": "15.3.2027"})  # gün.ay.yıl yazımı da
+        assert v.musteri(n)["lisans_bitis"] == "2027-03-15"  # saklanan ISO
         Y.gonder(app, f"/m/{n}/lisans", c, {"csrf": t, "islem": "tarih", "tarih": "2026-09-01"})
         assert v.musteri(n)["lisans_bitis"] == "2026-09-01"
         assert Y.gonder(app, f"/m/{n}/lisans", c, {"csrf": t, "islem": "tarih", "tarih": "bozuk"})[0] == 400
@@ -335,7 +339,7 @@ def test_musteri_saglik_ve_gecmis():
         s = Y.al(app, f"/m/{n}", c)[2].decode()
         assert "Henüz rapor yok" not in s and "10 dk önce" in s
         assert "1.0.&lt;x&gt;" in s and "1.0.<x>" not in s  # cihaz verisi kaçırılır
-        assert "kaydedici" in s and "%91" in s and "2026-10-10" in s and ">7<" in s
+        assert "kaydedici" in s and "%91" in s and "10.10.2026" in s and ">7<" in s
         saat.t -= 3600
         i = v.sorun_ac(n, "disk_dolu", "Disk dolu (%91)", "uyari")
         saat.t += 1800

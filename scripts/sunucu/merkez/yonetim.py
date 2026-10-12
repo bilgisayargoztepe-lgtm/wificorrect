@@ -157,7 +157,7 @@ class Yonetim(web.Taban):
         """Bir müşterinin liste satırı bilgileri: (cihaz metni, son gün metni, sorunlu mu)."""
         simdi = self.saat()
         if c is None:
-            return "cihaz yok", e(d.get("son_gun") or "—"), False
+            return "cihaz yok", e(common.tarih_goster(d.get("son_gun")) or "—"), False
         el = d.get("el_sikisma")
         es = _epoch(c["son_eslesme"]) or _epoch(c["baglanma"]) or 0
         if c["durum"] == "serbest_birakiliyor":
@@ -168,7 +168,7 @@ class Yonetim(web.Taban):
             cihaz = f"son eşitleme {once(simdi - es)}" if c["son_eslesme"] else "henüz eşitlenmedi"
         sg = d.get("son_gun")
         gecikti = yedek_gecikti(sg, simdi)
-        son = e(sg or "—") + (' <b class="kotu">GECİKTİ</b>' if gecikti else "")
+        son = e(common.tarih_goster(sg) or "—") + (' <b class="kotu">GECİKTİ</b>' if gecikti else "")
         sorunlu = gecikti or simdi - es > ESLESME_GECIKME_SN or c["durum"] == "serbest_birakiliyor"
         return cihaz, son, sorunlu
 
@@ -262,8 +262,9 @@ class Yonetim(web.Taban):
             sorunlu = sorunlu or n in kritik
             sayilar = self.kayitlar.sayilar(self.veri.arsivler(n))[0]
             yedi = " ".join(str(sayilar.get(g, "—")) for g in reversed(gunler))
-            uyelik = "Aktif" if m["uyelik"] == "aktif" else f"Bitti {m['bitis'][:10]}"
+            uyelik = "Aktif" if m["uyelik"] == "aktif" else f"Bitti {common.tarih_goster(m['bitis'][:10])}"
             ldurum, lbitis = self.veri.lisans_durumu(m)
+            lbitis = common.tarih_goster(lbitis)
             lisans = {"aktif": e(lbitis), "bitti": f'<b class="kotu">süresi doldu {e(lbitis)}</b>',
                       "askida": f'<b class="kotu">askıda</b> {e(lbitis)}'}[ldurum]
             sorunlu = sorunlu or ldurum != "aktif"
@@ -306,7 +307,7 @@ class Yonetim(web.Taban):
                 kurulu[p] = kurulu.get(p, 0) + 1
         liste = self.veri.surumler()
         satirlar = "".join(
-            f'<tr><td>{e(x["surum"])}</td><td>{e(x["kaynak"])}</td><td>{e(x["zaman"][:16])}</td><td>{e(detay.boyut(x["boyut"]))}</td>'
+            f'<tr><td>{e(x["surum"])}</td><td>{e(x["kaynak"])}</td><td>{e(common.tarih_goster(x["zaman"]))}</td><td>{e(detay.boyut(x["boyut"]))}</td>'
             f'<td>{e(x["sha256"][:12])}</td><td>{kurulu.get(x["surum"], 0)}</td></tr>' for x in liste)
         tablo = ('<div class="kaydir"><table class="detay"><tr><th>Sürüm</th><th>Kaynak</th><th>Tarih</th><th>Boyut</th>'
                  f'<th>sha256</th><th>Kurulu cihaz</th></tr>{satirlar}</table></div>') if liste else '<p class="alt">Depoda sürüm yok.</p>'
@@ -372,7 +373,7 @@ class Yonetim(web.Taban):
         g = (s["rapor"] if s and isinstance(s["rapor"], dict) else {}).get("guncelleme")
         if isinstance(g, dict):
             z = g.get("zaman")
-            zaman = (datetime.datetime.fromtimestamp(z, common.TZ).strftime("%Y-%m-%d %H:%M")
+            zaman = (common.tarih_goster(common.now_iso(z))
                      if isinstance(z, (int, float)) and not isinstance(z, bool) and z > 0 else "")
             etiket = {"tamam": "Tamam", "geri_alindi": "Geri alındı", "hata": "Hata"}.get(g.get("sonuc"), g.get("sonuc", "?"))
             son = f'{e(g.get("surum", "?"))} · <b>{e(etiket)}</b> · {e(zaman)}'
@@ -382,7 +383,7 @@ class Yonetim(web.Taban):
         sec = "".join(f'<option value="{k}"{" selected" if k == m["guncelleme_kanali"] else ""}>{ad}</option>' for k, ad in kanallar.items())
         bekliyor = '<b class="uyarisi">bekleniyor</b>' if hedef and hedef["hemen"] else "—"
         gecmis = detay._tablo(("Zaman", "Ayrıntı"),
-                              [(h["zaman"][:16], h["ayrinti"]) for h in self.veri.hareketler(n, 300)
+                              [(common.tarih_goster(h["zaman"]), h["ayrinti"]) for h in self.veri.hareketler(n, 300)
                                if h["olay"] == "GUNCELLEME_SONUC"][:10], "Güncelleme denemesi yok.")
         return (bilgi_tablosu([("Kurulu paket", kurulu), ("Hedef sürüm", e(hedef["surum"]) if hedef else "—"),
                                ("Son sonuç", son), ("Şimdi güncelle", bekliyor)])
@@ -432,7 +433,7 @@ class Yonetim(web.Taban):
         self.veri.hareket("admin", ip, "MUSTERI_ACILDI", n)
         return yanit_html(self.sayfa("Müşteri açıldı", kart(
             f'<h1>Müşteri açıldı</h1><p>Müşteri numarası</p><p class="sir">{n}</p><p>Parola</p><p class="sir">{e(pw)}</p>'
-            f'<p>Lisans bitişi: {e(self.veri.musteri(n)["lisans_bitis"])}</p>'
+            f'<p>Lisans bitişi: {e(common.tarih_goster(self.veri.musteri(n)["lisans_bitis"]))}</p>'
             '<p class="alt">Parolayı müşteriye iletin (müşteri sayfasında da görünür). Müşteri cihazın giriş ekranına bu numara ve '
             f'parolayla girer.</p><p><a href="/m/{n}">Müşteri sayfası →</a></p>'), ot))
 
@@ -461,10 +462,10 @@ class Yonetim(web.Taban):
         parola = (f'<span class="sir">{e(m["parola_acik"])}</span>' if m["parola_acik"]
                   else '<span class="bos">bilinmiyor (bu özellikten önce belirlendi) — parolayı sıfırlayın</span>')
         lisans_metni = {"aktif": "Aktif", "bitti": '<b class="kotu">Süresi doldu</b>', "askida": '<b class="kotu">Askıda</b>'}[ldurum]
-        bilgi = bilgi_tablosu([("Numara", str(n)), ("Parola", parola), ("Lisans", f"{lisans_metni} · bitiş {e(lbitis or '—')}"),
-                               ("Not", e(m["not_"] or "—")), ("Oluşturma", e(m["olusturma"][:16])),
-                               ("Son giriş (panel)", e(m["son_giris"][:16] or "—")),
-                               ("Üyelik", "Aktif" if m["uyelik"] == "aktif" else f"Bitti {e(m['bitis'][:10])}")])
+        bilgi = bilgi_tablosu([("Numara", str(n)), ("Parola", parola), ("Lisans", f"{lisans_metni} · bitiş {e(common.tarih_goster(lbitis) or '—')}"),
+                               ("Not", e(m["not_"] or "—")), ("Oluşturma", e(common.tarih_goster(m["olusturma"]))),
+                               ("Son giriş (panel)", e(common.tarih_goster(m["son_giris"]) or "—")),
+                               ("Üyelik", "Aktif" if m["uyelik"] == "aktif" else f"Bitti {e(common.tarih_goster(m['bitis'][:10]))}")])
         if c is None:
             cihaz = '<p class="alt">Bağlı cihaz yok. Müşteri bir cihazın giriş ekranına numarasıyla girince bağlanır.</p>'
         else:
@@ -473,7 +474,7 @@ class Yonetim(web.Taban):
                 ("Durum", e(metin)), ("İşletme adı", e(c["isletme_adi"] or "—")), ("İşletme türü", e(isletme_turu(c))),
                 ("Unvan", e(c["unvan"] or "—")),
                 ("Tünel adresi", e(c["tunel_ip"] or "—")), ("Sürüm", e(c["surum"] or "—")),
-                ("Bağlanma", e(c["baglanma"][:16])), ("Son eşitleme", e(c["son_eslesme"][:16] or "—")),
+                ("Bağlanma", e(common.tarih_goster(c["baglanma"]))), ("Son eşitleme", e(common.tarih_goster(c["son_eslesme"]) or "—")),
                 ("Son gelen gün", son), ("Arşiv", e(detay.boyut(d.get("boyut", 0)))),
                 ("Cihaz paneli", self._cihaz_paneli_dugmesi(n, cs))])
             cihaz += (f'<form method="post" action="/m/{n}/serbest"><input type="hidden" name="csrf" value="{cs}">'
@@ -505,7 +506,7 @@ class Yonetim(web.Taban):
                     + f'<button class="{uyelik_dugme[2]}">{uyelik_dugme[1]}</button></form>'
                     f'<p><a href="/m/{n}/kayitlar/">Kayıtlar</a> · <a href="/m/{n}/hareketler">Hareketler</a></p>')
         gecmis = detay._tablo(("No", "Durum", "Bağlanma", "Ayrılma", "Tünel"),
-                                  [(x["id"], x["durum"], x["baglanma"][:16], x["ayrilma"][:16], x["tunel_ip"])
+                                  [(x["id"], x["durum"], common.tarih_goster(x["baglanma"]), common.tarih_goster(x["ayrilma"]), x["tunel_ip"])
                                    for x in self.veri.cihaz_gecmisi(n)], "Henüz cihaz yok.")
         return yanit_html(self.sayfa(f"Müşteri {n}", kart(f"<h1>Müşteri {n}</h1>{bilgi}") + kart(f"<h2>Cihaz</h2>{cihaz}")
                                      + kart(f"<h2>Sağlık</h2>{self._saglik_tablosu(c)}")
@@ -523,19 +524,19 @@ class Yonetim(web.Taban):
         ac = r.get("acik_sn")
         acik = e(once(ac).replace(" önce", "")) if isinstance(ac, (int, float)) and not isinstance(ac, bool) else "—"
         ep = _epoch(s["zaman"])
-        zaman = f'{e(s["zaman"][:16])} ({e(once(self.saat() - ep))})' if ep else e(s["zaman"])
+        zaman = f'{e(common.tarih_goster(s["zaman"]))} ({e(once(self.saat() - ep))})' if ep else e(s["zaman"])
 
         def durum(d, iyi):
             return "—" if d is None else ("tamam" if bool(d) == iyi else '<b class="kotu">sorun</b>')
         return bilgi_tablosu([
             ("Son rapor", zaman), ("Sürüm", e(r.get("surum", "—"))), ("Açık kalma", acik), ("Servisler", servis),
-            ("Disk", f'%{e(r["disk_yuzde"])}' if "disk_yuzde" in r else "—"), ("Son mühür", e(r.get("son_muhur") or "—")),
+            ("Disk", f'%{e(r["disk_yuzde"])}' if "disk_yuzde" in r else "—"), ("Son mühür", e(common.tarih_goster(r.get("son_muhur")) or "—")),
             ("WAN", durum(r.get("wan"), True)), ("SMS", durum(r.get("sms_sorunu"), False)),
             ("Bağlı cihaz", e(r.get("bagli", "—")))])
 
     def _sorun_gecmisi(self, n):
         simdi = self.saat()
-        satirlar = [(x["acilis"][:16], x["kapanis"][:16] or "açık", x["metin"], ONEM_ETIKET.get(x["onem"], x["onem"]),
+        satirlar = [(common.tarih_goster(x["acilis"]), common.tarih_goster(x["kapanis"]) or "açık", x["metin"], ONEM_ETIKET.get(x["onem"], x["onem"]),
                      *gecmis_sms_etiketleri(x, simdi)) for x in self.veri.sorun_gecmisi(n, 50)]
         return detay._tablo(("Açılış", "Kapanış", "Sorun", "Önem", "Açılış SMS'i", "Kapanış SMS'i"), satirlar, "Sorun kaydı yok.")
 
@@ -656,9 +657,9 @@ class Yonetim(web.Taban):
             self.veri.hareket("admin", ip, "LISANS_ACILDI", n)
         elif islem == "tarih":
             try:
-                tarih = self.veri.lisans_ayarla(n, form.get("tarih", ""))
+                tarih = self.veri.lisans_ayarla(n, common.tarih_girdi(form.get("tarih", "")))  # 12.10.2026 ya da ISO
             except ValueError:
-                return yanit_html(self.mesaj(ot, "Geçersiz tarih", "Tarih YYYY-AA-GG biçiminde olmalı."), 400)
+                return yanit_html(self.mesaj(ot, "Geçersiz tarih", "Tarih GG.AA.YYYY biçiminde olmalı."), 400)
             self.veri.hareket("admin", ip, "LISANS_TARIHI", n, f"bitis={tarih}")
         return yonlendir(f"/m/{n}")
 
@@ -678,7 +679,7 @@ class Yonetim(web.Taban):
 
     def _hareket_tablosu(self, hareketler):
         return detay._tablo(("Zaman", "Kim", "IP", "Olay", "Müşteri", "Ayrıntı"),
-                                [(h["zaman"][:19], h["kim"], h["ip"], h["olay"], h["musteri"] or "", h["ayrinti"]) for h in hareketler])
+                                [(common.tarih_saat_goster(h["zaman"]), h["kim"], h["ip"], h["olay"], h["musteri"] or "", h["ayrinti"]) for h in hareketler])
 
     def eski_arsivler(self, ot, yontem, form, ip):
         durum, bagli = self._durum(), self.veri.eski_arsivler()
@@ -692,7 +693,7 @@ class Yonetim(web.Taban):
             return yonlendir("/eski-arsivler")
         cs = e(ot["csrf"])
         satirlar = "".join(
-            f'<tr><td>{e(a)}</td><td>{e(durum.get(a, {}).get("tur", "—"))}</td><td>{e(durum.get(a, {}).get("son_gun") or "—")}</td>'
+            f'<tr><td>{e(a)}</td><td>{e(durum.get(a, {}).get("tur", "—"))}</td><td>{e(common.tarih_goster(durum.get(a, {}).get("son_gun")) or "—")}</td>'
             f'<td><form method="post" action="/eski-arsivler" class="ara"><input type="hidden" name="csrf" value="{cs}">'
             f'<input type="hidden" name="ad" value="{e(a)}"><input name="musteri" value="{e(bagli.get(a) or "")}" '
             'placeholder="müşteri no (boş = bağsız)" inputmode="numeric"><button>Kaydet</button></form></td></tr>'

@@ -100,7 +100,7 @@ def sorunlar(m, c, rapor, rapor_zaman, el_sikisma, son_gun, simdi, arsiv_var=Tru
     except (TypeError, ValueError):
         bitis = None
     if bitis is not None:
-        kalan, tarih = (bitis - _bugun(simdi)).days, bitis.strftime("%d.%m.%Y")
+        kalan, tarih = (bitis - _bugun(simdi)).days, common.tarih_goster(bitis.isoformat())
         if kalan < 0:
             out.append(("lisans_bitti", f"Lisans bitti ({tarih})", "bilgi"))
         elif kalan <= LISANS_GUN:

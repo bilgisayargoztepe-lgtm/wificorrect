@@ -203,11 +203,6 @@ fn b(v: bool) -> String {
     if v { "1" } else { "0" }.into()
 }
 
-/// bit/sn → Mb/sn, 1 ondalık, Türkçe ("38,4")
-fn mbps(bps: u64) -> String {
-    format!("{:.1}", bps as f64 / 1e6).replace('.', ",")
-}
-
 /// bayt → MB (10⁶), tam sayı, binlik nokta ("4.820")
 fn mb(bayt: u64) -> String {
     let s = ((bayt + 500_000) / 1_000_000).to_string();
@@ -226,11 +221,10 @@ const OLCUM_ESKI_SN: f64 = 30.0;
 /// Yenileme açıldıktan sonra kendiliğinden gelen (oto=1) bakışlar bu süre denetime yazılmaz.
 const YENILE_PENCERE_SN: f64 = 900.0;
 
-/// Bağlı kullanıcılar sıralaması: son görülme (varsayılan), anlık hız, bugün MB. Eski `saat` ve bilinmeyen değer varsayılana düşer.
+/// Bağlı kullanıcılar sıralaması: son görülme (varsayılan), bugün MB. Eski `saat` ve bilinmeyen değer varsayılana düşer.
 fn sira(req: &Req) -> &'static str {
     match req.query.get("sira").map(String::as_str) {
         Some("mb") => "mb",
-        Some("hiz") => "hiz",
         _ => "son",
     }
 }
@@ -268,14 +262,10 @@ fn yenile_meta(req: &Req) -> String {
     format!("<meta http-equiv=\"refresh\" content=\"10;url={}\">", h(&oturumlar_url(sira(req), sayfa_no(req), true, true)))
 }
 
-/// ↓, ↑, bugün MB hücreleri; ölçüm yoksa tire.
-fn olcum_hucreleri(c: Option<&crate::trafik::Cihaz>) -> [String; 3] {
-    match c {
-        Some(c) => [mbps(c.indir_bps), mbps(c.yukle_bps), mb(c.bugun_bayt)],
-        None => ["—".into(), "—".into(), "—".into()],
-    }
+/// Bugün MB hücresi; ölçüm yoksa tire.
+fn olcum_hucreleri(c: Option<&crate::trafik::Cihaz>) -> String {
+    c.map_or_else(|| "—".to_string(), |c| mb(c.bugun_bayt))
 }
-
 fn get_field(c: &Config, key: &str) -> String {
     match key {
         "main.site_name" => c.main.site_name.clone(),
@@ -1193,7 +1183,6 @@ impl Panel {
         let olcum = |mac: &str| durum.as_ref().and_then(|d| d.cihazlar.get(mac));
         struct Satir {
             bagli: bool,
-            hiz: u64,
             bayt: u64,
             son: Option<f64>,
             bas: f64,
@@ -1202,14 +1191,12 @@ impl Panel {
         let mut satirlar: Vec<Satir> = vec![];
         for (mac, s) in &ses {
             let c = olcum(mac);
-            let [indir, yukle, bugun] = olcum_hucreleri(c);
+            let bugun = olcum_hucreleri(c);
             let hucreler = vec![
                 rozet(mac),
                 h(&format!("{} {}", s.ad, s.soyad)),
                 bugun,
                 h(&son(mac)),
-                indir,
-                yukle,
                 hiz_sayfasi::yavas_hucresi(o, mac, sinirlar.get(mac)),
                 post_button(o, "/oturumlar/at", "Bağlantıyı kes", &[("mac", mac)], "tehlike"),
                 h(&crate::kimlik::goster(&s.phone)),
@@ -1218,7 +1205,6 @@ impl Panel {
             ];
             satirlar.push(Satir {
                 bagli: bagli.contains(mac),
-                hiz: c.map_or(0, |c| c.indir_bps + c.yukle_bps),
                 bayt: c.map_or(0, |c| c.bugun_bayt),
                 son: varlik.get(mac).map(|v| v.son),
                 bas: s.start_epoch,
@@ -1234,12 +1220,11 @@ impl Panel {
             let c = olcum(mac);
             let Some(ip) = ip_of.get(mac).or(c.map(|c| &c.ip)).filter(|ip| !ip.is_empty()) else { continue };
             let ad = if not.trim().is_empty() { "İzinli cihaz".to_string() } else { format!("İzinli cihaz · {}", not.trim()) };
-            let [indir, yukle, bugun] = olcum_hucreleri(c);
-            let hucreler = vec![rozet(mac), h(&ad), bugun, h(&son(mac)), indir, yukle,
+            let bugun = olcum_hucreleri(c);
+            let hucreler = vec![rozet(mac), h(&ad), bugun, h(&son(mac)),
                                 hiz_sayfasi::yavas_hucresi(o, mac, sinirlar.get(mac)), String::new(), String::new(), format!("<code>{}</code>", h(mac)), h(ip)];
             satirlar.push(Satir {
                 bagli: bagli.contains(mac),
-                hiz: c.map_or(0, |c| c.indir_bps + c.yukle_bps),
                 bayt: c.map_or(0, |c| c.bugun_bayt),
                 son: varlik.get(mac).map(|v| v.son),
                 bas: f64::NEG_INFINITY, // oturumu yok: kaydı olmayanların sonunda
@@ -1258,10 +1243,9 @@ impl Panel {
                 })
                 .then_with(|| b.bas.total_cmp(&a.bas))
         });
-        // hız / MB: yine bağlı olanlar önce; eşitlikte varsayılan sıra kalır (kararlı sıralama)
+        // MB: yine bağlı olanlar önce; eşitlikte varsayılan sıra kalır (kararlı sıralama)
         match sira {
             "mb" => satirlar.sort_by_key(|s| (std::cmp::Reverse(s.bagli), std::cmp::Reverse(s.bayt))),
-            "hiz" => satirlar.sort_by_key(|s| (std::cmp::Reverse(s.bagli), std::cmp::Reverse(s.hiz))),
             _ => {}
         }
         let toplam = satirlar.len();
@@ -1288,10 +1272,9 @@ impl Panel {
             format!("<a class=\"{}\" href=\"{}\">{ad}</a>", if k == sira { "dugme" } else { "dugme ikincil" }, h(&oturumlar_url(k, 1, yenile, false)))
         };
         let arac = format!(
-            "<div class=\"eylemler arac\"><span class=\"not\">Sırala:</span>{}{}{}<span class=\"ayrac\"></span>\
+            "<div class=\"eylemler arac\"><span class=\"not\">Sırala:</span>{}{}<span class=\"ayrac\"></span>\
              <a class=\"{}\" href=\"{}\">⟳ 10 sn'de bir yenile: {}</a></div>",
             secenek("son", "Son görülme"),
-            secenek("hiz", "Anlık hız"),
             secenek("mb", "Bugün MB"),
             if yenile { "dugme" } else { "dugme ikincil" },
             h(&oturumlar_url(sira, sayfa, !yenile, false)),
@@ -1299,18 +1282,18 @@ impl Panel {
         );
         let olcum_notu = match &durum {
             Some(d) => format!("Ölçüm {} sn önce", (now - d.zaman).max(0.0).round() as u64),
-            None => "Ölçüm alınamıyor: hız ve bugünkü kullanım şu an gösterilemiyor.".into(),
+            None => "Ölçüm alınamıyor: bugünkü kullanım şu an gösterilemiyor.".into(),
         };
         // yavaşlatma uygulanamıyorsa tablodaki "≤ N Mb/sn" rozetleri yanıltmasın (Yavaşlatılmış bölümündeki uyarının aynısı)
         let hata = durum.as_ref().and_then(|d| d.hiz_hata.as_ref()).map(|e| format!("<div class=\"mesaj hata\">{}</div>", h(e))).unwrap_or_default();
         let body = format!(
             "{hata}<p class=\"not\">Bağlantısı kesilen cihaz internete çıkamaz; yeniden SMS ile giriş yapması gerekir. \
-             <b>Bağlı</b>: cihaz son 5 dakikada ağda görüldü. Hız: son 10 saniyenin ortalaması (megabit/saniye). \
+             <b>Bağlı</b>: cihaz son 5 dakikada ağda görüldü. \
              Bugün: gece 00:00'dan beri indirilen + yüklenen (MB).</p>\
              <p class=\"not\">Bu sayfadaki her görüntüleme, arama ve indirme kimin yaptığıyla birlikte kaydedilir ve hizmet sağlayıcı tarafından denetlenir.</p>{arac}{}{sayfalama}\
              <p class=\"not\">{}</p>",
             table(
-                &["Durum", "Ad soyad", "Bugün MB", "Son görülme", "↓ İndirme Mb/sn", "↑ Yükleme Mb/sn", "Yavaşlat", "", "Telefon / Kimlik", "MAC", "IP"],
+                &["Durum", "Ad soyad", "Bugün MB", "Son görülme", "Yavaşlat", "", "Telefon / Kimlik", "MAC", "IP"],
                 &rows,
                 "Bağlı kullanıcı yok"
             ),
@@ -2253,11 +2236,11 @@ mod tests {
         trafikli(&e, &[("aa:bb:cc:dd:ee:01", "Ayşe", 1.0)], &[("aa:bb:cc:dd:ee:01", 38_400_000, 2_100_000, 4_820_000_000)], Some(2.0));
         let s = e.p.handle(&req("GET", "/cihazlar", &[], Some(&tok))).body;
         let r = satir_of(&s, "Ayşe");
-        assert!(r.contains("<td>38,4</td>") && r.contains("<td>2,1</td>") && r.contains("<td>4.820</td>"), "{r}");
-        let basliklar = ["Durum", "Ad soyad", "Bugün MB", "Son görülme", "↓ İndirme Mb/sn", "↑ Yükleme Mb/sn", "Yavaşlat", "", "Telefon / Kimlik", "MAC", "IP"];
-        // hücreler başlıklarla aynı sırada: ad, MB, son görülme, ↓, ↑ ... telefon, MAC, IP
+        assert!(r.contains("<td>4.820</td>") && !r.contains("38,4") && !r.contains("2,1"), "{r}");
+        let basliklar = ["Durum", "Ad soyad", "Bugün MB", "Son görülme", "Yavaşlat", "", "Telefon / Kimlik", "MAC", "IP"];
+        // hücreler başlıklarla aynı sırada: ad, MB, son görülme, yavaşlat, kes, telefon, MAC, IP
         let ad = r.find("Ayşe Y").unwrap();
-        let sira_ok = [r.find("<td>4.820</td>"), r.find("<td>—</td>"), r.find("<td>38,4</td>"), r.find("<td>2,1</td>"), r.find("Bağlantıyı kes"),
+        let sira_ok = [r.find("<td>4.820</td>"), r.find("<td>—</td>"), r.find("Bağlantıyı kes"),
                        r.find("+90"), r.find("<code>aa:bb:cc:dd:ee:01</code>"), r.find("10.50.0.23")]
             .iter()
             .try_fold(ad, |onceki, x| x.filter(|&x| x > onceki));
@@ -2274,7 +2257,7 @@ mod tests {
         assert!(satir_of(&s3, "Ayşe").contains("<td>21:03</td>"), "{}", satir_of(&s3, "Ayşe"));
         let thead: String = basliklar.iter().map(|b| format!("<th>{}</th>", h(b))).collect();
         assert!(s.contains(&thead), "başlıklar");
-        assert_eq!((mbps(0), mbps(38_449_999), mbps(1_250_000_000)), ("0,0".into(), "38,4".into(), "1250,0".into()));
+        assert!(!s.contains("İndirme") && !s.contains("Yükleme") && !s.contains("Mb/sn</th>"), "hız sütunları yok");
         assert_eq!((mb(0), mb(999_999_999), mb(12_345_678_000_000)), ("0".into(), "1.000".into(), "12.345.678".into()));
     }
 
@@ -2318,15 +2301,15 @@ mod tests {
             s
         };
         let s = sira(&[], &["Zeynep", "Ayşe", "Mehmet", "Veli", "Ali"]);
-        // seçili sıralama dolu düğme, diğerleri ikincil; düğme sırası Son görülme, Anlık hız, Bugün MB; yenileme kapalı
+        // seçili sıralama dolu düğme, diğerleri ikincil; düğme sırası Son görülme, Bugün MB; yenileme kapalı
         let son = s.find("<a class=\"dugme\" href=\"/cihazlar?sira=son#oturumlar\">Son görülme</a>").expect("seçili sıralama");
-        let hiz = s.find("<a class=\"dugme ikincil\" href=\"/cihazlar?sira=hiz#oturumlar\">Anlık hız</a>").unwrap();
         let mb = s.find("<a class=\"dugme ikincil\" href=\"/cihazlar?sira=mb#oturumlar\">Bugün MB</a>").unwrap();
-        assert!(son < hiz && hiz < mb && !s.contains("Bağlanma saati"));
+        assert!(son < mb && !s.contains("Bağlanma saati") && !s.contains("Anlık hız") && !s.contains("sira=hiz"));
         assert!(s.contains("href=\"/oturumlar?sira=son&amp;yenile=1\">⟳ 10 sn'de bir yenile: kapalı</a>"), "yenile tek bölüm sayfasına götürür");
         sira(&[("sira", "son")], &["Zeynep", "Ayşe", "Mehmet", "Veli", "Ali"]);
-        // hız ve MB: bağlılar yine önce, sonra ölçü büyükten küçüğe
-        sira(&[("sira", "hiz")], &["Zeynep", "Ayşe", "Mehmet", "Ali", "Veli"]);
+        // MB: bağlılar yine önce, sonra ölçü büyükten küçüğe; kalkan "hiz" sıralaması varsayılana düşer
+        let s = sira(&[("sira", "hiz")], &["Zeynep", "Ayşe", "Mehmet", "Veli", "Ali"]);
+        assert!(s.contains("<a class=\"dugme\" href=\"/cihazlar?sira=son#oturumlar\">Son görülme</a>"));
         sira(&[("sira", "mb")], &["Ayşe", "Zeynep", "Mehmet", "Ali"]);
         // eski "saat" ve bilinmeyen değer: varsayılan
         let s = sira(&[("sira", "saat")], &["Zeynep", "Ayşe", "Mehmet", "Veli", "Ali"]);
@@ -2367,7 +2350,7 @@ mod tests {
         let s = e.p.handle(&get("/oturumlar", &[("sira", "mb"), ("sayfa", "2"), ("yenile", "1")], &tok)).body;
         assert!(s.contains("<meta http-equiv=\"refresh\" content=\"10;url=/oturumlar?sira=mb&amp;sayfa=2&amp;yenile=1&amp;oto=1\">"), "meta");
         assert!(s.contains("href=\"/oturumlar?sira=mb&amp;yenile=1\">‹ Önceki</a>") && s.contains("href=\"/oturumlar?sira=mb&amp;sayfa=3&amp;yenile=1\">Sonraki ›</a>"));
-        assert!(s.contains("href=\"/oturumlar?sira=hiz&amp;yenile=1\">Anlık hız</a>") && s.contains("href=\"/cihazlar?sira=mb&amp;sayfa=2#oturumlar\">⟳"));
+        assert!(!s.contains("Anlık hız") && s.contains("href=\"/cihazlar?sira=mb&amp;sayfa=2#oturumlar\">⟳"));
         // tek sayfa: bağlantı yok
         trafikli(&e, &k[..3], &[], None);
         let s = bak(&[]);
@@ -2385,7 +2368,7 @@ mod tests {
         trafikli(&e, &[("aa:bb:cc:dd:ee:01", "Ayşe", 1.0)], &[("aa:bb:cc:dd:ee:99", 5_500_000, 300_000, 2_000_000)], Some(1.0));
         let s = e.p.handle(&req("GET", "/cihazlar", &[], Some(&tok))).body;
         let r = satir_of(&s, "İzinli cihaz · Kasa");
-        assert!(r.contains("<code>aa:bb:cc:dd:ee:99</code>") && r.contains("10.50.0.7") && r.contains("<td>5,5</td>") && r.contains("<td>0,3</td>"), "{r}");
+        assert!(r.contains("<code>aa:bb:cc:dd:ee:99</code>") && r.contains("10.50.0.7") && r.contains("<td>2</td>") && !r.contains("5,5"), "{r}");
         assert!(r.starts_with("<td><span class=\"rozet") && r.contains("</span></td><td>İzinli cihaz · Kasa</td>"), "ad ikinci sütun: {r}");
         assert!(r.contains("<td></td><td></td><td><code>aa:bb:cc:dd:ee:99</code>"), "bağlantı kes ve telefon boş: {r}");
         assert!(!r.contains("Bağlantıyı kes"));
@@ -2404,12 +2387,12 @@ mod tests {
             trafikli(&e, &ayse, &olcum, yas);
             let s = e.p.handle(&req("GET", "/cihazlar", &[], Some(&tok))).body;
             let r = satir_of(&s, "Ayşe");
-            assert_eq!(r.matches("<td>—</td>").count(), 4, "{yas:?}: {r}"); // ölçüm (3) + son görülme yok
-            assert!(!r.contains("38,4") && s.contains("Ölçüm alınamıyor") && !s.contains("sn önce"), "{yas:?}");
+            assert_eq!(r.matches("<td>—</td>").count(), 2, "{yas:?}: {r}"); // bugün MB + son görülme yok
+            assert!(!r.contains("4.820") && s.contains("Ölçüm alınamıyor") && !s.contains("sn önce"), "{yas:?}");
         }
         trafikli(&e, &ayse, &olcum, Some(5.0));
         let s = e.p.handle(&req("GET", "/cihazlar", &[], Some(&tok))).body;
-        assert!(satir_of(&s, "Ayşe").contains("<td>38,4</td>") && s.contains("Ölçüm 5 sn önce") && !s.contains("Ölçüm alınamıyor"));
+        assert!(satir_of(&s, "Ayşe").contains("<td>4.820</td>") && s.contains("Ölçüm 5 sn önce") && !s.contains("Ölçüm alınamıyor"));
     }
 
     #[test]

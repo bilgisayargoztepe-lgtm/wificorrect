@@ -101,8 +101,15 @@ pub fn indir(yol: &str, govde: &str, cikti: &Path, max_sn: u32) -> Result<u16, S
         .map_err(|e| format!("curl: {e}"))?;
     c.stdin.take().ok_or("curl stdin")?.write_all(govde.as_bytes()).map_err(|e| e.to_string())?;
     let out = c.wait_with_output().map_err(|e| e.to_string())?;
-    match String::from_utf8_lossy(&out.stdout).trim().parse::<u16>() {
-        Ok(k) if k > 0 => Ok(k),
+    indir_sonuc(out.status.success(), &String::from_utf8_lossy(&out.stdout))
+}
+
+/// curl'ün çıkış durumu ve yazdığı HTTP kodu → sonuç. curl hata verdiyse (18 kısmi aktarım, 28 süre) kod 200 olsa da
+/// dosya yarımdır: Err.
+pub fn indir_sonuc(basari: bool, cikti: &str) -> Result<u16, String> {
+    match cikti.trim().parse::<u16>() {
+        Ok(k) if k > 0 && basari => Ok(k),
+        Ok(k) if k > 0 => Err("indirme yarım kaldı".into()),
         _ => Err("merkeze ulaşılamadı".into()),
     }
 }
@@ -659,6 +666,15 @@ mod tests {
         assert!(a.iter().any(|x| x == "@-") && a.windows(2).any(|w| w[0] == "-o" && w[1] == "/tmp/p.deb.tmp"));
         assert!(a.windows(2).any(|w| w[0] == "--max-time" && w[1] == "300") && a.windows(2).any(|w| w[0] == "--connect-timeout" && w[1] == "10"));
         assert!(a.windows(2).any(|w| w[0] == "-w" && w[1] == "%{http_code}") && a.last().unwrap().ends_with("/api/paket"));
+    }
+
+    #[test]
+    fn indir_curl_hatasinda_err() {
+        assert_eq!(indir_sonuc(true, "200"), Ok(200));
+        assert_eq!(indir_sonuc(true, "404\n"), Ok(404));
+        // curl 18 (kısmi aktarım) ya da 28 (süre) de kodu 200 yazar: dosya yarımdır
+        assert!(indir_sonuc(false, "200").is_err());
+        assert!(indir_sonuc(true, "000").is_err() && indir_sonuc(true, "").is_err());
     }
 
     #[test]

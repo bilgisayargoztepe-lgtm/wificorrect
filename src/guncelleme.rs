@@ -50,13 +50,16 @@ impl Yollar {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
 pub struct Hedef {
     pub surum: String,
     pub sha256: String,
     pub boyut: u64,
     #[serde(default)]
     pub hemen: bool,
+    /// cihazda kurulu (geri dönüş) paketin merkezdeki sha256'sı; merkez depoda yoksa (ya da eski merkezse) boş
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub onceki_sha256: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
@@ -86,16 +89,22 @@ pub fn surum_gecerli(s: &str) -> bool {
     p.len() == 3 && p.iter().all(|x| !x.is_empty() && x.bytes().all(|c| c.is_ascii_digit()))
 }
 
-/// Merkez cevabındaki `guncelleme` nesnesi; geçersiz/eksik → None.
+/// 64 küçük harf onaltılık.
+fn sha_gecerli(s: &str) -> bool {
+    s.len() == 64 && s.bytes().all(|c| c.is_ascii_digit() || (b'a'..=b'f').contains(&c))
+}
+
+/// Merkez cevabındaki `guncelleme` nesnesi; geçersiz/eksik → None. `onceki_sha256` isteğe bağlı (bozuksa yok sayılır).
 pub fn hedef_coz(v: &Value) -> Option<Hedef> {
     let surum = v.get("surum")?.as_str()?;
     let sha = v.get("sha256")?.as_str()?;
     let boyut = v.get("boyut")?.as_u64()?;
-    if !surum_gecerli(surum) || sha.len() != 64 || !sha.bytes().all(|c| c.is_ascii_digit() || (b'a'..=b'f').contains(&c)) || boyut == 0 {
+    if !surum_gecerli(surum) || !sha_gecerli(sha) || boyut == 0 {
         return None;
     }
     let hemen = v.get("hemen").and_then(Value::as_bool).unwrap_or(false);
-    Some(Hedef { surum: surum.into(), sha256: sha.into(), boyut, hemen })
+    let onceki_sha256 = v.get("onceki_sha256").and_then(Value::as_str).filter(|s| sha_gecerli(s)).unwrap_or("").to_string();
+    Some(Hedef { surum: surum.into(), sha256: sha.into(), boyut, hemen, onceki_sha256 })
 }
 
 /// Yok ya da bozuk dosya → varsayılan.
@@ -125,7 +134,8 @@ pub fn pencere(now: f64) -> bool {
 }
 
 pub fn karar(kurulu: &str, h: &Hedef, d: &Durum, bekleyen_var: bool, now: f64) -> Karar {
-    if kurulu.is_empty() {
+    // merkezin biçimine uymayan sürüm (raporda paket="" olarak gider) de paketsiz sayılır
+    if !surum_gecerli(kurulu) {
         return Karar::Bekle("paketsiz");
     }
     if kurulu == h.surum {
@@ -151,7 +161,17 @@ pub fn karar(kurulu: &str, h: &Hedef, d: &Durum, bekleyen_var: bool, now: f64) -
 /// Güncelleme kilidi (`kilit` dosyası, flock): `ctl guncelle` bütün işi boyunca tutar; uzlaşma ve hedef yazma
 /// kilit tutuluyorsa bir şey yapmaz. Dosya kapanınca (süreç bitince de) bırakılır.
 pub struct Kilit {
-    _dosya: std::fs::File,
+    dosya: std::fs::File,
+}
+
+impl Drop for Kilit {
+    fn drop(&mut self) {
+        use std::os::unix::io::AsRawFd;
+        // açıkça bırakılır: o sırada fork edilmiş (henüz exec etmemiş) bir alt süreç tanıtıcının kopyasını tutsa da
+        // kilit dosya kapanınca değil hemen kalkar (flock açık dosya tanımına bağlıdır)
+        // SAFETY: geçerli dosya tanıtıcısı.
+        unsafe { libc::flock(self.dosya.as_raw_fd(), libc::LOCK_UN) };
+    }
 }
 
 /// Kilit beklemeden alınır; başkası tutuyorsa (ya da klasör açılamazsa) None.
@@ -160,7 +180,7 @@ pub fn kilit_al(y: &Yollar) -> Option<Kilit> {
     ortak::mkdirs(&y.kok).ok()?;
     let f = std::fs::OpenOptions::new().create(true).truncate(false).write(true).open(y.kilit()).ok()?;
     // SAFETY: geçerli dosya tanıtıcısı; kilit dosya kapanınca bırakılır.
-    (unsafe { libc::flock(f.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) } == 0).then_some(Kilit { _dosya: f })
+    (unsafe { libc::flock(f.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) } == 0).then_some(Kilit { dosya: f })
 }
 
 /// Denetim satırının `ek` alanı: `surum=… onceki=… neden=…` (boş olanlar yazılmaz).
@@ -271,6 +291,9 @@ pub const BETIK: &str = r#"#!/bin/sh
 # Güncelleme denetimi: kurulumdan ÖNCE eski ikili yazdı; yeni ikiliye güvenmez. Zamanlayıcı 5 dk'da bir çalıştırır.
 D=${WFC_GUNCELLEME_DIZIN:-/var/lib/wificorrect/guncelleme}
 [ -f "$D/bekleyen" ] || exit 0
+# `ctl guncelle` (apt sürüyor) kilidi tutuyorsa karar verilmez: eski ikilinin sağlığı yeni sürümü onaylamasın
+exec 9>>"$D/kilit"
+flock -n 9 || exit 0
 [ -f "$D/sonuc" ] && exit 0
 [ $(( $(date +%s) - $(stat -c %Y "$D/bekleyen") )) -ge 600 ] || exit 0
 ok=1
@@ -326,9 +349,19 @@ pub fn calistir_guncelle(cfg: &Config, y: &Yollar, m: &Merkez, indir: &Indir<'_>
     if ortak::mkdirs(&y.paketler()).is_err() {
         return hata("disk");
     }
-    // önceki sürümün paketi (geri dönüş için): merkezde sha yok, boş olmaması yeter
+    // önceki sürümün paketi (geri dönüş için): merkez sha'sını verdiyse o, yoksa dpkg-deb okuyabilmeli (yarım inmiş olmasın)
     let eski = y.paketler().join(format!("{kurulu}.deb"));
-    if !eski.is_file() && paket_indir(indir, m, kurulu, &eski, &|p| std::fs::metadata(p).is_ok_and(|md| md.len() > 0)).is_err() {
+    let onceki_dogru = |p: &Path| {
+        if h.onceki_sha256.is_empty() {
+            komut(&["dpkg-deb", "--info", &p.display().to_string()])
+        } else {
+            crate::muhur::sha256_file(p).is_ok_and(|s| s == h.onceki_sha256)
+        }
+    };
+    if eski.is_file() && !onceki_dogru(&eski) {
+        let _ = std::fs::remove_file(&eski);
+    }
+    if !eski.is_file() && paket_indir(indir, m, kurulu, &eski, &onceki_dogru).is_err() {
         return hata("onceki_paket_yok");
     }
     let yeni = y.paketler().join(format!("{}.deb", h.surum));
@@ -357,6 +390,7 @@ pub fn calistir_guncelle(cfg: &Config, y: &Yollar, m: &Merkez, indir: &Indir<'_>
     if apt(&yeni) {
         // apt sürerken eski ikilinin sağlık raporu `saglik_basari`ya dokunmuş olabilir: denetim kurulum bitişinden başlar
         let bitis = ortak::wall().max(0.0) as u64;
+        let _ = std::fs::remove_file(y.sonuc()); // apt sırasında bırakılmış bayat sonuç yeni sürüme uygulanmasın
         let bekleyen = json!({"yeni": h.surum, "onceki": kurulu, "zaman": bitis}).to_string();
         let _ = ortak::write_atomic(&y.bekleyen(), bekleyen.as_bytes());
         return Ok("kuruldu, 10 dk sonra denetlenecek".into());
@@ -389,7 +423,7 @@ mod tests {
     }
 
     fn hedef(hemen: bool) -> Hedef {
-        Hedef { surum: "0.4.1".into(), sha256: "a".repeat(64), boyut: 100, hemen }
+        Hedef { surum: "0.4.1".into(), sha256: "a".repeat(64), boyut: 100, hemen, ..Default::default() }
     }
 
     // 2026-10-12 00:00 UTC = TR 03:00
@@ -415,6 +449,9 @@ mod tests {
         let gunduz = tr_saat(14.0);
         let bos = Durum::default();
         assert_eq!(karar("", &hedef(false), &bos, false, gece), Karar::Bekle("paketsiz"));
+        // merkezin biçimine uymayan dpkg sürümü (raporda paket="" gider): paketsiz sayılır
+        assert_eq!(karar("0.4.0-1", &hedef(true), &bos, false, gece), Karar::Bekle("paketsiz"));
+        assert_eq!(karar("0.4.0~rc1", &hedef(false), &bos, false, gece), Karar::Bekle("paketsiz"));
         assert_eq!(karar("0.4.1", &hedef(false), &bos, false, gece), Karar::Bekle("guncel"));
         assert_eq!(karar("0.4.0", &hedef(false), &bos, true, gece), Karar::Bekle("denetim"));
         let basarisiz = Durum { basarisiz: vec!["0.4.1".into()], son: None, ..Default::default() };
@@ -435,7 +472,14 @@ mod tests {
     #[test]
     fn hedef_coz_dogrular() {
         let iyi = json!({"surum": "0.4.1", "sha256": "a".repeat(64), "boyut": 12345, "hemen": true});
-        assert_eq!(hedef_coz(&iyi), Some(Hedef { surum: "0.4.1".into(), sha256: "a".repeat(64), boyut: 12345, hemen: true }));
+        assert_eq!(hedef_coz(&iyi), Some(Hedef { surum: "0.4.1".into(), sha256: "a".repeat(64), boyut: 12345, hemen: true, ..Default::default() }));
+        // geri dönüş paketinin sha'sı isteğe bağlı (eski merkez göndermez); bozuksa yok sayılır, hedef geçerli kalır
+        let ile = json!({"surum": "0.4.1", "sha256": "a".repeat(64), "boyut": 1, "onceki_sha256": "b".repeat(64)});
+        assert_eq!(hedef_coz(&ile).unwrap().onceki_sha256, "b".repeat(64));
+        for kotu in [json!("B".repeat(64)), json!("b".repeat(63)), json!(5), Value::Null] {
+            let v = json!({"surum": "0.4.1", "sha256": "a".repeat(64), "boyut": 1, "onceki_sha256": kotu});
+            assert_eq!(hedef_coz(&v).unwrap().onceki_sha256, "");
+        }
         assert_eq!(hedef_coz(&json!({"surum": "0.4.1", "sha256": "0".repeat(64), "boyut": 1})).map(|h| h.hemen), Some(false));
         assert_eq!(hedef_coz(&json!({"surum": "0.4.1", "sha256": "A".repeat(64), "boyut": 1})), None); // büyük harf
         assert_eq!(hedef_coz(&json!({"surum": "0.4.1", "sha256": "a".repeat(63), "boyut": 1})), None);
@@ -563,7 +607,7 @@ mod tests {
     }
 
     fn hedef_koy(y: &Yollar) -> Hedef {
-        let h = Hedef { surum: "0.4.1".into(), sha256: sha(YENI), boyut: YENI.len() as u64, hemen: false };
+        let h = Hedef { surum: "0.4.1".into(), sha256: sha(YENI), boyut: YENI.len() as u64, ..Default::default() };
         ortak::write_atomic(&y.hedef(), &serde_json::to_vec(&h).unwrap()).unwrap();
         h
     }
@@ -581,9 +625,13 @@ mod tests {
         }
     }
 
-    /// Kayıt tutan komut; i. çağrının sonucu `sonuclar[i]` (yoksa başarı).
+    /// Kayıt tutan komut; i. çağrının sonucu `sonuclar[i]` (yoksa başarı). `dpkg-deb --info` kaydedilmez: dosya boş
+    /// değilse geçerli paket sayılır.
     fn komut_sahte<'a>(sonuclar: &'a [bool], kayit: &'a RefCell<Vec<Vec<String>>>) -> impl Fn(&[&str]) -> bool + 'a {
         move |c| {
+            if c[0] == "dpkg-deb" {
+                return std::fs::metadata(c[2]).is_ok_and(|m| m.len() > 0);
+            }
             let mut k = kayit.borrow_mut();
             let i = k.len();
             k.push(c.iter().map(|s| s.to_string()).collect());
@@ -603,9 +651,12 @@ mod tests {
         hedef_koy(&y);
         std::fs::write(y.sonuc(), "tamam\n").unwrap(); // bekleyensiz eski sonuç silinmeli
         let (ik, kk) = (RefCell::new(vec![]), RefCell::new(vec![]));
-        // apt sürerken eski ikilinin sağlık raporu saglik_basari'ya dokunur
+        // apt sürerken eski ikilinin sağlık raporu saglik_basari'ya dokunur; bayat bir sonuç da kalmış olabilir
         let apt_sirasinda_rapor = |c: &[&str]| {
-            std::fs::write(y.saglik_basari(), "1\n").unwrap();
+            if c[0] != "dpkg-deb" {
+                std::fs::write(y.saglik_basari(), "1\n").unwrap();
+                std::fs::write(y.sonuc(), "tamam\n").unwrap();
+            }
             komut_sahte(&[], &kk)(c)
         };
         let r = calistir_guncelle(&cfg, &y, &m, &indir_sahte((200, ESKI), (200, YENI), &ik), &apt_sirasinda_rapor, "0.4.0", now);
@@ -647,6 +698,65 @@ mod tests {
         assert!(r.is_ok(), "{r:?}");
         assert_eq!(ik.borrow().len(), 1);
         assert_eq!(std::fs::read(y.onceki_deb()).unwrap(), ESKI);
+    }
+
+    #[test]
+    fn guncelle_onceki_paket_dpkg_deb_ile_dogrulanir() {
+        let (y, cfg, m) = ortam();
+        let now = tr_saat(4.0);
+        hedef_koy(&y);
+        let (ik, kk) = (RefCell::new(vec![]), RefCell::new(vec![]));
+        // yarım inmiş (curl kesildi ama 200 yazdı) önceki paket: dpkg-deb okuyamaz → kurulum başlamaz, dosya silinir
+        let dpkg_deb = RefCell::new(vec![]);
+        let komut = |c: &[&str]| {
+            if c[0] == "dpkg-deb" {
+                dpkg_deb.borrow_mut().push(c.iter().map(|s| s.to_string()).collect::<Vec<_>>());
+                return false;
+            }
+            komut_sahte(&[], &kk)(c)
+        };
+        let r = calistir_guncelle(&cfg, &y, &m, &indir_sahte((200, ESKI), (200, YENI), &ik), &komut, "0.4.0", now);
+        assert!(r.is_err() && kk.borrow().is_empty());
+        let tmp = y.paketler().join("0.4.0.deb.tmp").display().to_string();
+        assert_eq!(*dpkg_deb.borrow(), vec![vec!["dpkg-deb".to_string(), "--info".into(), tmp]]);
+        assert!(!y.paketler().join("0.4.0.deb").exists() && !y.paketler().join("0.4.0.deb.tmp").exists());
+        assert_eq!(durum_oku(&y).son.unwrap().neden, "onceki_paket_yok");
+        // önceden saklanmış ama bozuk önceki paket: silinip yeniden indirilir
+        let _ = std::fs::remove_file(y.durum());
+        std::fs::write(y.paketler().join("0.4.0.deb"), b"kesik").unwrap();
+        let (ik, kk) = (RefCell::new(vec![]), RefCell::new(vec![]));
+        let komut = |c: &[&str]| if c[0] == "dpkg-deb" { std::fs::read(c[2]).unwrap() == ESKI } else { komut_sahte(&[], &kk)(c) };
+        let r = calistir_guncelle(&cfg, &y, &m, &indir_sahte((200, ESKI), (200, YENI), &ik), &komut, "0.4.0", now);
+        assert!(r.is_ok(), "{r:?}");
+        assert_eq!(ik.borrow()[0].1["surum"].as_str(), Some("0.4.0"));
+        assert_eq!(std::fs::read(y.onceki_deb()).unwrap(), ESKI);
+    }
+
+    #[test]
+    fn guncelle_onceki_paket_merkezin_sha_si_ile_dogrulanir() {
+        let (y, cfg, m) = ortam();
+        let now = tr_saat(4.0);
+        for (onceki_sha, basari) in [(sha(ESKI), true), (sha(b"baska"), false)] {
+            let _ = std::fs::remove_dir_all(&y.kok);
+            std::fs::create_dir_all(&y.kok).unwrap();
+            let h = Hedef { onceki_sha256: onceki_sha, ..hedef_koy(&y) };
+            ortak::write_atomic(&y.hedef(), &serde_json::to_vec(&h).unwrap()).unwrap();
+            let (ik, kk) = (RefCell::new(vec![]), RefCell::new(vec![]));
+            let dpkg_deb = std::cell::Cell::new(0);
+            let komut = |c: &[&str]| {
+                if c[0] == "dpkg-deb" {
+                    dpkg_deb.set(dpkg_deb.get() + 1);
+                }
+                komut_sahte(&[], &kk)(c)
+            };
+            let r = calistir_guncelle(&cfg, &y, &m, &indir_sahte((200, ESKI), (200, YENI), &ik), &komut, "0.4.0", now);
+            assert_eq!(r.is_ok(), basari, "{r:?}");
+            assert_eq!(dpkg_deb.get(), 0); // sha varken dpkg-deb'e düşülmez
+            if !basari {
+                assert_eq!(durum_oku(&y).son.unwrap().neden, "onceki_paket_yok");
+                assert!(kk.borrow().is_empty() && !y.paketler().join("0.4.0.deb").exists());
+            }
+        }
     }
 
     #[test]
@@ -757,6 +867,37 @@ mod tests {
         let kilitli = std::cell::Cell::new(true);
         assert_eq!(hedefi_isle(&y, &h, "0.4.0", now, &|| kilitli.set(kilit_al(&y).is_none())), Karar::Kur);
         assert!(!kilitli.get());
+    }
+
+    #[test]
+    fn betik_kilit_tutulurken_dokunmaz() {
+        use std::os::unix::fs::PermissionsExt;
+        // apt 10 dk'dan uzun sürerken (kilit `ctl guncelle`de) betik eski ikilinin sağlığına bakıp "tamam" yazmamalı
+        let y = kur();
+        let d = &y.kok;
+        let bin = d.join("bin");
+        std::fs::create_dir_all(&bin).unwrap();
+        for ad in ["systemctl", "apt-get", "dpkg"] {
+            std::fs::write(bin.join(ad), format!("#!/bin/sh\necho {ad} >> '{}'\nexit 0\n", d.join("cagri.txt").display())).unwrap();
+            std::fs::set_permissions(bin.join(ad), std::fs::Permissions::from_mode(0o755)).unwrap();
+        }
+        let betik = d.join("denetle.sh");
+        std::fs::write(&betik, BETIK).unwrap();
+        std::fs::write(y.bekleyen(), "{}").unwrap();
+        dokun(&y.bekleyen(), "20 minutes ago");
+        dokun(&y.saglik_basari(), "1 minute ago");
+        let calistir = || {
+            let path = format!("{}:{}", bin.display(), std::env::var("PATH").unwrap_or_default());
+            assert!(Command::new("sh").arg(&betik).env("WFC_GUNCELLEME_DIZIN", d).env("PATH", path).status().unwrap().success());
+        };
+        let k = kilit_al(&y).unwrap();
+        calistir();
+        assert!(!y.sonuc().exists() && !d.join("cagri.txt").exists());
+        drop(k);
+        calistir();
+        assert_eq!(std::fs::read_to_string(y.sonuc()).unwrap().trim(), "tamam");
+        // betik kilidi bıraktı
+        assert!(kilit_al(&y).is_some());
     }
 
     #[test]

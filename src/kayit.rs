@@ -30,8 +30,15 @@ fn days_from_civil(y: i64, m: u32, d: u32) -> i64 {
 /// "2026-09-24 14:30", "2026-09-24 14:30:05", ISO "2026-09-24T14:30:05+03:00" ya da yalnızca gün → epoch (Türkiye saati).
 /// Ekrandaki yazım da kabul edilir: "24.09.2026", "24.09.2026 14:30(:05)".
 pub fn parse_time(s: &str) -> Option<f64> {
-    let s = ortak::tarih_girdi(s);
-    let s = s.as_str();
+    let s = s.trim();
+    // sıcak yol (CSV satırları ISO): ayırma yapılmaz; gün.ay.yıl yalnızca kişinin yazdığı girdide çevrilir
+    let girdi;
+    let s = if s.as_bytes().get(4) == Some(&b'-') {
+        s
+    } else {
+        girdi = ortak::tarih_girdi(s);
+        girdi.as_str()
+    };
     let num = |a: usize, b: usize| s.get(a..b).filter(|x| x.bytes().all(|c| c.is_ascii_digit())).and_then(|x| x.parse::<i64>().ok());
     if s.len() < 10 || s.as_bytes()[4] != b'-' || s.as_bytes()[7] != b'-' {
         return None;

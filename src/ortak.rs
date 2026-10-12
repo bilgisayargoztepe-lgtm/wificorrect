@@ -327,6 +327,18 @@ pub fn write_atomic(path: &Path, data: &[u8]) -> std::io::Result<()> {
 // ---------------------------------------------------------------- bağlı süresi (özet)
 /// 15 dk'dan uzun ağda görülmeyen cihazın bağlı süresi sıfırlanır; daha kısa kopmada kaldığı yerden sürer.
 pub const VARLIK_ARA_SN: f64 = 900.0;
+/// Son görülme bu kadar süre saklanır (oturum süresi en çok 45 gün).
+pub const VARLIK_SAKLA_SN: f64 = 45.0 * 86_400.0;
+
+/// Son görülme: bugünse "14:02", değilse "12.10.2026" (Türkiye saati).
+pub fn son_gorulme(son: f64, now: f64) -> String {
+    let (iso, bugun) = (now_iso(son), now_iso(now));
+    if iso[..10] == bugun[..10] {
+        iso[11..16].to_string()
+    } else {
+        format!("{}.{}.{}", &iso[8..10], &iso[5..7], &iso[..4])
+    }
+}
 
 /// Cihazın (MAC) ağda kesintisiz sayılan görünümü: başlangıç ve son görülme (epoch).
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]
@@ -345,7 +357,7 @@ pub fn varlik_oku(state_root: &str) -> BTreeMap<String, Varlik> {
 }
 
 /// Kaydedici her bakımda çağırır: `gorulen` (oturumu süren ve köprüde görülen MAC'ler) için son görülme ilerler;
-/// 15 dk'dan uzun ara verilmişse başlangıç şimdi olur. Bir gündür görülmeyenler unutulur.
+/// 15 dk'dan uzun ara verilmişse başlangıç şimdi olur. 45 gündür görülmeyenler unutulur (oturum en çok 45 gün; son görülme).
 pub fn varlik_guncelle(state_root: &str, gorulen: &std::collections::BTreeSet<String>, now: f64) -> std::io::Result<()> {
     let mut v = varlik_oku(state_root);
     for mac in gorulen {
@@ -355,7 +367,7 @@ pub fn varlik_guncelle(state_root: &str, gorulen: &std::collections::BTreeSet<St
         }
         e.son = now;
     }
-    v.retain(|_, e| now - e.son <= 86_400.0);
+    v.retain(|_, e| now - e.son <= VARLIK_SAKLA_SN);
     write_atomic(&varlik_yolu(state_root), &serde_json::to_vec(&v).unwrap_or_default())
 }
 
@@ -657,12 +669,22 @@ mod tests {
         // kayıt yok ya da 15 dk'dan eski kayıt: 0
         assert_eq!(bagli_dakika(None, t0), 0);
         assert_eq!(bagli_dakika(varlik_oku(&root).get("aa:bb:cc:dd:ee:01"), t0 + 2400.0 + 1000.0), 0);
-        // bir gündür görülmeyen unutulur; bozuk dosya boş sayılır
+        // 45 gündür görülmeyen unutulur; bozuk dosya boş sayılır
         varlik_guncelle(&root, &bos, t0 + 2400.0 + 86_401.0).unwrap();
+        assert_eq!(varlik_oku(&root).len(), 1, "bir gün sonra hâlâ var (son görülme)");
+        varlik_guncelle(&root, &bos, t0 + 2400.0 + VARLIK_SAKLA_SN + 1.0).unwrap();
         assert!(varlik_oku(&root).is_empty());
         fs::write(d.join("varlik.json"), "bozuk").unwrap();
         assert!(varlik_oku(&root).is_empty());
         let _ = fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn son_gorulme_bicimi() {
+        let now = 1_790_705_134.0; // 2026-09-29 21:05 TR
+        assert_eq!(son_gorulme(now - 3600.0, now), "20:05");
+        assert_eq!(son_gorulme(now - 86_400.0, now), "28.09.2026");
+        assert_eq!(son_gorulme(now - 21.0 * 3600.0, now), "00:05");
     }
 
     #[test]

@@ -1178,26 +1178,27 @@ impl Panel {
             if bagli.contains(mac) { "<span class=\"rozet bagli\">Bağlı</span>".into() } else { "<span class=\"rozet\">Bağlı değil</span>".into() }
         };
         let durum = crate::trafik::oku(&self.trafik_path).filter(|d| now - d.zaman <= OLCUM_ESKI_SN);
+        // son görülme kaydedicinin varlık kaydından (oturumu süren ve köprüde görülen cihazlar)
+        let varlik = ortak::varlik_oku(&cfg.main.state_root);
+        let son = |mac: &str| varlik.get(mac).map_or("—".to_string(), |v| ortak::son_gorulme(v.son, now));
         let olcum = |mac: &str| durum.as_ref().and_then(|d| d.cihazlar.get(mac));
         // (anlık hız, bugün bayt, başlangıç, hücreler)
         let mut satirlar: Vec<(u64, u64, f64, Vec<String>)> = vec![];
         for (mac, s) in &ses {
             let c = olcum(mac);
             let [indir, yukle, bugun] = olcum_hucreleri(c);
-            let left = ((s.expires_epoch - now).max(0.0) as u64) / 60;
             let hucreler = vec![
                 rozet(mac),
                 h(&crate::kimlik::goster(&s.phone)),
                 h(&format!("{} {}", s.ad, s.soyad)),
-                format!("<code>{}</code>", h(mac)),
-                if s.ip.is_empty() { "<span class=\"not\">beklemede</span>".into() } else { h(&s.ip) },
+                bugun,
+                h(&son(mac)),
                 indir,
                 yukle,
-                bugun,
-                h(&s.start.get(..16).unwrap_or("").replace('T', " ")),
-                format!("{}g {}sa", left / 1440, left / 60 % 24),
                 hiz_sayfasi::yavas_hucresi(o, mac, sinirlar.get(mac)),
                 post_button(o, "/oturumlar/at", "Bağlantıyı kes", &[("mac", mac)], "tehlike"),
+                format!("<code>{}</code>", h(mac)),
+                if s.ip.is_empty() { "<span class=\"not\">beklemede</span>".into() } else { h(&s.ip) },
             ];
             satirlar.push((c.map_or(0, |c| c.indir_bps + c.yukle_bps), c.map_or(0, |c| c.bugun_bayt), s.start_epoch, hucreler));
         }
@@ -1211,8 +1212,8 @@ impl Panel {
             let Some(ip) = ip_of.get(mac).or(c.map(|c| &c.ip)).filter(|ip| !ip.is_empty()) else { continue };
             let ad = if not.trim().is_empty() { "İzinli cihaz".to_string() } else { format!("İzinli cihaz · {}", not.trim()) };
             let [indir, yukle, bugun] = olcum_hucreleri(c);
-            let hucreler = vec![rozet(mac), String::new(), h(&ad), format!("<code>{}</code>", h(mac)), h(ip), indir, yukle, bugun,
-                                String::new(), String::new(), hiz_sayfasi::yavas_hucresi(o, mac, sinirlar.get(mac)), String::new()];
+            let hucreler = vec![rozet(mac), String::new(), h(&ad), bugun, h(&son(mac)), indir, yukle,
+                                hiz_sayfasi::yavas_hucresi(o, mac, sinirlar.get(mac)), String::new(), format!("<code>{}</code>", h(mac)), h(ip)];
             satirlar.push((c.map_or(0, |c| c.indir_bps + c.yukle_bps), c.map_or(0, |c| c.bugun_bayt), f64::INFINITY, hucreler));
         }
         satirlar.sort_by(|a, b| a.2.total_cmp(&b.2)); // bağlanma saati; eşitlikte de bu sıra kalır
@@ -1248,7 +1249,7 @@ impl Panel {
              <p class=\"not\">Bu sayfadaki her görüntüleme, arama ve indirme kimin yaptığıyla birlikte kaydedilir ve hizmet sağlayıcı tarafından denetlenir.</p>{arac}{}\
              <p class=\"not\">{}</p>",
             table(
-                &["Durum", "Telefon / Kimlik", "Ad soyad", "MAC", "IP", "↓ İndirme Mb/sn", "↑ Yükleme Mb/sn", "Bugün MB", "Başlangıç", "Kalan", "Yavaşlat", ""],
+                &["Durum", "Telefon / Kimlik", "Ad soyad", "Bugün MB", "Son görülme", "↓ İndirme Mb/sn", "↑ Yükleme Mb/sn", "Yavaşlat", "", "MAC", "IP"],
                 &rows,
                 "Bağlı kullanıcı yok"
             ),
@@ -2192,7 +2193,17 @@ mod tests {
         let s = e.p.handle(&req("GET", "/cihazlar", &[], Some(&tok))).body;
         let r = satir_of(&s, "Ayşe");
         assert!(r.contains("<td>38,4</td>") && r.contains("<td>2,1</td>") && r.contains("<td>4.820</td>"), "{r}");
-        let basliklar = ["Durum", "Telefon / Kimlik", "Ad soyad", "MAC", "IP", "↓ İndirme Mb/sn", "↑ Yükleme Mb/sn", "Bugün MB", "Başlangıç", "Kalan", "Yavaşlat", ""];
+        let basliklar = ["Durum", "Telefon / Kimlik", "Ad soyad", "Bugün MB", "Son görülme", "↓ İndirme Mb/sn", "↑ Yükleme Mb/sn", "Yavaşlat", "", "MAC", "IP"];
+        // son görülme: kayıt yoksa "—", bugünse saat, değilse gün.ay.yıl
+        assert!(r.contains("<td>—</td>") && !r.contains("2026-09-29 20:00"), "{r}");
+        let cfg = Config::load(&e.p.cfg_path).unwrap();
+        let g = std::collections::BTreeSet::from(["aa:bb:cc:dd:ee:01".to_string()]);
+        ortak::varlik_guncelle(&cfg.main.state_root, &g, SAAT - 86_400.0 * 3.0).unwrap();
+        let s2 = e.p.handle(&req("GET", "/cihazlar", &[], Some(&tok))).body;
+        assert!(satir_of(&s2, "Ayşe").contains("<td>26.09.2026</td>"), "{}", satir_of(&s2, "Ayşe"));
+        ortak::varlik_guncelle(&cfg.main.state_root, &g, SAAT - 120.0).unwrap();
+        let s3 = e.p.handle(&req("GET", "/cihazlar", &[], Some(&tok))).body;
+        assert!(satir_of(&s3, "Ayşe").contains("<td>21:03</td>"), "{}", satir_of(&s3, "Ayşe"));
         let thead: String = basliklar.iter().map(|b| format!("<th>{}</th>", h(b))).collect();
         assert!(s.contains(&thead), "başlıklar");
         assert_eq!((mbps(0), mbps(38_449_999), mbps(1_250_000_000)), ("0,0".into(), "38,4".into(), "1250,0".into()));
@@ -2256,7 +2267,7 @@ mod tests {
             trafikli(&e, &ayse, &olcum, yas);
             let s = e.p.handle(&req("GET", "/cihazlar", &[], Some(&tok))).body;
             let r = satir_of(&s, "Ayşe");
-            assert_eq!(r.matches("<td>—</td>").count(), 3, "{yas:?}: {r}");
+            assert_eq!(r.matches("<td>—</td>").count(), 4, "{yas:?}: {r}"); // ölçüm (3) + son görülme yok
             assert!(!r.contains("38,4") && s.contains("Ölçüm alınamıyor") && !s.contains("sn önce"), "{yas:?}");
         }
         trafikli(&e, &ayse, &olcum, Some(5.0));

@@ -458,7 +458,10 @@ pub struct Panel {
     baglan_kilit: std::sync::Mutex<()>,
 }
 
-const MENU: &[(&str, &str)] = &[("/", "Özet"), ("/cihazlar", "Kullanıcılar"), ("/misafir-kodlari", "Misafir kodları"), ("/kayitlar", "Kayıtlar"), ("/ayarlar", "Ayarlar"), ("/admin", "Admin")];
+const MENU: &[(&str, &str)] = &[("/", "Özet"), ("/cihazlar", "Kullanıcılar"), ("/misafir-kodlari", "Misafir kodları"), ("/kayitlar", "Kayıtlar"), ("/ayarlar", "Ayarlar")];
+
+/// Admin sol menüde değil, Ayarlar sayfasının en altında kutucuk (2026-10-13, kullanıcı isteği); /admin sayfası aynen kalır.
+const ADMIN_YOLU: &str = "/admin";
 
 /// Menü grupları tek sayfadır; eski sayfalar bu sayfada alt alta bölüm olur (2026-10-08, kullanıcı isteği).
 /// (grup, eski yol, bölüm id, başlık, yalnızca admin). Eski yollar ayrıca açılır (hata/arama sonucu, ayrıntı).
@@ -616,7 +619,10 @@ impl Panel {
         }
         let (menu, ust) = match o {
             Some(o) => {
-                let grup = menu_grubu(&req.path);
+                let grup = match menu_grubu(&req.path) {
+                    ADMIN_YOLU => "/ayarlar",
+                    g => g,
+                };
                 let links: String = MENU
                     .iter()
                     .filter(|(p, _)| *p != "/misafir-kodlari" || crate::ayar::misafir_kodu_acik(cfg))
@@ -713,7 +719,10 @@ impl Panel {
             })
             .collect();
         drop(parca);
-        let atla: String = bolumler.iter().map(|(_, _, id, baslik, _)| format!("<a href=\"#{id}\">{}{}</a>", simge(bolum_simgesi(id)), h(baslik))).collect();
+        let mut atla: String = bolumler.iter().map(|(_, _, id, baslik, _)| format!("<a href=\"#{id}\">{}{}</a>", simge(bolum_simgesi(id)), h(baslik))).collect();
+        if req.path == "/ayarlar" {
+            atla.push_str(&format!("<a href=\"{ADMIN_YOLU}\">{}Admin</a>", simge(SIMGE_KILIT)));
+        }
         let mut body = format!("<nav class=\"kisayol\" aria-label=\"Bu sayfadaki bölümler\">{atla}</nav>");
         for ((_, _, id, baslik, _), govde) in bolumler.iter().zip(&govdeler) {
             body.push_str(&format!(
@@ -721,7 +730,7 @@ impl Panel {
                 h(baslik)
             ));
         }
-        let baslik = MENU.iter().find(|(p, _)| *p == req.path).map_or("", |(_, l)| l);
+        let baslik = if req.path == ADMIN_YOLU { "Admin" } else { MENU.iter().find(|(p, _)| *p == req.path).map_or("", |(_, l)| l) };
         self.page(cfg, req, Some(o), baslik, &body)
     }
 
@@ -2117,7 +2126,7 @@ mod tests {
         let e = env();
         let (tok, _) = setup_and_login(&e, "mudur", "sahip-parola-12");
         let ozet = e.p.handle(&req("GET", "/", &[], Some(&tok))).body;
-        assert_eq!(menu_linkleri(&ozet), ["/", "/cihazlar", "/kayitlar", "/ayarlar", "/admin"]);
+        assert_eq!(menu_linkleri(&ozet), ["/", "/cihazlar", "/kayitlar", "/ayarlar"]);
         let s = e.p.handle(&req("GET", "/cihazlar", &[], Some(&tok)));
         assert_eq!(s.status, 200);
         for (id, form) in [("oturumlar", ""), ("yasak", "/yasak/ekle"), ("izinli", "/izinli/ekle"), ("yavaslatilmis", ""), ("yasakli-siteler", "/yasakli-siteler/ekle")] {
@@ -2498,7 +2507,7 @@ mod tests {
         assert!(!k.contains("id=\"panel-hareketleri\"") && k.contains("action=\"/kullanicilar\""));
         let a = e.p.handle(&req("GET", "/admin", &[], Some(&tok))).body;
         assert!(a.contains("<section class=\"bolum\" id=\"admin-ayarlari\"") && a.contains("name=\"netgsm.usercode\""));
-        assert!(a.contains("<section class=\"bolum\" id=\"panel-hareketleri\"") && a.contains("href=\"/admin\" class=\"aktif\""));
+        assert!(a.contains("<section class=\"bolum\" id=\"panel-hareketleri\"") && a.contains("href=\"/ayarlar\" class=\"aktif\""));
         assert!(!e.p.handle(&req("GET", "/ayarlar", &[], Some(&tok))).body.contains("id=\"admin-ayarlari\""));
         assert!(tekrar_eden_idler(&a).is_empty(), "{:?}", tekrar_eden_idler(&a));
         // form gönderince aynı sayfanın o bölümüne dönülür; mesaj korunur
@@ -3171,9 +3180,15 @@ mod tests {
         let e = env();
         let (tok, csrf) = setup_and_login(&e, "mudur", "sahip-parola-12");
         let ozet = e.p.handle(&req("GET", "/", &[], Some(&tok))).body;
-        assert_eq!(menu_linkleri(&ozet), ["/", "/cihazlar", "/kayitlar", "/ayarlar", "/admin"]);
+        assert_eq!(menu_linkleri(&ozet), ["/", "/cihazlar", "/kayitlar", "/ayarlar"]);
         let a = e.p.handle(&req("GET", "/admin", &[], Some(&tok))).body;
         assert!(a.contains("action=\"/admin-kilidi\"") && !a.contains("name=\"netgsm.usercode\""));
+        // Admin sol menüde yok: Ayarlar'ın en son kutucuğu; admin sayfasında menüde Ayarlar seçili
+        let ay = e.p.handle(&req("GET", "/ayarlar", &[], Some(&tok))).body;
+        let kutular = ay.split("aria-label=\"Bu sayfadaki bölümler\">").nth(1).unwrap().split("</nav>").next().unwrap().to_string();
+        assert!(kutular.ends_with("Admin</a>") && kutular.contains("href=\"/admin\""), "{kutular}");
+        assert!(a.contains("href=\"/ayarlar\" class=\"aktif\""), "admin sayfasında Ayarlar vurgulu");
+        assert!(!e.p.handle(&req("GET", "/cihazlar", &[], Some(&tok))).body.contains("href=\"/admin\">"), "başka grupta Admin kutucuğu yok");
         assert!(e.p.handle(&req("GET", "/panel-hareketleri", &[], Some(&tok))).body.contains("action=\"/admin-kilidi\""));
         let r = e.p.handle(&req("POST", "/admin-kilidi", &[("csrf", &csrf), ("parola", "yanlis-parola-1"), ("donus", "/admin")], Some(&tok)));
         assert!(r.body.contains("hatalı"));
@@ -3508,7 +3523,7 @@ mod tests {
         assert!(kodlar(&e).is_empty());
         misafir_ac(&e, "yurt", true);
         let ozet = e.p.handle(&get("/", &[], &tok)).body;
-        assert_eq!(menu_linkleri(&ozet), ["/", "/cihazlar", "/misafir-kodlari", "/kayitlar", "/ayarlar", "/admin"]);
+        assert_eq!(menu_linkleri(&ozet), ["/", "/cihazlar", "/misafir-kodlari", "/kayitlar", "/ayarlar"]);
         let s = e.p.handle(&get("/misafir-kodlari", &[], &tok));
         assert_eq!(s.status, 200);
         assert!(s.body.contains("href=\"/misafir-kodlari\" class=\"aktif\"") && s.body.contains("Kod üret") && s.body.contains("Aktif kod yok"));

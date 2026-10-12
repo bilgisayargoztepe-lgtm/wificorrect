@@ -1,4 +1,4 @@
-# Devir notu — kaldığın yerden devam (2026-10-12)
+# Devir notu — kaldığın yerden devam (2026-10-12, akşam)
 
 Bu dosya, projeye yeni bir oturumda/hesapta devam eden ajan içindir. Önce bunu, sonra `CLAUDE.md`'deki belgeleri oku.
 
@@ -41,9 +41,13 @@ Cihaz: Debian 13 + Rust ikilisi `wificorrect` (`src/`). Merkez: Python stdlib (`
 `cihaz.wificorrect.com` (cihaz paneline geçit). Cihaz ↔ merkez WireGuard (10.99.0.0/24; merkez .1, cihaz 1537344 = .11).
 Canlı müşteri: **Göztepe Bilgisayar = 1537344**, cihaz 192.168.1.110.
 
-## Dallar ve durum (2026-10-11)
-Repo `bilgisayargoztepe-lgtm/wificorrect` (avsharbeyi'den devredildi). Her şey **`main`**'de (PR #3–#9 birleşti; #2 kapatıldı).
-**v0.3.0** yayında (ISO + .deb; `WFC_SSH_PUB` = `~/.ssh/bocafe.pub`). Canlı cihaz ve merkez main'i çalıştırıyor (2026-10-12).
+## Dallar ve durum (2026-10-12)
+Repo `bilgisayargoztepe-lgtm/wificorrect` (avsharbeyi'den devredildi). Her şey **`main`**'de (PR #3–#12 birleşti; #2 kapatıldı).
+**v0.4.3** etiketlendi (2026-10-12; ISO + .deb, `release.yml`; `WFC_SSH_PUB` = `~/.ssh/bocafe.pub`). Canlı cihaz artık **paketli**
+(dpkg `wificorrect` 0.4.3, yerelde derlenmiş; elle geçiş ölü adam anahtarıyla) ve merkez main'i çalıştırıyor.
+**Cihaza kurulum artık `gelistir.sh` ile değil**: yeni sürüm → `v*` etiketi → Yönetim → Sürümler → "GitHub'dan al" → test kanalı
+hedefi + Göztepe (test kanalında) "Şimdi güncelle". Acil yerel deneme: cihazda `scripts/paket.sh` ile .deb, sunucuda
+`sudo -u wcpanel python3 /usr/local/lib/wificorrect/surumler.py ekle DOSYA SURUM` (gelistir.sh paketli cihazı paketten saptırır).
 Merkez her güncellemede yeniden başlar ve bellekteki oturumlar düşer (yönetime yeniden giriş gerekir).
 
 Bitenler (canlıda):
@@ -74,13 +78,25 @@ Bitenler (canlıda):
   5651'de kimlik `telefon` sütununda (`TC:…`, `PASAPORT:UY:NO`), ekranlarda maskeli, URL'de opak kimlik. Cihazda sahte
   istemciyle uçtan uca geçti (2026-10-12). Canlı cihazda tür **seçilmemiş**, misafir kodu kapalı. Aydınlatma metni cümlesi
   hukukçu onayı bekliyor. Bilinen: seçilen tür panelden "seçilmemiş"e geri alınamaz.
+- **Uzaktan güncelleme** (PR #12, spec `docs/superpowers/specs/2026-10-12-uzaktan-guncelleme-design.md`; ayrıntı
+  KURULUM_GUNLUGU "Uzaktan güncelleme"): kanallar test/kararlı, müşteri başına kanal (Göztepe = test), 03:00–06:00 penceresi,
+  sha doğrulama, eski paket saklanır, eski ikilinin yazdığı `denetle.sh` + 5 dk zamanlayıcı 10 dk sonra sağlıksızsa geri döner,
+  başarısız sürüm tekrar kurulmaz. Canlıda uçtan uca geçti (0.4.0→0.4.1 tamam, bozuk 0.4.2 geri alındı, 0.4.1→0.4.0 tamam).
+  Kanal hedefleri şu an boş. Bilinen küçükler: hedef kaydında mesaj yok; müşteri sayfası "Cihaz → Sürüm" günlük eşitlemeye
+  kadar eski; ilk güncellemede eski sürümün paketi merkezde yoksa `onceki_paket_yok` (0.4.3 GitHub'dan alınmalı).
+- **Sade özet + bağlı kullanıcılar** (PR #10, #11): özet kısayolsuz, SMS/Disk yok; bağlı kullanıcıda yeşil nokta + bağlı dakika
+  (15 dk'dan kısa kopmada sürer). Kullanıcılar tablosu: Durum · Telefon · Ad · Bugün MB · Son görülme · ↓ · ↑ · Yavaşlat · Kes ·
+  MAC · IP. Kaynak: kaydedici 30 sn'de `state/varlik.json` (45 gün).
 - Küçük işler (PR #6): bozuk `hiz_sinir.json`'un üzerine yazılmaz; 10 sn yenileme yalnızca `/oturumlar`; panel tam genişlik.
 
 ## Sıradaki işler
 Kullanıcının onayladığı sıra (2026-10-11; donanım bekçisi hariç): ~~1 küçük işler~~ · ~~2 sağlık izleme~~ ·
-**3 merkezden uzaktan güncelleme** (apt deposu) · 4 hazır engel listeleri · 5 aylık rapor · 6 personel kodu ile giriş ·
+~~3 merkezden uzaktan güncelleme~~ · **4 hazır engel listeleri** · 5 aylık rapor · 6 personel kodu ile giriş ·
 7 imzalı resmi talep raporu · 8 online ödeme (`veri.lisans_uzat`). Zaman damgası: kontör alınınca. İki aşamalı giriş istenmedi.
 Ertelenmiş küçük bulgular: `.superpowers/sdd/*/progress.md` (yalnızca bu makinede).
+Bekleyen kullanıcı işleri: Yönetim → Uyarı ayarları'na telefon (SMS uyarıları hiç gitmiyor); 0.4.3'ü "GitHub'dan al";
+aydınlatma metni misafir kodu cümlesi için hukukçu onayı; `docs/superpowers/specs/2026-10-12-harici-ap-design.md` (izlenmeyen,
+başka oturumdan) — kullanıcıya sorulmadı.
 
 ## Açık küçük notlar
 - AP (TP-Link TL-WA901ND, 10.50.0.2) menzili zayıf; kullanıcı sonra ilgilenecek (iletim gücü High, kanal 1/6/11, 20 MHz).

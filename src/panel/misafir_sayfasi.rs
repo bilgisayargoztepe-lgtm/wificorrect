@@ -22,8 +22,7 @@ fn sure_adi(saat: u64) -> String {
 
 /// `GG.AA.YYYY SS:DD` (TR saati).
 pub(super) fn tarih_saat(ts: f64) -> String {
-    let i = ortak::now_iso(ts);
-    format!("{}.{}.{} {}", &i[8..10], &i[5..7], &i[..4], &i[11..16])
+    ortak::tarih_goster(&ortak::now_iso(ts))
 }
 
 fn tur_kisa(anahtar: &str) -> &'static str {

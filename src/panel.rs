@@ -559,12 +559,11 @@ fn bolum_simgesi(id: &str) -> &'static str {
 /// Özet listelerinde en çok bu kadar satır; fazlası "Tümü" bağlantısıyla
 const OZET_SATIR: usize = 10;
 
-/// "2026-10-10T14:02:11+03:00" → bugünse "14:02", değilse "09.10 14:02"
+/// "2026-10-10T14:02:11+03:00" → bugünse "14:02", değilse "09.10.2026 14:02"
 fn kisa_zaman(iso: &str, bugun: &str) -> String {
-    let saat = iso.get(11..16).unwrap_or("");
-    match (iso.get(..10), iso.get(5..7), iso.get(8..10)) {
-        (Some(g), _, _) if g == bugun => saat.into(),
-        (_, Some(ay), Some(gun)) => format!("{gun}.{ay} {saat}"),
+    match (iso.get(..10), iso.get(11..16)) {
+        (Some(g), Some(saat)) if g == bugun => saat.into(),
+        (Some(_), Some(_)) => ortak::tarih_goster(iso),
         _ => String::new(),
     }
 }
@@ -669,7 +668,7 @@ impl Panel {
                 None => uyari.push_str("<div class=\"mesaj hata\">Cihaz bir müşteriye bağlı değil: misafirlere internet verilmiyor. Müşteri numarasıyla giriş yapılınca açılır.</div>"),
                 Some(m) if !crate::merkez::lisans_aktif(&m, now) => uyari.push_str(&format!(
                     "<div class=\"mesaj hata\">{}: misafirlere internet verilmiyor. Hizmet sağlayıcınıza başvurun.</div>",
-                    if m.lisans == "askida" { "Lisans askıya alındı".to_string() } else { format!("Lisans süresi doldu ({})", h(&m.lisans_bitis)) }
+                    if m.lisans == "askida" { "Lisans askıya alındı".to_string() } else { format!("Lisans süresi doldu ({})", h(&ortak::tarih_goster(&m.lisans_bitis))) }
                 )),
                 Some(_) => {}
             }
@@ -1498,7 +1497,7 @@ impl Panel {
             rows.extend(crate::kayit::day_rows(root, &day, "denetim.csv"));
         }
         rows.sort_by(|a, b| a[0].cmp(&b[0]));
-        let when = |r: &crate::kayit::Rec| r[0].get(..16).unwrap_or("").replace('T', " ");
+        let when = |r: &crate::kayit::Rec| ortak::tarih_goster(&r[0]);
         let ek = |r: &crate::kayit::Rec| crate::kayit::col(r, "ek").to_string();
         let yedek = match rows.iter().rev().find(|r| crate::kayit::col(r, "olay") == "YEDEK_SONUC") {
             None => "henüz çalışmadı".to_string(),
@@ -1627,8 +1626,8 @@ impl Panel {
             ("DHCP / DNS", service_state("dnsmasq")),
             ("Giriş sayfası", service_state("wificorrect-portal")),
             ("Kaydedici", service_state("wificorrect-kaydedici")),
-            ("Son mühürlenen gün", h(&chain.last().map_or("henüz yok".to_string(), |l| l[0].clone()))),
-            ("Saat", h(&ortak::now_iso((self.clock)()))),
+            ("Son mühürlenen gün", h(&chain.last().map_or("henüz yok".to_string(), |l| ortak::tarih_goster(&l[0])))),
+            ("Saat", h(&ortak::tarih_saat_goster(&ortak::now_iso((self.clock)())))),
             ("Sürüm", h(&format!("wificorrect {}", env!("CARGO_PKG_VERSION")))),
         ];
         if o.rol == Rol::Hizmet {
@@ -2367,7 +2366,7 @@ mod tests {
         assert!(s.contains("for=\"menu-ac\""));
         let audit = std::fs::read_to_string(e.root.join("5651/gunluk/2026-09-29/denetim.csv")).unwrap();
         assert!(audit.contains("PANEL_OZET"));
-        assert_eq!(kisa_zaman("2026-09-28T08:05:00+03:00", "2026-09-29"), "28.09 08:05");
+        assert_eq!(kisa_zaman("2026-09-28T08:05:00+03:00", "2026-09-29"), "28.09.2026 08:05");
     }
 
     #[test]
@@ -2737,11 +2736,14 @@ mod tests {
         ortak::append_rows(&ortak::day_file(&root, "2026-09-29", "dhcp.csv"), &[Row::new("DHCP_ATAMA", "2026-09-29T09:00:00+03:00").set("ic_ip", "10.50.0.30")]).unwrap();
 
         let page = e.p.handle(&get("/kayitlar", &[], &tok)).body;
-        assert!(page.contains("2026-09-29") && page.contains("açık") && page.contains("mühürlü"));
+        assert!(page.contains("29.09.2026") && page.contains("açık") && page.contains("mühürlü"));
+        assert!(page.contains("href=\"/kayitlar/gun?gun=2026-09-29\"") && !page.contains(">2026-09-29<"), "bağlantı ISO, görünen gün.ay.yıl");
         let page = e.p.handle(&get("/kayitlar/gun", &[("gun", d)], &tok)).body;
         assert!(page.contains("dns.csv.gz") && page.contains("Ayşe Yılmaz")); // kişi dosyasının sahibi
+        assert!(page.contains("27.09.2026"));
         let page = e.p.handle(&req("POST", "/kayitlar/dosya", &[("csrf", &csrf), ("gun", d), ("dosya", "dns.csv.gz"), ("q", "ORNEK")], Some(&tok))).body;
         assert!(page.contains("www.ornek.com") && !page.contains("haber.example") && page.contains("1 satır"));
+        assert!(page.contains("<td>27.09.2026 10:01:00</td>") && !page.contains("2026-09-27T10:01"), "zaman sütunu gün.ay.yıl");
         for bad in ["../../zincir.txt", "../2026-09-29/dhcp.csv", "MANIFEST.sha256"] {
             assert_eq!(e.p.handle(&get("/kayitlar/indir", &[("gun", d), ("dosya", bad)], &tok)).status, 404, "{bad}");
         }
@@ -2759,6 +2761,7 @@ mod tests {
         assert!(page.contains(&format!("href=\"/kullanici?k={k}\"")));
         let page = e.p.handle(&get("/kullanici", &[("k", &k)], &tok)).body;
         assert!(page.contains("OTURUM_BASLA") && page.contains("2026-09-27") && page.contains("905334553132"));
+        assert!(page.contains("27.09.2026 10:00:00") && page.contains(">27.09.2026<"), "ilk kayıt ve gün listesi gün.ay.yıl");
         for bad in ["../x", "905334553132", "0000000000000000"] {
             assert_eq!(e.p.handle(&get("/kullanici", &[("k", bad)], &tok)).status, 404, "{bad}");
         }
@@ -2770,12 +2773,17 @@ mod tests {
         };
         let page = talep(&[("tur", "ic-ip"), ("deger", "10.50.0.23"), ("zaman", "2026-09-27 11:00")]);
         assert!(page.contains("O anda açık oturum") && page.contains("905334553132"));
+        let page = talep(&[("tur", "ic-ip"), ("deger", "10.50.0.23"), ("zaman", "27.09.2026 11:00")]); // ekrandaki yazım
+        assert!(page.contains("O anda açık oturum") && page.contains("905334553132"));
+        assert!(page.contains("value=\"29.09.2026\"") && page.contains("placeholder=\"GG.AA.YYYY SS:DD\""), "paket günleri gün.ay.yıl dolu");
         // GET adreste değer taşımaz: arama yapmaz
         assert!(!e.p.handle(&get("/talep", &[("tur", "ic-ip"), ("deger", "10.50.0.23"), ("zaman", "2026-09-27 11:00")], &tok)).body.contains("O anda açık oturum"));
         let page = talep(&[("tur", "ic-ip"), ("deger", "10.50.0.23"), ("zaman", "dün")]);
         assert!(page.contains("Zaman geçersiz"));
         let r = e.p.handle(&get("/talep/paket", &[("bas", "2026-09-27"), ("bit", "2026-09-29")], &tok));
         assert!(r.file.is_some());
+        let r = e.p.handle(&get("/talep/paket", &[("bas", "27.09.2026"), ("bit", "29.09.2026")], &tok));
+        assert!(r.file.is_some() && r.headers.iter().any(|(_, v)| v.contains("talep_2026-09-27_2026-09-29.tar")), "gün.ay.yıl kabul, dosya adı ISO");
         assert!(loc(&e.p.handle(&get("/talep/paket", &[("bas", "x"), ("bit", "y")], &tok))).contains("e=1"));
         assert_eq!(e.p.handle(&basliksiz(req("GET", "/kayitlar", &[], None))).status, 303); // girişsiz yok
 
@@ -2888,6 +2896,7 @@ mod tests {
         assert!(page.contains("Bağlı kullanıcılara baktı") && page.contains("Kullanıcı listesine baktı") && page.contains("ara=ayşe"));
         assert!(!page.contains(">Giriş<")); // yalnızca kişisel veri filtresi
         let page = e.p.handle(&get("/panel-hareketleri", &[], &atok)).body;
+        assert!(page.contains("<td>29.09.2026 21:05:34</td>"), "hareket zamanı saniyeli gün.ay.yıl");
         assert!(page.contains("İşletme sahibi") && page.contains(">7<") && page.contains("Çıkış")); // müşteri: 7 kişisel veri bakışı (bağlı cihazlar + 2 liste + arama + 3 özet: iki girişte ve yukarıda)
         let audit = std::fs::read_to_string(e.root.join("5651/gunluk/2026-09-29/denetim.csv")).unwrap();
         assert!(audit.contains(&format!("kullanici={MUSTERI} rol=sahip ip=")));
@@ -2990,8 +2999,8 @@ mod tests {
         ortak::audit(&cfgd.main.log_root, Row::new("YEDEK_SONUC", "2026-09-29T02:00:05+03:00").set("ek", "hata=zincir.txt sunucuya gönderilemedi"));
         ortak::audit(&cfgd.main.log_root, Row::new("FABRIKA_IPTAL", "2026-09-29T03:00:00+03:00").set("ek", "neden=2026-09-28 sunucuya gönderilemedi"));
         let page = e.p.handle(&get("/admin-ayarlari", &[], &tok)).body;
-        assert!(page.contains("2026-09-29 02:00 — HATA: zincir.txt sunucuya gönderilemedi"));
-        assert!(page.contains("Son fabrika dönüşü <b>iptal oldu</b> (2026-09-29 03:00): 2026-09-28 sunucuya gönderilemedi"));
+        assert!(page.contains("29.09.2026 02:00 — HATA: zincir.txt sunucuya gönderilemedi"));
+        assert!(page.contains("Son fabrika dönüşü <b>iptal oldu</b> (29.09.2026 03:00): 2026-09-28 sunucuya gönderilemedi"));
         // uzak yedek kapalıyken reddedilir (kayıtlar sunucuya gitmeden olmaz)
         let r = fab("hizmet-parola-1", "1");
         assert!(loc(&r).contains("e=1") && !e.calls.lock().unwrap().iter().any(|c| c.join(" ").contains("ctl fabrika")));
@@ -3246,7 +3255,7 @@ mod tests {
         crate::hiz::kaydet(&root, &k).unwrap();
         let s = e.p.handle(&get("/cihazlar", &[], &tok)).body;
         let b = bolum_of(&s, "yavaslatilmis");
-        for p in ["<code>aa:bb:cc:dd:ee:55</code>", "Zeynep A", "<td>5 Mb/sn</td>", "2026-09-29 21:04", "<td>mudur</td>", ">Yavaşlatmayı kaldır</button>", "name=\"donus\" value=\"yavaslatilmis\""] {
+        for p in ["<code>aa:bb:cc:dd:ee:55</code>", "Zeynep A", "<td>5 Mb/sn</td>", "<td>29.09.2026 21:04</td>", "<td>mudur</td>", ">Yavaşlatmayı kaldır</button>", "name=\"donus\" value=\"yavaslatilmis\""] {
             assert!(b.contains(p), "{p}: {b}");
         }
         assert_eq!(denetim_satirlari(&e, "PANEL_YAVASLATILMIS").len(), 2);

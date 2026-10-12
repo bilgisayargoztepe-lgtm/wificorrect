@@ -96,10 +96,20 @@ fn rec_table_maskeli(rows: &[Rec], empty: &str) -> String {
 
 fn rec_table_(rows: &[Rec], empty: &str, maskeli: bool) -> String {
     let tel = CSV_HEADER.iter().position(|k| *k == "telefon");
+    let zaman = CSV_HEADER.iter().position(|k| *k == "zaman");
     let cols: Vec<usize> = (0..CSV_HEADER.len()).filter(|&i| rows.iter().any(|r| !r[i].is_empty())).collect();
+    // ekranda zaman gün.ay.yıl (saniyeli); indirilen CSV ISO kalır
     let body: Vec<Vec<String>> = rows
         .iter()
-        .map(|r| cols.iter().map(|&i| if maskeli && Some(i) == tel { h(&kimlik::maskele(&r[i])) } else { h(&r[i]) }).collect())
+        .map(|r| {
+            cols.iter()
+                .map(|&i| match i {
+                    _ if maskeli && Some(i) == tel => h(&kimlik::maskele(&r[i])),
+                    _ if Some(i) == zaman => h(&ortak::tarih_saat_goster(&r[i])),
+                    _ => h(&r[i]),
+                })
+                .collect()
+        })
         .collect();
     table(&cols.iter().map(|&i| CSV_HEADER[i]).collect::<Vec<_>>(), &body, empty)
 }
@@ -143,7 +153,7 @@ impl Panel {
                 };
                 let people = i.files.iter().filter(|(r, _)| r.starts_with("kullanicilar/")).count();
                 vec![
-                    format!("<a href=\"{}\">{}</a>", h(&link("/kayitlar/gun", &[("gun", &i.day)])), h(&i.day)),
+                    format!("<a href=\"{}\">{}</a>", h(&link("/kayitlar/gun", &[("gun", &i.day)])), h(&ortak::tarih_goster(&i.day))),
                     h(durum),
                     people.to_string(),
                     h(&size(i.files.iter().map(|(_, s)| s).sum())),
@@ -186,7 +196,7 @@ impl Panel {
             table(&["Dosya", "Kişi", "Boyut", ""], &rows, "Dosya yok"),
             h(&link("/kayitlar/gun-indir", &[("gun", day)]))
         );
-        self.page(cfg, req, Some(o), day, &body)
+        self.page(cfg, req, Some(o), &ortak::tarih_goster(day), &body)
     }
 
     pub(super) fn kayit_dosya(&self, cfg: &Config, req: &Req, o: &Oturum) -> Resp {
@@ -238,7 +248,7 @@ impl Panel {
              <div><label for=\"q\">Satırlarda ara</label><input type=\"text\" id=\"q\" name=\"q\" value=\"{}\" placeholder=\"telefon, IP, alan adı…\"></div><button>Ara</button>\
              <a class=\"dugme ikincil\" href=\"{}\">İndir</a></form><div class=\"eylemler\" style=\"align-items:center\">{pager}</div>{}",
             h(&link("/kayitlar/gun", &[("gun", day)])),
-            h(day),
+            h(&ortak::tarih_goster(day)),
             csrf_input(o),
             h(day),
             h(rel_url),
@@ -299,8 +309,8 @@ impl Panel {
                 vec![
                     format!("<a href=\"{}\">{}</a>", h(&kisi_url(&sir, &r[0])), h(&kimlik::goster(&r[0]))),
                     h(&format!("{} {}", r[1], r[2])),
-                    h(&r[3].get(..16).unwrap_or("").replace('T', " ")),
-                    h(&r[4].get(..16).unwrap_or("").replace('T', " ")),
+                    h(&ortak::tarih_goster(&r[3])),
+                    h(&ortak::tarih_goster(&r[4])),
                 ]
             })
             .collect();
@@ -335,8 +345,8 @@ impl Panel {
         let info = idx.map_or(String::new(), |r| {
             facts(&[
                 ("Ad soyad", h(&format!("{} {}", r[1], r[2]))),
-                ("İlk kayıt", h(&r[3].replace('T', " "))),
-                ("Son oturum", h(&r[4].replace('T', " "))),
+                ("İlk kayıt", h(&ortak::tarih_saat_goster(&r[3]))),
+                ("Son oturum", h(&ortak::tarih_saat_goster(&r[4]))),
             ])
         });
         let day_rows: Vec<Vec<String>> = days
@@ -345,7 +355,7 @@ impl Panel {
             .map(|(d, rel)| {
                 let u = url_dosya(&sir, rel);
                 vec![
-                    format!("<a href=\"{}\">{}</a>", h(&link("/kayitlar/dosya", &[("gun", d), ("dosya", &u)])), h(d)),
+                    format!("<a href=\"{}\">{}</a>", h(&link("/kayitlar/dosya", &[("gun", d), ("dosya", &u)])), h(&ortak::tarih_goster(d))),
                     format!("<a class=\"dugme ikincil\" href=\"{}\">İndir</a>", h(&link("/kayitlar/indir", &[("gun", d), ("dosya", &u)]))),
                 ]
             })
@@ -399,23 +409,23 @@ impl Panel {
                 }
             }
         }
-        let today = ortak::day_of(&ortak::now_iso(now)).to_string();
+        let today = ortak::tarih_goster(ortak::day_of(&ortak::now_iso(now)));
         let body = format!(
             "<p class=\"not\">Bu sayfadaki her görüntüleme, arama ve indirme kimin yaptığıyla birlikte kaydedilir ve hizmet sağlayıcı tarafından denetlenir.</p><p class=\"not\">Resmi talepler genellikle tarih-saat + IP (+ port) ile gelir. Çift NAT'ta dış port modemde değişir; \
-             o durumda zaman + hedef IP ile arayın. Zaman biçimi: 2026-09-24 14:30. Misafir koduyla girenler T.C. kimlik no, \
+             o durumda zaman + hedef IP ile arayın. Zaman biçimi: 24.09.2026 14:30. Misafir koduyla girenler T.C. kimlik no, \
              pasaport no (uyruk boşsa bütün uyruklar) ya da oda no ile aranır; sonuçlarda kimlik tam gösterilir.</p>\
              <form class=\"satir kart\" method=\"post\" action=\"/talep\">{}\
              <div><label for=\"tur\">Arama</label><select id=\"tur\" name=\"tur\">{tur_sec}</select></div>\
              <div><label for=\"deger\">Değer</label><input type=\"text\" id=\"deger\" name=\"deger\" value=\"{}\" required autocomplete=\"off\"></div>\
              <div><label for=\"uyruk\">Uyruk (pasaport)</label><input type=\"text\" id=\"uyruk\" name=\"uyruk\" value=\"{}\" maxlength=\"2\" placeholder=\"DE\" autocomplete=\"off\"></div>\
-             <div><label for=\"zaman\">Zaman</label><input type=\"text\" id=\"zaman\" name=\"zaman\" value=\"{}\" placeholder=\"YYYY-AA-GG SS:DD\"></div>\
+             <div><label for=\"zaman\">Zaman</label><input type=\"text\" id=\"zaman\" name=\"zaman\" value=\"{}\" placeholder=\"GG.AA.YYYY SS:DD\"></div>\
              <div><label for=\"tol\">Tolerans (sn)</label><input type=\"number\" id=\"tol\" name=\"tol\" value=\"{tol_s}\"></div><button>Ara</button></form>\
              {results}\
              <div class=\"kart\"><h2>Talep paketi</h2><p class=\"not\">Seçilen günlerin mühürlü dosyaları, MANIFEST, zincir.txt ve bütünlük doğrulama \
              çıktısı tek .tar dosyasında (en fazla 92 gün). Yalnızca resmi makama, hukukçu yönlendirmesiyle teslim edin.</p>\
              <form class=\"satir\" method=\"get\" action=\"/talep/paket\">\
-             <div><label for=\"bas\">Başlangıç günü</label><input type=\"text\" id=\"bas\" name=\"bas\" value=\"{today}\" required></div>\
-             <div><label for=\"bit\">Bitiş günü</label><input type=\"text\" id=\"bit\" name=\"bit\" value=\"{today}\" required></div>\
+             <div><label for=\"bas\">Başlangıç günü</label><input type=\"text\" id=\"bas\" name=\"bas\" value=\"{today}\" placeholder=\"GG.AA.YYYY\" required></div>\
+             <div><label for=\"bit\">Bitiş günü</label><input type=\"text\" id=\"bit\" name=\"bit\" value=\"{today}\" placeholder=\"GG.AA.YYYY\" required></div>\
              <button>Paketi indir</button></form></div>",
             csrf_input(o),
             h(deger),
@@ -447,7 +457,7 @@ impl Panel {
                             } else {
                                 format!("<a href=\"{}\">{}</a>", h(&kisi_url(&sir, &k.telefon)), h(&kimlik::goster(&k.telefon)))
                             };
-                            let zaman = |z: &str| h(&z.get(..16).unwrap_or(z).replace('T', " "));
+                            let zaman = |z: &str| h(&ortak::tarih_goster(z));
                             vec![tel, h(&k.ad), format!("<code>{}</code>", h(&k.macler.join(", "))), zaman(&k.ilk), zaman(&k.son), k.sayi.to_string()]
                         })
                         .collect();
@@ -479,9 +489,11 @@ impl Panel {
     }
 
     pub(super) fn talep_paket(&self, cfg: &Config, req: &Req, o: &Oturum) -> Resp {
-        let (bas, bit) = (q(req, "bas").trim(), q(req, "bit").trim());
+        // ekrandaki gün.ay.yıl da eski ISO yazımı da kabul; denetim ve dosya adı ISO
+        let (bas, bit) = (ortak::tarih_girdi(q(req, "bas")), ortak::tarih_girdi(q(req, "bit")));
+        let (bas, bit) = (bas.as_str(), bit.as_str());
         if !kayit::valid_day(bas) || !kayit::valid_day(bit) {
-            return redirect("/talep", Some(("Günler YYYY-AA-GG biçiminde olmalı.", true)));
+            return redirect("/talep", Some(("Günler GG.AA.YYYY biçiminde olmalı.", true)));
         }
         self.audit(cfg, req, Some(o), "PANEL_TALEP_PAKET", &format!("bas={bas} bit={bit}"));
         tar_resp(cfg, bas, bit, &format!("talep_{bas}_{bit}.tar")).unwrap_or_else(|e| redirect("/talep", Some((&e, true))))

@@ -101,7 +101,7 @@ impl Panel {
                 }
             }
             if olay == "PANEL_GIRIS" && e.3.is_empty() {
-                e.3 = z.get(..16).unwrap_or("").replace('T', " ");
+                e.3 = ortak::tarih_goster(z);
             }
         }
         let ozet_rows: Vec<Vec<String>> = ozet
@@ -127,7 +127,7 @@ impl Panel {
             .take(1000)
             .map(|(z, user, _, olay, ip, detail)| {
                 let cls = if KISISEL.contains(&olay.as_str()) { " class=\"durum kotu\"" } else { "" };
-                vec![h(&z.get(..19).unwrap_or("").replace('T', " ")), h(user), format!("<span{cls}>{}</span>", h(olay_adi(olay))), h(detail), h(ip)]
+                vec![h(&ortak::tarih_saat_goster(z)), h(user), format!("<span{cls}>{}</span>", h(olay_adi(olay))), h(detail), h(ip)]
             })
             .collect();
         let body = format!(

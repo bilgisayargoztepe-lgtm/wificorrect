@@ -45,7 +45,7 @@ impl Panel {
                     format!("<code>{}</code>", h(mac)),
                     h(&s.ad),
                     h(&format!("{} Mb/sn", s.hiz)),
-                    h(&s.zaman.get(..16).unwrap_or("").replace('T', " ")),
+                    h(&ortak::tarih_goster(&s.zaman)),
                     h(&s.kim),
                     post_button(o, "/oturumlar/yavaslatma-kaldir", "Yavaşlatmayı kaldır", &[("mac", mac), ("donus", "yavaslatilmis")], "ikincil"),
                 ]

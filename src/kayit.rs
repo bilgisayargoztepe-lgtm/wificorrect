@@ -28,8 +28,10 @@ fn days_from_civil(y: i64, m: u32, d: u32) -> i64 {
 }
 
 /// "2026-09-24 14:30", "2026-09-24 14:30:05", ISO "2026-09-24T14:30:05+03:00" ya da yalnızca gün → epoch (Türkiye saati).
+/// Ekrandaki yazım da kabul edilir: "24.09.2026", "24.09.2026 14:30(:05)".
 pub fn parse_time(s: &str) -> Option<f64> {
-    let s = s.trim();
+    let s = ortak::tarih_girdi(s);
+    let s = s.as_str();
     let num = |a: usize, b: usize| s.get(a..b).filter(|x| x.bytes().all(|c| c.is_ascii_digit())).and_then(|x| x.parse::<i64>().ok());
     if s.len() < 10 || s.as_bytes()[4] != b'-' || s.as_bytes()[7] != b'-' {
         return None;
@@ -66,8 +68,9 @@ pub fn days_range(t1: f64, t2: f64) -> Vec<String> {
     out
 }
 
+/// Gün klasörü adı: yalnızca ISO "YYYY-AA-GG" (yol olarak kullanılır).
 pub fn valid_day(s: &str) -> bool {
-    s.len() == 10 && parse_time(s).is_some()
+    s.len() == 10 && s.as_bytes()[4] == b'-' && parse_time(s).is_some()
 }
 
 // ---------------------------------------------------------------- dosyalar
@@ -294,7 +297,7 @@ pub fn by_oda(cfg: &Config, oda: &str, t1: f64, t2: f64) -> Vec<Rec> {
 pub fn ara(cfg: &Config, tur: &str, deger: &str, zaman: &str, tol: f64, now: f64) -> Result<Vec<(String, Vec<Rec>)>, String> {
     let root = &cfg.main.log_root;
     let deger = deger.trim();
-    let t = || parse_time(zaman).ok_or_else(|| "Zaman geçersiz (ör. 2026-09-24 14:30).".to_string());
+    let t = || parse_time(zaman).ok_or_else(|| "Zaman geçersiz (ör. 24.09.2026 14:30).".to_string());
     let ip_ok = |s: &str| s.parse::<std::net::Ipv4Addr>().is_ok();
     match tur {
         "telefon" => {
@@ -361,7 +364,7 @@ pub fn ara(cfg: &Config, tur: &str, deger: &str, zaman: &str, tol: f64, now: f64
             }
             let mut out = if parse_time(zaman).is_some() {
                 vec![
-                    (format!("Oda {oda}: {} anında açık oturumlar (o anda konaklıyordu)", zaman.trim()), acik),
+                    (format!("Oda {oda}: {} anında açık oturumlar (o anda konaklıyordu)", ortak::tarih_goster(&ortak::tarih_girdi(zaman))), acik),
                     (format!("Oda {oda}: aralıktaki diğer oturumlar"), diger),
                 ]
             } else {
@@ -436,7 +439,7 @@ fn site_terimi(s: &str) -> String {
 /// Kişiler en çok girenden aza. ponytail: günler sırayla taranır (92 günle sınırlı); çok büyürse dizin gerekir.
 pub fn site_ara(cfg: &Config, aranan: &str, bas: &str, bit: &str) -> Result<SiteSonuc, String> {
     let root = &cfg.main.log_root;
-    let (Some(t1), Some(t2)) = (parse_time(bas.trim()), parse_time(bit.trim())) else { return Err("Günler YYYY-AA-GG biçiminde olmalı.".into()) };
+    let (Some(t1), Some(t2)) = (parse_time(bas.trim()), parse_time(bit.trim())) else { return Err("Günler GG.AA.YYYY biçiminde olmalı.".into()) };
     if t2 < t1 || t2 - t1 > 92.0 * 86400.0 {
         return Err("Aralık en fazla 92 gün olabilir ve bitiş başlangıçtan önce olamaz.".into());
     }
@@ -489,7 +492,7 @@ fn parse_index(text: &str) -> std::collections::HashMap<String, String> {
 /// Resmi talep paketi: günlerin klasörleri olduğu gibi (mühürlü dosyalar, MANIFEST), zincir.txt ve doğrulama çıktısı.
 /// Orijinallere dokunulmaz. ponytail: sistemdeki GNU tar kullanılır.
 pub fn talep_paketi(cfg: &Config, start: &str, end: &str, out: &Path) -> Result<usize, String> {
-    let (Some(t1), Some(t2)) = (parse_time(start), parse_time(end)) else { return Err("Tarih geçersiz (YYYY-AA-GG).".into()) };
+    let (Some(t1), Some(t2)) = (parse_time(start), parse_time(end)) else { return Err("Tarih geçersiz (GG.AA.YYYY).".into()) };
     if t2 < t1 || t2 - t1 > 92.0 * 86400.0 {
         return Err("Aralık en fazla 92 gün olabilir ve bitiş başlangıçtan önce olamaz.".into());
     }
@@ -651,6 +654,13 @@ mod tests {
         assert_eq!(parse_time("2026-09-29 21:05:34"), Some(1_790_705_134.0));
         assert_eq!(parse_time("2026-09-29T21:05:34+03:00"), Some(1_790_705_134.0));
         assert_eq!(parse_time("2026-09-29 21:05"), Some(1_790_705_100.0));
+        // ekrandaki gün.ay.yıl yazımı da
+        assert_eq!(parse_time("29.09.2026 21:05:34"), Some(1_790_705_134.0));
+        assert_eq!(parse_time("29.09.2026 21:05"), Some(1_790_705_100.0));
+        assert_eq!(parse_time("29.09.2026"), parse_time("2026-09-29"));
+        assert!(parse_time("31.13.2026").is_none() && parse_time("29.09.2026 25:00").is_none());
+        // gün klasörü yalnızca ISO
+        assert!(valid_day("2026-09-29") && !valid_day("29.09.2026"));
         assert_eq!(ortak::now_iso(parse_time("2024-02-29").unwrap()), "2024-02-29T00:00:00+03:00");
         assert!(parse_time("2026-13-01").is_none() && parse_time("dün").is_none() && parse_time("2026-09-29 25:00").is_none());
         assert_eq!(days_range(parse_time("2026-09-30 23:00").unwrap(), parse_time("2026-10-02 01:00").unwrap()), vec!["2026-09-30", "2026-10-01", "2026-10-02"]);

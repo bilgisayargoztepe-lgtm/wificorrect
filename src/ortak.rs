@@ -324,6 +324,49 @@ pub fn write_atomic(path: &Path, data: &[u8]) -> std::io::Result<()> {
     fs::rename(&tmp, path)
 }
 
+// ---------------------------------------------------------------- bağlı süresi (özet)
+/// 15 dk'dan uzun ağda görülmeyen cihazın bağlı süresi sıfırlanır; daha kısa kopmada kaldığı yerden sürer.
+pub const VARLIK_ARA_SN: f64 = 900.0;
+
+/// Cihazın (MAC) ağda kesintisiz sayılan görünümü: başlangıç ve son görülme (epoch).
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]
+pub struct Varlik {
+    pub baslangic: f64,
+    pub son: f64,
+}
+
+fn varlik_yolu(state_root: &str) -> PathBuf {
+    Path::new(state_root).join("varlik.json")
+}
+
+/// Eksik ya da bozuk dosya → boş.
+pub fn varlik_oku(state_root: &str) -> BTreeMap<String, Varlik> {
+    fs::read(varlik_yolu(state_root)).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default()
+}
+
+/// Kaydedici her bakımda çağırır: `gorulen` (oturumu süren ve köprüde görülen MAC'ler) için son görülme ilerler;
+/// 15 dk'dan uzun ara verilmişse başlangıç şimdi olur. Bir gündür görülmeyenler unutulur.
+pub fn varlik_guncelle(state_root: &str, gorulen: &std::collections::BTreeSet<String>, now: f64) -> std::io::Result<()> {
+    let mut v = varlik_oku(state_root);
+    for mac in gorulen {
+        let e = v.entry(mac.clone()).or_insert(Varlik { baslangic: now, son: now });
+        if now - e.son > VARLIK_ARA_SN || e.son > now {
+            e.baslangic = now;
+        }
+        e.son = now;
+    }
+    v.retain(|_, e| now - e.son <= 86_400.0);
+    write_atomic(&varlik_yolu(state_root), &serde_json::to_vec(&v).unwrap_or_default())
+}
+
+/// Özette gösterilen bağlı dakika: kayıt yoksa ya da 15 dk'dan uzun görülmemişse 0.
+pub fn bagli_dakika(v: Option<&Varlik>, now: f64) -> u64 {
+    match v {
+        Some(e) if now - e.son <= VARLIK_ARA_SN && now >= e.baslangic => ((now - e.baslangic) / 60.0) as u64,
+        _ => 0,
+    }
+}
+
 #[derive(Serialize, Deserialize)]
 struct SmsCounter {
     tarih: String,
@@ -592,6 +635,35 @@ pub fn lookup_mac(ip: &str, leases_file: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn bagli_suresi_15_dk_kurali() {
+        let d = std::env::temp_dir().join(format!("wfc-varlik-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&d);
+        let root = d.to_string_lossy().to_string();
+        let a = std::collections::BTreeSet::from(["aa:bb:cc:dd:ee:01".to_string()]);
+        let bos = std::collections::BTreeSet::new();
+        let t0 = 1_790_000_000.0;
+        varlik_guncelle(&root, &a, t0).unwrap();
+        varlik_guncelle(&root, &a, t0 + 600.0).unwrap();
+        assert_eq!(bagli_dakika(varlik_oku(&root).get("aa:bb:cc:dd:ee:01"), t0 + 600.0), 10);
+        // 14 dk görülmedi (listeden düştü), döndü: kaldığı yerden sürer
+        varlik_guncelle(&root, &bos, t0 + 1000.0).unwrap();
+        varlik_guncelle(&root, &a, t0 + 600.0 + 840.0).unwrap();
+        assert_eq!(bagli_dakika(varlik_oku(&root).get("aa:bb:cc:dd:ee:01"), t0 + 1440.0), 24);
+        // 16 dk görülmedi: sayaç sıfırlanır
+        varlik_guncelle(&root, &a, t0 + 1440.0 + 960.0).unwrap();
+        assert_eq!(bagli_dakika(varlik_oku(&root).get("aa:bb:cc:dd:ee:01"), t0 + 2400.0 + 120.0), 2);
+        // kayıt yok ya da 15 dk'dan eski kayıt: 0
+        assert_eq!(bagli_dakika(None, t0), 0);
+        assert_eq!(bagli_dakika(varlik_oku(&root).get("aa:bb:cc:dd:ee:01"), t0 + 2400.0 + 1000.0), 0);
+        // bir gündür görülmeyen unutulur; bozuk dosya boş sayılır
+        varlik_guncelle(&root, &bos, t0 + 2400.0 + 86_401.0).unwrap();
+        assert!(varlik_oku(&root).is_empty());
+        fs::write(d.join("varlik.json"), "bozuk").unwrap();
+        assert!(varlik_oku(&root).is_empty());
+        let _ = fs::remove_dir_all(&d);
+    }
 
     #[test]
     fn time_format() {

@@ -331,6 +331,27 @@ pub fn run(cfg: Config, args: &[String]) -> ExitCode {
             }
             ExitCode::SUCCESS
         }
+        // `ctl saglik` başlatır (systemd-run --unit wfc-guncelle): hedef sürümü indirir, doğrular, kurar
+        Some("guncelle") => {
+            let Some(m) = crate::merkez::oku(std::path::Path::new(crate::merkez::PATH)) else {
+                eprintln!("cihaz merkeze bağlı değil");
+                return ExitCode::from(1);
+            };
+            let indir = |y: &str, g: &str, c: &std::path::Path| crate::merkez::indir(y, g, c, 300);
+            // apt-get uzun sürebilir (bağımlılıklar Debian deposundan iner)
+            let komut = |c: &[&str]| ortak::run_timeout(&c.iter().map(|s| s.to_string()).collect::<Vec<_>>(), 1800);
+            let kurulu = crate::guncelleme::kurulu(&|c: &[&str]| ortak::capture_timeout(c, 30));
+            match crate::guncelleme::calistir_guncelle(&cfg, &crate::guncelleme::Yollar::sistem(), &m, &indir, &komut, &kurulu, now) {
+                Ok(s) => {
+                    println!("{s}");
+                    ExitCode::SUCCESS
+                }
+                Err(e) => {
+                    eprintln!("{e}");
+                    ExitCode::from(1)
+                }
+            }
+        }
         // Panel → Admin ayarları → Uzak erişim kaydedilince (ayrı systemd işinde)
         Some("uzak-uygula") => {
             let r = crate::uzak::uygula(&cfg, std::path::Path::new(crate::uzak::KEY), std::path::Path::new(crate::uzak::CONF), &runner);
@@ -458,7 +479,7 @@ pub fn run(cfg: Config, args: &[String]) -> ExitCode {
         _ => {
             eprintln!(
                 "Kullanım: wificorrect ctl <komut>\n  dhcp-olay <add|old|del> <mac> <ip> [ad]\n  yukle\n  oturumlar\n  \
-                 gun-kapat [YYYY-AA-GG] [--zorla]\n  dogrula [--son N]\n  temizle [--kuru]\n  yedekle\n  ara ...  (ayrıntı: ctl ara)\n  disa-aktar --baslangic G --bitis G --cikti DOSYA\n  ag-uygula | ag-gecis DOSYA | ag-onayla | ag-geri-al | ag-ilk\n  filtre-uygula\n  hiz-uygula\n  admin-parola\n  merkez-eslesme\n  saglik"
+                 gun-kapat [YYYY-AA-GG] [--zorla]\n  dogrula [--son N]\n  temizle [--kuru]\n  yedekle\n  ara ...  (ayrıntı: ctl ara)\n  disa-aktar --baslangic G --bitis G --cikti DOSYA\n  ag-uygula | ag-gecis DOSYA | ag-onayla | ag-geri-al | ag-ilk\n  filtre-uygula\n  hiz-uygula\n  admin-parola\n  merkez-eslesme\n  saglik\n  guncelle"
             );
             ExitCode::from(2)
         }

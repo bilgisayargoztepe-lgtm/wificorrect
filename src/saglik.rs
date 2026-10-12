@@ -144,9 +144,10 @@ pub fn gonder(m: &Merkez, rapor: &Value, http: &Http) -> Result<Option<Hedef>, S
 /// (denetim betiği mtime'a bakar) ve merkezin hedef sürümü döner.
 pub fn calistir(cfg: &Config, merkez_path: &Path, k: &Kaynak, http: &Http, now: f64) -> Result<Option<Hedef>, String> {
     let Some(m) = crate::merkez::oku(merkez_path) else { return Ok(None) };
-    guncelleme::uzlas(&k.guncelleme, &cfg.main.log_root, now);
+    let kurulu = guncelleme::kurulu(&*k.komut);
+    guncelleme::uzlas(&k.guncelleme, &cfg.main.log_root, &kurulu, now);
     let mut r = rapor(&topla(cfg, now, k)?);
-    let (paket, g) = guncelleme::rapor_alanlari(&k.guncelleme, &guncelleme::kurulu(&*k.komut));
+    let (paket, g) = guncelleme::rapor_alanlari(&k.guncelleme, &kurulu);
     r["paket"] = Value::String(paket);
     r["guncelleme"] = g;
     let hedef = gonder(&m, &r, http)?;
@@ -350,7 +351,7 @@ mod tests {
         calistir(&cfg, &p, &k, &*h, 1000.0).unwrap();
         let r = c.lock().unwrap()[0].1["rapor"].clone();
         assert_eq!((r["paket"].as_str(), r["guncelleme"].is_null()), (Some("0.4.0"), true));
-        guncelleme::durum_yaz(&k.guncelleme, &guncelleme::Durum { basarisiz: vec![], son: Some(guncelleme::Sonuc { surum: "0.4.0".into(), sonuc: "tamam".into(), zaman: 900, neden: String::new() }) }).unwrap();
+        guncelleme::durum_yaz(&k.guncelleme, &guncelleme::Durum { basarisiz: vec![], son: Some(guncelleme::Sonuc { surum: "0.4.0".into(), sonuc: "tamam".into(), zaman: 900, neden: String::new() }), ..Default::default() }).unwrap();
         calistir(&cfg, &p, &k, &*h, 1000.0).unwrap();
         let r = c.lock().unwrap()[1].1["rapor"].clone();
         assert_eq!(r["guncelleme"], json!({"surum": "0.4.0", "sonuc": "tamam", "zaman": 900}));

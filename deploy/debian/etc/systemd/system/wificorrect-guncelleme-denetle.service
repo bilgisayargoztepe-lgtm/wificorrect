@@ -1,0 +1,6 @@
+[Unit]
+Description=WifiCorrect guncelleme denetimi: kurulumdan 10 dk sonra bozuksa onceki surume doner
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sh -c '[ -x /var/lib/wificorrect/guncelleme/denetle.sh ] && exec /var/lib/wificorrect/guncelleme/denetle.sh || true'

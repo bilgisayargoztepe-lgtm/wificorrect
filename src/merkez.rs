@@ -77,6 +77,36 @@ pub fn curl_sure(yol: &str, govde: &str, max_sn: u32) -> Result<(u16, String), S
     }
 }
 
+/// (yol, JSON gövde, çıktı dosyası) → HTTP durumu; cevap gövdesi dosyaya yazılır (paket indirme).
+pub type Indir<'a> = dyn Fn(&str, &str, &Path) -> Result<u16, String> + 'a;
+
+/// `indir` için curl argümanları: gövde standart girdiden, cevap `cikti`ya, standart çıktıda yalnızca HTTP kodu.
+pub fn indir_args(url: &str, cikti: &Path, max_sn: u32) -> Vec<String> {
+    let (bag, max) = (max_sn.min(10).to_string(), max_sn.to_string());
+    let cikti = cikti.display().to_string();
+    ["-s", "--connect-timeout", &bag, "--max-time", &max, "-X", "POST", "-H", "Content-Type: application/json", "--data-binary", "@-", "-o", &cikti, "-w", "%{http_code}", url]
+        .iter()
+        .map(|s| s.to_string())
+        .collect()
+}
+
+/// Merkezden dosya indirir (`/api/paket`); toplam süre `max_sn`. Err: merkeze ulaşılamadı.
+pub fn indir(yol: &str, govde: &str, cikti: &Path, max_sn: u32) -> Result<u16, String> {
+    let mut c = Command::new("curl")
+        .args(indir_args(&format!("{API}{yol}"), cikti, max_sn))
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .map_err(|e| format!("curl: {e}"))?;
+    c.stdin.take().ok_or("curl stdin")?.write_all(govde.as_bytes()).map_err(|e| e.to_string())?;
+    let out = c.wait_with_output().map_err(|e| e.to_string())?;
+    match String::from_utf8_lossy(&out.stdout).trim().parse::<u16>() {
+        Ok(k) if k > 0 => Ok(k),
+        _ => Err("merkeze ulaşılamadı".into()),
+    }
+}
+
 pub fn oku(path: &Path) -> Option<Merkez> {
     serde_json::from_slice(&std::fs::read(path).ok()?).ok()
 }
@@ -621,6 +651,14 @@ mod tests {
         let a = curl_args("https://api.wificorrect.com/api/giris");
         assert!(a.iter().any(|x| x == "@-") && a.windows(2).any(|w| w[0] == "--connect-timeout" && w[1] == "10"));
         assert!(a.windows(2).any(|w| w[0] == "--max-time" && w[1] == "25") && !a.iter().any(|x| x.contains("parola")));
+    }
+
+    #[test]
+    fn indir_args_govde_stdin_cevap_dosyaya() {
+        let a = indir_args("https://api.wificorrect.com/api/paket", Path::new("/tmp/p.deb.tmp"), 300);
+        assert!(a.iter().any(|x| x == "@-") && a.windows(2).any(|w| w[0] == "-o" && w[1] == "/tmp/p.deb.tmp"));
+        assert!(a.windows(2).any(|w| w[0] == "--max-time" && w[1] == "300") && a.windows(2).any(|w| w[0] == "--connect-timeout" && w[1] == "10"));
+        assert!(a.windows(2).any(|w| w[0] == "-w" && w[1] == "%{http_code}") && a.last().unwrap().ends_with("/api/paket"));
     }
 
     #[test]

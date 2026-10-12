@@ -339,7 +339,7 @@ pub fn run(cfg: Config, args: &[String]) -> ExitCode {
             };
             let indir = |y: &str, g: &str, c: &std::path::Path| crate::merkez::indir(y, g, c, 300);
             // apt-get uzun sürebilir (bağımlılıklar Debian deposundan iner)
-            let komut = |c: &[&str]| ortak::run_timeout(&c.iter().map(|s| s.to_string()).collect::<Vec<_>>(), 1800);
+            let komut = |c: &[&str]| ortak::run_timeout(&c.iter().map(|s| s.to_string()).collect::<Vec<_>>(), 3600);
             let kurulu = crate::guncelleme::kurulu(&|c: &[&str]| ortak::capture_timeout(c, 30));
             match crate::guncelleme::calistir_guncelle(&cfg, &crate::guncelleme::Yollar::sistem(), &m, &indir, &komut, &kurulu, now) {
                 Ok(s) => {

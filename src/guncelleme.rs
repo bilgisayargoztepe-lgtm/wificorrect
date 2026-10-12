@@ -189,7 +189,14 @@ fn uzlas_kilitli(y: &Yollar, log_root: &str, kurulu: &str, now: f64) {
         let sonuc = std::fs::read_to_string(y.sonuc()).unwrap_or_default();
         let sonuc = sonuc.trim();
         let tamam = sonuc == "tamam";
-        if !yeni.is_empty() && (tamam || sonuc == "geri") {
+        if !yeni.is_empty() && tamam && !kurulu.is_empty() && kurulu != yeni {
+            // yeni sürüm hiç kurulamadı (apt ve hemen geri kurulum başarısız), eski sürüm sağlıklı: denenmiş sayılmaz,
+            // başarısız listesine girmez; 12 saat sonra (ya da "hemen" ile) yeniden denenir
+            denetim_yaz(log_root, "GUNCELLEME_HATA", ek(&yeni, &onceki, "kurulmadi"), now);
+            let mut d = durum_oku(y);
+            d.son = Some(Sonuc { surum: yeni.clone(), sonuc: "hata".into(), zaman: now.max(0.0) as u64, neden: "kurulmadi".into() });
+            let _ = durum_yaz(y, &d);
+        } else if !yeni.is_empty() && (tamam || sonuc == "geri") {
             let mut d = durum_oku(y);
             let zaman = now.max(0.0) as u64;
             if tamam {
@@ -259,6 +266,7 @@ pub fn hedefi_isle(y: &Yollar, h: &Hedef, kurulu: &str, now: f64, baslat: &dyn F
 
 /// Kurulumdan önce (eski ikiliyle) yazılan denetim betiği; zamanlayıcı 5 dk'da bir çalıştırır. Yeni ikiliye güvenmez:
 /// kurulumdan 10 dk sonra servisler açık değilse ya da kurulumdan sonra merkeze sağlık raporu gitmemişse önceki paketi kurar.
+/// Kurulum başarılıysa `bekleyen` kurulum bitince yeniden yazılır (süre ve sağlık raporu karşılaştırması oradan başlar).
 pub const BETIK: &str = r#"#!/bin/sh
 # Güncelleme denetimi: kurulumdan ÖNCE eski ikili yazdı; yeni ikiliye güvenmez. Zamanlayıcı 5 dk'da bir çalıştırır.
 D=${WFC_GUNCELLEME_DIZIN:-/var/lib/wificorrect/guncelleme}
@@ -271,8 +279,9 @@ for s in wificorrect-portal wificorrect-panel wificorrect-kaydedici dnsmasq wifi
 done
 [ -f "$D/saglik_basari" ] && [ "$D/saglik_basari" -nt "$D/bekleyen" ] || ok=0
 if [ "$ok" = 1 ]; then echo tamam > "$D/sonuc"; exit 0; fi
-echo geri > "$D/sonuc"
-DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-downgrades "$D/onceki.deb"
+# sonuç yalnızca geri kurulum başarılıysa yazılır: başarısızsa (dpkg kilidi, yarım kurulum) sonraki turda yeniden denenir
+dpkg --configure -a >/dev/null 2>&1
+DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-downgrades -o DPkg::Lock::Timeout=600 "$D/onceki.deb" && echo geri > "$D/sonuc"
 "#;
 
 /// Paketi `/api/paket`ten `hedef`e indirir (önce `.deb.tmp`); HTTP 200 değilse `indirme`, `kabul` tutmazsa `sha`
@@ -342,18 +351,24 @@ pub fn calistir_guncelle(cfg: &Config, y: &Yollar, m: &Merkez, indir: &Indir<'_>
     }
     let apt = |deb: &Path| {
         let deb = deb.display().to_string();
-        komut(&["env", "DEBIAN_FRONTEND=noninteractive", "apt-get", "install", "-y", "--allow-downgrades", &deb])
+        // dpkg kilidi (unattended-upgrades, apt-daily) 10 dk'ya kadar beklenir
+        komut(&["env", "DEBIAN_FRONTEND=noninteractive", "apt-get", "install", "-y", "--allow-downgrades", "-o", "DPkg::Lock::Timeout=600", &deb])
     };
     if apt(&yeni) {
+        // apt sürerken eski ikilinin sağlık raporu `saglik_basari`ya dokunmuş olabilir: denetim kurulum bitişinden başlar
+        let bitis = ortak::wall().max(0.0) as u64;
+        let bekleyen = json!({"yeni": h.surum, "onceki": kurulu, "zaman": bitis}).to_string();
+        let _ = ortak::write_atomic(&y.bekleyen(), bekleyen.as_bytes());
         return Ok("kuruldu, 10 dk sonra denetlenecek".into());
     }
-    // sonuç sonraki raporda uzlaştırılır (GUNCELLEME_GERI_ALINDI, sürüm başarısız listesine)
-    let geri = apt(&y.onceki_deb());
-    let _ = std::fs::write(y.sonuc(), "geri\n");
-    if !geri {
-        denetim_yaz(lr, "GUNCELLEME_HATA", ek(&h.surum, kurulu, "geri_kurulamadi"), now);
+    if apt(&y.onceki_deb()) {
+        // sonuç sonraki raporda uzlaştırılır (GUNCELLEME_GERI_ALINDI, sürüm başarısız listesine)
+        let _ = std::fs::write(y.sonuc(), "geri\n");
+        return Err("kurulum başarısız; önceki sürüm geri kuruldu".into());
     }
-    Err(format!("kurulum başarısız; önceki sürüm {}", if geri { "geri kuruldu" } else { "de kurulamadı" }))
+    // ikisi de olmadı (ör. dpkg kilidi): sonuç yazılmaz, `bekleyen` kalır; denetim betiği geri kurulumu yeniden dener
+    denetim_yaz(lr, "GUNCELLEME_HATA", ek(&h.surum, kurulu, "geri_kurulamadi"), now);
+    Err("kurulum başarısız; önceki sürüm de kurulamadı, denetim yeniden deneyecek".into())
 }
 
 #[cfg(test)]
@@ -461,7 +476,7 @@ mod tests {
         // tamam: durum + denetim, dosyalar silinir, başarısız listesinden çıkar
         durum_yaz(&y, &Durum { basarisiz: vec!["0.4.1".into(), "0.3.9".into()], son: None, ..Default::default() }).unwrap();
         bekleyen_yaz(&y, "tamam");
-        uzlas(&y, &lr, "0.4.0", now);
+        uzlas(&y, &lr, "0.4.1", now);
         let d = durum_oku(&y);
         assert_eq!(d.basarisiz, ["0.3.9"]);
         let s = d.son.unwrap();
@@ -577,7 +592,7 @@ mod tests {
     }
 
     fn apt(deb: &Path) -> Vec<String> {
-        ["env", "DEBIAN_FRONTEND=noninteractive", "apt-get", "install", "-y", "--allow-downgrades"].iter().map(|s| s.to_string()).chain([deb.display().to_string()]).collect()
+        ["env", "DEBIAN_FRONTEND=noninteractive", "apt-get", "install", "-y", "--allow-downgrades", "-o", "DPkg::Lock::Timeout=600"].iter().map(|s| s.to_string()).chain([deb.display().to_string()]).collect()
     }
 
     #[test]
@@ -588,8 +603,15 @@ mod tests {
         hedef_koy(&y);
         std::fs::write(y.sonuc(), "tamam\n").unwrap(); // bekleyensiz eski sonuç silinmeli
         let (ik, kk) = (RefCell::new(vec![]), RefCell::new(vec![]));
-        let r = calistir_guncelle(&cfg, &y, &m, &indir_sahte((200, ESKI), (200, YENI), &ik), &komut_sahte(&[], &kk), "0.4.0", now);
+        // apt sürerken eski ikilinin sağlık raporu saglik_basari'ya dokunur
+        let apt_sirasinda_rapor = |c: &[&str]| {
+            std::fs::write(y.saglik_basari(), "1\n").unwrap();
+            komut_sahte(&[], &kk)(c)
+        };
+        let r = calistir_guncelle(&cfg, &y, &m, &indir_sahte((200, ESKI), (200, YENI), &ik), &apt_sirasinda_rapor, "0.4.0", now);
         assert_eq!(r, Ok("kuruldu, 10 dk sonra denetlenecek".into()));
+        let mtime = |p: PathBuf| std::fs::metadata(p).unwrap().modified().unwrap();
+        assert!(mtime(y.saglik_basari()) <= mtime(y.bekleyen()), "bekleyen kurulumdan sonra yeniden yazılmalı");
         {
             let ik = ik.borrow();
             assert_eq!(ik.len(), 2);
@@ -685,6 +707,31 @@ mod tests {
     }
 
     #[test]
+    fn guncelle_iki_apt_basarisiz_betik_yeniden_dener() {
+        let (y, cfg, m) = ortam();
+        let now = tr_saat(4.0);
+        hedef_koy(&y);
+        let (ik, kk) = (RefCell::new(vec![]), RefCell::new(vec![]));
+        let r = calistir_guncelle(&cfg, &y, &m, &indir_sahte((200, ESKI), (200, YENI), &ik), &komut_sahte(&[false, false], &kk), "0.4.0", now);
+        assert!(r.is_err());
+        assert_eq!(kk.borrow().len(), 2);
+        assert!(kk.borrow().iter().all(|c| c.iter().any(|a| a == "DPkg::Lock::Timeout=600")));
+        // sonuç yok, bekleyen kalır (denetim betiği geri kurulumu dener); başarısız sayılmaz
+        assert!(y.bekleyen().exists() && !y.sonuc().exists());
+        assert!(denetim(&cfg.main.log_root, now).contains("neden=geri_kurulamadi"));
+        uzlas(&y, &cfg.main.log_root, "0.4.0", now + 60.0);
+        assert!(y.bekleyen().exists() && durum_oku(&y).basarisiz.is_empty());
+        // betik eski sürümü sağlıklı bulursa (yeni sürüm hiç kurulamamış): tamam ama kurulu ≠ yeni → hata, başarısız değil
+        std::fs::write(y.sonuc(), "tamam\n").unwrap();
+        uzlas(&y, &cfg.main.log_root, "0.4.0", now + 700.0);
+        let d = durum_oku(&y);
+        assert!(d.basarisiz.is_empty() && !y.bekleyen().exists());
+        let s = d.son.unwrap();
+        assert_eq!((s.sonuc.as_str(), s.neden.as_str()), ("hata", "kurulmadi"));
+        assert!(!denetim(&cfg.main.log_root, now).contains("GUNCELLEME_TAMAM"));
+    }
+
+    #[test]
     fn kilit_tutulurken_hicbiri_calismaz() {
         let (y, cfg, m) = ortam();
         let now = tr_saat(4.0);
@@ -734,7 +781,8 @@ mod tests {
         let apt_kayit = d.join("apt.txt");
         let sahte = [
             ("systemctl", format!("#!/bin/sh\n[ -f '{}' ] && exit 3\nexit 0\n", d.join("servis_durdu").display())),
-            ("apt-get", format!("#!/bin/sh\necho \"$DEBIAN_FRONTEND $*\" > '{}'\n", apt_kayit.display())),
+            ("apt-get", format!("#!/bin/sh\necho \"$DEBIAN_FRONTEND $*\" >> '{}'\n[ -f '{}' ] && exit 1\nexit 0\n", apt_kayit.display(), d.join("apt_hata").display())),
+            ("dpkg", format!("#!/bin/sh\necho \"$*\" >> '{}'\nexit 1\n", d.join("dpkg.txt").display())),
         ];
         for (ad, icerik) in sahte {
             std::fs::write(bin.join(ad), icerik).unwrap();
@@ -744,7 +792,9 @@ mod tests {
         std::fs::write(&betik, BETIK).unwrap();
         let calistir = || {
             let path = format!("{}:{}", bin.display(), std::env::var("PATH").unwrap_or_default());
-            assert!(Command::new("sh").arg(&betik).env("WFC_GUNCELLEME_DIZIN", d).env("PATH", path).status().unwrap().success());
+            let basari = Command::new("sh").arg(&betik).env("WFC_GUNCELLEME_DIZIN", d).env("PATH", path).status().unwrap().success();
+            // geri kurulum başarısızsa betik de başarısız biter (birim günlükte hata görünür)
+            assert_eq!(basari, !d.join("apt_hata").exists());
         };
         let sonuc = || std::fs::read_to_string(d.join("sonuc")).ok().map(|s| s.trim().to_string());
         let sifirla = || {
@@ -757,9 +807,19 @@ mod tests {
         // 11 dk önce kuruldu, sağlık raporu hiç gitmedi → geri
         std::fs::write(d.join("bekleyen"), "{}").unwrap();
         dokun(&d.join("bekleyen"), "11 minutes ago");
+        // geri kurulum başarısız (dpkg kilidi): sonuç yazılmaz, sonraki turda yeniden denenir
+        std::fs::write(d.join("apt_hata"), "").unwrap();
+        calistir();
+        calistir();
+        assert_eq!(sonuc(), None);
+        let beklenen = format!("noninteractive install -y --allow-downgrades -o DPkg::Lock::Timeout=600 {}/onceki.deb", d.display());
+        assert_eq!(std::fs::read_to_string(&apt_kayit).unwrap().lines().collect::<Vec<_>>(), [beklenen.as_str(), beklenen.as_str()]);
+        assert_eq!(std::fs::read_to_string(d.join("dpkg.txt")).unwrap().lines().next(), Some("--configure -a")); // çıkış kodu yok sayılır
+        std::fs::remove_file(d.join("apt_hata")).unwrap();
+        std::fs::remove_file(&apt_kayit).unwrap();
         calistir();
         assert_eq!(sonuc().as_deref(), Some("geri"));
-        assert_eq!(std::fs::read_to_string(&apt_kayit).unwrap().trim(), format!("noninteractive install -y --allow-downgrades {}/onceki.deb", d.display()));
+        assert_eq!(std::fs::read_to_string(&apt_kayit).unwrap().trim(), beklenen);
         // sonuç varken yeniden çalışırsa dokunmaz
         std::fs::remove_file(&apt_kayit).unwrap();
         calistir();

@@ -1,6 +1,7 @@
 import hashlib
 import json
 import os
+import re
 import stat
 import sys
 import tempfile
@@ -110,6 +111,18 @@ def test_yerel_ekle_ve_siralama():
             assert False
         except ValueError:
             pass
+
+
+def test_kur_sh_yerel_modulleri_kuruyor():
+    kok = os.path.dirname(HERE)
+    yerel = {f[:-3] for f in os.listdir(kok) if f.endswith(".py")}
+    kur = open(os.path.join(kok, "kur.sh"), encoding="utf-8").read()
+    for f in sorted(yerel):
+        kodu = open(os.path.join(kok, f + ".py"), encoding="utf-8").read()
+        for m in re.findall(r"^\s*import (\w+)|^\s*from (\w+) import", kodu, re.M):
+            ad = m[0] or m[1]
+            if ad in yerel:
+                assert f"{ad}.py" in kur, f"kur.sh {ad}.py dosyasini kurmuyor ({f}.py kullaniyor)"
 
 
 if __name__ == "__main__":

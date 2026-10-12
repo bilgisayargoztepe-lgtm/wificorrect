@@ -336,7 +336,62 @@ pub fn son_gorulme(son: f64, now: f64) -> String {
     if iso[..10] == bugun[..10] {
         iso[11..16].to_string()
     } else {
-        format!("{}.{}.{}", &iso[8..10], &iso[5..7], &iso[..4])
+        tarih_goster(&iso[..10])
+    }
+}
+
+/// Ekranda gösterilen tarih (gün.ay.yıl): "2026-10-12" → "12.10.2026"; "2026-10-12T17:38:05+03:00" ya da
+/// "2026-10-12 17:38" → "12.10.2026 17:38". Çözülemeyen değer aynen döner. Kayıtlar, adresler ve dosyalar ISO kalır.
+pub fn tarih_goster(iso: &str) -> String {
+    tarih_goster_(iso, false)
+}
+
+/// Saniyeli gösterim: "2026-10-12T17:38:05+03:00" → "12.10.2026 17:38:05" (saniye yoksa dakikaya kadar).
+pub fn tarih_saat_goster(iso: &str) -> String {
+    tarih_goster_(iso, true)
+}
+
+fn rakamlar(s: &str, r: std::ops::Range<usize>) -> bool {
+    s.get(r).is_some_and(|x| !x.is_empty() && x.bytes().all(|c| c.is_ascii_digit()))
+}
+
+fn tarih_goster_(iso: &str, saniye: bool) -> String {
+    let s = iso.trim();
+    let b = s.as_bytes();
+    if b.len() < 10 || b[4] != b'-' || b[7] != b'-' || !rakamlar(s, 0..4) || !rakamlar(s, 5..7) || !rakamlar(s, 8..10) {
+        return iso.to_string();
+    }
+    let gun = format!("{}.{}.{}", &s[8..10], &s[5..7], &s[..4]);
+    if b.len() == 10 {
+        return gun;
+    }
+    if !matches!(b[10], b'T' | b' ') || b.len() < 16 || b[13] != b':' || !rakamlar(s, 11..13) || !rakamlar(s, 14..16) {
+        return iso.to_string();
+    }
+    if saniye && b.len() >= 19 && b[16] == b':' && rakamlar(s, 17..19) {
+        format!("{gun} {}", &s[11..19])
+    } else {
+        format!("{gun} {}", &s[11..16])
+    }
+}
+
+/// Kişinin yazdığı tarih: "12.10.2026" / "1.9.2026" / "12.10.2026 17:38[:05]" → ISO "2026-10-12[ 17:38[:05]]".
+/// Başka her şey (eski ISO yazımı dahil) kırpılıp aynen döner; geçerliliği çağıran denetler.
+pub fn tarih_girdi(s: &str) -> String {
+    let s = s.trim();
+    let (gun, saat) = match s.split_once(' ') {
+        Some((g, z)) => (g, Some(z.trim())),
+        None => (s, None),
+    };
+    let p: Vec<&str> = gun.split('.').collect();
+    let iki = |x: &str| (1..=2).contains(&x.len()) && rakamlar(x, 0..x.len());
+    if p.len() != 3 || !iki(p[0]) || !iki(p[1]) || p[2].len() != 4 || !rakamlar(p[2], 0..4) {
+        return s.to_string();
+    }
+    let iso = format!("{}-{:0>2}-{:0>2}", p[2], p[1], p[0]);
+    match saat {
+        Some(z) => format!("{iso} {z}"),
+        None => iso,
     }
 }
 
@@ -685,6 +740,34 @@ mod tests {
         assert_eq!(son_gorulme(now - 3600.0, now), "20:05");
         assert_eq!(son_gorulme(now - 86_400.0, now), "28.09.2026");
         assert_eq!(son_gorulme(now - 21.0 * 3600.0, now), "00:05");
+    }
+
+    #[test]
+    fn tarih_gosterimi() {
+        assert_eq!(tarih_goster("2026-10-12"), "12.10.2026");
+        assert_eq!(tarih_goster("2026-10-12T17:38:05+03:00"), "12.10.2026 17:38");
+        assert_eq!(tarih_goster("2026-10-12 17:38"), "12.10.2026 17:38");
+        assert_eq!(tarih_saat_goster("2026-10-12T17:38:05+03:00"), "12.10.2026 17:38:05");
+        assert_eq!(tarih_saat_goster("2026-10-12 17:38"), "12.10.2026 17:38");
+        assert_eq!(tarih_saat_goster("2026-10-12"), "12.10.2026");
+        // çözülemeyen aynen
+        for bozuk in ["", "dün", "2026-1-12", "12.10.2026", "2026-10-12X17:38", "2026-10-12T17", "2026-10-1ü", "abcd-ef-gh"] {
+            assert_eq!(tarih_goster(bozuk), bozuk);
+            assert_eq!(tarih_saat_goster(bozuk), bozuk);
+        }
+    }
+
+    #[test]
+    fn tarih_girdisi_iki_bicim() {
+        assert_eq!(tarih_girdi("12.10.2026"), "2026-10-12");
+        assert_eq!(tarih_girdi(" 1.9.2026 "), "2026-09-01");
+        assert_eq!(tarih_girdi("12.10.2026 17:38"), "2026-10-12 17:38");
+        assert_eq!(tarih_girdi("12.10.2026 17:38:05"), "2026-10-12 17:38:05");
+        assert_eq!(tarih_girdi("2026-10-12 17:38"), "2026-10-12 17:38"); // eski yazım aynen
+        assert_eq!(tarih_girdi("2026-10-12"), "2026-10-12");
+        for bozuk in ["dün", "12.10.26", "123.10.2026", "12.10", "a.b.cdef", ""] {
+            assert_eq!(tarih_girdi(bozuk), bozuk);
+        }
     }
 
     #[test]

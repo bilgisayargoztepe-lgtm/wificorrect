@@ -32,6 +32,43 @@ def parse_time(s):
     return dt.timestamp()
 
 
+_TARIH_RE = re.compile(r"(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?)?", re.ASCII)
+_GIRDI_RE = re.compile(r"(\d{1,2})\.(\d{1,2})\.(\d{4})(?: +(.*))?", re.ASCII)
+
+
+def tarih_goster(iso, saniye=False):
+    """Ekranda gösterilen tarih (gün.ay.yıl): '2026-10-12' → '12.10.2026'; '2026-10-12T17:38:05+03:00' ya da
+    '2026-10-12 17:38' → '12.10.2026 17:38' (saniye=True: '12.10.2026 17:38:05'). Çözülemeyen değer aynen (str; None → '').
+    Saklanan veri, CSV, adresler ve JSON ISO kalır; yalnızca gösterimde kullanılır (cihazdaki ortak::tarih_goster ile aynı)."""
+    if iso is None:
+        return ""
+    s = str(iso).strip()
+    m = _TARIH_RE.match(s)
+    if not m or (m.group(4) is None and len(s) != 10):
+        return str(iso)
+    y, a, g, sa, dk, sn = m.groups()
+    gun = f"{g}.{a}.{y}"
+    if sa is None:
+        return gun
+    return f"{gun} {sa}:{dk}:{sn}" if saniye and sn is not None else f"{gun} {sa}:{dk}"
+
+
+def tarih_saat_goster(iso):
+    return tarih_goster(iso, saniye=True)
+
+
+def tarih_girdi(s):
+    """Kişinin yazdığı tarih: '12.10.2026', '1.9.2026', '12.10.2026 17:38' → ISO '2026-10-12[ 17:38]'.
+    Başka her şey (eski ISO yazımı dahil) kırpılıp aynen döner; geçerliliği çağıran denetler."""
+    s = str(s or "").strip()
+    m = _GIRDI_RE.fullmatch(s)
+    if not m:
+        return s
+    g, a, y, saat = m.groups()
+    iso = f"{y}-{int(a):02d}-{int(g):02d}"
+    return f"{iso} {saat.strip()}" if saat else iso
+
+
 def normalize_phone(raw):
     """Türkiye GSM numarasını 10 haneye (5XXXXXXXXX) çevirir; geçersizse None."""
     d = re.sub(r"\D", "", raw or "")

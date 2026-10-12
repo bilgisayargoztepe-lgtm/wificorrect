@@ -43,6 +43,30 @@ def test_telefon_aramasi_bicimleri():
     assert D.ara_sonuclari(dizin, "ayşe") and not D.ara_sonuclari(dizin, "0544")
 
 
+def test_tarih_gosterimi_ve_girdisi():
+    import common as C
+    assert C.tarih_goster("2026-10-12") == "12.10.2026"
+    assert C.tarih_goster("2026-10-12T17:38:05+03:00") == "12.10.2026 17:38"
+    assert C.tarih_goster("2026-10-12 17:38") == "12.10.2026 17:38"
+    assert C.tarih_saat_goster("2026-10-12T17:38:05+03:00") == "12.10.2026 17:38:05"
+    assert C.tarih_saat_goster("2026-10-12 17:38") == "12.10.2026 17:38" and C.tarih_saat_goster("2026-10-12") == "12.10.2026"
+    assert C.tarih_goster(None) == "" and C.tarih_goster("") == ""
+    for bozuk in ("dün", "2026-1-12", "12.10.2026", "2026-10-12X", "2026-10-12T17", "abcd-ef-gh", "٢٠٢٦-١٠-١٢"):
+        assert C.tarih_goster(bozuk) == bozuk and C.tarih_saat_goster(bozuk) == bozuk, bozuk
+    assert C.tarih_girdi("12.10.2026") == "2026-10-12" and C.tarih_girdi(" 1.9.2026 ") == "2026-09-01"
+    assert C.tarih_girdi("12.10.2026 17:38") == "2026-10-12 17:38"
+    assert C.tarih_girdi("2026-10-12") == "2026-10-12"  # eski yazım aynen
+    for bozuk in ("dün", "12.10.26", "123.10.2026", "12.10", ""):
+        assert C.tarih_girdi(bozuk) == bozuk, bozuk
+    assert C.tarih_girdi(None) == ""
+
+
+def test_gunler_ve_baslik_gun_ay_yil():
+    s = D.gunler_html(["2026-09-30"], {}, "")
+    assert ">30.09.2026 Çar<" in s and 'href="/gun/2026-09-30"' in s
+    assert "<h1>30.09.2026 Çarşamba</h1>" in D.gun_icerik("2026-09-30", {"kisiler": []}, b"s")
+
+
 def test_onek_butun_baglantilarda():
     on = "/m/100001/kayitlar"
     assert f'action="{on}/ara"' in D.arama_formu("x", on)

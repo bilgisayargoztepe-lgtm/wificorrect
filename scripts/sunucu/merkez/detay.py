@@ -10,6 +10,8 @@ import os
 import re
 import secrets
 
+import common
+
 GUN_RE = re.compile(r"\d{4}-\d{2}-\d{2}")
 SAAT_RE = re.compile(r"\d\d:\d\d")
 KISA_GUN = ("Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz")
@@ -60,7 +62,7 @@ def sure(sn):
 
 
 def tarih(g):
-    return f"{datetime.date.fromisoformat(g):%d.%m.%Y}" if gecerli_gun(g) else str(g)
+    return common.tarih_goster(g) if gecerli_gun(g) else str(g)
 
 
 def tr_kucuk(s):
@@ -177,7 +179,7 @@ def gunler_html(gunler, sayilar, onek=""):
         for g in liste:
             d = datetime.date.fromisoformat(g)
             n = f' <span class="alt">· {_int(sayilar[g])} kişi</span>' if g in sayilar else ""
-            maddeler.append(f'<li><a href="{onek}/gun/{g}">{d:%d.%m} {KISA_GUN[d.weekday()]}</a>{n}</li>')
+            maddeler.append(f'<li><a href="{onek}/gun/{g}">{tarih(g)} {KISA_GUN[d.weekday()]}</a>{n}</li>')
         parcalar.append(f'<details{" open" if i == 0 else ""}><summary>{AYLAR[ilk.month - 1]} {ilk.year} '
                         f'<span class="alt">({len(liste)} gün)</span></summary><ul class="gunler">{"".join(maddeler)}</ul></details>')
     return '<div class="kart"><h2>Günler</h2>' + "".join(parcalar) + "</div>"
@@ -215,7 +217,7 @@ def gun_icerik(gun, ozet, sir, onek=""):
     d = datetime.date.fromisoformat(gun)
     kisiler = [k for k in ozet.get("kisiler") or [] if isinstance(k, dict)]
     liste = "".join(kisi_html(k, sir) for k in kisiler) or '<p class="alt">Bu gün kayıt yok.</p>'
-    return (f'<p><a href="{onek}/">← Özet</a></p><div class="kart"><h1>{d:%d.%m.%Y} {GUN_ADI[d.weekday()]}</h1>'
+    return (f'<p><a href="{onek}/">← Özet</a></p><div class="kart"><h1>{tarih(gun)} {GUN_ADI[d.weekday()]}</h1>'
             f'<p class="alt">{len(kisiler)} kişi · ayrıntı için kişiye dokunun</p></div>{liste}')
 
 

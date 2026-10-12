@@ -19,8 +19,8 @@ bozulursa kendiliğinden geri dönerek** kursun.
 2. **Kanallar ve hedef sürüm.** İki kanal: **test** ve **kararlı**. Yönetici her kanal için bir hedef sürüm seçer.
    Her müşterinin bir güncelleme ayarı vardır: `kararlı` (varsayılan) / `test` / `kapalı`. Göztepe Bilgisayar (1537344)
    = `test`. Yeni sürüm önce test kanalına verilir, sorunsuzsa kararlıya.
-3. **Cihaz hedefi öğrenir.** Merkez, cihazın 5 dk'lık sağlık raporuna verdiği cevapta (`/api/saglik`) ve günlük
-   eşitlemede (`/api/eslesme`) `guncelleme: {surum, sha256, boyut, hemen}` döner. Cihazın kurulu paket sürümü
+3. **Cihaz hedefi öğrenir.** Merkez, cihazın 5 dk'lık sağlık raporuna verdiği cevapta (`/api/saglik`)
+   `guncelleme: {surum, sha256, boyut, hemen}` döner (günlük eşitleme ayrıca taşımaz — benim kararım, 5 dk yeterli). Cihazın kurulu paket sürümü
    (`dpkg-query`) hedeften farklıysa güncelleme başlar (eski sürüme dönüş dahil: `--allow-downgrades`).
 4. **İndirme ve kurulum.** Cihaz paketi `POST /api/paket` (cihaz anahtarıyla kimlik, `api.wificorrect.com`, HTTPS)
    ile indirir, sha256'yı merkezden gelen değerle karşılaştırır, `apt-get install ./paket.deb` ile kurar (yeni bağımlılıklar

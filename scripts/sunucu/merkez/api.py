@@ -216,8 +216,18 @@ class Api:
                     self.veri.hareket(f"cihaz:{c['id']}", ip, "GUNCELLEME_SONUC", c["musteri"],
                                       f"surum={g['surum']} sonuc={g['sonuc']}")
         yanit = {"tamam": True}
-        hedef = self.veri.cihaz_hedefi(self.veri.musteri(c["musteri"]))
+        m = self.veri.musteri(c["musteri"])
+        hedef = self.veri.cihaz_hedefi(m)
+        if m["guncelleme_hemen"] > 0 and (hedef is None or m["guncelleme_hemen_surum"] != hedef["surum"]
+                                         or r.get("paket") == hedef["surum"]):
+            # sonuç gelmeyecek (hedef yok/değişti, cihaz zaten hedefte): bayrak kalıp sonra pencereyi atlamasın
+            self.veri.guncelleme_hemen_koy(c["musteri"], 0)
+            hedef = dict(hedef, hemen=False) if hedef else None
         if hedef is not None:
+            p = r.get("paket")
+            k = self.veri.surum(p) if p else None
+            if k is not None:  # geri dönüş paketi (cihazda kurulu sürüm) depoda: cihaz indirdiğini bununla doğrular
+                hedef["onceki_sha256"] = k["sha256"]
             yanit["guncelleme"] = hedef
         return _json(200, yanit)
 

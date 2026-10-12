@@ -20,6 +20,7 @@ DB = "/var/lib/wificorrect/merkez/merkez.db"
 ALANLAR = {"yonetim.wificorrect.com": "yonetim", "panel.wificorrect.com": "musteri", "api.wificorrect.com": "api",
            "cihaz.wificorrect.com": "cihaz"}
 GOVDE_SINIRI = 10_000
+PARCA = 65536
 GUVENLIK_BASLIKLARI = (("X-Content-Type-Options", "nosniff"), ("Referrer-Policy", "no-referrer"), ("X-Frame-Options", "DENY"),
                        ("Content-Security-Policy", "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:"))
 
@@ -27,6 +28,12 @@ GUVENLIK_BASLIKLARI = (("X-Content-Type-Options", "nosniff"), ("Referrer-Policy"
 def istemci_ip(basliklar):
     """Yalnızca 127.0.0.1 dinlenir; Caddy gelen X-Forwarded-For'a gerçek istemciyi SONA ekler."""
     return (basliklar.get("X-Forwarded-For") or "").split(",")[-1].strip() or "yerel"
+
+
+def parcali_yaz(w, icerik, parca=PARCA):
+    """Soket zaman aşımı her yazmaya ayrı uygulanır (sendall'da bütün gönderime): paket yavaş hatta kesilmesin."""
+    for i in range(0, len(icerik), parca):
+        w.write(icerik[i:i + parca])
 
 
 class Merkez:
@@ -68,7 +75,7 @@ class Isleyici(BaseHTTPRequestHandler):
             self.send_header(k, v)
         self.send_header("Content-Length", str(len(icerik)))
         self.end_headers()
-        self.wfile.write(icerik)
+        parcali_yaz(self.wfile, icerik)
 
     def do_GET(self):
         self._cevapla("GET")

@@ -49,7 +49,7 @@ ISLETME_TURLERI = {"kafe": "Kafe/Restoran", "otel": "Otel/Pansiyon", "yurt": "Yu
 # Sonradan eklenen müşteri sütunları (eski veritabanına ALTER ile eklenir)
 YENI_SUTUNLAR = (("parola_acik", "TEXT NOT NULL DEFAULT ''"), ("lisans_bitis", "TEXT NOT NULL DEFAULT ''"),
                  ("askida", "INTEGER NOT NULL DEFAULT 0"), ("guncelleme_kanali", "TEXT NOT NULL DEFAULT 'kararli'"),
-                 ("guncelleme_hemen", "REAL NOT NULL DEFAULT 0"))
+                 ("guncelleme_hemen", "REAL NOT NULL DEFAULT 0"), ("guncelleme_hemen_surum", "TEXT NOT NULL DEFAULT ''"))
 GUNCELLEME_KANALLARI = ("kararli", "test", "kapali")
 YENI_CIHAZ_SUTUNLARI = (("admin_parola", "TEXT NOT NULL DEFAULT ''"), ("admin_tuz", "TEXT NOT NULL DEFAULT ''"),
                         ("admin_ozet", "TEXT NOT NULL DEFAULT ''"), ("admin_yineleme", "INTEGER NOT NULL DEFAULT 0"),
@@ -312,9 +312,11 @@ class Veri:
         with self._islem() as db:
             db.execute("UPDATE musteri SET guncelleme_kanali = ? WHERE numara = ?", (kanal, numara))
 
-    def guncelleme_hemen_koy(self, numara, epoch):
+    def guncelleme_hemen_koy(self, numara, epoch, surum=""):
+        """"Şimdi güncelle" bayrağı, basıldığı andaki hedef sürümle; epoch 0 = bayrak yok."""
         with self._islem() as db:
-            db.execute("UPDATE musteri SET guncelleme_hemen = ? WHERE numara = ?", (float(epoch), numara))
+            db.execute("UPDATE musteri SET guncelleme_hemen = ?, guncelleme_hemen_surum = ? WHERE numara = ?",
+                       (float(epoch), surum if epoch else "", numara))
 
     def hizmet_acik(self, m):
         """Üyelik aktif, askıda değil, lisans süresi dolmamış."""
@@ -329,7 +331,8 @@ class Veri:
         k = self.surum(hedef) if hedef else None
         if k is None:
             return None
-        return {"surum": k["surum"], "sha256": k["sha256"], "boyut": k["boyut"], "hemen": m["guncelleme_hemen"] > 0}
+        hemen = m["guncelleme_hemen"] > 0 and m["guncelleme_hemen_surum"] == k["surum"]  # bayrak başka hedef içinse geçmez
+        return {"surum": k["surum"], "sha256": k["sha256"], "boyut": k["boyut"], "hemen": hemen}
 
     # --- bütün cihazlarda tek admin parolası (2026-10-08, kullanıcı kararı): yalnızca özet saklanır ---
     # ponytail: cihaz başına admin_* sütunları (2026-10-05) artık kullanılmıyor; eski veritabanında boş durur.

@@ -557,9 +557,28 @@ def test_musteri_guncelleme_karti_kanal_ve_hemen():
         v.guncelleme_kanali_koy(n, "kararli")
         assert "bekleniyor" not in Y.al(app, f"/m/{n}", c)[2].decode()
         assert Y.gonder(app, f"/m/{n}/guncelleme-hemen", c, {"csrf": t})[0] == 303
-        assert v.musteri(n)["guncelleme_hemen"] == saat()
+        assert v.musteri(n)["guncelleme_hemen"] == saat() and v.musteri(n)["guncelleme_hemen_surum"] == "1.2.0"
         assert any(h["olay"] == "GUNCELLEME_HEMEN" for h in v.hareketler(n))
         assert "bekleniyor" in Y.al(app, f"/m/{n}", c)[2].decode()
+
+
+def test_simdi_guncelle_hedef_yoksa_reddedilir():
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        app, v, saat, c, _ = kur(tmp)
+        n, _ = v.musteri_ekle()
+        v.cihaz_bagla(n, WG, SSH)
+        _surum_ekle(v)
+        t = Y.csrf(Y.al(app, f"/m/{n}", c))
+        # kararlı kanalda hedef yok
+        d, _, g = Y.gonder(app, f"/m/{n}/guncelleme-hemen", c, {"csrf": t})
+        assert d == 400 and "hedef" in g.decode()
+        assert v.musteri(n)["guncelleme_hemen"] == 0
+        # kanal kapalı
+        v.kanal_hedef_koy("kararli", "1.2.0")
+        v.guncelleme_kanali_koy(n, "kapali")
+        assert Y.gonder(app, f"/m/{n}/guncelleme-hemen", c, {"csrf": t})[0] == 400
+        assert v.musteri(n)["guncelleme_hemen"] == 0
+        assert not any(h["olay"] == "GUNCELLEME_HEMEN" for h in v.hareketler(n))
 
 
 def test_musteri_guncelleme_karti_paket_sonuc_gecmis():
@@ -574,7 +593,7 @@ def test_musteri_guncelleme_karti_paket_sonuc_gecmis():
         for i in range(12):
             v.hareket(f"cihaz:{cid}", "10.99.0.11", "GUNCELLEME_SONUC", n, f"surum=1.0.{i} sonuc=hata")
         s = Y.al(app, f"/m/{n}", c)[2].decode()
-        assert "Kurulu paket" in s and "1.1.0" in s and "geri_alindi" in s
+        assert "Kurulu paket" in s and "1.1.0" in s and "Geri alındı" in s
         assert s.count("surum=1.0.") == 10 and "surum=1.0.11 " in s and "surum=1.0.1 " not in s
 
 

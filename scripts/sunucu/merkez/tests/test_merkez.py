@@ -64,6 +64,23 @@ def test_soket_zaman_asimi():
     assert MZ.Isleyici.timeout == 20
 
 
+def test_buyuk_govde_parca_parca_yazilir():
+    """Paket (MB'larca) tek sendall ile yazılırsa 20 sn'lik zaman aşımı bütün gönderime uygulanır: 64 KB'lık parçalar."""
+    class Yazici:
+        def __init__(self):
+            self.parcalar = []
+
+        def write(self, b):
+            self.parcalar.append(bytes(b))
+    w = Yazici()
+    icerik = bytes(range(256)) * 1000  # 256 000 bayt
+    MZ.parcali_yaz(w, icerik)
+    assert b"".join(w.parcalar) == icerik and len(w.parcalar) == 4 and max(map(len, w.parcalar)) == 65536
+    w = Yazici()
+    MZ.parcali_yaz(w, b"")
+    assert b"".join(w.parcalar) == b""
+
+
 if __name__ == "__main__":
     for _name, _fn in sorted(globals().items()):
         if _name.startswith("test_") and callable(_fn):

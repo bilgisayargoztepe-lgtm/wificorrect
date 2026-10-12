@@ -301,7 +301,7 @@ def test_guncelleme_hedefi_kanal_lisans_ve_hemen():
         api, v, n, k, saat = _surumlu(tmp)
         d, r = rapor_yolla(api, k)
         assert r == {"tamam": True, "guncelleme": {"surum": "0.4.1", "sha256": "ab" * 32, "boyut": 9, "hemen": False}}
-        v.guncelleme_hemen_koy(n, 100)
+        v.guncelleme_hemen_koy(n, 100, "0.4.1")
         assert rapor_yolla(api, k)[1]["guncelleme"]["hemen"] is True
         assert rapor_yolla(api, k, guncelleme={"surum": "0.4.1", "sonuc": "hata", "zaman": 50})[1]["guncelleme"]["hemen"] is True
         assert rapor_yolla(api, k, guncelleme={"surum": "0.4.1", "sonuc": "tamam", "zaman": 200})[1]["guncelleme"]["hemen"] is False
@@ -322,6 +322,38 @@ def test_guncelleme_hedefi_kanal_lisans_ve_hemen():
         assert "guncelleme" not in rapor_yolla(api, k)[1]
         v.kanal_hedef_koy("kararli", None)
         assert v.kanal_hedef("kararli") is None
+
+
+def test_hemen_bayragi_hedef_surume_bagli():
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        api, v, n, k, _ = _surumlu(tmp)
+        # bayrak başka bir hedef için konmuştu: gönderilmez, sağlık raporunda temizlenir
+        v.guncelleme_hemen_koy(n, 100, "0.4.0")
+        assert rapor_yolla(api, k)[1]["guncelleme"]["hemen"] is False
+        assert v.musteri(n)["guncelleme_hemen"] == 0 and v.musteri(n)["guncelleme_hemen_surum"] == ""
+        # cihaz zaten hedefte: sonuç gelmeyecek, bayrak temizlenir
+        v.guncelleme_hemen_koy(n, 100, "0.4.1")
+        assert rapor_yolla(api, k, paket="0.4.0")[1]["guncelleme"]["hemen"] is True
+        assert v.musteri(n)["guncelleme_hemen"] == 100
+        assert rapor_yolla(api, k, paket="0.4.1")[1]["guncelleme"]["hemen"] is False
+        assert v.musteri(n)["guncelleme_hemen"] == 0
+        # hedef kalktı (kanal kapalı): bayrak temizlenir, kanal yeniden açılınca eski bayrak geri gelmez
+        v.guncelleme_hemen_koy(n, 100, "0.4.1")
+        v.guncelleme_kanali_koy(n, "kapali")
+        assert "guncelleme" not in rapor_yolla(api, k)[1]
+        assert v.musteri(n)["guncelleme_hemen"] == 0
+        v.guncelleme_kanali_koy(n, "test")
+        assert rapor_yolla(api, k)[1]["guncelleme"]["hemen"] is False
+
+
+def test_onceki_paketin_sha256_si():
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        api, v, n, k, _ = _surumlu(tmp)
+        v.surum_ekle("0.4.0", "cd" * 32, 9, "yerel")
+        assert "onceki_sha256" not in rapor_yolla(api, k)[1]["guncelleme"]  # paket bildirilmedi
+        assert rapor_yolla(api, k, paket="0.4.0")[1]["guncelleme"]["onceki_sha256"] == "cd" * 32
+        assert "onceki_sha256" not in rapor_yolla(api, k, paket="0.2.0")[1]["guncelleme"]  # depoda yok
+        assert "onceki_sha256" not in rapor_yolla(api, k, paket="")[1]["guncelleme"]
 
 
 def test_api_paket_yetkisi():

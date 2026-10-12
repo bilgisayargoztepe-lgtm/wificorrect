@@ -355,7 +355,11 @@ class Yonetim(web.Taban):
         return yonlendir(f"/m/{n}")
 
     def guncelleme_hemen(self, ot, n, ip):
-        self.veri.guncelleme_hemen_koy(n, self.saat())
+        hedef = self.veri.cihaz_hedefi(self.veri.musteri(n))
+        if hedef is None:  # kanal kapalı, kanalda hedef yok ya da hizmet kapalı: bayrak konmaz (sonuç gelmez, kalırdı)
+            return yanit_html(self.mesaj(ot, "Güncelleme başlatılmadı",
+                                         "Bu müşterinin kanalında hedef sürüm yok, kanal kapalı ya da hizmeti kapalı."), 400)
+        self.veri.guncelleme_hemen_koy(n, self.saat(), hedef["surum"])
         self.veri.hareket("admin", ip, "GUNCELLEME_HEMEN", n)
         return yonlendir(f"/m/{n}")
 
@@ -370,12 +374,13 @@ class Yonetim(web.Taban):
             z = g.get("zaman")
             zaman = (datetime.datetime.fromtimestamp(z, common.TZ).strftime("%Y-%m-%d %H:%M")
                      if isinstance(z, (int, float)) and not isinstance(z, bool) and z > 0 else "")
-            son = f'{e(g.get("surum", "?"))} · {e(g.get("sonuc", "?"))} · {e(zaman)}'
+            etiket = {"tamam": "Tamam", "geri_alindi": "Geri alındı", "hata": "Hata"}.get(g.get("sonuc"), g.get("sonuc", "?"))
+            son = f'{e(g.get("surum", "?"))} · <b>{e(etiket)}</b> · {e(zaman)}'
         else:
             son = "—"
         kanallar = {"kararli": "Kararlı", "test": "Test", "kapali": "Kapalı (güncellenmez)"}
         sec = "".join(f'<option value="{k}"{" selected" if k == m["guncelleme_kanali"] else ""}>{ad}</option>' for k, ad in kanallar.items())
-        bekliyor = '<b class="uyarisi">bekleniyor</b>' if m["guncelleme_hemen"] > 0 else "—"
+        bekliyor = '<b class="uyarisi">bekleniyor</b>' if hedef and hedef["hemen"] else "—"
         gecmis = detay._tablo(("Zaman", "Ayrıntı"),
                               [(h["zaman"][:16], h["ayrinti"]) for h in self.veri.hareketler(n, 300)
                                if h["olay"] == "GUNCELLEME_SONUC"][:10], "Güncelleme denemesi yok.")

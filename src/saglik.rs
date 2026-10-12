@@ -3,6 +3,7 @@
 //! gelmediğini kendisi fark eder.
 
 use crate::ayar::Config;
+use crate::guncelleme::{self, Hedef};
 use crate::merkez::{Http, Merkez};
 use crate::ortak;
 use serde_json::{json, Value};
@@ -55,6 +56,8 @@ pub struct Kaynak {
     pub sys: PathBuf,
     pub trafik: PathBuf,
     pub uptime: PathBuf,
+    /// güncelleme durumu klasörü (`/var/lib/wificorrect/guncelleme`)
+    pub guncelleme: guncelleme::Yollar,
     /// komut çıktısı (systemctl is-active, ip addr); süre sınırlı; None: çalışmadı/zaman aşımı
     pub komut: Box<dyn Fn(&[&str]) -> Option<String>>,
 }
@@ -66,6 +69,7 @@ impl Kaynak {
             sys: "/sys/class/net".into(),
             trafik: crate::trafik::DURUM_YOLU.into(),
             uptime: "/proc/uptime".into(),
+            guncelleme: guncelleme::Yollar::sistem(),
             komut: Box::new(|c: &[&str]| ortak::capture_timeout(c, 5)),
         }
     }
@@ -126,19 +130,28 @@ pub fn kayit_boslugu(log_root: &str, now: f64) -> bool {
     })
 }
 
-pub fn gonder(m: &Merkez, rapor: &Value, http: &Http) -> Result<(), String> {
+/// Raporu gönderir; merkezin cevabındaki güncelleme hedefi (varsa ve geçerliyse) döner.
+pub fn gonder(m: &Merkez, rapor: &Value, http: &Http) -> Result<Option<Hedef>, String> {
     let (d, v) = crate::merkez::cagir(http, "/api/saglik", &json!({"cihaz_anahtari": m.cihaz_anahtari, "rapor": rapor}))?;
     if d != 200 {
         return Err(crate::merkez::hata(&v).map_or(format!("HTTP {d}"), |(m, _)| m));
     }
-    Ok(())
+    Ok(v.get("guncelleme").and_then(guncelleme::hedef_coz))
 }
 
-/// `ctl saglik`: cihaz bağlı değilse bir şey yapılmaz (Ok(false)); bağlıysa rapor toplanıp gönderilir (Ok(true)).
-pub fn calistir(cfg: &Config, merkez_path: &Path, k: &Kaynak, http: &Http, now: f64) -> Result<bool, String> {
-    let Some(m) = crate::merkez::oku(merkez_path) else { return Ok(false) };
-    gonder(&m, &rapor(&topla(cfg, now, k)?), http)?;
-    Ok(true)
+/// `ctl saglik`: cihaz bağlı değilse bir şey yapılmaz; bağlıysa önce önceki güncellemenin sonucu uzlaştırılır, rapor
+/// (paket sürümü ve son güncelleme sonucuyla) gönderilir; başarıda `saglik_basari` dosyasının zamanı yenilenir
+/// (denetim betiği mtime'a bakar) ve merkezin hedef sürümü döner.
+pub fn calistir(cfg: &Config, merkez_path: &Path, k: &Kaynak, http: &Http, now: f64) -> Result<Option<Hedef>, String> {
+    let Some(m) = crate::merkez::oku(merkez_path) else { return Ok(None) };
+    guncelleme::uzlas(&k.guncelleme, &cfg.main.log_root, now);
+    let mut r = rapor(&topla(cfg, now, k)?);
+    let (paket, g) = guncelleme::rapor_alanlari(&k.guncelleme, &guncelleme::kurulu(&*k.komut));
+    r["paket"] = Value::String(paket);
+    r["guncelleme"] = g;
+    let hedef = gonder(&m, &r, http)?;
+    let _ = ortak::write_atomic(&k.guncelleme.saglik_basari(), format!("{}\n", now as u64).as_bytes());
+    Ok(hedef)
 }
 
 #[cfg(test)]
@@ -159,6 +172,7 @@ mod tests {
             sys: root.join("sys"),
             trafik: root.join("trafik.json"),
             uptime: root.join("uptime"),
+            guncelleme: guncelleme::Yollar { kok: root.join("guncelleme") },
             komut: Box::new(|_: &[&str]| Some(String::new())),
         };
         (Config::parse(&text).unwrap(), root, k)
@@ -304,18 +318,56 @@ mod tests {
         let (cfg, root, k) = kur();
         let p = root.join("merkez.json");
         let (h, c) = sahte(Ok((200, r#"{"tamam":true}"#)));
-        assert_eq!(calistir(&cfg, &p, &k, &*h, 1000.0), Ok(false));
+        assert_eq!(calistir(&cfg, &p, &k, &*h, 1000.0), Ok(None));
         assert!(c.lock().unwrap().is_empty());
         crate::merkez::kaydet(&p, &Merkez { numara: "4511643".into(), cihaz_anahtari: "gizli-anahtar".into(), ..Default::default() }).unwrap();
-        assert_eq!(calistir(&cfg, &p, &k, &*h, 1000.0), Ok(true));
+        assert!(!k.guncelleme.saglik_basari().exists());
+        assert_eq!(calistir(&cfg, &p, &k, &*h, 1000.0), Ok(None));
+        assert!(k.guncelleme.saglik_basari().exists()); // başarıda dokunulur
         let (yol, govde) = c.lock().unwrap()[0].clone();
         assert_eq!((yol.as_str(), govde["cihaz_anahtari"].as_str()), ("/api/saglik", Some("gizli-anahtar")));
         assert!(govde["rapor"]["servisler"].is_object() && govde.as_object().unwrap().len() == 2);
         // gönderilemezse hata (ctl tek satır yazar, çıkış 0)
         let (h, _) = sahte(Err("bağlanılamadı"));
+        let _ = std::fs::remove_file(k.guncelleme.saglik_basari());
         assert!(calistir(&cfg, &p, &k, &*h, 1000.0).is_err());
+        assert!(!k.guncelleme.saglik_basari().exists()); // hatada dokunulmaz
         let (h, _) = sahte(Ok((401, r#"{"hata":"Cihaz tanınmadı.","kod":"taninmadi"}"#)));
         assert_eq!(calistir(&cfg, &p, &k, &*h, 1000.0), Err("Cihaz tanınmadı.".into()));
+    }
+
+    #[test]
+    fn rapora_paket_ve_guncelleme_eklenir() {
+        let (cfg, root, mut k) = kur();
+        k.komut = Box::new(|c: &[&str]| Some(match c {
+            ["dpkg-query", ..] => "0.4.0
+".into(),
+            _ => String::new(),
+        }));
+        let p = root.join("merkez.json");
+        crate::merkez::kaydet(&p, &Merkez { numara: "4511643".into(), cihaz_anahtari: "a".into(), ..Default::default() }).unwrap();
+        let (h, c) = sahte(Ok((200, r#"{"tamam":true}"#)));
+        calistir(&cfg, &p, &k, &*h, 1000.0).unwrap();
+        let r = c.lock().unwrap()[0].1["rapor"].clone();
+        assert_eq!((r["paket"].as_str(), r["guncelleme"].is_null()), (Some("0.4.0"), true));
+        guncelleme::durum_yaz(&k.guncelleme, &guncelleme::Durum { basarisiz: vec![], son: Some(guncelleme::Sonuc { surum: "0.4.0".into(), sonuc: "tamam".into(), zaman: 900, neden: String::new() }) }).unwrap();
+        calistir(&cfg, &p, &k, &*h, 1000.0).unwrap();
+        let r = c.lock().unwrap()[1].1["rapor"].clone();
+        assert_eq!(r["guncelleme"], json!({"surum": "0.4.0", "sonuc": "tamam", "zaman": 900}));
+    }
+
+    #[test]
+    fn cevaptaki_hedef_doner() {
+        let (cfg, root, k) = kur();
+        let p = root.join("merkez.json");
+        crate::merkez::kaydet(&p, &Merkez { numara: "4511643".into(), cihaz_anahtari: "a".into(), ..Default::default() }).unwrap();
+        let govde: &'static str = Box::leak(format!(r#"{{"tamam":true,"guncelleme":{{"surum":"0.4.1","sha256":"{}","boyut":12345,"hemen":false}}}}"#, "b".repeat(64)).into_boxed_str());
+        let (h, _) = sahte(Ok((200, govde)));
+        let hedef = calistir(&cfg, &p, &k, &*h, 1000.0).unwrap().unwrap();
+        assert_eq!((hedef.surum.as_str(), hedef.boyut, hedef.hemen), ("0.4.1", 12345, false));
+        // bozuk hedef yok sayılır
+        let (h, _) = sahte(Ok((200, r#"{"tamam":true,"guncelleme":{"surum":"1.2","sha256":"x","boyut":0}}"#)));
+        assert_eq!(calistir(&cfg, &p, &k, &*h, 1000.0), Ok(None));
     }
 
     #[test]

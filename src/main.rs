@@ -6,6 +6,7 @@ mod ctl;
 mod dil;
 mod fabrika;
 mod filtre;
+mod guncelleme;
 mod hiz;
 mod hesap;
 mod kayit;

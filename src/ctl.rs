@@ -316,8 +316,18 @@ pub fn run(cfg: Config, args: &[String]) -> ExitCode {
         Some("saglik") => {
             let http = |y: &str, g: &str| crate::merkez::curl_sure(y, g, 10);
             let k = crate::saglik::Kaynak::sistem();
-            if let Err(e) = crate::saglik::calistir(&cfg, std::path::Path::new(crate::merkez::PATH), &k, &http, now) {
-                eprintln!("sağlık raporu gönderilemedi: {e}");
+            match crate::saglik::calistir(&cfg, std::path::Path::new(crate::merkez::PATH), &k, &http, now) {
+                Ok(Some(h)) => {
+                    // karar Kur ise hedef.json yazılır ve güncelleme ayrı systemd işinde başlar (birim varsa systemd reddeder)
+                    let kurulu = crate::guncelleme::kurulu(&*k.komut);
+                    let baslat = || {
+                        let c: Vec<String> = ["systemd-run", "--collect", "--unit", "wfc-guncelle", "/usr/local/bin/wificorrect", "ctl", "guncelle"].map(String::from).to_vec();
+                        ortak::run(&c);
+                    };
+                    crate::guncelleme::hedefi_isle(&k.guncelleme, &h, &kurulu, now, &baslat);
+                }
+                Ok(None) => {}
+                Err(e) => eprintln!("sağlık raporu gönderilemedi: {e}"),
             }
             ExitCode::SUCCESS
         }

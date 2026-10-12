@@ -1,4 +1,4 @@
-# Devir notu — kaldığın yerden devam (2026-10-11, akşam)
+# Devir notu — kaldığın yerden devam (2026-10-12)
 
 Bu dosya, projeye yeni bir oturumda/hesapta devam eden ajan içindir. Önce bunu, sonra `CLAUDE.md`'deki belgeleri oku.
 
@@ -42,8 +42,8 @@ Cihaz: Debian 13 + Rust ikilisi `wificorrect` (`src/`). Merkez: Python stdlib (`
 Canlı müşteri: **Göztepe Bilgisayar = 1537344**, cihaz 192.168.1.110.
 
 ## Dallar ve durum (2026-10-11)
-Repo `bilgisayargoztepe-lgtm/wificorrect` (avsharbeyi'den devredildi). Her şey **`main`**'de (PR #3–#8 birleşti; #2 kapatıldı).
-**v0.3.0** yayında (ISO + .deb; `WFC_SSH_PUB` = `~/.ssh/bocafe.pub`). Canlı cihaz ve merkez main'i çalıştırıyor (2026-10-11).
+Repo `bilgisayargoztepe-lgtm/wificorrect` (avsharbeyi'den devredildi). Her şey **`main`**'de (PR #3–#9 birleşti; #2 kapatıldı).
+**v0.3.0** yayında (ISO + .deb; `WFC_SSH_PUB` = `~/.ssh/bocafe.pub`). Canlı cihaz ve merkez main'i çalıştırıyor (2026-10-12).
 Merkez her güncellemede yeniden başlar ve bellekteki oturumlar düşer (yönetime yeniden giriş gerekir).
 
 Bitenler (canlıda):
@@ -68,6 +68,12 @@ Bitenler (canlıda):
 - Caddy düzeltmeleri (PR #8): `header_up Cookie "…" ""` Caddy 2.6.2'de Cookie'yi EZİYORDU (cihaz oturumu her istekte
   yenileniyor, formlar CSRF'ye takılıyordu) → `"wcc=[^;]*" "_"`; CSP `form-action`'a panel ve yönetim eklendi (çıkış).
   Caddyfile değişikliğini kurmadan önce sunucuda `caddy adapt --config … --adapter caddyfile` ile denetle.
+- **İşletme türü + misafir kodu** (PR #9, spec `docs/superpowers/specs/2026-10-11-isletme-turu-misafir-kodu-design.md`):
+  Ayarlar'da tür (kafe/otel/yurt/diğer; seçilmemişse Özet uyarısı, merkeze eşitlenir); otel/yurtta **Misafir kodları**
+  (ad, soyad, TC ya da pasaport+uyruk, oda, 24 sa–1 ay; 6 haneli kod, TR+EN fiş, iptal/uzat). Portal TR/EN, "Otel misafiriyim".
+  5651'de kimlik `telefon` sütununda (`TC:…`, `PASAPORT:UY:NO`), ekranlarda maskeli, URL'de opak kimlik. Cihazda sahte
+  istemciyle uçtan uca geçti (2026-10-12). Canlı cihazda tür **seçilmemiş**, misafir kodu kapalı. Aydınlatma metni cümlesi
+  hukukçu onayı bekliyor. Bilinen: seçilen tür panelden "seçilmemiş"e geri alınamaz.
 - Küçük işler (PR #6): bozuk `hiz_sinir.json`'un üzerine yazılmaz; 10 sn yenileme yalnızca `/oturumlar`; panel tam genişlik.
 
 ## Sıradaki işler

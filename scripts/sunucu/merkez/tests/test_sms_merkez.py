@@ -94,7 +94,7 @@ def test_netgsm_otp_xml_ve_cevap():
     ayar = dict(NETGSM, password="p<&>", appkey="k1")
     assert N.otp_gonder(ayar, "5334553132", metin, ac=ag) == ("gonderildi", "0", "17283946")
     req, zaman_asimi = ag.istekler[-1]
-    assert req.full_url == "https://api.netgsm.com.tr/sms/send/otp" and req.get_method() == "POST" and zaman_asimi == 3
+    assert req.full_url == "https://api.netgsm.com.tr/sms/send/otp" and req.get_method() == "POST" and zaman_asimi == 5
     assert req.get_header("Content-type") == "application/xml; charset=UTF-8"
     g = req.data.decode()
     assert g == ("<?xml version='1.0' encoding='utf-8'?>\n<mainbody><header><usercode>8500000000</usercode>"
@@ -121,7 +121,7 @@ def test_twilio_gonder_ve_dogrula():
     ag = Ag((201, b'{"status": "pending", "sid": "VE123"}'))
     assert T.gonder(TW, TEL, ac=ag) == ("gonderildi", "0")
     req, zaman_asimi = ag.istekler[-1]
-    assert req.full_url == f"https://verify.twilio.com/v2/Services/{TW['verify_sid']}/Verifications" and zaman_asimi == 3
+    assert req.full_url == f"https://verify.twilio.com/v2/Services/{TW['verify_sid']}/Verifications" and zaman_asimi == 5
     assert urllib.parse.parse_qs(req.data.decode()) == {"To": ["+" + TEL], "Channel": ["sms"], "Locale": ["tr"]}
     kimlik = base64.b64encode(f"{TW['account_sid']}:{TW['auth_token']}".encode()).decode()
     assert req.get_header("Authorization") == "Basic " + kimlik
@@ -165,21 +165,24 @@ def test_twilio_dogrula_durum_eslemesi():
         assert T.dogrula(TW, TEL, KOD, ac=Ag(cevap)) == beklenen, cevap
 
 
-def test_saglayici_suresi_toplam_butce():
-    """urlopen'ın zaman aşımı her soket işlemi için ayrıdır: toplam süre bütçesi ayrıca uygulanır (cihaz 15 sn bekler)."""
+def test_saglayici_cagrisi_bitmeden_donulmez():
+    """Zaman aşımı işlem başına 5 sn (urlopen); yavaş ama başarılı çağrının cevabı beklenir, atılmaz (SMS gitmişse kod
+    kaybolmasın). Bağlan + oku en kötü ~10-11 sn, cihaz merkezi 15 sn bekler."""
     import time
-    assert N.OTP_SURE == 6 and T.SURE == 6
+    assert N.ISLEM_SURE == 5 and T.ISLEM_SURE == 5
 
-    def yavas(req, timeout):
-        time.sleep(2)
-        return Yanit(b"<xml><main><code>0</code></main></xml>")
+    def yavas(cevap):
+        def ac(req, timeout):
+            assert timeout == 5
+            time.sleep(0.5)
+            return Yanit(cevap)
+        return ac
     metin = "WiFi dogrulama kodunuz: 123456. Kod 3 dakika gecerlidir."
-    for cagri, beklenen in ((lambda: N.otp_gonder(NETGSM, "5334553132", metin, sure=0.3, ac=yavas), ("hata", "AG", "")),
-                            (lambda: T.gonder(TW, TEL, sure=0.3, ac=yavas), ("hata", "AG")),
-                            (lambda: T.dogrula(TW, TEL, KOD, sure=0.3, ac=yavas), (None, "AG"))):
-        t0 = time.monotonic()
-        assert cagri() == beklenen
-        assert time.monotonic() - t0 < 1.5  # 2 sn'lik isteği beklemedi
+    netgsm_cevap = b"<xml><main><code>0</code><jobID>77</jobID></main></xml>"
+    assert N.otp_gonder(NETGSM, "5334553132", metin, ac=yavas(netgsm_cevap)) == ("gonderildi", "0", "77")
+    assert T.gonder(TW, TEL, ac=yavas(b'{"status": "pending"}')) == ("gonderildi", "0")
+    assert T.dogrula(TW, TEL, KOD, ac=yavas(b'{"status": "approved"}')) == (True, "0")
+    assert N.otp_gonder(NETGSM, "5334553132", metin, ac=Ag(TimeoutError())) == ("hata", "AG", "")
 
 
 # --- /api/sms ---

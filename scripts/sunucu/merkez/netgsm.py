@@ -73,7 +73,9 @@ def gonder(ayar, metin, numaralar, zaman_asimi=10, ac=None):
 # --- Doğrulama (OTP) SMS'i: cihazların misafir kodu merkezden gider (2026-10-13). Cihazdaki sms::build_xml /
 # parse_response ile aynı biçim. Yeniden deneme yok (çift SMS = çift ücret); kod ve parola hiçbir yere yazılmaz.
 OTP_URL = "https://api.netgsm.com.tr/sms/send/otp"
-OTP_SURE = 6  # toplam süre bütçesi (sn); cihaz merkezi 15 sn bekler: cevap her durumda cihaz vazgeçmeden döner
+# işlem başına zaman aşımı (sn): bağlan + oku (TLS dahil) en kötü ~10-11 sn, cihaz merkezi 15 sn bekler. Çağrı bitmeden
+# cevap dönülmez (SMS gitmiş ama kod atılmış olmasın).
+ISLEM_SURE = 5
 _YANIT_KODU = re.compile(r"[0-9A-Za-z]{1,16}")
 _IS_NO = re.compile(r"[0-9A-Za-z_-]{1,64}")
 
@@ -112,9 +114,9 @@ def otp_yaniti(metin):
     return kod, is_no if _IS_NO.fullmatch(is_no) else ""
 
 
-def otp_gonder(ayar, telefon_10, metin, sure=OTP_SURE, ac=None):
+def otp_gonder(ayar, telefon_10, metin, zaman_asimi=ISLEM_SURE, ac=None):
     """Dönen (sonuc, kod, is): sonuc gonderildi | mock | hata; kod NetGSM kodu ya da AYAR | AG | PARSE.
-    En çok `sure` sn sürer (aşılırsa AG). WC_TEST ortamında sahte `ac` verilmediyse hata fırlatır (gerçek istek hiç gitmez)."""
+    Zaman aşımı işlem başına (aşılırsa AG). WC_TEST ortamında sahte `ac` verilmediyse hata fırlatır (gerçek istek hiç gitmez)."""
     if ac is None:
         if os.environ.get("WC_TEST"):
             raise RuntimeError("WC_TEST: gerçek NetGSM isteği engellendi")
@@ -130,8 +132,8 @@ def otp_gonder(ayar, telefon_10, metin, sure=OTP_SURE, ac=None):
     istek = urllib.request.Request(OTP_URL, data=govde, method="POST",
                                    headers={"Content-Type": "application/xml; charset=UTF-8"})
     try:
-        durum, govde = common.sinirli_istek(ac, istek, sure, 4096)
-    except Exception:  # ağ, zaman aşımı (toplam bütçe dahil), TLS
+        durum, govde = common.saglayici_istegi(ac, istek, zaman_asimi, 4096)
+    except Exception:  # ağ, zaman aşımı, TLS
         return "hata", "AG", ""
     if durum >= 400:  # HTTP hatası
         return "hata", "AG", ""

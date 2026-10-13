@@ -5,8 +5,8 @@
 use crate::merkez::{Http, Merkez};
 use std::path::Path;
 
-/// Cihaz → merkez zaman aşımı (sn). Merkezin sağlayıcıya toplam bütçesi 6 sn (netgsm.OTP_SURE, twilio.SURE): merkez her
-/// durumda cihaz vazgeçmeden cevap verir; cihaz erken vazgeçerse SMS gitmiş ama kod kaybolmuş olur, misafir yeniden ister.
+/// Cihaz → merkez zaman aşımı (sn). Merkez sağlayıcı çağrısı bitmeden cevap dönmez; çağrı işlem başına 5 sn (netgsm/twilio
+/// ISLEM_SURE; bağlan + oku en kötü ~10-11 sn), merkez cihaz vazgeçmeden cevap verir; cihaz erken vazgeçerse SMS gitmiş ama kod kaybolmuş olur, misafir yeniden ister.
 pub const MERKEZ_SURE: u32 = 15;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -206,7 +206,7 @@ mod tests {
 
     #[test]
     fn merkez_zaman_asimi_saglayici_butcesinden_uzun() {
-        // merkez sağlayıcıya en çok 6 sn harcar (netgsm.OTP_SURE / twilio.SURE); cihaz cevabı beklemeden vazgeçmemeli
+        // merkezin sağlayıcı çağrısı en kötü ~10-11 sn (işlem başına 5 sn); cihaz cevabı beklemeden vazgeçmemeli
         assert_eq!(MERKEZ_SURE, 15);
         let a = crate::merkez::curl_args_sure("https://api.wificorrect.com/api/sms", MERKEZ_SURE);
         assert!(a.windows(2).any(|w| w[0] == "--max-time" && w[1] == "15"));

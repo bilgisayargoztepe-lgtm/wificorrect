@@ -5,8 +5,9 @@
 use crate::merkez::{Http, Merkez};
 use std::path::Path;
 
-/// Cihaz → merkez zaman aşımı (sn).
-const MERKEZ_SURE: u32 = 10;
+/// Cihaz → merkez zaman aşımı (sn). Merkezin sağlayıcıya toplam bütçesi 6 sn (netgsm.OTP_SURE, twilio.SURE): merkez her
+/// durumda cihaz vazgeçmeden cevap verir; cihaz erken vazgeçerse SMS gitmiş ama kod kaybolmuş olur, misafir yeniden ister.
+pub const MERKEZ_SURE: u32 = 15;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Sonuc {
@@ -44,22 +45,18 @@ impl Saglayici {
 pub const YABANCI_YOK: &str = "Yabancı numaralara şu an SMS gönderilemiyor, lütfen personele başvurun.";
 pub const GONDERILEMIYOR: &str = "Şu an kod gönderilemiyor, lütfen biraz sonra tekrar deneyin.";
 
-fn merkez_bagi() -> Option<Merkez> {
-    crate::merkez::oku(Path::new(crate::merkez::PATH))
-}
-
 fn merkez_http(yol: &str, govde: &str) -> Result<(u16, String), String> {
     crate::merkez::curl_sure(yol, govde, MERKEZ_SURE)
 }
 
-/// Gerçek gönderim (portal): `merkez.json` + curl (10 sn).
-pub fn send(phone: &str, code: &str) -> Sonuc {
-    gonder(merkez_bagi().as_ref(), phone, code, &merkez_http)
+/// Gerçek gönderim (portal): `merkez.json` (portalın kullandığı yol) + curl (`MERKEZ_SURE`).
+pub fn send(merkez_path: &Path, phone: &str, code: &str) -> Sonuc {
+    gonder(crate::merkez::oku(merkez_path).as_ref(), phone, code, &merkez_http)
 }
 
 /// Gerçek Twilio doğrulaması (portal): (onaylandı, hata). Hata "AG" ise misafirin deneme hakkı düşmez.
-pub fn check(phone: &str, code: &str) -> (bool, Option<String>) {
-    dogrula(merkez_bagi().as_ref(), phone, code, &merkez_http)
+pub fn check(merkez_path: &Path, phone: &str, code: &str) -> (bool, Option<String>) {
+    dogrula(crate::merkez::oku(merkez_path).as_ref(), phone, code, &merkez_http)
 }
 
 /// Kodu merkeze gönderir. Merkeze bağlı değilse, ulaşılamazsa ya da cevap bozuksa `AG`. Numara cihazda süzülmez:
@@ -205,6 +202,14 @@ mod tests {
         }
         let (h, _) = sahte(Err("çağrılmamalı"));
         assert_eq!(dogrula(None, "4915123456789", "111111", &*h), (false, Some("AG".into())));
+    }
+
+    #[test]
+    fn merkez_zaman_asimi_saglayici_butcesinden_uzun() {
+        // merkez sağlayıcıya en çok 6 sn harcar (netgsm.OTP_SURE / twilio.SURE); cihaz cevabı beklemeden vazgeçmemeli
+        assert_eq!(MERKEZ_SURE, 15);
+        let a = crate::merkez::curl_args_sure("https://api.wificorrect.com/api/sms", MERKEZ_SURE);
+        assert!(a.windows(2).any(|w| w[0] == "--max-time" && w[1] == "15"));
     }
 
     #[test]

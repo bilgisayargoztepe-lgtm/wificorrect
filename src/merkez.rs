@@ -167,8 +167,8 @@ fn ozet_alanlari(v: &Value) -> Option<(String, String, u32)> {
 }
 
 /// Merkezin bağlı cihaza gönderdiği ekler (spec 2026-10-05 §5-6). Eski merkez göndermezse boş.
-/// `sms_mock`: merkezdeki deneme modu (Özet uyarısı ve sağlık raporu için). Merkez eski cihazlar için NetGSM bilgilerini de
-/// gönderir; bu cihaz onları okumaz (SMS merkezden gider, spec 2026-10-13).
+/// `sms_mock`: merkezin etkin deneme modu (Özet uyarısı ve sağlık raporu için; bkz. `sms_mock_oku`). Merkez eski cihazlar
+/// için NetGSM bilgilerini de gönderir; bu cihaz onları okumaz (SMS merkezden gider, spec 2026-10-13).
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Ek {
     pub admin: Option<(String, String, u32)>,
@@ -176,7 +176,13 @@ pub struct Ek {
 }
 
 fn ek(v: &Value) -> Ek {
-    Ek { admin: v.get("admin").and_then(ozet_alanlari), sms_mock: v.get("sms").and_then(|s| s.get("mock")?.as_bool()) }
+    Ek { admin: v.get("admin").and_then(ozet_alanlari), sms_mock: v.get("sms").and_then(sms_mock_oku) }
+}
+
+/// SMS ekinden etkin deneme modu: `etkin_mock` (deneme modu açık ya da merkezde seçili sağlayıcının ayarı eksik) varsa o,
+/// yoksa (bu alandan önceki merkez) `mock`.
+pub fn sms_mock_oku(s: &Value) -> Option<bool> {
+    s.get("etkin_mock").and_then(Value::as_bool).or_else(|| s.get("mock")?.as_bool())
 }
 
 /// Bağlanırken ve her eşitlemede: (admin sonucu, SMS sonucu); ikisi birbirinden bağımsız, her biri "değişti mi" döner.
@@ -438,6 +444,17 @@ mod tests {
         let b = ekli(r#"{"durum":"bagli","tuz":"a1b2c3d4","ozet":"ee38d08b3d6573ecc281263ad6259d2e7ee39f37d6b8958b3180906580a44495","yineleme":120000,"uyelik":"aktif"}"#, &oz);
         let (h, _) = sahte(vec![Ok((200, b))]);
         assert!(matches!(eslesme(&mut m, "", "", "", false, &*h, 1.0), Ok(Eslesme::Bagli { ek, .. }) if ek.admin.is_some() && ek.sms_mock == Some(false)));
+    }
+
+    #[test]
+    fn ek_etkin_deneme_modu_once() {
+        // merkez deneme modunda değil ama seçili sağlayıcının ayarı eksik: etkin deneme modu açık
+        assert_eq!(ek(&json!({"sms": {"mock": false, "etkin_mock": true, "netgsm": {}}})).sms_mock, Some(true));
+        assert_eq!(ek(&json!({"sms": {"mock": true, "etkin_mock": false}})).sms_mock, Some(false));
+        assert_eq!(ek(&json!({"sms": {"etkin_mock": true}})).sms_mock, Some(true)); // merkezde SMS ayarı hiç yok
+        assert_eq!(ek(&json!({"sms": {"mock": false}})).sms_mock, Some(false)); // eski merkez
+        assert_eq!(ek(&json!({"sms": {"etkin_mock": "evet", "mock": true}})).sms_mock, Some(true));
+        assert_eq!(ek(&json!({"sms": {}})).sms_mock, None);
     }
 
     #[test]

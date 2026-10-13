@@ -272,6 +272,20 @@ impl Config {
         Self::parse(&text)
     }
 
+    /// 0.4.8 öncesinden kalan SMS sırları ve ayarları (`[netgsm]`, `[twilio]`, `[sms]` altında `provider` / `merkez`;
+    /// SMS artık merkezden gider): dosyada varsa ayarlar bir kez yeniden yazılır (atomik, 600; diğer ayarlar aynen).
+    /// Paket kurulumunda (postinst) ve açılışta (`ctl yukle`) çağrılır. Dönen: dosya yeniden yazıldı mı.
+    pub fn eski_sirlari_temizle(path: &str) -> Result<bool, String> {
+        let text = std::fs::read_to_string(path).map_err(|e| format!("{path} açılamadı: {e}"))?;
+        let ham: toml::Table = text.parse().map_err(|e| format!("ayar dosyası okunamadı: {e}"))?;
+        let sms_eski = ham.get("sms").and_then(toml::Value::as_table).is_some_and(|s| s.contains_key("provider") || s.contains_key("merkez"));
+        if !(ham.contains_key("netgsm") || ham.contains_key("twilio") || sms_eski) {
+            return Ok(false);
+        }
+        Self::parse(&text)?.save(path)?;
+        Ok(true)
+    }
+
     /// Geçerli MAC'li girdiler: {mac: ad}.
     pub fn devices(list: &[Device]) -> std::collections::BTreeMap<String, String> {
         list.iter().filter_map(|d| crate::ortak::norm_mac(&d.mac).map(|m| (m, d.name.clone()))).collect()
@@ -304,6 +318,43 @@ mod tests {
         assert_eq!(back.allow.len(), 2);
         assert_eq!(Config::devices(&c.allow).into_iter().collect::<Vec<_>>(), vec![("aa:bb:cc:dd:ee:99".into(), "AP".into())]);
         assert!(Config::parse("[main\n").is_err());
+    }
+
+    #[test]
+    fn eski_sirlar_dosyadan_silinir() {
+        use std::os::unix::fs::PermissionsExt;
+        let d = std::env::temp_dir().join(format!("wfc-ayar-sir-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(&d).unwrap();
+        let p = d.join("ayarlar.toml");
+        let ps = p.to_str().unwrap();
+        let eski = "# yorum\n[main]\nsite_name = 'Bocafe'\nsession_minutes = 1440\n[sms]\nmock = false\nprovider = 'twilio'\nmerkez = true\n\
+                    [netgsm]\nusercode = '850'\npassword = 'gizli-1'\n[twilio]\nenabled = true\nauth_token = 'gizli-2'\n\
+                    [[allow]]\nmac = 'aa:bb:cc:dd:ee:99'\nname = 'AP'\n";
+        std::fs::write(&p, eski).unwrap();
+        std::fs::set_permissions(&p, std::fs::Permissions::from_mode(0o644)).unwrap();
+        assert_eq!(Config::eski_sirlari_temizle(ps), Ok(true));
+        let yeni = std::fs::read_to_string(&p).unwrap();
+        for yok in ["gizli-1", "gizli-2", "[netgsm]", "[twilio]", "provider =", "merkez ="] {
+            assert!(!yeni.contains(yok), "{yok}");
+        }
+        let c = Config::load(ps).unwrap();
+        assert_eq!((c.main.site_name.as_str(), c.main.session_minutes, c.sms.mock, c.allow.len()), ("Bocafe", 1440, false, 1));
+        assert_eq!(std::fs::metadata(&p).unwrap().permissions().mode() & 0o777, 0o600);
+        // temiz dosyaya dokunulmaz (yorumlar kalır)
+        let temiz = "# yorum\n[main]\nsite_name = 'X'\n[sms]\nmock = true\n";
+        std::fs::write(&p, temiz).unwrap();
+        assert_eq!(Config::eski_sirlari_temizle(ps), Ok(false));
+        assert_eq!(std::fs::read_to_string(&p).unwrap(), temiz);
+        // yalnızca [sms] altındaki eski anahtar da yeter; bozuk dosya hata, dokunulmaz
+        std::fs::write(&p, "[sms]\nmock = false\nmerkez = true\n").unwrap();
+        assert_eq!(Config::eski_sirlari_temizle(ps), Ok(true));
+        assert!(!std::fs::read_to_string(&p).unwrap().contains("merkez ="));
+        std::fs::write(&p, "[main\n[netgsm]\n").unwrap();
+        assert!(Config::eski_sirlari_temizle(ps).is_err());
+        assert_eq!(std::fs::read_to_string(&p).unwrap(), "[main\n[netgsm]\n");
+        assert!(Config::eski_sirlari_temizle(d.join("yok.toml").to_str().unwrap()).is_err());
+        let _ = std::fs::remove_dir_all(&d);
     }
 
     #[test]

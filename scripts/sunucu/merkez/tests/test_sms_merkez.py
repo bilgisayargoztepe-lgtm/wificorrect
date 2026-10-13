@@ -94,7 +94,7 @@ def test_netgsm_otp_xml_ve_cevap():
     ayar = dict(NETGSM, password="p<&>", appkey="k1")
     assert N.otp_gonder(ayar, "5334553132", metin, ac=ag) == ("gonderildi", "0", "17283946")
     req, zaman_asimi = ag.istekler[-1]
-    assert req.full_url == "https://api.netgsm.com.tr/sms/send/otp" and req.get_method() == "POST" and zaman_asimi == 10
+    assert req.full_url == "https://api.netgsm.com.tr/sms/send/otp" and req.get_method() == "POST" and zaman_asimi == 3
     assert req.get_header("Content-type") == "application/xml; charset=UTF-8"
     g = req.data.decode()
     assert g == ("<?xml version='1.0' encoding='utf-8'?>\n<mainbody><header><usercode>8500000000</usercode>"
@@ -121,7 +121,7 @@ def test_twilio_gonder_ve_dogrula():
     ag = Ag((201, b'{"status": "pending", "sid": "VE123"}'))
     assert T.gonder(TW, TEL, ac=ag) == ("gonderildi", "0")
     req, zaman_asimi = ag.istekler[-1]
-    assert req.full_url == f"https://verify.twilio.com/v2/Services/{TW['verify_sid']}/Verifications" and zaman_asimi == 10
+    assert req.full_url == f"https://verify.twilio.com/v2/Services/{TW['verify_sid']}/Verifications" and zaman_asimi == 3
     assert urllib.parse.parse_qs(req.data.decode()) == {"To": ["+" + TEL], "Channel": ["sms"], "Locale": ["tr"]}
     kimlik = base64.b64encode(f"{TW['account_sid']}:{TW['auth_token']}".encode()).decode()
     assert req.get_header("Authorization") == "Basic " + kimlik
@@ -153,6 +153,35 @@ def test_twilio_gonder_ve_dogrula():
         pass
 
 
+def test_twilio_dogrula_durum_eslemesi():
+    """5xx/429: Twilio'ya şu an ulaşılamıyor (AG; misafirin hakkı düşmez); 401/403: kimlik/ayar bozuk (AYAR);
+    yalnızca approved onay; pending/canceled ve 404/diğer 4xx yanlış kod."""
+    for cevap, beklenen in (((500, b"{}"), (None, "AG")), ((503, b"bozuk"), (None, "AG")), ((429, b'{"code": 20429}'), (None, "AG")),
+                            ((401, b'{"code": 20003}'), (None, "AYAR")), ((403, b"{}"), (None, "AYAR")),
+                            ((200, b'{"status": "approved"}'), (True, "0")), ((201, b'{"status": "approved"}'), (True, "0")),
+                            ((200, b'{"status": "pending"}'), (False, "0")), ((200, b'{"status": "canceled"}'), (False, "0")),
+                            ((200, b"bozuk"), (False, "0")), ((404, b'{"code": 20404}'), (False, "0")),
+                            ((400, b'{"code": 60200}'), (False, "0")), ((409, b"{}"), (False, "0"))):
+        assert T.dogrula(TW, TEL, KOD, ac=Ag(cevap)) == beklenen, cevap
+
+
+def test_saglayici_suresi_toplam_butce():
+    """urlopen'ın zaman aşımı her soket işlemi için ayrıdır: toplam süre bütçesi ayrıca uygulanır (cihaz 15 sn bekler)."""
+    import time
+    assert N.OTP_SURE == 6 and T.SURE == 6
+
+    def yavas(req, timeout):
+        time.sleep(2)
+        return Yanit(b"<xml><main><code>0</code></main></xml>")
+    metin = "WiFi dogrulama kodunuz: 123456. Kod 3 dakika gecerlidir."
+    for cagri, beklenen in ((lambda: N.otp_gonder(NETGSM, "5334553132", metin, sure=0.3, ac=yavas), ("hata", "AG", "")),
+                            (lambda: T.gonder(TW, TEL, sure=0.3, ac=yavas), ("hata", "AG")),
+                            (lambda: T.dogrula(TW, TEL, KOD, sure=0.3, ac=yavas), (None, "AG"))):
+        t0 = time.monotonic()
+        assert cagri() == beklenen
+        assert time.monotonic() - t0 < 1.5  # 2 sn'lik isteği beklemedi
+
+
 # --- /api/sms ---
 def test_api_sms_netgsm_gonderir_ve_sayar():
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
@@ -166,8 +195,9 @@ def test_api_sms_netgsm_gonderir_ve_sayar():
         assert f"<msg>WiFi dogrulama kodunuz: {KOD}. Kod 3 dakika gecerlidir.</msg>" in g and "<no>5334553132</no>" in g
         gun = v.bugun().isoformat()
         assert v.sms_sayac(n, gun) == 1
-        h = v.hareketler(n)[0]
-        assert h["olay"] == "SMS_OTP" and h["ayrinti"] == "tel=**32 saglayici=netgsm sonuc=gonderildi"
+        assert not any(h["olay"] == "SMS_OTP" for h in v.hareketler())  # SMS başına hareket satırı yok (geçmişi boğmasın)
+        son = v.sms_son(n)
+        assert (son["saglayici"], son["sonuc"], son["kod"]) == ("netgsm", "gonderildi", "0") and son["zaman"].startswith("2026-")
         assert all(KOD not in x["ayrinti"] for x in v.hareketler()) and KOD not in cikti.getvalue()
         # veritabanı dosyasında da kod yok
         with open(os.path.join(tmp, "m.db"), "rb") as f:
@@ -175,7 +205,7 @@ def test_api_sms_netgsm_gonderir_ve_sayar():
         ag.cevaplar.append(b"<xml><main><code>50</code></main></xml>")
         d, j = sms(api, anahtar)
         assert d == 200 and j == {"sonuc": "hata", "kod": "50", "saglayici": "netgsm"}
-        assert v.hareketler(n)[0]["ayrinti"] == "tel=**32 saglayici=netgsm sonuc=hata:50"
+        assert (v.sms_son(n)["sonuc"], v.sms_son(n)["kod"]) == ("hata", "50") and not any(h["olay"] == "SMS_OTP" for h in v.hareketler())
 
 
 def test_api_sms_mock_istek_gondermez():
@@ -183,7 +213,7 @@ def test_api_sms_mock_istek_gondermez():
         api, v, n, _, anahtar = kur(tmp, sms=dict(NETGSM, mock=True))
         d, j = sms(api, anahtar)
         assert d == 200 and j["sonuc"] == "mock" and j["saglayici"] == "netgsm"
-        assert v.hareketler(n)[0]["ayrinti"] == "tel=**32 saglayici=netgsm sonuc=mock"
+        assert v.sms_son(n) is None and not any(h["olay"] == "SMS_OTP" for h in v.hareketler())  # deneme modu son sonuca yazılmaz
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
         api, v, n, _, anahtar = kur(tmp, sms=dict(NETGSM, mock=True), twilio=TW, tr="twilio")
         d, j = sms(api, anahtar)
@@ -229,6 +259,8 @@ def test_api_sms_yabanci_numara_twilio_kapali():
         d, j = sms(api, anahtar, "902161234567")  # 90 ama cep değil: Türk cep numarası sayılmaz
         assert j["kod"] == "YABANCI"
         assert v.sms_sayac(n, v.bugun().isoformat()) == 0
+        son = v.sms_son(n)
+        assert (son["saglayici"], son["sonuc"], son["kod"]) == ("", "hata", "YABANCI")
 
 
 def test_api_sms_yabanci_numara_twilio_acik():
@@ -239,7 +271,7 @@ def test_api_sms_yabanci_numara_twilio_acik():
         assert d == 200 and j == {"sonuc": "gonderildi", "kod": "0", "saglayici": "twilio"}
         req = ag.istekler[-1][0]
         assert "verify.twilio.com" in req.full_url and KOD not in req.data.decode()  # kodu Twilio üretir
-        assert v.hareketler(n)[0]["ayrinti"] == "tel=**89 saglayici=twilio sonuc=gonderildi"
+        assert (v.sms_son(n)["saglayici"], v.sms_son(n)["sonuc"]) == ("twilio", "gonderildi")
         ag.cevaplar.append(b"<xml><main><code>0</code><jobID>9</jobID></main></xml>")
         d, j = sms(api, anahtar)  # Türk numarası hâlâ NetGSM'den
         assert j["saglayici"] == "netgsm" and "netgsm" in ag.istekler[-1][0].full_url
@@ -261,6 +293,7 @@ def test_api_sms_ayar_yok():
         api, v, n, _, anahtar = kur(tmp, sms=None)
         d, j = sms(api, anahtar)
         assert d == 200 and j["sonuc"] == "hata" and j["kod"] == "AYAR"
+        assert (v.sms_son(n)["sonuc"], v.sms_son(n)["kod"]) == ("hata", "AYAR")
 
 
 def test_api_sms_gunluk_sinir():
@@ -275,12 +308,39 @@ def test_api_sms_gunluk_sinir():
         d, j = sms(api, anahtar)
         assert d == 200 and j["sonuc"] == "hata" and j["kod"] == "SINIR" and len(ag.istekler) == 1
         assert v.sms_sayac(n, gun) == 300
-        assert v.hareketler(n)[0]["ayrinti"] == "tel=**32 saglayici=netgsm sonuc=hata:SINIR"
+        assert (v.sms_son(n)["sonuc"], v.sms_son(n)["kod"]) == ("hata", "SINIR")
         n2, _ = v.musteri_ekle()  # sınır müşteri başına
         _, a2 = v.cihaz_bagla(n2, "B" * 43 + "=", SSH)
         assert sms(api, a2)[1]["sonuc"] == "gonderildi"
         api.saat.t += 86400  # ertesi gün sayaç sıfırdan
         assert sms(api, anahtar)[1]["sonuc"] == "gonderildi" and v.sms_sayac(n, gun) == 300
+
+
+def test_api_sms_yabanci_gunluk_sinir():
+    """Yabancı numaralara ayrı, daha düşük günlük sınır (20); yabancılar 300'lük toplamdan da düşer."""
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        ag = Ag(*[(201, b'{"status": "pending"}')] * 25)
+        api, v, n, _, anahtar = kur(tmp, ag, twilio=TW)
+        gun = v.bugun().isoformat()
+        assert A.SMS_YABANCI_SINIR == 20
+        for i in range(20):
+            assert sms(api, anahtar, "4915123456789", ip=f"198.51.100.{i % 5}")[1]["sonuc"] == "gonderildi"
+        assert v.sms_sayac(n, gun) == 20 and len(ag.istekler) == 20
+        d, j = sms(api, anahtar, "4915123456789", ip="198.51.100.9")
+        assert d == 200 and j == {"sonuc": "hata", "kod": "SINIR", "saglayici": "twilio"} and len(ag.istekler) == 20
+        assert v.sms_sayac(n, gun) == 20  # reddedilen sayılmaz
+        ag.cevaplar.insert(0, b"<xml><main><code>0</code><jobID>1</jobID></main></xml>")
+        assert sms(api, anahtar, ip="198.51.100.9")[1]["sonuc"] == "gonderildi"  # Türk numarası etkilenmez
+        assert v.sms_sayac(n, gun) == 21
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:  # toplam dolunca yabancı da duramaz
+        api, v, n, _, anahtar = kur(tmp, Ag((201, b'{"status": "pending"}')), twilio=TW)
+        for _ in range(300):
+            v.sms_sayac_artir(n, v.bugun().isoformat())
+        assert sms(api, anahtar, "4915123456789")[1]["kod"] == "SINIR"
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:  # TR sağlayıcısı Twilio: Türk numarası yabancı sayılmaz
+        api, v, n, _, anahtar = kur(tmp, Ag(*[(201, b'{"status": "pending"}')] * 22), twilio=TW, tr="twilio")
+        for i in range(22):
+            assert sms(api, anahtar, ip=f"198.51.100.{i % 5}")[1]["sonuc"] == "gonderildi"
 
 
 # --- /api/sms-dogrula ---
@@ -310,11 +370,56 @@ def test_eski_cihaz_eki_degismez():
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
         api, v, n, _, anahtar = kur(tmp, twilio=TW, tr="twilio")
         d, j = post(api, "/api/eslesme", {"cihaz_anahtari": anahtar})
-        assert d == 200 and j["sms"] == {"mock": False, "provider": "netgsm",
+        assert d == 200 and j["sms"] == {"mock": False, "provider": "netgsm", "etkin_mock": False,
                                          "netgsm": {k: NETGSM[k] for k in ("usercode", "password", "msgheader", "appkey")}}
         assert "tw-token-gizli" not in json.dumps(j)
         s = v.sms_ayari()
         assert s["tr_saglayici"] == "twilio" and s["twilio"]["auth_token"] == "tw-token-gizli"
+
+
+def test_etkin_deneme_modu_eki():
+    """Cihaza giden etkin deneme modu: merkez deneme modunda YA DA seçili Türk sağlayıcısının ayarı eksikse True.
+    Eski (0.4.7) cihazların okuduğu `mock` ve `netgsm` bloğu aynen kalır."""
+    import veri as VM
+    assert VM.sms_hazir(dict(NETGSM, tr_saglayici="netgsm", twilio={"acik": False}))
+    for eksik in ("usercode", "password", "msgheader"):
+        assert not VM.sms_hazir(dict(NETGSM, **{eksik: ""}, tr_saglayici="netgsm", twilio={"acik": False}))
+    assert VM.sms_hazir(dict(NETGSM, password="", tr_saglayici="twilio", twilio=TW))
+    for kotu in ({"acik": False}, {"verify_sid": "VAkisa"}, {"auth_token": ""}):
+        assert not VM.sms_hazir(dict(NETGSM, tr_saglayici="twilio", twilio=dict(TW, **kotu))), kotu
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        api, v, n, _, anahtar = kur(tmp)
+        j = post(api, "/api/eslesme", {"cihaz_anahtari": anahtar})[1]
+        assert j["sms"] == {"mock": False, "provider": "netgsm", "etkin_mock": False,
+                            "netgsm": {k: NETGSM[k] for k in ("usercode", "password", "msgheader", "appkey")}}
+        assert post(api, "/api/saglik", {"cihaz_anahtari": anahtar, "rapor": RAPOR})[1]["sms_etkin_mock"] is False
+        v.sms_ayari_koy(dict(NETGSM, mock=True))
+        assert post(api, "/api/eslesme", {"cihaz_anahtari": anahtar})[1]["sms"]["etkin_mock"] is True
+        assert post(api, "/api/saglik", {"cihaz_anahtari": anahtar, "rapor": RAPOR})[1]["sms_etkin_mock"] is True
+        # deneme modu kapalı ama seçili sağlayıcı eksik (veritabanına eksik ayar elle yazılmış): etkin deneme modu
+        with v._islem() as db:
+            db.execute("UPDATE ayar SET deger = ? WHERE anahtar = 'sms'", (json.dumps(dict(NETGSM, password="")),))
+        j = post(api, "/api/eslesme", {"cihaz_anahtari": anahtar})[1]
+        assert j["sms"]["mock"] is False and j["sms"]["etkin_mock"] is True
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:  # hiç kaydedilmemiş: yalnızca etkin_mock
+        api, v, n, _, anahtar = kur(tmp, sms=None)
+        assert post(api, "/api/eslesme", {"cihaz_anahtari": anahtar})[1]["sms"] == {"etkin_mock": True}
+        assert post(api, "/api/saglik", {"cihaz_anahtari": anahtar, "rapor": RAPOR})[1]["sms_etkin_mock"] is True
+
+
+RAPOR = {"surum": "0.4.8", "acik_sn": 10, "servisler": {a: True for a in ("portal", "panel", "kaydedici", "dnsmasq", "guvenlik")},
+         "disk_yuzde": 10, "son_muhur": "", "kayit_boslugu_1s": False, "wan": True, "sms_sorunu": False, "bagli": 0, "hiz_hata": False}
+
+
+def test_hareketler_olay_suzgeci():
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        v, _, _ = Y.ortam(tmp)
+        for i in range(5):
+            v.hareket("x", "-", "GUNCELLEME_SONUC" if i % 2 else "BASKA", 1234567, str(i))
+        v.hareket("x", "-", "GUNCELLEME_SONUC", 7654321, "baska-musteri")
+        assert [h["ayrinti"] for h in v.hareketler(1234567, olay="GUNCELLEME_SONUC")] == ["3", "1"]
+        assert [h["ayrinti"] for h in v.hareketler(olay="GUNCELLEME_SONUC", limit=2)] == ["baska-musteri", "3"]
+        assert len(v.hareketler(1234567)) == 5
 
 
 def test_sms_ayari_dogrulama():
@@ -396,6 +501,20 @@ def test_yonetim_musteri_sayfasi_sms_sayaci():
             v.sms_sayac_artir(n, v.bugun().isoformat())
         s = Y.al(app, f"/m/{n}", c)[2].decode()
         assert "Bugün doğrulama SMS" in s and "<td>7</td>" in s
+
+
+def test_yonetim_musteri_sayfasi_son_sms():
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        app, v, c = yonetim_kur(tmp)
+        n, _ = v.musteri_ekle()
+        assert "Son doğrulama SMS" in Y.al(app, f"/m/{n}", c)[2].decode()
+        v.sms_son_kaydet(n, "netgsm", "hata", "30")
+        s = Y.al(app, f"/m/{n}", c)[2].decode()
+        assert "NetGSM · hata (30)" in s
+        v.sms_son_kaydet(n, "twilio", "gonderildi", "0")
+        s = Y.al(app, f"/m/{n}", c)[2].decode()
+        assert "Twilio · gönderildi" in s and "(30)" not in s
+
 
 
 if __name__ == "__main__":

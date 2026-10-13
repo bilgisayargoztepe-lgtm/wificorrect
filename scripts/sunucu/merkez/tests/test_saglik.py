@@ -213,6 +213,42 @@ def test_kural_esikleri():
     assert s == [("lisans_bitti", "Lisans bitti (10.10.2026)", "bilgi")]
 
 
+def test_kural_merkezdeki_son_dogrulama_sms_sonucu():
+    """Merkezin son doğrulama SMS'i (sms_son) son 60 dk içinde misafirden kaynaklanmayan bir hatayla bittiyse SMS çalışmıyor."""
+    def son(sonuc="hata", kod="30", once=60):
+        return {"zaman": common.now_iso(T0 - once), "saglayici": "netgsm", "sonuc": sonuc, "kod": kod}
+
+    def t(sms_son):
+        return [x for x, _, _ in S.sorunlar(M, C, rapor(), T0 - 60, T0 - 60, BUGUN, T0, sms_son=sms_son)]
+    assert t(None) == []
+    for kod in ("30", "AG", "AYAR", "PARSE", "SINIR", "100", "20003"):
+        assert t(son(kod=kod)) == ["sms_calismiyor"], kod
+    for kod in ("YABANCI", "50", "60200", "21211", "60205", "60203", "80"):  # misafirden kaynaklanan
+        assert t(son(kod=kod)) == [], kod
+    assert t(son(sonuc="gonderildi", kod="0")) == []  # son gönderim başarılı: kapanır
+    assert t(son(once=3601)) == []  # 60 dk'dan eski sonuç
+    assert t(son(once=3599)) == ["sms_calismiyor"]
+    # rapordaki sms_sorunu ile birlikte tek sorun
+    s = S.sorunlar(M, C, rapor(sms_sorunu=True), T0 - 60, T0 - 60, BUGUN, T0, sms_son=son())
+    assert s == [("sms_calismiyor", "SMS çalışmıyor", "uyari")]
+    # ulaşılamıyorken de (merkezin kendi bilgisi)
+    assert "sms_calismiyor" in [x for x, _, _ in S.sorunlar(M, C, rapor(), T0 - 60, T0 - 700, BUGUN, T0, sms_son=son())]
+
+
+def test_merkez_sms_hatasi_sorun_acar_ve_kapatir():
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        o = Ortam(tmp)
+        n, _ = o.musteri()
+        o.tur()
+        assert o.acik(n) == {}
+        o.v.sms_son_kaydet(n, "netgsm", "hata", "30")
+        o.tur(60)
+        assert list(o.acik(n)) == ["sms_calismiyor"]
+        o.v.sms_son_kaydet(n, "netgsm", "gonderildi", "0")
+        o.tur(60)
+        assert o.acik(n) == {}
+
+
 def test_hic_rapor_yoksa_rapor_yok_acilmaz():
     assert turler(r=None, rz=None) == []
     assert turler(r=None, rz=None, el=T0 - 700) == ["ulasilamiyor"]

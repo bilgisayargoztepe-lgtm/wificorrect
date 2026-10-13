@@ -45,6 +45,8 @@ CREATE TABLE IF NOT EXISTS surum (
   surum TEXT PRIMARY KEY, sha256 TEXT NOT NULL, boyut INTEGER NOT NULL, kaynak TEXT NOT NULL, zaman TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS sms_sayac (
   musteri INTEGER NOT NULL, gun TEXT NOT NULL, sayi INTEGER NOT NULL, PRIMARY KEY (musteri, gun));
+CREATE TABLE IF NOT EXISTS sms_son (
+  musteri INTEGER PRIMARY KEY, zaman TEXT NOT NULL, saglayici TEXT NOT NULL, sonuc TEXT NOT NULL, kod TEXT NOT NULL);
 """
 CIHAZ_ALANLARI = {"tunel_ip", "isletme_adi", "unvan", "surum", "son_eslesme", "isletme_turu"}
 # Cihazın eşitlemede bildirdiği işletme türü (cihaz ayarı main.isletme_turu); başka değer saklanmaz
@@ -67,6 +69,15 @@ TWILIO_ALANLARI = ("account_sid", "auth_token", "api_key_sid", "api_key_secret",
 TWILIO_SIRLARI = ("auth_token", "api_key_secret")
 TWILIO_VARSAYILAN = {"acik": False, **{k: "" for k in TWILIO_ALANLARI}}
 LISANS_GUN = 365
+
+
+def sms_hazir(s):
+    """Seçili Türk numarası sağlayıcısının ayarı tam mı (deneme modu kapalıyken gerçekten gönderilebilir mi)."""
+    if s.get("tr_saglayici", "netgsm") == "twilio":
+        t = s.get("twilio") or {}
+        return bool(t.get("acik") and twilio_modulu.SID_RE["verify_sid"].fullmatch(str(t.get("verify_sid") or ""))
+                    and twilio_modulu.kimlik(t))
+    return all(s.get(k) for k in ("usercode", "password", "msgheader"))
 
 
 def _yil_sonra(gun):
@@ -392,7 +403,13 @@ class Veri:
             # yalnızca wcpanel'in (600). NetGSM bilgisi eski sürüm cihazlara da gider; Twilio hiçbir cihaza gitmez.
             db.execute("INSERT OR REPLACE INTO ayar (anahtar, deger) VALUES ('sms', ?)", (json.dumps(a, ensure_ascii=False),))
 
-    # --- müşteri (cihaz) başına günlük doğrulama SMS'i sayacı (/api/sms; kod saklanmaz) ---
+    def sms_etkin_mock(self):
+        """Cihaza bildirilen etkin deneme modu: ayar yok, deneme modu açık ya da seçili sağlayıcının ayarı eksik."""
+        s = self.sms_ayari()
+        return s is None or bool(s["mock"]) or not sms_hazir(s)
+
+    # --- müşteri (cihaz) başına günlük doğrulama SMS'i sayacı (/api/sms; kod saklanmaz). Yabancı numaralar ayrıca
+    # `<gün>/yabanci` anahtarında sayılır (daha düşük sınır) ---
     def sms_sayac(self, musteri, gun):
         r = self._bir("SELECT sayi FROM sms_sayac WHERE musteri = ? AND gun = ?", musteri, gun)
         return r["sayi"] if r else 0
@@ -403,6 +420,16 @@ class Veri:
             db.execute("INSERT INTO sms_sayac (musteri, gun, sayi) VALUES (?, ?, 1) "
                        "ON CONFLICT(musteri, gun) DO UPDATE SET sayi = sayi + 1", (musteri, gun))
             return db.execute("SELECT sayi FROM sms_sayac WHERE musteri = ? AND gun = ?", (musteri, gun)).fetchone()["sayi"]
+
+    # --- müşterinin son doğrulama SMS'i sonucu (hareket satırı yerine tek satır; kod ve numara yok) ---
+    def sms_son_kaydet(self, musteri, saglayici, sonuc, kod):
+        with self._islem() as db:
+            db.execute("INSERT OR REPLACE INTO sms_son (musteri, zaman, saglayici, sonuc, kod) VALUES (?, ?, ?, ?, ?)",
+                       (musteri, self._simdi(), saglayici or "", sonuc, str(kod)[:16]))
+
+    def sms_son(self, musteri):
+        r = self._bir("SELECT * FROM sms_son WHERE musteri = ?", musteri)
+        return dict(r) if r else None
 
     # --- sağlık raporu, sorun kaydı, uyarı ayarı ---
     def saglik_kaydet(self, cid, rapor):
@@ -534,10 +561,16 @@ class Veri:
             db.execute("INSERT INTO hareket (zaman, kim, ip, olay, musteri, ayrinti) VALUES (?, ?, ?, ?, ?, ?)",
                        (self._simdi(), str(kim)[:64], str(ip)[:64], olay, musteri, str(ayrinti)[:500]))
 
-    def hareketler(self, musteri=None, limit=300):
-        if musteri is None:
-            return self._hepsi("SELECT * FROM hareket ORDER BY id DESC LIMIT ?", limit)
-        return self._hepsi("SELECT * FROM hareket WHERE musteri = ? ORDER BY id DESC LIMIT ?", musteri, limit)
+    def hareketler(self, musteri=None, limit=300, olay=None):
+        kosul, a = [], []
+        if musteri is not None:
+            kosul.append("musteri = ?")
+            a.append(musteri)
+        if olay is not None:
+            kosul.append("olay = ?")
+            a.append(olay)
+        nerede = " WHERE " + " AND ".join(kosul) if kosul else ""
+        return self._hepsi(f"SELECT * FROM hareket{nerede} ORDER BY id DESC LIMIT ?", *a, limit)
 
     # --- eski arşivler ---
     def eski_arsiv_bagla(self, ad, numara):

@@ -20,6 +20,8 @@ OTP_SABLON = "WiFi dogrulama kodunuz: {kod}. Kod 3 dakika gecerlidir."
 OTP_KOD_RE = re.compile(r"[0-9]{6}")
 TELEFON_RE = re.compile(r"[0-9]{8,15}")  # E.164 rakamları, + olmadan
 SMS_GUNLUK_SINIR = 300  # müşteri (cihaz) başına, TR günü
+SMS_YABANCI_SINIR = 20  # yabancı numaralara (Twilio, pahalı) ayrıca; bunlar 300'e de sayılır
+YABANCI_SAYAC = "/yabanci"  # sms_sayac'ta yabancı numara sayacının gün anahtarı eki
 
 
 def _json(durum, veri):
@@ -46,14 +48,19 @@ def _lisans(veri, m):
 
 
 def _cihaz_ekleri(veri):
-    """Belirlenmişse tek admin parolasının özeti (açık parola gitmez) ve kayıtlıysa bütün cihazların SMS ayarı."""
+    """Belirlenmişse tek admin parolasının özeti (açık parola gitmez) ve SMS eki. `mock` + `netgsm` yalnızca eski (0.4.7)
+    cihazlar için, bugünkü gibi (ayar kayıtlıysa); yeni cihazlar `etkin_mock`u okur: deneme modu açık ya da seçili
+    sağlayıcının ayarı eksik (ayar hiç yoksa yalnızca bu alan gider; eski cihaz `netgsm` olmadan eki yok sayar)."""
     ek = {}
     a = veri.admin_parolasi()
     if a is not None:
         ek["admin"] = a
     s = veri.sms_ayari()
-    if s is not None:
-        ek["sms"] = {"mock": s["mock"], "provider": "netgsm", "netgsm": {k: s[k] for k in veri_modulu.SMS_ALANLARI}}
+    if s is None:
+        ek["sms"] = {"etkin_mock": True}
+    else:
+        ek["sms"] = {"mock": s["mock"], "provider": "netgsm", "netgsm": {k: s[k] for k in veri_modulu.SMS_ALANLARI},
+                     "etkin_mock": bool(s["mock"]) or not veri_modulu.sms_hazir(s)}
     return ek
 
 
@@ -225,7 +232,7 @@ class Api:
                 if g != onceki:
                     self.veri.hareket(f"cihaz:{c['id']}", ip, "GUNCELLEME_SONUC", c["musteri"],
                                       f"surum={g['surum']} sonuc={g['sonuc']}")
-        yanit = {"tamam": True}
+        yanit = {"tamam": True, "sms_etkin_mock": self.veri.sms_etkin_mock()}  # 06:00 eşitlemesini beklemesin
         m = self.veri.musteri(c["musteri"])
         hedef = self.veri.cihaz_hedefi(m)
         if m["guncelleme_hemen"] > 0 and (hedef is None or m["guncelleme_hemen_surum"] != hedef["surum"]
@@ -291,9 +298,8 @@ class Api:
         s = self.veri.sms_ayari()
 
         def sonuc(saglayici, sonuc_, kod_, is_no=""):
-            durum = sonuc_ if sonuc_ != "hata" else f"hata:{kod_}"
-            self.veri.hareket(f"cihaz:{c['id']}", ip, "SMS_OTP", c["musteri"],
-                              f"tel=**{tel[-2:]} saglayici={saglayici or '-'} sonuc={durum}")
+            if sonuc_ != "mock":  # müşteri başına tek satır (her SMS'e hareket satırı geçmişi boğardı); sağlık izleme okur
+                self.veri.sms_son_kaydet(c["musteri"], saglayici, sonuc_, kod_)
             y = {"sonuc": sonuc_, "kod": kod_}
             if is_no:
                 y["is"] = is_no
@@ -307,15 +313,24 @@ class Api:
             return sonuc(None, "hata", "YABANCI")
         if s["mock"]:  # deneme modu: hiçbir sağlayıcıya istek gitmez, cihaz kodu yerelde doğrular
             return sonuc(saglayici, "mock", "0")
-        gun = self.veri.bugun().isoformat()
-        # yarış: iki istek aynı anda 299'u görürse artırma sonrası > sınır olan reddedilir (ikinci denetim)
-        if self.veri.sms_sayac(c["musteri"], gun) >= SMS_GUNLUK_SINIR or                 self.veri.sms_sayac_artir(c["musteri"], gun) > SMS_GUNLUK_SINIR:
+        if self._sinir_doldu(c["musteri"], not twilio.tr_mi(tel)):
             return sonuc(saglayici, "hata", "SINIR")
         if saglayici == "twilio":
             r, k = twilio.gonder(s["twilio"], tel, ac=self.sms_ac)
             return sonuc(saglayici, r, k)
         r, k, is_no = netgsm.otp_gonder(s, tel[2:], OTP_SABLON.format(kod=kod), ac=self.sms_ac)
         return sonuc(saglayici, r, k, is_no)
+
+    def _sinir_doldu(self, musteri, yabanci):
+        """Günlük sayaçlar (toplam 300; yabancı numaraysa ayrıca 20). Dolmadıysa hepsi bir artar.
+        Yarış: iki istek aynı anda sınırın bir altını görürse artırma sonrası sınırı aşan reddedilir (ikinci denetim)."""
+        gun = self.veri.bugun().isoformat()
+        sayaclar = [(gun, SMS_GUNLUK_SINIR)]
+        if yabanci:
+            sayaclar.append((gun + YABANCI_SAYAC, SMS_YABANCI_SINIR))
+        if any(self.veri.sms_sayac(musteri, g) >= s for g, s in sayaclar):
+            return True
+        return any([self.veri.sms_sayac_artir(musteri, g) > s for g, s in sayaclar])  # liste: hepsi artsın
 
     def sms_dogrula(self, b, ip):
         """Twilio Verify kodu: {onay} ya da ağ hatasında hata/AG (misafirin deneme hakkı düşmesin diye ayrı)."""

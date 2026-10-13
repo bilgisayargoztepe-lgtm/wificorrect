@@ -73,6 +73,7 @@ def gonder(ayar, metin, numaralar, zaman_asimi=10, ac=None):
 # --- Doğrulama (OTP) SMS'i: cihazların misafir kodu merkezden gider (2026-10-13). Cihazdaki sms::build_xml /
 # parse_response ile aynı biçim. Yeniden deneme yok (çift SMS = çift ücret); kod ve parola hiçbir yere yazılmaz.
 OTP_URL = "https://api.netgsm.com.tr/sms/send/otp"
+OTP_SURE = 6  # toplam süre bütçesi (sn); cihaz merkezi 15 sn bekler: cevap her durumda cihaz vazgeçmeden döner
 _YANIT_KODU = re.compile(r"[0-9A-Za-z]{1,16}")
 _IS_NO = re.compile(r"[0-9A-Za-z_-]{1,64}")
 
@@ -100,7 +101,7 @@ def otp_yaniti(metin):
     metin = (metin or "").strip()
     kod = _etiket(metin, "code")
     if kod is not None:
-        kod, is_no = kod, _etiket(metin, "jobID") or ""
+        is_no = _etiket(metin, "jobID") or ""
     else:
         p = metin.split()
         if not p or not p[0].isascii() or not p[0].isdigit():
@@ -111,9 +112,9 @@ def otp_yaniti(metin):
     return kod, is_no if _IS_NO.fullmatch(is_no) else ""
 
 
-def otp_gonder(ayar, telefon_10, metin, zaman_asimi=10, ac=None):
+def otp_gonder(ayar, telefon_10, metin, sure=OTP_SURE, ac=None):
     """Dönen (sonuc, kod, is): sonuc gonderildi | mock | hata; kod NetGSM kodu ya da AYAR | AG | PARSE.
-    WC_TEST ortamında sahte `ac` verilmediyse hata fırlatır (gerçek istek hiç gitmez)."""
+    En çok `sure` sn sürer (aşılırsa AG). WC_TEST ortamında sahte `ac` verilmediyse hata fırlatır (gerçek istek hiç gitmez)."""
     if ac is None:
         if os.environ.get("WC_TEST"):
             raise RuntimeError("WC_TEST: gerçek NetGSM isteği engellendi")
@@ -129,11 +130,12 @@ def otp_gonder(ayar, telefon_10, metin, zaman_asimi=10, ac=None):
     istek = urllib.request.Request(OTP_URL, data=govde, method="POST",
                                    headers={"Content-Type": "application/xml; charset=UTF-8"})
     try:
-        with ac(istek, timeout=zaman_asimi) as r:
-            yanit = r.read(4096).decode("utf-8", "replace")
-    except Exception:  # ağ, zaman aşımı, TLS, HTTP hatası
+        durum, govde = common.sinirli_istek(ac, istek, sure, 4096)
+    except Exception:  # ağ, zaman aşımı (toplam bütçe dahil), TLS
         return "hata", "AG", ""
-    kod, is_no = otp_yaniti(yanit)
+    if durum >= 400:  # HTTP hatası
+        return "hata", "AG", ""
+    kod, is_no = otp_yaniti(govde.decode("utf-8", "replace"))
     if kod in BASARI:
         return "gonderildi", kod, is_no
     return "hata", kod, ""

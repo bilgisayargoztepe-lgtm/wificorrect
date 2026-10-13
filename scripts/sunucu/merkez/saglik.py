@@ -35,7 +35,10 @@ BILGI_EN_COK = 5  # toplu bilgi SMS'inde en çok bu kadar sorun yazılır, kalan
 ULASILAMIYORKEN_BILINMEZ = ("rapor_yok", "kayit_durdu", "servis_durdu")  # cihaza ulaşılamazken bilinmez
 SERVIS_ADLARI = ("portal", "panel", "dnsmasq", "guvenlik")  # kaydedici ayrı: kayit_durdu
 IZLEME_METNI = "WifiCorrect: izleme çalışmıyor ({})"
-SINIR_METNI ="WifiCorrect: günlük SMS üst sınırına ({}) ulaşıldı, bugün başka uyarı SMS'i gitmeyecek."
+SMS_SON_SN = 3600  # merkezdeki son doğrulama SMS'i sonucu bu kadar süre geçerli
+# misafirden kaynaklanan sağlayıcı/merkez kodları (yanlış/yabancı numara, aynı numaraya çok deneme): SMS çalışıyor sayılır
+MISAFIR_KODLARI = frozenset({"YABANCI", "50", "60200", "21211", "60205", "60203", "80"})
+SINIR_METNI = "WifiCorrect: günlük SMS üst sınırına ({}) ulaşıldı, bugün başka uyarı SMS'i gitmeyecek."
 
 
 def _epoch(iso):
@@ -64,10 +67,20 @@ def kapsam(m, c, simdi):
     return "tam"
 
 
-def sorunlar(m, c, rapor, rapor_zaman, el_sikisma, son_gun, simdi, arsiv_var=True, hedef=None):
+def _sms_hatali(sms_son, simdi):
+    """Merkezin bu müşteri için son doğrulama SMS'i son 60 dk içinde misafirden kaynaklanmayan bir hatayla mı bitti."""
+    if not isinstance(sms_son, dict) or sms_son.get("sonuc") != "hata" or sms_son.get("kod") in MISAFIR_KODLARI:
+        return False
+    z = _epoch(sms_son.get("zaman"))
+    return z is not None and simdi - z <= SMS_SON_SN
+
+
+def sorunlar(m, c, rapor, rapor_zaman, el_sikisma, son_gun, simdi, arsiv_var=True, hedef=None, sms_son=None):
     """Saf kurallar. Dönen: [(tur, metin, onem)]. arsiv_var=False: durum.json'da cihazın kaydı yok (yeni bağlandı, arşivi
     henüz yok): tünel bilinmez → ulaşılamıyor/rapor yok açılmaz; yedek gecikmesi bağlanma gününden sayılır.
-    hedef: cihaza kurdurulması istenen paket sürümü (yoksa None); o sürümün denemesi başarısızsa uyarı."""
+    hedef: cihaza kurdurulması istenen paket sürümü (yoksa None); o sürümün denemesi başarısızsa uyarı.
+    sms_son: merkezin bu müşteri için son doğrulama SMS'i sonucu (veri.sms_son); misafirden kaynaklanmayan bir hatayla
+    bittiyse (SINIR dahil) "SMS çalışmıyor"; son gönderim başarılıysa ya da 60 dk'dan eskiyse kendiliğinden kapanır."""
     k = kapsam(m, c, simdi)
     if k is None:
         return []
@@ -89,7 +102,7 @@ def sorunlar(m, c, rapor, rapor_zaman, el_sikisma, son_gun, simdi, arsiv_var=Tru
             out.append(("yedek_gecikti", "Yedek gecikti", "uyari"))
         if rapor and isinstance(rapor.get("disk_yuzde"), int) and rapor["disk_yuzde"] >= DISK_ESIK:
             out.append(("disk_dolu", f"Disk dolu (%{rapor['disk_yuzde']})", "uyari"))
-        if rapor and rapor.get("sms_sorunu"):
+        if (rapor and rapor.get("sms_sorunu")) or _sms_hatali(sms_son, simdi):
             out.append(("sms_calismiyor", "SMS çalışmıyor", "uyari"))
         g = rapor.get("guncelleme") if rapor else None
         if (hedef and isinstance(g, dict) and g.get("sonuc") in ("geri_alindi", "hata") and g.get("surum") == hedef
@@ -201,7 +214,7 @@ def _musteri_turu(veri, u, m, c, d, simdi):
     hedef = veri.cihaz_hedefi(m)
     yeni = {t: (metin, onem) for t, metin, onem in
             sorunlar(m, c, rapor, rz, d_.get("el_sikisma"), d_.get("son_gun"), simdi, arsiv_var=d is not None,
-                    hedef=hedef["surum"] if hedef else None)}
+                    hedef=hedef["surum"] if hedef else None, sms_son=veri.sms_son(n))}
     acik = {s["tur"]: s for s in veri.acik_sorunlar(n)}
     tam = kapsam(m, c, simdi) == "tam"
     for tur, s in acik.items():

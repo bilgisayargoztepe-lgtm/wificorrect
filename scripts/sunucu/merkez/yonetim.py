@@ -102,6 +102,15 @@ def once(sn):
     return f"{dk} dk önce" if dk < 120 else (f"{dk // 60} saat önce" if dk < 2880 else f"{dk // 1440} gün önce")
 
 
+def son_sms_metni(s):
+    """Müşteri sayfası: "<zaman> · <sağlayıcı> · <sonuç/kod>" (deneme modundaki gönderimler yazılmaz)."""
+    if not s:
+        return "—"
+    saglayici = {"netgsm": "NetGSM", "twilio": "Twilio"}.get(s["saglayici"], "—")
+    sonuc = "gönderildi" if s["sonuc"] == "gonderildi" else f'{s["sonuc"]} ({s["kod"]})'
+    return e(f'{common.tarih_goster(s["zaman"])} · {saglayici} · {sonuc}')
+
+
 class Yonetim(web.Taban):
     rol = "yonetici"
     cerez = "wc_yonetim"
@@ -383,8 +392,8 @@ class Yonetim(web.Taban):
         sec = "".join(f'<option value="{k}"{" selected" if k == m["guncelleme_kanali"] else ""}>{ad}</option>' for k, ad in kanallar.items())
         bekliyor = '<b class="uyarisi">bekleniyor</b>' if hedef and hedef["hemen"] else "—"
         gecmis = detay._tablo(("Zaman", "Ayrıntı"),
-                              [(common.tarih_goster(h["zaman"]), h["ayrinti"]) for h in self.veri.hareketler(n, 300)
-                               if h["olay"] == "GUNCELLEME_SONUC"][:10], "Güncelleme denemesi yok.")
+                              [(common.tarih_goster(h["zaman"]), h["ayrinti"])
+                               for h in self.veri.hareketler(n, 10, olay="GUNCELLEME_SONUC")], "Güncelleme denemesi yok.")
         return (bilgi_tablosu([("Kurulu paket", kurulu), ("Hedef sürüm", e(hedef["surum"]) if hedef else "—"),
                                ("Son sonuç", son), ("Şimdi güncelle", bekliyor)])
                 + f'<form method="post" action="/m/{n}/guncelleme" class="ara"><input type="hidden" name="csrf" value="{cs}">'
@@ -466,6 +475,7 @@ class Yonetim(web.Taban):
                                ("Not", e(m["not_"] or "—")), ("Oluşturma", e(common.tarih_goster(m["olusturma"]))),
                                ("Son giriş (panel)", e(common.tarih_goster(m["son_giris"]) or "—")),
                                ("Bugün doğrulama SMS'i", str(self.veri.sms_sayac(n, self.veri.bugun().isoformat()))),
+                               ("Son doğrulama SMS'i", son_sms_metni(self.veri.sms_son(n))),
                                ("Üyelik", "Aktif" if m["uyelik"] == "aktif" else f"Bitti {e(common.tarih_goster(m['bitis'][:10]))}")])
         if c is None:
             cihaz = '<p class="alt">Bağlı cihaz yok. Müşteri bir cihazın giriş ekranına numarasıyla girince bağlanır.</p>'

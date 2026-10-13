@@ -499,3 +499,34 @@ def lookup_mac(ip, leases_text=None, arp_text=None):
     leases_text = read_text("/tmp/dhcp.leases") if leases_text is None else leases_text
     arp_text = read_text("/proc/net/arp") if arp_text is None else arp_text
     return parse_leases(leases_text).get(ip) or parse_arp(arp_text).get(ip)
+
+
+def sinirli_istek(ac, istek, sure, okuma=16384):
+    """`ac(istek, timeout)` (urlopen) çağrısı en çok `sure` sn: urlopen'ın zaman aşımı her soket işlemi için ayrıdır ve
+    ad çözümlemeyi hiç kapsamaz; toplam süre aşılırsa TimeoutError (iş parçacığı kendi zaman aşımında biter, sonucu atılır).
+    Her işleme sure/2 verilir. HTTP hata durumu (4xx/5xx) istisna değil, (durum, gövde) döner."""
+    import threading
+    import urllib.error
+    sonuc = {}
+
+    def is_():
+        try:
+            with ac(istek, timeout=sure / 2) as r:
+                sonuc["v"] = (getattr(r, "status", 200), r.read(okuma))
+        except urllib.error.HTTPError as h:
+            try:
+                g = h.read(okuma)
+            except Exception:
+                g = b""
+            sonuc["v"] = (h.code, g)
+        except BaseException as h:  # ağ, zaman aşımı, TLS: çağırana
+            sonuc["h"] = h
+
+    t = threading.Thread(target=is_, daemon=True)
+    t.start()
+    t.join(sure)
+    if "v" in sonuc:
+        return sonuc["v"]
+    if "h" in sonuc:
+        raise sonuc["h"]
+    raise TimeoutError(f"istek {sure} sn içinde bitmedi")

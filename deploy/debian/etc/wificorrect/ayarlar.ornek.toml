@@ -14,23 +14,8 @@ log_root = "/srv/5651"
 state_root = "/srv/hotspot/state"
 leases_file = "/var/lib/misc/dnsmasq.leases"
 
-[sms]
-mock = true                    # true: SMS gönderilmez, kod sistem günlüğüne yazılır. Yalnızca hizmet sağlayıcı değiştirir.
-provider = "netgsm"            # Türk numaraları için: netgsm | twilio. Yabancı numaralar Twilio açıksa Twilio'dan.
-
-[netgsm]                       # yalnızca Türk numaralarına gönderir
-usercode = ""
-password = ""                  # yalnızca cihazda; repoya asla girmez
-msgheader = ""
-message = "WiFi dogrulama kodunuz: {kod}. Kod 3 dakika gecerlidir."
-
-[twilio]                       # Twilio Verify; yabancı numaralar için. Bilgiler yalnızca cihazda, repoya girmez.
-enabled = false
-account_sid = ""               # AC...
-verify_sid = ""                # VA...
-auth_token = ""                # ya da api_key_sid (SK...) + api_key_secret
-api_key_sid = ""
-api_key_secret = ""
+[sms]                          # Doğrulama SMS'i yönetim merkezinden gider; NetGSM / Twilio ayarları merkezde (cihazda yok).
+mock = true                    # merkezdeki deneme modu (bağlı cihazda eşitlemede merkezden gelir; Özet uyarısı, sağlık raporu)
 
 [limits]
 otp_ttl_sec = 180

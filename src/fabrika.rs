@@ -228,7 +228,8 @@ mod tests {
         assert!(!root.join("5651/gunluk/2026-10-01").exists() && !root.join("5651/zincir.txt").exists());
         // ayarlar ürün varsayılanı
         let c = Config::load(&cfg_path.to_string_lossy()).unwrap();
-        assert_eq!((c.main.site_name.as_str(), c.main.unvan.as_str(), c.netgsm.password.as_str(), c.backup.enabled, c.filtre.kelimeler.len()), ("İşletme", "", "", false, 0));
+        assert_eq!((c.main.site_name.as_str(), c.main.unvan.as_str(), c.backup.enabled, c.filtre.kelimeler.len()), ("İşletme", "", false, 0));
+        assert!(!std::fs::read_to_string(&cfg_path).unwrap().contains("password =")); // eski NetGSM sırrı da gitti
         // yalnızca admin kaldı
         let m = h.load().unwrap();
         assert_eq!((m.len(), m.get(ADMIN).map(|x| x.rol)), (1, Some(Rol::Hizmet)));

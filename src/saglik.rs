@@ -103,7 +103,8 @@ pub fn topla(cfg: &Config, now: f64, k: &Kaynak) -> Result<Girdi, String> {
         son_muhur,
         kayit_boslugu_1s: kayit_boslugu(&m.log_root, now),
         wan,
-        sms_sorunu: cfg.sms.mock || !cfg.sms_missing().is_empty(),
+        // SMS merkezden gider (spec 2026-10-13): sorun = merkez deneme modunda (rapor yalnızca bağlı cihazdan gider)
+        sms_sorunu: cfg.sms.mock,
         bagli,
         hiz_hata: crate::trafik::oku(&k.trafik).and_then(|d| d.hiz_hata).is_some_and(|h| !h.is_empty()),
     })

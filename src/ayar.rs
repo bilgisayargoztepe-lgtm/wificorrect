@@ -49,74 +49,18 @@ impl Default for Main {
     }
 }
 
-/// SMS genel ayarı. `mock`: deneme modu (gerçek SMS gitmez, kod sistem günlüğüne yazılır) — yalnızca hizmet sağlayıcı değiştirir.
-/// `provider`: Türk numaraları için "netgsm" ya da "twilio". Yabancı numaralar Twilio açıksa Twilio'dan gider.
+/// SMS genel ayarı. `mock`: merkezdeki deneme modu (bağlı cihazda eşitlemede merkezden gelir; Özet uyarısı ve sağlık raporu).
+/// Doğrulama SMS'i yönetim merkezinden gider (spec 2026-10-13): NetGSM / Twilio bilgileri ve sağlayıcı seçimi cihazda
+/// tutulmaz. Eski dosyalardaki `[netgsm]`, `[twilio]`, `sms.provider`, `sms.merkez` okunurken yok sayılır, ilk kayıtta silinir.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 #[serde(default)]
 pub struct Sms {
     pub mock: bool,
-    pub provider: String,
-    /// Bağlı cihazda NetGSM bilgileri ve deneme modu yönetim merkezinden gelir; panelde salt okunur.
-    #[serde(default)]
-    pub merkez: bool,
 }
 
 impl Default for Sms {
     fn default() -> Self {
-        Sms { mock: true, provider: "netgsm".into(), merkez: false }
-    }
-}
-
-/// Twilio Verify (kodu Twilio üretir ve doğrular). Kimlik: Auth Token ya da API Key SID + Secret.
-#[derive(Serialize, Deserialize, Clone, Debug)]
-#[serde(default)]
-pub struct Twilio {
-    pub enabled: bool,
-    pub account_sid: String,
-    pub verify_sid: String,
-    pub auth_token: String,
-    pub api_key_sid: String,
-    pub api_key_secret: String,
-    pub timeout_sec: u64,
-}
-
-impl Default for Twilio {
-    fn default() -> Self {
-        Twilio {
-            enabled: false,
-            account_sid: String::new(),
-            verify_sid: String::new(),
-            auth_token: String::new(),
-            api_key_sid: String::new(),
-            api_key_secret: String::new(),
-            timeout_sec: 10,
-        }
-    }
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
-#[serde(default)]
-pub struct Netgsm {
-    pub url: String,
-    pub usercode: String,
-    pub password: String,
-    pub msgheader: String,
-    pub appkey: String,
-    pub message: String,
-    pub timeout_sec: u64,
-}
-
-impl Default for Netgsm {
-    fn default() -> Self {
-        Netgsm {
-            url: "https://api.netgsm.com.tr/sms/send/otp".into(),
-            usercode: String::new(),
-            password: String::new(),
-            msgheader: String::new(),
-            appkey: String::new(),
-            message: "WiFi dogrulama kodunuz: {kod}. Kod 3 dakika gecerlidir.".into(),
-            timeout_sec: 10,
-        }
+        Sms { mock: true }
     }
 }
 
@@ -302,8 +246,6 @@ pub struct Device {
 pub struct Config {
     pub main: Main,
     pub sms: Sms,
-    pub netgsm: Netgsm,
-    pub twilio: Twilio,
     pub limits: Limits,
     pub backup: Backup,
     pub filtre: Filtre,
@@ -334,42 +276,6 @@ impl Config {
     pub fn devices(list: &[Device]) -> std::collections::BTreeMap<String, String> {
         list.iter().filter_map(|d| crate::ortak::norm_mac(&d.mac).map(|m| (m, d.name.clone()))).collect()
     }
-
-    pub fn twilio_missing(&self) -> Vec<&'static str> {
-        let t = &self.twilio;
-        let mut out = vec![];
-        if t.account_sid.is_empty() {
-            out.push("twilio.account_sid");
-        }
-        if t.auth_token.is_empty() && (t.api_key_sid.is_empty() || t.api_key_secret.is_empty()) {
-            out.push("twilio.auth_token veya api_key_sid+api_key_secret");
-        }
-        if t.verify_sid.is_empty() {
-            out.push("twilio.verify_sid");
-        }
-        out
-    }
-
-    /// Gerçek SMS modunda eksik sağlayıcı bilgileri (portal bunlarla başlamaz).
-    pub fn sms_missing(&self) -> Vec<&'static str> {
-        if self.sms.mock {
-            return vec![];
-        }
-        let n = &self.netgsm;
-        let mut out: Vec<&'static str> = vec![];
-        if self.sms.provider != "twilio" {
-            out.extend(
-                [("netgsm.usercode", &n.usercode), ("netgsm.password", &n.password), ("netgsm.msgheader", &n.msgheader)]
-                    .into_iter()
-                    .filter(|(_, v)| v.is_empty())
-                    .map(|(k, _)| k),
-            );
-        }
-        if self.sms.provider == "twilio" || self.twilio.enabled {
-            out.extend(self.twilio_missing());
-        }
-        out
-    }
 }
 
 #[cfg(test)]
@@ -382,10 +288,17 @@ mod tests {
         assert_eq!(c.main.site_name, "Bocafe");
         assert_eq!(c.main.session_minutes, 43200);
         assert_eq!(c.limits.otp_ttl_sec, 180);
-        assert_eq!(c.sms_missing(), vec!["netgsm.password", "netgsm.msgheader"]);
-        assert!(Config::parse("").unwrap().sms_missing().is_empty()); // varsayılan: deneme modu
-        let c = Config::parse("[sms]\nmock = false\nprovider = 'twilio'\n[twilio]\naccount_sid = 'AC1'\napi_key_sid = 'SK1'\n").unwrap();
-        assert_eq!(c.sms_missing(), vec!["twilio.auth_token veya api_key_sid+api_key_secret", "twilio.verify_sid"]);
+        assert!(!c.sms.mock);
+        assert!(Config::parse("").unwrap().sms.mock); // varsayılan: deneme modu
+        // eski dosya (cihazda NetGSM/Twilio sırları vardı): okunur, ilk kayıtta sırlar dosyadan silinir
+        let eski = "[sms]\nmock = false\nprovider = 'twilio'\nmerkez = true\n[netgsm]\nusercode = '850'\npassword = 'gizli-1'\n\
+                    [twilio]\nenabled = true\naccount_sid = 'AC1'\nauth_token = 'gizli-2'\n";
+        let c = Config::parse(eski).unwrap();
+        assert!(!c.sms.mock);
+        let yeni = toml::to_string_pretty(&c).unwrap();
+        for yok in ["gizli-1", "gizli-2", "[netgsm]", "[twilio]", "provider =", "merkez ="] {
+            assert!(!yeni.contains(yok), "{yok}");
+        }
         let c = Config::parse("[[allow]]\nmac = 'AA-BB-CC-DD-EE-99'\nname = 'AP'\n[[allow]]\nmac = 'bozuk'\n").unwrap();
         let back = Config::parse(&toml::to_string_pretty(&c).unwrap()).unwrap(); // yaz-oku aynı
         assert_eq!(back.allow.len(), 2);

@@ -21,7 +21,6 @@ mod portal;
 mod saglik;
 mod sms;
 mod trafik;
-mod twilio;
 mod ulkeler;
 mod uzak;
 

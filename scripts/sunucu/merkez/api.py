@@ -2,16 +2,24 @@
 Cihazın kimliği ilk girişte verilen cihaz anahtarıdır (merkez yalnızca SHA-256'sını tutar)."""
 import datetime
 import json
+import re
 import time
 
 import guvenlik
 import kuyruk
+import netgsm
 import surumler
+import twilio
 import veri as veri_modulu
 
 GOVDE_SINIRI = 4096
 NUMARA_RE = guvenlik.NUMARA_RE
 YEDEK_SUNUCU = "10.99.0.1"
+# Doğrulama SMS'i (/api/sms): sabit şablon, yalnızca 6 haneli kod; cihaz serbest metin gönderemez (açık röle olmasın)
+OTP_SABLON = "WiFi dogrulama kodunuz: {kod}. Kod 3 dakika gecerlidir."
+OTP_KOD_RE = re.compile(r"[0-9]{6}")
+TELEFON_RE = re.compile(r"[0-9]{8,15}")  # E.164 rakamları, + olmadan
+SMS_GUNLUK_SINIR = 300  # müşteri (cihaz) başına, TR günü
 
 
 def _json(durum, veri):
@@ -108,14 +116,16 @@ def saglik_temizle(r):
 
 class Api:
     def __init__(self, veri, saat=time.time, kuyruk_ekle=kuyruk.ekle, kuyruk_bekle=kuyruk.bekle,
-                 surum_dizini=surumler.DIZIN):
+                 surum_dizini=surumler.DIZIN, sms_ac=None):
         self.veri, self.saat, self.surum_dizini = veri, saat, surum_dizini
+        self.sms_ac = sms_ac  # NetGSM/Twilio isteği (testte sahte; None = urlopen, WC_TEST altında reddedilir)
         self.kuyruk_ekle, self.kuyruk_bekle = kuyruk_ekle, kuyruk_bekle
         self.kilit, self.hiz = guvenlik.GirisKilidi(), guvenlik.HizSiniri(20, 60)
 
     def istek(self, yontem, yol, basliklar, govde, sorgu="", ip=""):
         uclar = {"/api/giris": self.giris, "/api/eslesme": self.eslesme, "/api/parola": self.parola,
-                "/api/saglik": self.saglik, "/api/paket": self.paket}
+                "/api/saglik": self.saglik, "/api/paket": self.paket, "/api/sms": self.sms,
+                "/api/sms-dogrula": self.sms_dogrula}
         if yontem != "POST" or yol not in uclar:
             return _hata(404, "yok", "Bulunamadı.")
         if len(govde) > GOVDE_SINIRI:
@@ -250,3 +260,73 @@ class Api:
         except OSError:
             return _hata(404, "yok", "Paket bulunamadı.")
         return 200, {"Content-Type": "application/octet-stream", "Cache-Control": "no-store"}, icerik
+
+    # --- doğrulama SMS'i merkezden (2026-10-13): NetGSM OTP ya da Twilio Verify ---
+    def _sms_cihazi(self, b):
+        """(cihaz, müşteri, telefon, kod, None) ya da (.., hata yanıtı). Kod hiçbir yere yazılmaz."""
+        c = self.veri.cihaz_anahtarla(b.get("cihaz_anahtari"))
+        if c is None:
+            return None, _hata(401, "taninmadi", "Cihaz tanınmadı.")
+        m = self.veri.musteri(c["musteri"])
+        if c["durum"] != "bagli" or not self.veri.hizmet_acik(m):
+            return None, _hata(403, "yetki", "Bu işlem için yetkiniz yok.")
+        tel, kod = b.get("telefon"), b.get("kod")
+        if not (isinstance(tel, str) and tel.isascii() and TELEFON_RE.fullmatch(tel)
+                and isinstance(kod, str) and kod.isascii() and OTP_KOD_RE.fullmatch(kod)):
+            return None, _hata(400, "gecersiz", "Geçersiz istek.")
+        return (c, tel, kod), None
+
+    @staticmethod
+    def _saglayici(s, tel):
+        """Türk cep numarası → tr_saglayici; yabancı → Twilio açıksa twilio, değilse None."""
+        if twilio.tr_mi(tel):
+            return s["tr_saglayici"]
+        return "twilio" if s["twilio"]["acik"] else None
+
+    def sms(self, b, ip):
+        t, h = self._sms_cihazi(b)
+        if h:
+            return h
+        c, tel, kod = t
+        s = self.veri.sms_ayari()
+
+        def sonuc(saglayici, sonuc_, kod_, is_no=""):
+            durum = sonuc_ if sonuc_ != "hata" else f"hata:{kod_}"
+            self.veri.hareket(f"cihaz:{c['id']}", ip, "SMS_OTP", c["musteri"],
+                              f"tel=**{tel[-2:]} saglayici={saglayici or '-'} sonuc={durum}")
+            y = {"sonuc": sonuc_, "kod": kod_}
+            if is_no:
+                y["is"] = is_no
+            if saglayici:
+                y["saglayici"] = saglayici
+            return _json(200, y)
+        if s is None:
+            return sonuc(None, "hata", "AYAR")
+        saglayici = self._saglayici(s, tel)
+        if saglayici is None:
+            return sonuc(None, "hata", "YABANCI")
+        if s["mock"]:  # deneme modu: hiçbir sağlayıcıya istek gitmez, cihaz kodu yerelde doğrular
+            return sonuc(saglayici, "mock", "0")
+        gun = self.veri.bugun().isoformat()
+        # yarış: iki istek aynı anda 299'u görürse artırma sonrası > sınır olan reddedilir (ikinci denetim)
+        if self.veri.sms_sayac(c["musteri"], gun) >= SMS_GUNLUK_SINIR or                 self.veri.sms_sayac_artir(c["musteri"], gun) > SMS_GUNLUK_SINIR:
+            return sonuc(saglayici, "hata", "SINIR")
+        if saglayici == "twilio":
+            r, k = twilio.gonder(s["twilio"], tel, ac=self.sms_ac)
+            return sonuc(saglayici, r, k)
+        r, k, is_no = netgsm.otp_gonder(s, tel[2:], OTP_SABLON.format(kod=kod), ac=self.sms_ac)
+        return sonuc(saglayici, r, k, is_no)
+
+    def sms_dogrula(self, b, ip):
+        """Twilio Verify kodu: {onay} ya da ağ hatasında hata/AG (misafirin deneme hakkı düşmesin diye ayrı)."""
+        t, h = self._sms_cihazi(b)
+        if h:
+            return h
+        c, tel, kod = t
+        s = self.veri.sms_ayari()
+        if s is None or s["mock"] or self._saglayici(s, tel) != "twilio":
+            return _json(200, {"sonuc": "hata", "kod": "AYAR"})
+        onay, k = twilio.dogrula(s["twilio"], tel, kod, ac=self.sms_ac)
+        if onay is None:
+            return _json(200, {"sonuc": "hata", "kod": k})
+        return _json(200, {"onay": onay})

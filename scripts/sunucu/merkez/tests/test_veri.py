@@ -191,7 +191,12 @@ def test_sms_ayari():
         v.sms_ayari_koy({"mock": True, "usercode": "", "password": "", "msgheader": "", "appkey": ""})
         assert v.sms_ayari()["mock"] is True
         v.sms_ayari_koy({"mock": False, "usercode": "8503027084", "password": "gizli-1", "msgheader": "gztp.blgsyr", "appkey": ""})
-        assert v.sms_ayari() == {"mock": False, "usercode": "8503027084", "password": "gizli-1", "msgheader": "gztp.blgsyr", "appkey": ""}
+        assert v.sms_ayari() == {"mock": False, "usercode": "8503027084", "password": "gizli-1", "msgheader": "gztp.blgsyr", "appkey": "",
+                                 "tr_saglayici": "netgsm", "twilio": V.TWILIO_VARSAYILAN}
+        # Twilio'dan önce kaydedilmiş ayar satırı varsayılanlarla okunur
+        v.db.execute("UPDATE ayar SET deger = ? WHERE anahtar = 'sms'",
+                     ('{"mock": true, "usercode": "", "password": "", "msgheader": "", "appkey": ""}',))
+        assert v.sms_ayari()["tr_saglayici"] == "netgsm" and v.sms_ayari()["twilio"] == V.TWILIO_VARSAYILAN
 
 
 def test_eski_cihaz_tablosuna_admin_sutunlari_eklenir():

@@ -465,6 +465,7 @@ class Yonetim(web.Taban):
         bilgi = bilgi_tablosu([("Numara", str(n)), ("Parola", parola), ("Lisans", f"{lisans_metni} · bitiş {e(common.tarih_goster(lbitis) or '—')}"),
                                ("Not", e(m["not_"] or "—")), ("Oluşturma", e(common.tarih_goster(m["olusturma"]))),
                                ("Son giriş (panel)", e(common.tarih_goster(m["son_giris"]) or "—")),
+                               ("Bugün doğrulama SMS'i", str(self.veri.sms_sayac(n, self.veri.bugun().isoformat()))),
                                ("Üyelik", "Aktif" if m["uyelik"] == "aktif" else f"Bitti {e(common.tarih_goster(m['bitis'][:10]))}")])
         if c is None:
             cihaz = '<p class="alt">Bağlı cihaz yok. Müşteri bir cihazın giriş ekranına numarasıyla girince bağlanır.</p>'
@@ -541,34 +542,64 @@ class Yonetim(web.Taban):
         return detay._tablo(("Açılış", "Kapanış", "Sorun", "Önem", "Açılış SMS'i", "Kapanış SMS'i"), satirlar, "Sorun kaydı yok.")
 
     def sms(self, ot, yontem, form, ip):
-        """Bütün cihazların NetGSM ayarı. Şifre yalnızca yazılır; boş bırakılırsa eskisi kalır."""
-        eski = self.veri.sms_ayari() or {"mock": True, "usercode": "", "password": "", "msgheader": "", "appkey": ""}
+        """NetGSM (eski cihazlara da gider), doğrulama SMS'i için Türk numarası sağlayıcısı ve Twilio (yalnızca merkezde).
+        Sır alanları (NetGSM şifresi, Twilio auth token / API secret) yalnızca yazılır; boş bırakılırsa eskisi kalır."""
+        eski = self.veri.sms_ayari() or {"mock": True, "usercode": "", "password": "", "msgheader": "", "appkey": "",
+                                         "tr_saglayici": "netgsm", "twilio": dict(veri_modulu.TWILIO_VARSAYILAN)}
         hata = ""
         if yontem == "POST":
+            et = eski["twilio"]
+            tw = {"acik": form.get("twilio_acik") == "1",
+                  **{k: form.get(k, "") for k in veri_modulu.TWILIO_ALANLARI if k not in veri_modulu.TWILIO_SIRLARI},
+                  **{k: form.get(k, "") or et[k] for k in veri_modulu.TWILIO_SIRLARI}}
             yeni = {"mock": form.get("mock") == "1", "usercode": form.get("usercode", ""), "msgheader": form.get("msgheader", ""),
-                    "appkey": form.get("appkey", ""), "password": form.get("password", "") or eski["password"]}
+                    "appkey": form.get("appkey", ""), "password": form.get("password", "") or eski["password"],
+                    "tr_saglayici": form.get("tr_saglayici", "netgsm"), "twilio": tw}
             try:
                 self.veri.sms_ayari_koy(yeni)
             except ValueError as h:
                 hata = str(h)
             else:
-                degisen = [k for k in ("mock", "usercode", "msgheader", "appkey", "password") if yeni[k] != eski[k]]
+                k = self.veri.sms_ayari()
+                degisen = [x for x in ("mock", "usercode", "msgheader", "appkey", "password", "tr_saglayici") if k[x] != eski[x]]
+                degisen += ["twilio_" + x for x in k["twilio"] if k["twilio"][x] != et[x]]
                 self.veri.hareket("admin", ip, "SMS_AYARI", None, "değişen=" + ",".join(degisen))  # değer yazılmaz
                 return yonlendir("/sms")
-            eski = dict(yeni, password=eski["password"])
+            # hatalı formda yazılanlar geri gösterilir; sırlar asla
+            eski = dict(yeni, password=eski["password"], twilio=dict(tw, **{x: et[x] for x in veri_modulu.TWILIO_SIRLARI}))
         cs = e(ot["csrf"])
-        sifre = "tanımlı" if eski["password"] else "tanımsız"
+        t = eski["twilio"]
+
+        def tanim(v):
+            return "tanımlı" if v else "tanımsız"
+
+        def secili(d):
+            return " selected" if eski["tr_saglayici"] == d else ""
         h = f'<p class="hata">{e(hata)}</p>' if hata else ""  # iç içe aynı tırnak 3.12 öncesinde sözdizimi hatası
         icerik = (f'<h1>SMS ayarları</h1>{h}'
                   f'<form method="post" action="/sms"><input type="hidden" name="csrf" value="{cs}">'
                   f'<label><input type="checkbox" name="mock" value="1"{" checked" if eski["mock"] else ""}> Deneme modu (SMS gönderilmez)</label>'
+                  '<label for="tr">Türk numaraları için sağlayıcı</label><select id="tr" name="tr_saglayici">'
+                  f'<option value="netgsm"{secili("netgsm")}>NetGSM</option><option value="twilio"{secili("twilio")}>Twilio</option></select>'
+                  '<h2>NetGSM</h2>'
                   f'<label for="u">NetGSM kullanıcı kodu</label><input id="u" name="usercode" value="{e(eski["usercode"])}" autocomplete="off">'
-                  f'<label for="p">API şifresi ({sifre})</label><input id="p" name="password" type="password" autocomplete="new-password" '
+                  f'<label for="p">API şifresi ({tanim(eski["password"])})</label><input id="p" name="password" type="password" autocomplete="new-password" '
                   'placeholder="değiştirmek için yazın (boş = aynı kalır)">'
                   f'<label for="b">Mesaj başlığı</label><input id="b" name="msgheader" value="{e(eski["msgheader"])}" maxlength="11">'
                   f'<label for="a">Uygulama anahtarı (opsiyonel)</label><input id="a" name="appkey" value="{e(eski["appkey"])}">'
+                  '<h2>Twilio Verify</h2>'
+                  f'<label><input type="checkbox" name="twilio_acik" value="1"{" checked" if t["acik"] else ""}> Twilio açık '
+                  "(yabancı numaralar Twilio'dan gider)</label>"
+                  f'<label for="ta">Account SID</label><input id="ta" name="account_sid" value="{e(t["account_sid"])}" autocomplete="off">'
+                  f'<label for="tt">Auth token ({tanim(t["auth_token"])})</label><input id="tt" name="auth_token" type="password" '
+                  'autocomplete="new-password" placeholder="değiştirmek için yazın (boş = aynı kalır)">'
+                  f'<label for="tk">API key SID (opsiyonel)</label><input id="tk" name="api_key_sid" value="{e(t["api_key_sid"])}" autocomplete="off">'
+                  f'<label for="ts">API key secret ({tanim(t["api_key_secret"])})</label><input id="ts" name="api_key_secret" type="password" '
+                  'autocomplete="new-password" placeholder="değiştirmek için yazın (boş = aynı kalır)">'
+                  f'<label for="tv">Verify service SID</label><input id="tv" name="verify_sid" value="{e(t["verify_sid"])}" autocomplete="off">'
                   '<button>Kaydet</button></form>'
-                  '<p class="alt">Bütün bağlı cihazlara bir sonraki eşitlemede (her gün 06:00) gider.</p>')
+                  "<p class=\"alt\">Doğrulama SMS'leri cihazların isteğiyle bu sunucudan gönderilir (değişiklik hemen geçerli). "
+                  'NetGSM bilgileri eski sürümlü cihazlara bir sonraki eşitlemede (her gün 06:00) de gider; Twilio bilgileri hiçbir cihaza gitmez.</p>')
         return yanit_html(self.sayfa("SMS ayarları", kart(icerik), ot), 400 if hata else 200)
 
     def uyari(self, ot, yontem, form, ip):

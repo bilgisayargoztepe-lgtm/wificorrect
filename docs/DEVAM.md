@@ -91,6 +91,22 @@ Bitenler (canlıda):
 - Küçük işler (PR #6): bozuk `hiz_sinir.json`'un üzerine yazılmaz; 10 sn yenileme yalnızca `/oturumlar`; panel tam genişlik.
 
 ## Sıradaki işler
+**YARIM KALAN (2026-10-13 gecesi) — SMS merkezden:** dal `sms-merkez` (worktree `../wificorrect-sms`), GitHub'da,
+son incelemeden temiz geçti, sürüm 0.4.8 (birleştirilmedi, etiketlenmedi). Spec `docs/superpowers/specs/2026-10-13-sms-merkezden-design.md`.
+Sıra: (1) kullanıcı `cd ~/Desktop/claudecode/wificorrect-sms; bash scripts/sunucu/merkez-guncelle.sh` (sudo);
+(2) kullanıcı Yönetim → SMS ayarları'na NetGSM bilgilerini girer, TR sağlayıcı NetGSM, deneme modu kapalı (merkezde hiç
+kayıtlı değil — canlı cihazın NetGSM bilgisi kendi dosyasında); (3) PR + birleştir + `v0.4.8` + Sürümler'den al + test kanalı
++ Şimdi güncelle; (4) önce deneme modunda giriş denemesi, gerçek SMS yalnızca kullanıcı onayı ve verdiği numarayla.
+Ledger: `../wificorrect-sms/.superpowers/sdd/2026-10-13-sms-merkezden/progress.md`.
+**Bulgular 2026-10-13:** cihaz telefon (mobil) hattına alınınca HTTPS/sağlık raporu çalışıyor ama WireGuard 1–2 dk sonra kesiliyor
+(büyük olasılıkla mobil operatör engeli); müşteriler sabit hatlı (TT/Superonline) olacağı için ilk müşteri kurulumundan önce
+gerçek bir dış sabit hatta 15 dk tünel denemesi yapılacak, engel çıkarsa tüneli HTTPS/443 kılıfına almak. NetGSM izinsiz-IP
+reddi (dinamik IP) SMS'i merkeze taşıma sebebi. Monitörsüz açılış hâlâ sorunlu (BIOS'ta takılıyor olabilir; teşhis adımı
+kullanıcıya anlatıldı, HDMI sahte fiş önerildi). Uzaktan AP yönetimi fikri: 1) merkez → tünel → cihaz → AP web arayüzü
+aktarımı (Referer/Host AP'nin adresine çevrilir), 2) bilinen modellere sürücü, 3) standart AP — kullanıcıya "AP'yi siz mi
+vereceksiniz?" soruldu, cevap bekleniyor. AP'ye bugün erişim: `ssh -N -D 1080 wificorrect` + ayrı Chrome
+`--proxy-server=socks5://127.0.0.1:1080` → http://10.50.0.2/ (TP-Link 127.0.0.1 üzerinden girişte Referer yüzünden reddeder).
+Canlı cihaz 0.4.7 (Admin, Ayarlar'ın son kutucuğu; kullanıcılar 10'arlı sayfa; tarihler gün.ay.yıl).
 Kullanıcının onayladığı sıra (2026-10-11; donanım bekçisi hariç): ~~1 küçük işler~~ · ~~2 sağlık izleme~~ ·
 ~~3 merkezden uzaktan güncelleme~~ · **4 hazır engel listeleri** · 5 aylık rapor · 6 personel kodu ile giriş ·
 7 imzalı resmi talep raporu · 8 online ödeme (`veri.lisans_uzat`) · 9 **merkezi Rust'a taşıma** (2026-10-13 kararı;

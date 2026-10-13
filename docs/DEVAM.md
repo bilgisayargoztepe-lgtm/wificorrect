@@ -93,7 +93,9 @@ Bitenler (canlıda):
 ## Sıradaki işler
 Kullanıcının onayladığı sıra (2026-10-11; donanım bekçisi hariç): ~~1 küçük işler~~ · ~~2 sağlık izleme~~ ·
 ~~3 merkezden uzaktan güncelleme~~ · **4 hazır engel listeleri** · 5 aylık rapor · 6 personel kodu ile giriş ·
-7 imzalı resmi talep raporu · 8 online ödeme (`veri.lisans_uzat`). Zaman damgası: kontör alınınca. İki aşamalı giriş istenmedi.
+7 imzalı resmi talep raporu · 8 online ödeme (`veri.lisans_uzat`) · 9 **merkezi Rust'a taşıma** (2026-10-13 kararı;
+~4.300 satır Python + 3.600 satır test, 9 işe bölünür: veritabanı, güvenlik, web tabanı, cihaz API, yönetim, müşteri paneli,
+arka plan işleri, kurulum/yan yana geçiş, uçtan uca + Python'u kaldırma; aynı SQLite şeması ve parola biçimi korunur). Zaman damgası: kontör alınınca. İki aşamalı giriş istenmedi.
 Ertelenmiş küçük bulgular: `.superpowers/sdd/*/progress.md` (yalnızca bu makinede).
 Bekleyen kullanıcı işleri: Yönetim → Uyarı ayarları'na telefon (SMS uyarıları hiç gitmiyor); 0.4.3'ü "GitHub'dan al";
 aydınlatma metni misafir kodu cümlesi için hukukçu onayı; `docs/superpowers/specs/2026-10-12-harici-ap-design.md` (izlenmeyen,

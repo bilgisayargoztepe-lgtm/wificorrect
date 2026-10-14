@@ -65,6 +65,13 @@ ASLA = frozenset({
     "googleusercontent.com", "azureedge.net", "windows.net", "cloudflare.com", "trycloudflare.com", "facebook.com",
     "fbcdn.net", "instagram.com", "youtube.com", "ytimg.com", "akamaihd.net", "live.com", "office.com", "outlook.com",
     "whatsapp.com", "whatsapp.net", "wa.me",
+    # telefon üreticilerinin hizmetleri, sosyal medya, alışveriş, ödeme ve bankalar: yanlış pozitif misafiri doğrudan
+    # etkiler (giriş, ödeme, telefon güncellemesi); bu sitelerin taklitleri ayrı alan adlarıdır ve engellenebilir.
+    # turkiye.gov.tr (e-Devlet) gov.tr altında zaten korunur, açıkça yazıldı.
+    "hicloud.com", "miui.com", "xiaomi.com", "oppomobile.com", "samsung.com", "samsungcloud.com", "x.com", "twitter.com",
+    "tiktok.com", "amazon.com", "trendyol.com", "hepsiburada.com", "papara.com", "iyzico.com", "garantibbva.com.tr",
+    "isbank.com.tr", "ziraatbank.com.tr", "akbank.com", "yapikredi.com.tr", "vakifbank.com.tr", "halkbank.com.tr",
+    "qnb.com.tr", "denizbank.com", "enpara.com", "turkiye.gov.tr",
 })
 # Paylaşımlı platformlar: zararlı listelerde (özellikle URL listelerinde) bir kullanıcının dosyası/sayfası yüzünden bütün
 # platform listelenebilir. Bunlar ve alt adları (platformun kendi altyapısı, kullanıcıya ayrılmış değil) engellenmez.

@@ -121,6 +121,16 @@ def test_buyuk_ortak_platformlar_asla():
     assert L.temizle(s, "duz") == {"kotu-facebook.com", "facebook.com.kotu.net"}
 
 
+def test_telefon_sosyal_alisveris_banka_asla():
+    """Telefon üreticileri, sosyal medya, alışveriş, ödeme ve bankalar (ve alt adları) hiçbir listeden gelmez."""
+    asla = ["hicloud.com", "miui.com", "xiaomi.com", "oppomobile.com", "samsung.com", "samsungcloud.com", "x.com",
+            "twitter.com", "tiktok.com", "amazon.com", "trendyol.com", "hepsiburada.com", "papara.com", "iyzico.com",
+            "garantibbva.com.tr", "isbank.com.tr", "ziraatbank.com.tr", "akbank.com", "yapikredi.com.tr",
+            "vakifbank.com.tr", "halkbank.com.tr", "qnb.com.tr", "denizbank.com", "enpara.com", "turkiye.gov.tr"]
+    alt = ["giris." + a for a in asla]
+    assert L.temizle(asla + alt + ["akbank-giris.com", "x.com.kotu.net"], "duz") == {"akbank-giris.com", "x.com.kotu.net"}
+
+
 def test_onbellek_okurken_yeniden_dogrulanir():
     """Eski sürümün yazdığı önbellekte artık asla listesinde olan ya da geçersiz ad varsa listeye girmez."""
     eski = kaynaklar_koy(iki_kaynak())

@@ -233,9 +233,10 @@ class Api:
                 if g != onceki:
                     self.veri.hareket(f"cihaz:{c['id']}", ip, "GUNCELLEME_SONUC", c["musteri"],
                                       f"surum={g['surum']} sonuc={g['sonuc']}")
-        yanit = {"tamam": True, "sms_etkin_mock": self.veri.sms_etkin_mock(),  # 06:00 eşitlemesini beklemesin
-                 "listeler": listeler.ozet(self.liste_dizini)}  # hazır engel listelerinin sürümleri; cihaz değişeni indirir
+        yanit = {"tamam": True, "sms_etkin_mock": self.veri.sms_etkin_mock()}  # 06:00 eşitlemesini beklemesin
         m = self.veri.musteri(c["musteri"])
+        if c["durum"] == "bagli" and self.veri.hizmet_acik(m):  # /api/liste ile aynı koşul: indiremeyeceği sürüm bildirilmez
+            yanit["listeler"] = listeler.ozet(self.liste_dizini)  # hazır engel listelerinin sürümleri; cihaz değişeni indirir
         hedef = self.veri.cihaz_hedefi(m)
         if m["guncelleme_hemen"] > 0 and (hedef is None or m["guncelleme_hemen_surum"] != hedef["surum"]
                                          or r.get("paket") == hedef["surum"]):

@@ -460,7 +460,12 @@ class Yonetim(web.Taban):
         for x in acik:
             c = cihazlar.get(x["musteri"])
             sn = simdi - (_epoch(x["acilis"]) or simdi)
-            satirlar.append(f'<tr><td><a href="/m/{x["musteri"]}">{x["musteri"]}</a></td><td>{e(c["isletme_adi"] if c is not None else "")}</td>'
+            if x["musteri"] == 0:  # saglik.MERKEZ: müşteriye bağlı olmayan sorun (ör. engel listeleri)
+                bas = '<td>—</td><td><a href="/listeler">Merkez</a></td>'
+            else:
+                bas = (f'<td><a href="/m/{x["musteri"]}">{x["musteri"]}</a></td>'
+                       f'<td>{e(c["isletme_adi"] if c is not None else "")}</td>')
+            satirlar.append(f'<tr>{bas}'
                             f'<td>{e(x["metin"])}</td><td>{e(ONEM_ETIKET.get(x["onem"], x["onem"]))}</td><td>{e(once(sn))}</td>'
                             f'<td>{e(sms_etiketi(x["acilis_sms"], x["onem"]))}</td></tr>')
         return kart('<h2>Açık sorunlar</h2><div class="kaydir"><table class="detay"><tr><th>No</th><th>İşletme</th><th>Sorun</th>'

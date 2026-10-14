@@ -212,7 +212,21 @@ def test_saglik_raporu_kaydedilir():
         v.saglik_kaydet(c["id"], {"eski": 1})
         v.serbest_birak(n)
         d, r = post(api, "/api/saglik", {"cihaz_anahtari": j["cihaz_anahtari"], "rapor": RAPOR})
-        assert d == 200 and r == {"tamam": True, "sms_etkin_mock": True, "listeler": {}} and v.saglik(c["id"])["rapor"] == {"eski": 1}
+        # bırakılan cihaza liste sürümü bildirilmez (indiremeyeceği listeyi her raporda denemesin)
+        assert d == 200 and r == {"tamam": True, "sms_etkin_mock": True} and v.saglik(c["id"])["rapor"] == {"eski": 1}
+
+
+def test_saglik_hizmet_kapaliyken_liste_surumu_yok():
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        api, v, q, _ = kur(tmp)
+        n, pw = v.musteri_ekle()
+        _, j = giris(api, n, pw)
+        v.askiya_al(n, True)
+        d, r = post(api, "/api/saglik", {"cihaz_anahtari": j["cihaz_anahtari"], "rapor": RAPOR})
+        assert d == 200 and "listeler" not in r
+        v.askiya_al(n, False)
+        d, r = post(api, "/api/saglik", {"cihaz_anahtari": j["cihaz_anahtari"], "rapor": RAPOR})
+        assert d == 200 and r["listeler"] == {}
 
 
 def test_bozuk_rapor_reddedilir():

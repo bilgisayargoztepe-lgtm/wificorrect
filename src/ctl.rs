@@ -355,11 +355,50 @@ pub fn run(cfg: Config, args: &[String]) -> ExitCode {
                         };
                         crate::guncelleme::hedefi_isle(&k.guncelleme, &h, &kurulu, now, &baslat);
                     }
+                    if let Some(l) = cevap.listeler {
+                        // hazır engel listeleri: açık bir kategorinin sürümü değiştiyse ayrı işte indirilir
+                        let baslat = || {
+                            let c: Vec<String> = ["systemd-run", "--collect", "--unit", "wfc-liste", "/usr/local/bin/wificorrect", "ctl", "liste-guncelle"].map(String::from).to_vec();
+                            ortak::run(&c);
+                        };
+                        crate::liste::hedefi_isle(&crate::liste::Yollar::sistem(), &l, &crate::liste::acik_harita(&cfg), &baslat);
+                    }
                 }
                 Err(e) => eprintln!("sağlık raporu gönderilemedi: {e}"),
             }
             ExitCode::SUCCESS
         }
+        // `ctl saglik` ya da panel başlatır (systemd-run --unit wfc-liste): eksik/eski açık hazır listeleri indirir, uygular
+        Some("liste-guncelle") => {
+            let Some(m) = crate::merkez::oku(std::path::Path::new(crate::merkez::PATH)) else {
+                eprintln!("cihaz merkeze bağlı değil");
+                return ExitCode::from(1);
+            };
+            let y = crate::liste::Yollar::sistem();
+            let indir = |yol: &str, g: &str, c: &std::path::Path| crate::merkez::indir(yol, g, c, 300);
+            let alinan = crate::liste::guncelle(&y, &cfg.main.log_root, &m, &crate::liste::hedef_oku(&y), &crate::liste::acik_harita(&cfg), &indir, now);
+            match crate::liste::uygula(&cfg, &y, &runner) {
+                Ok(n) => {
+                    println!("{} liste indirildi; {n} alan adı engelli", alinan.len());
+                    ExitCode::SUCCESS
+                }
+                Err(e) => {
+                    eprintln!("{e}");
+                    ExitCode::from(1)
+                }
+            }
+        }
+        // Paket kurulumu (postinst) ve elle: birleşik hazır liste dosyasını yeniden yazar (dnsmasq SIGHUP)
+        Some("liste-uygula") => match crate::liste::uygula(&cfg, &crate::liste::Yollar::sistem(), &runner) {
+            Ok(n) => {
+                println!("{n} alan adı engelli");
+                ExitCode::SUCCESS
+            }
+            Err(e) => {
+                eprintln!("{e}");
+                ExitCode::from(1)
+            }
+        },
         // `ctl saglik` başlatır (systemd-run --unit wfc-guncelle): hedef sürümü indirir, doğrular, kurar
         Some("guncelle") => {
             let Some(m) = crate::merkez::oku(std::path::Path::new(crate::merkez::PATH)) else {
@@ -508,7 +547,7 @@ pub fn run(cfg: Config, args: &[String]) -> ExitCode {
         _ => {
             eprintln!(
                 "Kullanım: wificorrect ctl <komut>\n  dhcp-olay <add|old|del> <mac> <ip> [ad]\n  yukle\n  oturumlar\n  \
-                 gun-kapat [YYYY-AA-GG] [--zorla]\n  dogrula [--son N]\n  temizle [--kuru]\n  yedekle\n  ara ...  (ayrıntı: ctl ara)\n  disa-aktar --baslangic G --bitis G --cikti DOSYA\n  ag-uygula | ag-gecis DOSYA | ag-onayla | ag-geri-al | ag-ilk\n  ayar-temizle\n  filtre-uygula\n  hiz-uygula\n  admin-parola\n  merkez-eslesme\n  saglik\n  guncelle"
+                 gun-kapat [YYYY-AA-GG] [--zorla]\n  dogrula [--son N]\n  temizle [--kuru]\n  yedekle\n  ara ...  (ayrıntı: ctl ara)\n  disa-aktar --baslangic G --bitis G --cikti DOSYA\n  ag-uygula | ag-gecis DOSYA | ag-onayla | ag-geri-al | ag-ilk\n  ayar-temizle\n  filtre-uygula\n  liste-uygula | liste-guncelle\n  hiz-uygula\n  admin-parola\n  merkez-eslesme\n  saglik\n  guncelle"
             );
             ExitCode::from(2)
         }

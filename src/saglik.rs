@@ -137,6 +137,8 @@ pub fn kayit_boslugu(log_root: &str, now: f64) -> bool {
 pub struct Cevap {
     pub hedef: Option<Hedef>,
     pub sms_mock: Option<bool>,
+    /// Hazır engel listelerinin sürümleri (src/liste.rs); bu alandan önceki merkez göndermez: None.
+    pub listeler: Option<std::collections::BTreeMap<String, crate::liste::Meta>>,
 }
 
 /// Raporu gönderir; merkezin cevabını döner.
@@ -145,7 +147,11 @@ pub fn gonder(m: &Merkez, rapor: &Value, http: &Http) -> Result<Cevap, String> {
     if d != 200 {
         return Err(crate::merkez::hata(&v).map_or(format!("HTTP {d}"), |(m, _)| m));
     }
-    Ok(Cevap { hedef: v.get("guncelleme").and_then(guncelleme::hedef_coz), sms_mock: v.get("sms_etkin_mock").and_then(Value::as_bool) })
+    Ok(Cevap {
+        hedef: v.get("guncelleme").and_then(guncelleme::hedef_coz),
+        sms_mock: v.get("sms_etkin_mock").and_then(Value::as_bool),
+        listeler: v.get("listeler").map(crate::liste::hedef_coz),
+    })
 }
 
 /// `ctl saglik`: cihaz bağlı değilse bir şey yapılmaz; bağlıysa önce önceki güncellemenin sonucu uzlaştırılır, rapor
@@ -390,6 +396,22 @@ mod tests {
             let (h, _) = sahte(Ok((200, govde)));
             assert_eq!(calistir(&cfg, &p, &k, &*h, 1000.0).unwrap().sms_mock, beklenen, "{govde}");
         }
+    }
+
+    #[test]
+    fn cevaptaki_liste_surumleri_doner() {
+        let (cfg, root, k) = kur();
+        let p = root.join("merkez.json");
+        crate::merkez::kaydet(&p, &Merkez { numara: "4511643".into(), cihaz_anahtari: "a".into(), ..Default::default() }).unwrap();
+        let govde: &'static str = Box::leak(
+            format!(r#"{{"tamam":true,"listeler":{{"kumar":{{"sha256":"{}","sayi":12,"zaman":"2026-10-14T03:00:00+03:00"}},"vpn":{{}}}}}}"#, "c".repeat(64)).into_boxed_str(),
+        );
+        let (h, _) = sahte(Ok((200, govde)));
+        let l = calistir(&cfg, &p, &k, &*h, 1000.0).unwrap().listeler.unwrap();
+        assert_eq!(l.keys().collect::<Vec<_>>(), vec!["kumar"]);
+        assert_eq!(l["kumar"].sayi, 12);
+        let (h, _) = sahte(Ok((200, r#"{"tamam":true}"#))); // eski merkez
+        assert_eq!(calistir(&cfg, &p, &k, &*h, 1000.0).unwrap().listeler, None);
     }
 
     #[test]

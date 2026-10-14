@@ -13,7 +13,8 @@ docker run --rm -v "$PWD/$(dirname "$deb"):/p:ro" debian:trixie sh -euc "
   test -L /etc/systemd/system/multi-user.target.wants/wificorrect-panel.service
   test -L /etc/systemd/system/timers.target.wants/wificorrect-guncelleme-denetle.timer
   dpkg -L wificorrect | grep -q /etc/systemd/system/wificorrect-guncelleme-denetle.service
-  ! dpkg -L wificorrect | grep -E 'interfaces.d/wificorrect|arayuzler.nft|issue.d/wificorrect.issue|yasak-siteler.conf'
+  ! dpkg -L wificorrect | grep -E 'interfaces.d/wificorrect|arayuzler.nft|issue.d/wificorrect.issue|yasak-siteler.conf|hazir-liste.conf'
+  test -f /etc/wificorrect/hazir-liste.conf && grep -q servers-file=/etc/wificorrect/hazir-liste.conf /etc/dnsmasq.d/wificorrect.conf
   dpkg -L wificorrect | grep -q /etc/wificorrect/hiz.nft
   test -x /usr/local/lib/wificorrect/dhcp-script
   command -v iptables-restore

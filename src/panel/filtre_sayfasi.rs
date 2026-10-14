@@ -2,11 +2,12 @@
 
 use super::*;
 use crate::filtre;
+use crate::liste;
 
 const LISTELER: &[(&str, &str, &str)] = &[
     ("site", "Yasaklı siteler", "Alan adı ve bütün alt adları engellenir (ör. bet365.com → www.bet365.com, m.bet365.com)."),
     ("kelime", "Yasaklı kelimeler", "Alan adının herhangi bir yerinde geçerse engellenir (ör. bet → superbet.com.tr). Nokta içeremez."),
-    ("istisna", "İstisnalar", "Kelime filtresine takılan meşru siteler için: bu kelime geçen alan adı kelime filtresinden geçer (ör. alphabet, better)."),
+    ("istisna", "İstisnalar", "Kelime filtresine ya da hazır listeye takılan meşru siteler için: bu kelime geçen alan adı kelime filtresinden ve hazır listelerden geçer (ör. alphabet, better)."),
 ];
 
 fn list_mut<'a>(cfg: &'a mut Config, liste: &str) -> Option<&'a mut Vec<String>> {
@@ -19,6 +20,57 @@ fn list_mut<'a>(cfg: &'a mut Config, liste: &str) -> Option<&'a mut Vec<String>>
 }
 
 impl Panel {
+    /// Hazır listeler bölümü: kategori, açık/kapalı düğmesi, alan adı sayısı, son güncelleme.
+    fn hazir_bolum(&self, cfg: &Config, o: &Oturum) -> String {
+        let rows: Vec<Vec<String>> = liste::KATEGORILER
+            .iter()
+            .map(|(k, ad)| {
+                let acik = liste::acik(cfg, k);
+                let m = liste::meta_oku(&self.liste_yollar, k);
+                let (durum, dugme, yeni) = if acik { ("<b>Açık</b>", "Kapat", "kapali") } else { ("Kapalı", "Aç", "acik") };
+                vec![
+                    h(ad),
+                    durum.to_string(),
+                    m.as_ref().map_or("—".into(), |m| m.sayi.to_string()),
+                    m.as_ref().map_or("Henüz indirilmedi".into(), |m| h(&ortak::tarih_goster(&m.zaman))),
+                    post_button(o, "/yasakli-siteler/hazir", dugme, &[("kategori", k), ("durum", yeni)], if acik { "ikincil" } else { "" }),
+                ]
+            })
+            .collect();
+        format!(
+            "<section class=\"kart\"><h2>Hazır listeler</h2><p class=\"not\">Merkezden güncel tutulan hazır engel listeleri; \
+             değişiklik hemen geçerli. Yanlış engellenen bir site için alan adının bir parçasını aşağıdaki İstisnalar'a yazın.</p>{}</section>",
+            table(&["Kategori", "Durum", "Alan adı", "Son güncelleme", ""], &rows, "")
+        )
+    }
+
+    /// Hazır listeyi aç / kapat: ayar kaydı, denetim, birleşik dosya hemen; açılan kategorinin yenisi merkezden indirilir.
+    pub(super) fn hazir_degistir(&self, mut cfg: Config, req: &Req, o: &Oturum) -> Resp {
+        let k = req.form.get("kategori").map_or("", String::as_str);
+        let acik = match req.form.get("durum").map(String::as_str) {
+            Some("acik") => true,
+            Some("kapali") => false,
+            _ => return redirect("/yasakli-siteler", Some(("Geçersiz istek.", true))),
+        };
+        if liste::ad(k).is_none() {
+            return redirect("/yasakli-siteler", Some(("Bilinmeyen liste.", true)));
+        }
+        cfg.filtre.hazir.insert(k.to_string(), acik);
+        if let Err(e) = cfg.save(&self.cfg_path) {
+            return redirect("/yasakli-siteler", Some((&e, true)));
+        }
+        self.audit(&cfg, req, Some(o), "PANEL_HAZIR_LISTE", &format!("kategori={k} durum={}", if acik { "acik" } else { "kapali" }));
+        let r = liste::uygula(&cfg, &self.liste_yollar, &*self.runner); // eldeki son liste hemen
+        if acik {
+            // merkezde daha yenisi varsa ayrı işte indirilir (iş sürüyorsa systemd ikincisini reddeder)
+            (self.runner)(&cmd(&["systemd-run", "--collect", "--unit", "wfc-liste", "/usr/local/bin/wificorrect", "ctl", "liste-guncelle"]));
+        }
+        match r {
+            Ok(_) => redirect("/yasakli-siteler", Some((if acik { "Liste açıldı, hemen geçerli." } else { "Liste kapatıldı, hemen geçerli." }, false))),
+            Err(e) => redirect("/yasakli-siteler", Some((&format!("Kaydedildi ama uygulanamadı: {e}"), true))),
+        }
+    }
+
     pub(super) fn filtre_sayfa(&self, cfg: &Config, req: &Req, o: &Oturum) -> Resp {
         let hits = filtre::counters(&ortak::capture(&["iptables", "-L", "WFC_DNS", "-v", "-n", "-x"]));
         let mut cards = String::new();
@@ -54,7 +106,7 @@ impl Panel {
         let sonuc = if ad.is_empty() {
             String::new()
         } else {
-            match filtre::check(cfg, ad) {
+            match filtre::check(cfg, &self.liste_yollar, ad) {
                 Some(why) => format!("<p class=\"hata\"><b>{}</b> engelli ({}).</p>", h(ad), h(&why)),
                 None => format!("<p><b>{}</b> engelli değil.</p>", h(ad)),
             }
@@ -62,10 +114,11 @@ impl Panel {
         let body = format!(
             "<p class=\"not\">Müşteri ağında engellenen adresler \"site bulunamadı\" olarak görünür. Bütün DNS cihaza yönlendirildiği için \
              başka DNS yazmak filtreyi atlatmaz; ancak telefonda \"Özel DNS\" ya da tarayıcıda \"Güvenli DNS\" (şifreli DNS) açıksa atlatılır.</p>\
-             <section class=\"kart\"><h2>Bu adres engelli mi?</h2><form class=\"satir\" method=\"get\" action=\"/yasakli-siteler\">\
+             {hazir}<section class=\"kart\"><h2>Bu adres engelli mi?</h2><form class=\"satir\" method=\"get\" action=\"/yasakli-siteler\">\
              <div><label for=\"ad\">Alan adı</label><input type=\"text\" id=\"ad\" name=\"ad\" value=\"{}\" placeholder=\"ör. www.ornek.com\"></div>\
              <button class=\"ikincil\">Dene</button></form>{sonuc}</section>{cards}",
-            h(ad)
+            h(ad),
+            hazir = self.hazir_bolum(cfg, o)
         );
         self.page(cfg, req, Some(o), "Yasaklı siteler", &body)
     }
@@ -94,7 +147,9 @@ impl Panel {
             return redirect("/yasakli-siteler", Some((&e, true)));
         }
         self.audit(&cfg, req, Some(o), if ekle { "PANEL_FILTRE_EKLE" } else { "PANEL_FILTRE_KALDIR" }, &format!("liste={liste} deger={value}"));
-        match filtre::uygula(&cfg, &self.filtre_conf, &*self.runner) {
+        // istisnalar hazır listeden de çıkarır
+        let hazir = if liste == "istisna" { crate::liste::uygula(&cfg, &self.liste_yollar, &*self.runner).map(|_| ()) } else { Ok(()) };
+        match filtre::uygula(&cfg, &self.filtre_conf, &*self.runner).and(hazir) {
             Ok(()) => redirect("/yasakli-siteler", Some((if ekle { "Eklendi, hemen geçerli." } else { "Kaldırıldı." }, false))),
             Err(e) => redirect("/yasakli-siteler", Some((&format!("Kaydedildi ama uygulanamadı: {e}"), true))),
         }

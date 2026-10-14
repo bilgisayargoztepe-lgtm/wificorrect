@@ -6,6 +6,8 @@ install -d -m 700 /srv/5651 /srv/hotspot /srv/hotspot/state
 install -d -m 755 /var/lib/wificorrect
 [ -e /etc/wificorrect/ayarlar.toml ] || install -m 600 /etc/wificorrect/ayarlar.ornek.toml /etc/wificorrect/ayarlar.toml
 [ -e /etc/wificorrect/yasak-siteler.conf ] || : > /etc/wificorrect/yasak-siteler.conf
+# hazır engel listeleri (dnsmasq servers-file): dosya yoksa dnsmasq açılmaz; liste-uygula / liste-guncelle doldurur
+[ -e /etc/wificorrect/hazir-liste.conf ] || install -m 644 /dev/null /etc/wificorrect/hazir-liste.conf
 # 0.4.8: SMS merkezden gider; ayar dosyasında kalan eski NetGSM/Twilio bilgileri silinir (diğer ayarlar aynen)
 /usr/local/bin/wificorrect ctl ayar-temizle || true
 /usr/local/bin/wificorrect ctl ag-ilk || echo "wificorrect: ağ rolleri belirlenemedi; panel → Portlar" >&2
@@ -22,5 +24,8 @@ if [ -d /run/systemd/system ]; then
   systemctl daemon-reload
   sysctl -q -p /etc/wificorrect/conntrack.sysctl || true
   systemctl try-restart wificorrect-portal.service wificorrect-kaydedici.service wificorrect-panel.service
+  /usr/local/bin/wificorrect ctl liste-uygula >/dev/null || true
+  # yeni servers-file satırı ancak yeniden başlatmayla okunur (dosya yukarıda oluştu)
+  systemctl try-restart dnsmasq.service || true
   systemctl start wificorrect-guncelleme-denetle.timer || true
 fi

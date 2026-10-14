@@ -777,6 +777,21 @@ def test_raporlarda_kisisel_veri_yok():
         assert nedenler <= {"", "okunamadi", "dosya", "zincir_yok", "zincir", "manifest"}
 
 
+def test_sir_arsiv_adiyla_cakismaz():
+    """Root sırrı `.sir`: `sir` adlı bir arşivin ham klasörüyle çakışmaz (arşiv adı noktayla başlayamaz)."""
+    with tempfile.TemporaryDirectory() as tmp:
+        k = os.path.join(tmp, "a")
+        basit_gun(k, "2026-10-05")
+        muhurle(k, ["2026-10-05"])
+        ham = os.path.join(tmp, "ham")
+        hatalar = R.calistir({"sir": ars(k)}, os.path.join(tmp, "yok.json"), ham, os.path.join(tmp, "rapor"), None,
+                             ts("2026-10-07"))
+        assert hatalar == [], hatalar
+        assert os.path.isfile(os.path.join(ham, ".sir")) and os.path.isfile(os.path.join(ham, "sir", "2026-10-05.json"))
+        import durum
+        assert os.path.basename(R.SIR_YOLU) == ".sir" and not durum.AD_RE.fullmatch(".sir")
+
+
 if __name__ == "__main__":
     for _name, _fn in sorted(globals().items()):
         if _name.startswith("test_") and callable(_fn):

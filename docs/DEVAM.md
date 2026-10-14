@@ -105,6 +105,12 @@ zararlı (HaGeZi tif.mini + USOM; USOM şu an HTML döndürüyor, kaynak hatalı
 Canlı ölçüm (561.821 alan): dnsmasq RSS ~3 MB → ~47 MB; SIGHUP'ta DNS ~4 sn duruyor (yalnızca liste değişince, günde ~1);
 bet365/pornhub NXDOMAIN, google/netgsm/banka/e-Devlet/bağlantı denetimi açık. `wc-listeler.service` USOM hatası yüzünden
 çıkış 1 veriyor (zararsız). Ertelenmiş küçükler: `.superpowers/sdd/2026-10-14-hazir-engel-listeleri/progress.md`.
+**Haftalık ve aylık raporlar — kod bitti (2026-10-14, dal `aylik-rapor`, yalnızca merkez; birleşme ve kurulum bekliyor):**
+spec `docs/superpowers/specs/2026-10-14-aylik-rapor-design.md`, plan `docs/superpowers/plans/2026-10-14-raporlar.md`.
+Müşteri paneli menüsünde "Raporlar" (önce haftalar, sonra aylar), yönetimde müşteri sayfasında bağlantı; gerekçe/hareket yok
+(kişisel veri yok). Engellenenler bölümü yok (kayıtta engel işareti yok), yazdır düğmesi yok (JS yok; Ctrl+P notu + print CSS).
+Kurulum: `merkez-guncelle.sh` (kullanıcı, sudo), sonra hemen görmek için `sudo systemctl start wc-istatistik` (ilk çalıştırma
+bütün arşiv günlerini bir kez hash'ler).
 **Bulgular 2026-10-13:** cihaz telefon (mobil) hattına alınınca HTTPS/sağlık raporu çalışıyor ama WireGuard 1–2 dk sonra kesiliyor
 (büyük olasılıkla mobil operatör engeli); müşteriler sabit hatlı (TT/Superonline) olacağı için ilk müşteri kurulumundan önce
 gerçek bir dış sabit hatta 15 dk tünel denemesi yapılacak, engel çıkarsa tüneli HTTPS/443 kılıfına almak. NetGSM izinsiz-IP
@@ -115,7 +121,7 @@ vereceksiniz?" soruldu, cevap bekleniyor. AP'ye bugün erişim: `ssh -N -D 1080 
 `--proxy-server=socks5://127.0.0.1:1080` → http://10.50.0.2/ (TP-Link 127.0.0.1 üzerinden girişte Referer yüzünden reddeder).
 Canlı cihaz 0.4.9 (Admin, Ayarlar'ın son kutucuğu; kullanıcılar 10'arlı sayfa; tarihler gün.ay.yıl).
 Kullanıcının onayladığı sıra (2026-10-11; donanım bekçisi hariç): ~~1 küçük işler~~ · ~~2 sağlık izleme~~ ·
-~~3 merkezden uzaktan güncelleme~~ · ~~4 hazır engel listeleri~~ · **5 aylık rapor** · 6 personel kodu ile giriş ·
+~~3 merkezden uzaktan güncelleme~~ · ~~4 hazır engel listeleri~~ · ~~5 aylık rapor~~ (birleşme/kurulum bekliyor) · 6 personel kodu ile giriş ·
 7 imzalı resmi talep raporu · 8 online ödeme (`veri.lisans_uzat`) · 9 **merkezi Rust'a taşıma** (2026-10-13 kararı;
 ~4.300 satır Python + 3.600 satır test, 9 işe bölünür: veritabanı, güvenlik, web tabanı, cihaz API, yönetim, müşteri paneli,
 arka plan işleri, kurulum/yan yana geçiş, uçtan uca + Python'u kaldırma; aynı SQLite şeması ve parola biçimi korunur). Zaman damgası: kontör alınınca. İki aşamalı giriş istenmedi.

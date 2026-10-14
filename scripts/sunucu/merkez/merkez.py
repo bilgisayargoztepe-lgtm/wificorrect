@@ -12,6 +12,7 @@ import cihaz  # noqa: E402
 import guvenlik  # noqa: E402
 import kayitlar  # noqa: E402
 import musteri  # noqa: E402
+import raporlar  # noqa: E402
 import veri  # noqa: E402
 import web  # noqa: E402
 import yonetim  # noqa: E402
@@ -94,9 +95,10 @@ def main():
         v.rapor_gruplari_yaz(veri.RAPOR_GRUPLARI)  # raporlar için müşteri ↔ eski arşiv bağı (root okur)
     except OSError as ex:
         web.log(f"rapor-gruplari yazilamadi: {ex!r}")
-    gecis = guvenlik.GecisBelirtecleri()
-    m = musteri.Musteri(v, k, gecis=gecis)
-    Isleyici.app = Merkez({"yonetim": yonetim.Yonetim(v, k, gecis=gecis, musteri_app=m, rapor_gruplari=veri.RAPOR_GRUPLARI), "musteri": m, "api": api.Api(v),
+    gecis, rp = guvenlik.GecisBelirtecleri(), raporlar.Raporlar()
+    m = musteri.Musteri(v, k, gecis=gecis, raporlar=rp)
+    Isleyici.app = Merkez({"yonetim": yonetim.Yonetim(v, k, gecis=gecis, musteri_app=m, rapor_gruplari=veri.RAPOR_GRUPLARI,
+                                                      raporlar=rp), "musteri": m, "api": api.Api(v),
                            "cihaz": cihaz.Cihaz(v, gecis, m)})
     srv = ThreadingHTTPServer(("127.0.0.1", 8081), Isleyici)
     srv.daemon_threads = True

@@ -15,6 +15,7 @@ import kayitlar as kayitlar_modulu
 import kuyruk
 import listeler
 import netgsm
+import raporlar as raporlar_modulu
 import surumler
 import veri as veri_modulu
 import web
@@ -121,8 +122,8 @@ class Yonetim(web.Taban):
     def __init__(self, veri, kayitlar, saat=time.time, yonetici_yolu=yonetici.YONETICI,
                  durum_yolu=durum_modulu.DURUM, kuyruk_ekle=kuyruk.ekle, gonder=netgsm.gonder, gecis=None, musteri_app=None,
                  github_al=surumler.github_al, getir=surumler.getir, surum_dizini=surumler.DIZIN,
-                 liste_getir=surumler.getir, liste_dizini=listeler.DIZIN, rapor_gruplari=None):
-        super().__init__(veri, kayitlar, saat)
+                 liste_getir=surumler.getir, liste_dizini=listeler.DIZIN, rapor_gruplari=None, raporlar=None):
+        super().__init__(veri, kayitlar, saat, raporlar or raporlar_modulu.Raporlar())
         self.yonetici_yolu, self.durum_yolu, self.kuyruk_ekle, self.gonder = yonetici_yolu, durum_yolu, kuyruk_ekle, gonder
         # cihaz paneline doğrudan geçiş: müşteri paneliyle aynı belirteç deposu ve cihaz adresi kuralı
         self.gecis, self.musteri_app = gecis, musteri_app
@@ -257,6 +258,8 @@ class Yonetim(web.Taban):
         if (yontem, alt) == ("GET", "/hareketler"):
             return yanit_html(self.sayfa("Hareketler", kart(f"<h1>Müşteri {n} · hareketler</h1>"
                                                             + self._hareket_tablosu(self.veri.hareketler(n))), ot, genis=True))
+        if yontem == "GET" and (alt == "/raporlar" or alt.startswith("/rapor/")):  # kişisel veri yok: gerekçesiz
+            return raporlar_modulu.istek(self, ot, n, alt, f"/m/{n}")
         if (yontem == "GET" and (alt == "/kayitlar" or alt.startswith("/kayitlar/"))) or (yontem, alt) == ("POST", "/kayitlar/ara"):
             c = self.veri.bagli_cihaz(n)
             baslik = (c["isletme_adi"] if c is not None and c["isletme_adi"] else f"Müşteri {n}")
@@ -560,7 +563,7 @@ class Yonetim(web.Taban):
                     + (f'<label for="u">Üyeliği bitirmek için müşteri numarasını yazın ({n})</label>'
                        '<input id="u" name="onay" inputmode="numeric" autocomplete="off" required>' if uyelik_dugme[0] == "bitir" else "")
                     + f'<button class="{uyelik_dugme[2]}">{uyelik_dugme[1]}</button></form>'
-                    f'<p><a href="/m/{n}/kayitlar/">Kayıtlar</a> · <a href="/m/{n}/hareketler">Hareketler</a></p>')
+                    f'<p><a href="/m/{n}/kayitlar/">Kayıtlar</a> · <a href="/m/{n}/raporlar">Raporlar</a> · <a href="/m/{n}/hareketler">Hareketler</a></p>')
         gecmis = detay._tablo(("No", "Durum", "Bağlanma", "Ayrılma", "Tünel"),
                                   [(x["id"], x["durum"], common.tarih_goster(x["baglanma"]), common.tarih_goster(x["ayrilma"]), x["tunel_ip"])
                                    for x in self.veri.cihaz_gecmisi(n)], "Henüz cihaz yok.")

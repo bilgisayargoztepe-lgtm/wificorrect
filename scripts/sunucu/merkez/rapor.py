@@ -26,7 +26,7 @@ HAM = "/var/lib/wificorrect/rapor-ham"
 CIKTI = "/var/lib/wificorrect/rapor"
 GRUPLAR = "/var/lib/wificorrect/merkez/rapor-gruplari.json"  # panel (wcpanel) yazar; root için güvenilmez girdi
 PANEL_GRUBU = "wcpanel"
-SIR_YOLU = os.path.join(HAM, "sir")
+SIR_YOLU = os.path.join(HAM, ".sir")  # nokta: hiçbir arşiv adı (durum.AD_RE) noktayla başlamaz, çakışmaz
 BICIM = 1
 ZINCIR_SINIRI = 8 * 1024 * 1024  # zincir.txt ve eski/zincir.txt.* başına; büyüğü atlanır
 MANIFEST_SINIRI = 16 * 1024 * 1024
@@ -693,7 +693,7 @@ def calistir(arsivler, grup_dosyasi=GRUPLAR, ham_dizini=HAM, cikti=CIKTI, panel_
     simdi = time.time() if simdi is None else simdi
     bugun = datetime.datetime.fromtimestamp(simdi, common.TZ).date()
     try:
-        sir = sir if sir is not None else sir_al(os.path.join(ham_dizini, "sir"))
+        sir = sir if sir is not None else sir_al(os.path.join(ham_dizini, ".sir"))
     except Exception as e:  # sır yoksa takma kimlik yok: hiçbir şey yazılmaz
         return [f"sir: {type(e).__name__}"]
     hatalar = []

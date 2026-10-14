@@ -288,3 +288,22 @@ Dal `hazir-listeler`; tasarım `docs/superpowers/specs/2026-10-14-hazir-engel-li
   `ctl dhcp-olay`, IP ve kira bitişi (`DNSMASQ_LEASE_EXPIRES`, yoksa `DNSMASQ_TIME_REMAINING`) son kaydedilenle aynı olan
   `old` olayını yazmaz, oturuma dokunmaz (`/srv/hotspot/state/dhcp_son.json`; gerçek yenileme bitişi uzattığı için yazılır).
   `add`/`del` her zaman yazılır; bitiş bilinmiyorsa eskisi gibi yazılır.
+
+## Raporlar — haftalık ve aylık (2026-10-14)
+Dal `aylik-rapor`; tasarım `docs/superpowers/specs/2026-10-14-aylik-rapor-design.md`, plan `docs/superpowers/plans/2026-10-14-raporlar.md`.
+Yalnızca merkez; cihazda değişiklik yok.
+- **Kim yazar, kim okur:** `wc-istatistik` (root, 02:30 + 12:30) `rapor.py` ile arşiv günlerinden **ham özet** çıkarır:
+  `/var/lib/wificorrect/rapor-ham/<arşiv>/<gün>.json` (root 700/600; misafirler root'a özel sırla HMAC'lenmiş takma kimlik,
+  sır `rapor-ham/.sir` — nokta: hiçbir arşiv adı noktayla başlamaz). Gün başına bir kez (imza değişmedikçe yeniden okunmaz/hash'lenmez).
+  Sonra müşteri başına **dönem raporları**: `/var/lib/wificorrect/rapor/<numara>/{liste.json, hafta-YYYY-Www.json, ay-YYYY-MM.json}`
+  (root:wcpanel 750/640; yalnızca sayılar, kişisel veri yok; en çok 26 hafta + 24 ay). Panel (wcpanel, `raporlar.py`) yalnızca
+  bunları ve `sorun` tablosunu okur; `/srv` ve `rapor-ham`'a dokunmaz. Müşteri ↔ eski arşiv bağını panel
+  `/var/lib/wificorrect/merkez/rapor-gruplari.json`'a yazar (açılışta ve bağ değişince); root bunu güvenilmez girdi olarak okur.
+- **"Tam" gün:** gün klasörü tamam + MANIFEST'teki her dosyanın sha256'sı tutuyor + MANIFEST'in sha'sı zincir satırındakine eşit +
+  zincir satırı doğru (cihazdaki `muhur::verify` ile aynı). Emin olunamayan her gün "Doğrulanamadı" (neden yazılır).
+- **İçerik:** 5651 kayıt durumu (her gün), misafirler (farklı/yeni/dönen, giriş SMS/misafir kodu/izinli cihaz), saat ve gün
+  yoğunluğu (CSS çubuk), kullanım (veri, doğrulama SMS'i, en az **3 farklı misafirin** ziyaret ettiği en çok 10 kök alan adı),
+  cihaz (dönemde açılan kritik/uyarı sorunlar, "en az" çevrimdışı süre, dönem sonu sürümü).
+- **Engellenenler bölümü yok:** `dns.csv` yalnızca dnsmasq'ın sorgu satırlarından yazılır, engel cevabı işaretlenmez; kelime
+  filtresi sorguyu dnsmasq'a hiç ulaştırmaz. Uydurma sayı gösterilmez; eklemek için cihazda kaydedicinin engel cevabını işaretlemesi gerekir.
+- **Yazdırma:** JS yok (CSP); print CSS (menü gizli, A4) + "Ctrl+P ile yazdırın / PDF olarak kaydedin" notu.

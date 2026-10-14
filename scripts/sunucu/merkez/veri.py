@@ -499,6 +499,13 @@ class Veri:
     def sorun_gecmisi(self, musteri, limit=50):
         return [dict(r) for r in self._hepsi("SELECT * FROM sorun WHERE musteri = ? ORDER BY id DESC LIMIT ?", musteri, limit)]
 
+    def sorunlar_aralik(self, musteri, bas_iso, bit_iso):
+        """[bas, bit) aralığıyla kesişen sorunlar (raporlar): açılışı bitişten önce, kapanışı yok ya da başlangıçtan sonra.
+        Zamanlar hep +03:00 ISO: metin karşılaştırması sıralamayla aynı."""
+        return [dict(r) for r in self._hepsi(
+            "SELECT * FROM sorun WHERE musteri = ? AND acilis < ? AND (kapanis = '' OR kapanis >= ?) ORDER BY acilis, id",
+            musteri, bit_iso, bas_iso)]
+
     def son_kapanan(self, musteri, tur):
         r = self._bir("SELECT * FROM sorun WHERE musteri = ? AND tur = ? AND kapanis != '' ORDER BY id DESC LIMIT 1",
                       musteri, tur)

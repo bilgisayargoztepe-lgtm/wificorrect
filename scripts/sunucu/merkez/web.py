@@ -27,7 +27,10 @@ td.n{text-align:right;font-weight:600;min-width:3ch}.bos{color:#9aa3b2}a{color:#
 details{border:1px solid #e3e7ee;border-radius:10px;margin:8px 0;background:#fff}summary{cursor:pointer;padding:10px 12px}details>div{padding:0 12px 12px}
 .kaydir{overflow-x:auto}table.detay th{font-size:13px;color:#5b6475}ul.gunler{list-style:none;margin:0;padding:0 12px 12px}ul.gunler li{padding:4px 0}
 form.ara{display:flex;gap:8px;flex-wrap:wrap}form.ara input{flex:1;min-width:10em}form.ara button{margin:0}
-form.ara select{width:auto}form.ara input.uyruk{flex:0 0 5.5em;min-width:0}"""
+form.ara select{width:auto}form.ara input.uyruk{flex:0 0 5.5em;min-width:0}.iyi{color:#1e6b34;font-weight:600}
+td.cubuk span{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+@media print{header,nav,.yazdirma{display:none}body{background:#fff}main,main.genis{max-width:none;padding:0}
+.kart{border:0;padding:0 0 8px;break-inside:avoid}.kaydir{overflow:visible}@page{size:A4;margin:12mm}}"""
 e = detay.e
 SINIF_GENIS = ' class="genis"'
 
@@ -97,8 +100,9 @@ class Taban:
     giris_basligi = "Giriş"
     giris_aciklama = ""
 
-    def __init__(self, veri, kayitlar, saat=time.time):
+    def __init__(self, veri, kayitlar, saat=time.time, raporlar=None):
         self.veri, self.kayitlar, self.saat = veri, kayitlar, saat
+        self.raporlar = raporlar  # raporlar.Raporlar (haftalık/aylık rapor JSON'ları); None: rapor sayfaları yok
         self.oturumlar, self.kilit = guvenlik.Oturumlar(), guvenlik.GirisKilidi()
 
     # --- alt sınıfın yazdıkları ---

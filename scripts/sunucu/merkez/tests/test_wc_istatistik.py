@@ -171,7 +171,7 @@ def test_main_raporlari_uretir():
         w40 = oku(os.path.join(rapor, "1234567", "hafta-2026-W40.json"))
         assert w40["misafir"]["farkli"] == 3 and [x["farkli"] for x in w40["gunler"][1:4]] == [1, 1, 1]
         assert w40["gunler"][1]["durum"] == "dogrulanamadi"  # zincir.txt yok: "tam" değil
-        assert os.path.exists(os.path.join(ham, "sir")) and R.BICIM == w40["bicim"]
+        assert os.path.exists(os.path.join(ham, ".sir")) and R.BICIM == w40["bicim"]
 
 
 def test_main_bozuk_arsiv_digerlerini_durdurmaz():

@@ -17,7 +17,8 @@ somut bir özellik olur.
    - **Kumar ve bahis**
    - **Yetişkin içerik**
    - **Zararlı ve dolandırıcı siteler** (kimlik avı, zararlı yazılım; USOM'un yayımladığı zararlı bağlantılar dahil)
-   - **VPN ve proxy siteleri** (engelleri atlatmayı kolaylaştıran siteler)
+   - VPN/proxy kategorisi **yok** (kullanıcı kararı 2026-10-14: şirket çalışanlarının iş VPN'lerini kırar). Hiçbir kaynak
+     listesinden VPN/proxy/DoH alan adları da gelmemeli (ör. HaGeZi "threat" listesindeki bu tür girdiler süzülür).
 2. **Cihaz paneli → Yasaklı siteler** sayfasının en üstünde "Hazır listeler" bölümü: her kategori için aç/kapa,
    kaç alan adı içerdiği ve son güncelleme tarihi. Değişiklik hemen geçerli, denetime `PANEL_HAZIR_LISTE kategori=… durum=acik|kapali`.
    Elle girilen siteler, kelimeler ve **istisnalar aynen kalır**; istisna listesine yazılan alan adı hazır listede olsa da
@@ -38,7 +39,7 @@ somut bir özellik olur.
 ## Hedef dışı
 
 - HTTPS içeriğini inceleyen filtre (SNI/URL düzeyi); yalnızca DNS.
-- DoH/şifreli DNS'i tamamen kapatmak (bilinen sınır; "VPN ve proxy" kategorisi bunu bir ölçüde zorlaştırır).
+- DoH/şifreli DNS'i ya da VPN'leri kapatmak (bilinen sınır; iş VPN'leri çalışmaya devam etmeli).
 - İşletme başına özel kategori tanımlamak; yalnızca aç/kapa ve mevcut elle liste/istisna.
 - Müşteriye (işletme sahibine) merkezden zorla açtırmak.
 
@@ -53,13 +54,12 @@ somut bir özellik olur.
 
 ## Kısıtlar ve kararlarım
 
-- **Varsayılan:** dört kategori de **açık** gelir — yeni kurulumlarda ve güncellemeyle mevcut cihazlarda (canlı cihaz dahil).
+- **Varsayılan:** üç kategori de **açık** gelir — yeni kurulumlarda ve güncellemeyle mevcut cihazlarda (canlı cihaz dahil).
   İşletme sahibi istediğini kapatabilir. (Gerekçe: yasal koruma ve "hiç uğraşmayan" işletme sahibi; ters tercih kolay.)
 - **Kaynaklar** (açık lisanslı, düzenli güncellenen; lisans ve atıf belgeye yazılır):
   - kumar: HaGeZi "gambling" + Türkiye'ye özel ek (merkezde elle de eklenebilen küçük liste),
   - yetişkin: HaGeZi "nsfw" ya da StevenBlack "porn" eki,
-  - zararlı: USOM zararlı bağlantılar listesi + HaGeZi "threat intelligence",
-  - VPN/proxy: HaGeZi "doh-vpn-proxy-bypass".
+  - zararlı: USOM zararlı bağlantılar listesi + HaGeZi "threat intelligence".
   Uygulayıcı kaynakların güncel adreslerini ve lisanslarını doğrular; uygun olmayan kaynak yerine benzeri seçilir.
 - Kategori başına üst sınır başlangıçta **300.000** alan adı; ölçüme göre değiştirilebilir.
 - Merkez Python stdlib; cihaz Rust; liste aktarımı mevcut API kimliği ve sağlık raporu mekanizmasıyla. İstisnalar ve elle

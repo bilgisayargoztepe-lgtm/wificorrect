@@ -61,6 +61,10 @@ ASLA = frozenset({
     "apple.com", "icloud.com", "microsoft.com", "windowsupdate.com", "msftconnecttest.com", "msftncsi.com",
     "connectivitycheck.gstatic.com", "captive.apple.com", "detectportal.firefox.com", "pool.ntp.org", "ntp.org",
     "gov.tr", "edu.tr",
+    # büyük ortak altyapılar: bir alt adı engellemek bile milyonlarca meşru kullanıcıyı ve sayfayı bozar
+    "googleusercontent.com", "azureedge.net", "windows.net", "cloudflare.com", "trycloudflare.com", "facebook.com",
+    "fbcdn.net", "instagram.com", "youtube.com", "ytimg.com", "akamaihd.net", "live.com", "office.com", "outlook.com",
+    "whatsapp.com", "whatsapp.net", "wa.me",
 })
 # Paylaşımlı platformlar: zararlı listelerde (özellikle URL listelerinde) bir kullanıcının dosyası/sayfası yüzünden bütün
 # platform listelenebilir. Bunlar ve alt adları (platformun kendi altyapısı, kullanıcıya ayrılmış değil) engellenmez.
@@ -215,9 +219,11 @@ def _onbellek_yolu(dizin, kategori, url):
 def _onbellek_oku(yol):
     try:
         with gzip.open(yol, "rb") as f:
-            return set(f.read().decode("utf-8").split())
+            ham = f.read().decode("utf-8").split()
     except (OSError, EOFError, ValueError):
         return None
+    # eski sürümün yazdığı kopya: bugünkü kurallarla (asla listesi, geçerlilik) yeniden süzülür
+    return {a for a in map(gecerli, ham) if a}
 
 
 def html_mi(ham):

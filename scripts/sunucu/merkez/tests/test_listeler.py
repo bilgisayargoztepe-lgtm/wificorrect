@@ -112,6 +112,29 @@ def test_asla_engelleme_ve_alt_adlari_cikar():
     assert L.temizle(s, "duz") == {"notwificorrect.com", "google.com.kotu.net"}
 
 
+def test_buyuk_ortak_platformlar_asla():
+    """Bir alt adı bile engellenirse milyonlarca meşru kullanıcıyı etkileyen ortak altyapılar ve alt adları."""
+    s = ["googleusercontent.com", "lh3.googleusercontent.com", "x.azureedge.net", "blob.core.windows.net",
+         "cloudflare.com", "abc.trycloudflare.com", "facebook.com", "m.facebook.com", "scontent.fbcdn.net",
+         "instagram.com", "www.youtube.com", "i.ytimg.com", "x.akamaihd.net", "login.live.com", "office.com",
+         "outlook.com", "web.whatsapp.com", "mmg.whatsapp.net", "wa.me", "kotu-facebook.com", "facebook.com.kotu.net"]
+    assert L.temizle(s, "duz") == {"kotu-facebook.com", "facebook.com.kotu.net"}
+
+
+def test_onbellek_okurken_yeniden_dogrulanir():
+    """Eski sürümün yazdığı önbellekte artık asla listesinde olan ya da geçersiz ad varsa listeye girmez."""
+    eski = kaynaklar_koy(iki_kaynak())
+    try:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+            yol = L._onbellek_yolu(tmp, K, "https://a/liste")
+            L._atomik(yol, L._gz("a.com\nm.facebook.com\n1.2.3.4\nwa.me\nb.com\n"))
+            assert L._onbellek_oku(yol) == {"a.com", "b.com"}
+            L.uret(K, sahte({"https://a/liste": OSError("ag yok"), "https://b/liste": b"||c.com^\n"}), tmp, SIMDI)
+            assert gz_oku(os.path.join(tmp, "kumar.txt.gz")) == "a.com\nb.com\nc.com\n"
+    finally:
+        L.KAYNAKLAR = eski
+
+
 def test_vpn_doh_alan_adlari_cikar():
     s = ["nordvpn.com", "api.nordvpn.com", "mullvad.net", "dns.google", "cloudflare-dns.com", "doh.example.org",
          "vpn.sirket.com.tr", "dns.quad9.net", "kotu-site.com", "phishing-vpnlogin.com"]

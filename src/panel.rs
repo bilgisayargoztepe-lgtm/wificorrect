@@ -2918,16 +2918,29 @@ mod tests {
         let hazir = |k: &str, d: &str| e.p.handle(&req("POST", "/yasakli-siteler/hazir", &[("csrf", &csrf), ("kategori", k), ("durum", d)], Some(&tok)));
         assert!(loc(&hazir("vpn", "kapali")).contains("e=1"));
         assert!(loc(&hazir("kumar", "belki")).contains("e=1"));
+        // panel isteği birleşik listeyi kendisi kurmaz (~1 milyon satır): ayarı yazar, sabit adlı işi başlatır, hemen döner
+        let uygula_isi = "systemd-run --collect --unit wfc-liste-uygula /usr/local/bin/wificorrect ctl liste-uygula";
+        let cagrildi = |x: &str| e.calls.lock().unwrap().iter().any(|c| c.join(" ") == x);
+        let is = || crate::liste::uygula_guncel(&e.p.cfg_path, &Config::load(&e.p.cfg_path).unwrap(), y, &|_: &[String]| true).unwrap(); // systemd-run'ın yapacağı
         assert!(!loc(&hazir("kumar", "kapali")).contains("e=1"));
         assert_eq!(Config::load(&e.p.cfg_path).unwrap().filtre.hazir.get("kumar"), Some(&false));
-        assert!(!std::fs::read_to_string(&y.conf).unwrap().contains("server=")); // kapatınca hemen açılır
+        assert!(!y.conf.exists() && cagrildi(uygula_isi));
+        is();
+        assert!(!std::fs::read_to_string(&y.conf).unwrap().contains("server=")); // kapatınca iş hemen açar
         assert!(e.p.handle(&get("/yasakli-siteler", &[("ad", "bet365.com")], &tok)).body.contains("engelli değil"));
         assert!(!e.calls.lock().unwrap().iter().any(|c| c.contains(&"liste-guncelle".to_string())));
+        e.calls.lock().unwrap().clear();
         assert!(!loc(&hazir("kumar", "acik")).contains("e=1"));
+        assert!(!std::fs::read_to_string(&y.conf).unwrap().contains("server="));
+        // eldeki liste hemen (uygulama işi), merkezdeki daha yenisi ayrı işte
+        assert!(cagrildi(uygula_isi) && cagrildi("systemd-run --collect --unit wfc-liste /usr/local/bin/wificorrect ctl liste-guncelle"));
+        is();
         assert!(std::fs::read_to_string(&y.conf).unwrap().contains("server=/bet365.com/\nserver=/bets10.com/\n"));
-        assert!(e.calls.lock().unwrap().iter().any(|c| c.join(" ") == "systemd-run --collect --unit wfc-liste /usr/local/bin/wificorrect ctl liste-guncelle"));
-        // istisna eklenince hazır listeden de çıkar
+        // istisna eklenince hazır listeden de çıkar (yine iş üzerinden)
+        e.calls.lock().unwrap().clear();
         e.p.handle(&req("POST", "/yasakli-siteler/ekle", &[("csrf", &csrf), ("liste", "istisna"), ("deger", "bets10")], Some(&tok)));
+        assert!(cagrildi(uygula_isi) && std::fs::read_to_string(&y.conf).unwrap().contains("bets10"));
+        is();
         let conf = std::fs::read_to_string(&y.conf).unwrap();
         assert!(conf.contains("server=/bet365.com/") && !conf.contains("bets10"));
         let audit = std::fs::read_to_string(e.root.join("5651/gunluk/2026-09-29/denetim.csv")).unwrap();

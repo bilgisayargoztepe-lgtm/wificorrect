@@ -52,6 +52,35 @@ impl Yollar {
     fn hedef(&self) -> PathBuf {
         self.dizin.join("hedef.json")
     }
+    /// Son başarısız indirme (kategori → sürüm, zaman): aynı sürüm `HATA_BEKLE` boyunca yeniden denenmez.
+    fn hata(&self) -> PathBuf {
+        self.dizin.join("hata.json")
+    }
+    /// Dosya yazıldı ama dnsmasq yeniden okuyamadı: sonraki `uygula` içerik aynı olsa da yeniden okutur.
+    fn hup_bekliyor(&self) -> PathBuf {
+        self.dizin.join("hup-bekliyor")
+    }
+}
+
+/// Başarısız indirmeden sonra aynı sürümün yeniden denenmesi için beklenen süre (sn).
+const HATA_BEKLE: f64 = 3600.0;
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+struct Hata {
+    sha256: String,
+    zaman: f64,
+}
+
+fn hata_oku(y: &Yollar) -> BTreeMap<String, Hata> {
+    std::fs::read(y.hata()).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default()
+}
+
+fn hata_yaz(y: &Yollar, h: &BTreeMap<String, Hata>) {
+    if h.is_empty() {
+        let _ = std::fs::remove_file(y.hata());
+    } else {
+        let _ = ortak::write_atomic(&y.hata(), &serde_json::to_vec(h).unwrap_or_default());
+    }
 }
 
 pub fn ad(k: &str) -> Option<&'static str> {
@@ -77,8 +106,12 @@ fn sha256(b: &[u8]) -> String {
 }
 
 /// dnsmasq dosyasına yazılabilir alan adı: küçük harf, rakam, nokta, tire; en az iki etiket, etiket 1-63, toplam ≤ 253.
+/// Son etiketi yalnızca rakam olan (IPv4 adresi; gerçek bir üst alan adı rakamdan oluşmaz) atılır.
 fn alan_gecerli(d: &str) -> bool {
-    d.len() <= 253 && d.contains('.') && d.split('.').all(|l| (1..=63).contains(&l.len()) && l.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-'))
+    d.len() <= 253
+        && d.contains('.')
+        && d.split('.').all(|l| (1..=63).contains(&l.len()) && l.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-'))
+        && !d.rsplit('.').next().is_some_and(|t| t.bytes().all(|b| b.is_ascii_digit()))
 }
 
 pub fn meta_oku(y: &Yollar, k: &str) -> Option<Meta> {
@@ -98,24 +131,27 @@ pub fn hedef_oku(y: &Yollar) -> BTreeMap<String, Meta> {
     std::fs::read(y.hedef()).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default()
 }
 
-/// İndirilmesi gereken kategoriler: açık ve eldeki sürümü merkezinkinden farklı (ya da hiç yok).
-pub fn eksikler(y: &Yollar, hedef: &BTreeMap<String, Meta>, acik: &BTreeMap<String, bool>) -> Vec<String> {
+/// İndirilmesi gereken kategoriler: açık ve eldeki sürümü merkezinkinden farklı (ya da hiç yok); aynı sürüm son
+/// `HATA_BEKLE` saniyede hata verdiyse (ör. sha tutmadı, merkez bozuk dosya veriyor) beklenir.
+pub fn eksikler(y: &Yollar, hedef: &BTreeMap<String, Meta>, acik: &BTreeMap<String, bool>, now: f64) -> Vec<String> {
+    let hata = hata_oku(y);
     hedef
         .iter()
         .filter(|(k, h)| acik.get(*k).copied().unwrap_or(true) && meta_oku(y, k).is_none_or(|m| m.sha256 != h.sha256))
+        .filter(|(k, h)| !hata.get(*k).is_some_and(|e| e.sha256 == h.sha256 && (now - e.zaman).abs() < HATA_BEKLE))
         .map(|(k, _)| k.clone())
         .collect()
 }
 
 /// `ctl saglik`: merkezin sürümleri kaydedilir; açık bir kategori eksik ya da eskiyse `baslat` (indirme işi) çağrılır.
 /// Dönen: iş başlatıldı mı.
-pub fn hedefi_isle(y: &Yollar, hedef: &BTreeMap<String, Meta>, acik: &BTreeMap<String, bool>, baslat: &dyn Fn()) -> bool {
+pub fn hedefi_isle(y: &Yollar, hedef: &BTreeMap<String, Meta>, acik: &BTreeMap<String, bool>, now: f64, baslat: &dyn Fn()) -> bool {
     if hedef_oku(y) != *hedef {
         if let Ok(b) = serde_json::to_vec_pretty(hedef) {
             let _ = ortak::write_atomic(&y.hedef(), &b);
         }
     }
-    let eksik = !eksikler(y, hedef, acik).is_empty();
+    let eksik = !eksikler(y, hedef, acik, now).is_empty();
     if eksik {
         baslat();
     }
@@ -144,7 +180,8 @@ pub fn guncelle(y: &Yollar, log_root: &str, m: &Merkez, hedef: &BTreeMap<String,
     if ortak::mkdirs(&y.dizin).is_err() {
         return alinan;
     }
-    for k in eksikler(y, hedef, acik) {
+    let mut hata = hata_oku(y);
+    for k in eksikler(y, hedef, acik, now) {
         let h = &hedef[&k];
         let gecici = y.dizin.join(format!("{k}.indir"));
         let govde = json!({"cihaz_anahtari": m.cihaz_anahtari, "kategori": k}).to_string();
@@ -165,11 +202,16 @@ pub fn guncelle(y: &Yollar, log_root: &str, m: &Merkez, hedef: &BTreeMap<String,
         match sonuc {
             Ok(sayi) => {
                 denetim(log_root, now, "HAZIR_LISTE_GUNCEL", format!("kategori={k} surum={} sayi={sayi}", &h.sha256[..8]));
+                hata.remove(&k);
                 alinan.push(k);
             }
-            Err(neden) => denetim(log_root, now, "HAZIR_LISTE_HATA", format!("kategori={k} neden={neden}")),
+            Err(neden) => {
+                denetim(log_root, now, "HAZIR_LISTE_HATA", format!("kategori={k} neden={neden}"));
+                hata.insert(k, Hata { sha256: h.sha256.clone(), zaman: now });
+            }
         }
     }
+    hata_yaz(y, &hata);
     alinan
 }
 
@@ -201,8 +243,9 @@ pub fn metin(cfg: &Config, y: &Yollar) -> (String, usize) {
     (s, set.len())
 }
 
-/// Birleşik dosyayı atomik yazar (her zaman var olur; dnsmasq dosya yoksa açılmaz); değiştiyse ve dnsmasq çalışıyorsa
-/// SIGHUP ile yeniden okutur (yalnızca ana süreç). Dönen: engellenen alan adı sayısı.
+/// Birleşik dosyayı atomik yazar (her zaman var olur; dnsmasq dosya yoksa açılmaz); değiştiyse (ya da önceki yeniden
+/// okutma başarısız kaldıysa) ve dnsmasq çalışıyorsa SIGHUP ile yeniden okutur (yalnızca ana süreç). dnsmasq çalışmıyorsa
+/// açılırken dosyayı okur. Dönen: engellenen alan adı sayısı.
 pub fn uygula(cfg: &Config, y: &Yollar, runner: &Runner) -> Result<usize, String> {
     let _kilit = ortak::state_lock(&y.dizin.to_string_lossy()).map_err(|e| format!("{}: {e}", y.dizin.display()))?;
     let (text, n) = metin(cfg, y);
@@ -211,12 +254,46 @@ pub fn uygula(cfg: &Config, y: &Yollar, runner: &Runner) -> Result<usize, String
         ortak::write_atomic(&y.conf, text.as_bytes()).map_err(|e| format!("{} yazılamadı: {e}", y.conf.display()))?;
         // dnsmasq SIGHUP'ta dosyayı yetkisini bırakmış kullanıcıyla okur
         let _ = std::fs::set_permissions(&y.conf, std::os::unix::fs::PermissionsExt::from_mode(0o644));
+    }
+    if changed || y.hup_bekliyor().exists() {
         let c = |p: &[&str]| p.iter().map(|s| s.to_string()).collect::<Vec<_>>();
         if runner(&c(&["systemctl", "is-active", "--quiet", "dnsmasq.service"])) && !runner(&c(&["systemctl", "kill", "--kill-whom=main", "-s", "HUP", "dnsmasq.service"])) {
+            let _ = std::fs::write(y.hup_bekliyor(), b"");
             return Err("dnsmasq listeyi yeniden okuyamadı".into());
         }
+        let _ = std::fs::remove_file(y.hup_bekliyor());
     }
     Ok(n)
+}
+
+/// `ctl liste-uygula` / `liste-guncelle` (ayrı işler; panel ayarı kaydedip işi başlatır ve hemen döner): ayar dosyası
+/// uygulamadan hemen önce yeniden okunur ve uygulama sürerken hazır liste ayarı ya da istisnalar değiştiyse yeniden
+/// uygulanır (iş zaten sürerken gelen ikinci panel değişikliği kaybolmasın; aynı anda iki iş en sonda güncel ayarı yazar).
+pub fn uygula_guncel(cfg_path: &str, yedek: &Config, y: &Yollar, runner: &Runner) -> Result<usize, String> {
+    let oku = |onceki: &Config| Config::load(cfg_path).unwrap_or_else(|_| onceki.clone());
+    let anahtar = |c: &Config| (c.filtre.hazir.clone(), c.filtre.istisnalar.clone());
+    let mut c = oku(yedek);
+    let mut r = uygula(&c, y, runner);
+    for _ in 0..3 {
+        let yeni = oku(&c);
+        if anahtar(&yeni) == anahtar(&c) {
+            break;
+        }
+        c = yeni;
+        r = uygula(&c, y, runner);
+    }
+    r
+}
+
+/// Listede satır satır arar (bütün listeyi belleğe almadan), ilk eşleşmede durur.
+fn listede_var(y: &Yollar, k: &str, bul: &dyn Fn(&str) -> bool) -> bool {
+    use std::io::BufRead;
+    let Ok(f) = std::fs::File::open(y.gz(k)) else { return false };
+    std::io::BufReader::new(flate2::read::GzDecoder::new(f).take(EN_COK_BAYT)).split(b'\n').map_while(Result::ok).any(|l| {
+        let d = String::from_utf8_lossy(&l);
+        let d = d.trim();
+        alan_gecerli(d) && bul(d)
+    })
 }
 
 /// "Bu adres engelli mi?": alan adını (ya da üst adlarından birini) içeren açık kategorinin adı; istisnaya takılan
@@ -226,7 +303,7 @@ pub fn bul(cfg: &Config, y: &Yollar, d: &str) -> Option<&'static str> {
     KATEGORILER
         .iter()
         .filter(|(k, _)| acik(cfg, k))
-        .find(|(k, _)| alanlar(y, k).iter().any(|e| ustler.contains(e.as_str()) && !istisnada(cfg, e)))
+        .find(|(k, _)| listede_var(y, k, &|e| ustler.contains(e) && !istisnada(cfg, e)))
         .map(|(_, a)| *a)
 }
 
@@ -300,18 +377,18 @@ mod tests {
         let sayac = std::cell::Cell::new(0);
         let b = || sayac.set(sayac.get() + 1);
         let hedef: BTreeMap<String, Meta> = [("kumar".to_string(), meta("bet365.com\n"))].into();
-        assert!(hedefi_isle(&y, &hedef, &harita(&c), &b)); // hiç yok → indir
+        assert!(hedefi_isle(&y, &hedef, &harita(&c), T, &b)); // hiç yok → indir
         assert_eq!(sayac.get(), 1);
         assert_eq!(hedef_oku(&y), hedef);
         koy(&y, "kumar", "bet365.com\n");
-        assert!(!hedefi_isle(&y, &hedef, &harita(&c), &b)); // aynı sürüm → başlamaz
+        assert!(!hedefi_isle(&y, &hedef, &harita(&c), T, &b)); // aynı sürüm → başlamaz
         assert_eq!(sayac.get(), 1);
         let yeni: BTreeMap<String, Meta> = [("kumar".to_string(), meta("bet365.com\nbets10.com\n"))].into();
-        assert!(hedefi_isle(&y, &yeni, &harita(&c), &b));
+        assert!(hedefi_isle(&y, &yeni, &harita(&c), T, &b));
         assert_eq!(sayac.get(), 2);
         // kapalı kategori indirilmez
         let kapali = cfg("[filtre.hazir]\nkumar = false\n");
-        assert!(!hedefi_isle(&y, &yeni, &harita(&kapali), &b));
+        assert!(!hedefi_isle(&y, &yeni, &harita(&kapali), T, &b));
         assert_eq!(sayac.get(), 2);
         let _ = std::fs::remove_dir_all(&root);
     }
@@ -339,15 +416,15 @@ mod tests {
         assert_eq!(String::from_utf8(ac(&y.gz("kumar")).unwrap()).unwrap(), eski); // eski dosya yerinde
         assert_eq!(meta_oku(&y, "kumar").unwrap().sha256, sha256(eski.as_bytes()));
         assert!(!y.dizin.join("kumar.indir").exists());
-        // doğru içerik → yazılır
+        // doğru içerik → yazılır (aynı sürüm hatadan bir saat sonra yeniden denenir)
         *gonderilen.lock().unwrap() = gz(yeni.as_bytes());
-        assert_eq!(guncelle(&y, &log, &m, &hedef, &harita(&c), &indir, 1_790_705_134.0), vec!["kumar".to_string()]);
+        assert_eq!(guncelle(&y, &log, &m, &hedef, &harita(&c), &indir, 1_790_705_134.0 + 3601.0), vec!["kumar".to_string()]);
         assert_eq!(String::from_utf8(ac(&y.gz("kumar")).unwrap()).unwrap(), yeni);
         assert_eq!(meta_oku(&y, "kumar").unwrap(), Meta { sha256: hedef["kumar"].sha256.clone(), sayi: 2, zaman: hedef["kumar"].zaman.clone() });
         // merkez 404 / ulaşılamaz → eski kalır
         let h2: BTreeMap<String, Meta> = [("kumar".to_string(), meta("x.com\n"))].into();
         assert!(guncelle(&y, &log, &m, &h2, &harita(&c), &|_: &str, _: &str, _: &Path| Ok(404), 1_790_705_134.0).is_empty());
-        assert!(guncelle(&y, &log, &m, &h2, &harita(&c), &|_: &str, _: &str, _: &Path| Err("merkeze ulaşılamadı".into()), 1_790_705_134.0).is_empty());
+        assert!(guncelle(&y, &log, &m, &h2, &harita(&c), &|_: &str, _: &str, _: &Path| Err("merkeze ulaşılamadı".into()), 1_790_705_134.0 + 3601.0).is_empty());
         assert_eq!(String::from_utf8(ac(&y.gz("kumar")).unwrap()).unwrap(), yeni);
         let audit = std::fs::read_to_string(root.join("5651/gunluk/2026-09-29/denetim.csv")).unwrap();
         assert!(audit.contains("HAZIR_LISTE_HATA") && audit.contains("kategori=kumar neden=sha"));
@@ -356,10 +433,122 @@ mod tests {
         let _ = std::fs::remove_dir_all(&root);
     }
 
+    const T: f64 = 1_790_705_134.0;
+
+    /// Aynı sürüm hata verdiyse (ör. sha tutmadı) bir saat yeniden denenmez; sağlık raporu her 5 dk'da işi başlatmaz.
+    /// Merkezde yeni sürüm çıkınca hemen denenir.
+    #[test]
+    fn hata_sonrasi_ayni_surum_bir_saat_beklenir() {
+        let (y, root) = kur();
+        let log = root.join("5651").display().to_string();
+        let c = cfg("");
+        let m = Merkez { cihaz_anahtari: "anahtar".into(), ..Default::default() };
+        let hedef: BTreeMap<String, Meta> = [("kumar".to_string(), meta("bet365.com\n"))].into();
+        let sayac = Arc::new(AtomicUsize::new(0));
+        let s2 = sayac.clone();
+        let bozuk = move |_: &str, _: &str, c: &Path| -> Result<u16, String> {
+            s2.fetch_add(1, Ordering::SeqCst);
+            std::fs::write(c, gz(b"baska.com\n")).unwrap();
+            Ok(200)
+        };
+        assert!(guncelle(&y, &log, &m, &hedef, &harita(&c), &bozuk, T).is_empty());
+        assert_eq!(sayac.load(Ordering::SeqCst), 1);
+        let bas = std::cell::Cell::new(0);
+        assert!(!hedefi_isle(&y, &hedef, &harita(&c), T + 300.0, &|| bas.set(bas.get() + 1)));
+        assert!(guncelle(&y, &log, &m, &hedef, &harita(&c), &bozuk, T + 3000.0).is_empty());
+        assert_eq!((sayac.load(Ordering::SeqCst), bas.get()), (1, 0));
+        // bir saat sonra yeniden
+        assert!(hedefi_isle(&y, &hedef, &harita(&c), T + 3601.0, &|| bas.set(bas.get() + 1)));
+        guncelle(&y, &log, &m, &hedef, &harita(&c), &bozuk, T + 3601.0);
+        assert_eq!(sayac.load(Ordering::SeqCst), 2);
+        // yeni sürüm: beklemeden
+        let yeni: BTreeMap<String, Meta> = [("kumar".to_string(), meta("bets10.com\n"))].into();
+        let iyi = |_: &str, _: &str, c: &Path| -> Result<u16, String> {
+            std::fs::write(c, gz(b"bets10.com\n")).unwrap();
+            Ok(200)
+        };
+        assert_eq!(guncelle(&y, &log, &m, &yeni, &harita(&c), &iyi, T + 3700.0), vec!["kumar".to_string()]);
+        // başarıdan sonra hata kaydı temizlenir: eski sürüm tekrar hedef olursa beklemeden denenir
+        guncelle(&y, &log, &m, &hedef, &harita(&c), &bozuk, T + 3800.0);
+        assert_eq!(sayac.load(Ordering::SeqCst), 3);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// Dosya yazıldı ama dnsmasq yeniden okumadıysa (HUP başarısız) bir sonraki uygula içerik aynı olsa da yeniden dener.
+    #[test]
+    fn basarisiz_hup_sonraki_uygulamada_yinelenir() {
+        let (y, root) = kur();
+        koy(&y, "kumar", "bet365.com\n");
+        let calls: Arc<Mutex<Vec<String>>> = Arc::default();
+        let hup_ok = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let (c2, h2) = (calls.clone(), hup_ok.clone());
+        let runner = move |a: &[String]| {
+            c2.lock().unwrap().push(a.join(" "));
+            a[1] != "kill" || h2.load(Ordering::SeqCst)
+        };
+        let c = cfg("");
+        assert!(uygula(&c, &y, &runner).is_err());
+        assert!(std::fs::read_to_string(&y.conf).unwrap().contains("server=/bet365.com/"));
+        calls.lock().unwrap().clear();
+        assert!(uygula(&c, &y, &runner).is_err()); // içerik aynı ama okutulmadı → yine dener
+        assert!(calls.lock().unwrap().iter().any(|x| x.contains("HUP")));
+        hup_ok.store(true, Ordering::SeqCst);
+        assert_eq!(uygula(&c, &y, &runner), Ok(1));
+        calls.lock().unwrap().clear();
+        assert_eq!(uygula(&c, &y, &runner), Ok(1)); // okutuldu → bir daha gerekmez
+        assert!(calls.lock().unwrap().is_empty());
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// İş ayarı uygulama anında okur; uygularken ayar değişirse (panelde ikinci tıklama) son ayar yazılır.
+    #[test]
+    fn uygula_guncel_son_ayari_yazar() {
+        let (y, root) = kur();
+        koy(&y, "kumar", "bet365.com\n");
+        koy(&y, "yetiskin", "porn.example\n");
+        let yol = root.join("ayarlar.toml");
+        std::fs::write(&yol, "[filtre.hazir]\nkumar = false\n").unwrap();
+        let yol_s = yol.display().to_string();
+        let ilk = std::sync::atomic::AtomicBool::new(true);
+        let y2 = yol.clone();
+        let runner = move |a: &[String]| {
+            // ilk yeniden okutmada panel ayarı değiştirmiş olsun
+            if a[1] == "kill" && ilk.swap(false, Ordering::SeqCst) {
+                std::fs::write(&y2, "[filtre.hazir]\nkumar = true\nyetiskin = false\n").unwrap();
+            }
+            true
+        };
+        let eski = cfg(""); // işi başlatanın elindeki (eski) ayar kullanılmaz
+        assert_eq!(uygula_guncel(&yol_s, &eski, &y, &runner), Ok(1));
+        let text = std::fs::read_to_string(&y.conf).unwrap();
+        assert!(text.contains("server=/bet365.com/") && !text.contains("porn.example"), "{text}");
+        // ayar dosyası okunamazsa elindeki ayarla
+        assert_eq!(uygula_guncel(&root.join("yok.toml").display().to_string(), &eski, &y, &runner), Ok(2));
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// "Bu adres engelli mi?" listeyi satır satır tarar (bütün alan adlarını belleğe almaz); anlam aynı.
+    #[test]
+    fn bul_buyuk_listede_akarak_arar() {
+        let (y, root) = kur();
+        let mut metin = String::new();
+        for i in 0..50_000 {
+            metin.push_str(&format!("site{i}.com\n"));
+        }
+        metin.push_str("1.2.3.4\nson-site.com\n");
+        koy(&y, "zararli", &metin);
+        let c = cfg("");
+        assert_eq!(bul(&c, &y, "a.b.son-site.com"), Some("Zararlı ve dolandırıcı siteler"));
+        assert_eq!(bul(&c, &y, "site49999.com"), Some("Zararlı ve dolandırıcı siteler"));
+        assert_eq!(bul(&c, &y, "1.2.3.4"), None); // IP adresi liste girdisi sayılmaz
+        assert_eq!(bul(&c, &y, "yok.com"), None);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
     #[test]
     fn birlesik_dosya_ve_uygula() {
         let (y, root) = kur();
-        koy(&y, "kumar", "bet365.com\nbetter-bet.com\nkotu satir\nx.com/../y\n");
+        koy(&y, "kumar", "bet365.com\nbetter-bet.com\nkotu satir\nx.com/../y\n1.2.3.4\n10.0.0.1\n");
         koy(&y, "yetiskin", "porn.example\nbet365.com\n");
         let calls: Arc<Mutex<Vec<String>>> = Arc::default();
         let c2 = calls.clone();

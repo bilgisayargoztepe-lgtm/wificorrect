@@ -103,7 +103,8 @@ pub fn topla(cfg: &Config, now: f64, k: &Kaynak) -> Result<Girdi, String> {
         son_muhur,
         kayit_boslugu_1s: kayit_boslugu(&m.log_root, now),
         wan,
-        sms_sorunu: cfg.sms.mock || !cfg.sms_missing().is_empty(),
+        // SMS merkezden gider (spec 2026-10-13): sorun = merkez deneme modunda (rapor yalnızca bağlı cihazdan gider)
+        sms_sorunu: cfg.sms.mock,
         bagli,
         hiz_hata: crate::trafik::oku(&k.trafik).and_then(|d| d.hiz_hata).is_some_and(|h| !h.is_empty()),
     })
@@ -130,29 +131,37 @@ pub fn kayit_boslugu(log_root: &str, now: f64) -> bool {
     })
 }
 
-/// Raporu gönderir; merkezin cevabındaki güncelleme hedefi (varsa ve geçerliyse) döner.
-pub fn gonder(m: &Merkez, rapor: &Value, http: &Http) -> Result<Option<Hedef>, String> {
+/// Merkezin rapor cevabı: güncelleme hedefi (varsa ve geçerliyse) ve etkin SMS deneme modu (bu alandan önceki merkez
+/// göndermez: None). Deneme modu 5 dk'da bir gelir: Özet ve `sms_sorunu` 06:00 eşitlemesini beklemez.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct Cevap {
+    pub hedef: Option<Hedef>,
+    pub sms_mock: Option<bool>,
+}
+
+/// Raporu gönderir; merkezin cevabını döner.
+pub fn gonder(m: &Merkez, rapor: &Value, http: &Http) -> Result<Cevap, String> {
     let (d, v) = crate::merkez::cagir(http, "/api/saglik", &json!({"cihaz_anahtari": m.cihaz_anahtari, "rapor": rapor}))?;
     if d != 200 {
         return Err(crate::merkez::hata(&v).map_or(format!("HTTP {d}"), |(m, _)| m));
     }
-    Ok(v.get("guncelleme").and_then(guncelleme::hedef_coz))
+    Ok(Cevap { hedef: v.get("guncelleme").and_then(guncelleme::hedef_coz), sms_mock: v.get("sms_etkin_mock").and_then(Value::as_bool) })
 }
 
 /// `ctl saglik`: cihaz bağlı değilse bir şey yapılmaz; bağlıysa önce önceki güncellemenin sonucu uzlaştırılır, rapor
 /// (paket sürümü ve son güncelleme sonucuyla) gönderilir; başarıda `saglik_basari` dosyasının zamanı yenilenir
-/// (denetim betiği mtime'a bakar) ve merkezin hedef sürümü döner.
-pub fn calistir(cfg: &Config, merkez_path: &Path, k: &Kaynak, http: &Http, now: f64) -> Result<Option<Hedef>, String> {
-    let Some(m) = crate::merkez::oku(merkez_path) else { return Ok(None) };
+/// (denetim betiği mtime'a bakar) ve merkezin cevabı (hedef sürüm, etkin deneme modu) döner.
+pub fn calistir(cfg: &Config, merkez_path: &Path, k: &Kaynak, http: &Http, now: f64) -> Result<Cevap, String> {
+    let Some(m) = crate::merkez::oku(merkez_path) else { return Ok(Cevap::default()) };
     let kurulu = guncelleme::kurulu(&*k.komut);
     guncelleme::uzlas(&k.guncelleme, &cfg.main.log_root, &kurulu, now);
     let mut r = rapor(&topla(cfg, now, k)?);
     let (paket, g) = guncelleme::rapor_alanlari(&k.guncelleme, &kurulu);
     r["paket"] = Value::String(paket);
     r["guncelleme"] = g;
-    let hedef = gonder(&m, &r, http)?;
+    let cevap = gonder(&m, &r, http)?;
     let _ = ortak::write_atomic(&k.guncelleme.saglik_basari(), format!("{}\n", now as u64).as_bytes());
-    Ok(hedef)
+    Ok(cevap)
 }
 
 #[cfg(test)]
@@ -319,11 +328,11 @@ mod tests {
         let (cfg, root, k) = kur();
         let p = root.join("merkez.json");
         let (h, c) = sahte(Ok((200, r#"{"tamam":true}"#)));
-        assert_eq!(calistir(&cfg, &p, &k, &*h, 1000.0), Ok(None));
+        assert_eq!(calistir(&cfg, &p, &k, &*h, 1000.0), Ok(Cevap::default()));
         assert!(c.lock().unwrap().is_empty());
         crate::merkez::kaydet(&p, &Merkez { numara: "4511643".into(), cihaz_anahtari: "gizli-anahtar".into(), ..Default::default() }).unwrap();
         assert!(!k.guncelleme.saglik_basari().exists());
-        assert_eq!(calistir(&cfg, &p, &k, &*h, 1000.0), Ok(None));
+        assert_eq!(calistir(&cfg, &p, &k, &*h, 1000.0), Ok(Cevap::default())); // eski merkez: deneme modu bilgisi yok
         assert!(k.guncelleme.saglik_basari().exists()); // başarıda dokunulur
         let (yol, govde) = c.lock().unwrap()[0].clone();
         assert_eq!((yol.as_str(), govde["cihaz_anahtari"].as_str()), ("/api/saglik", Some("gizli-anahtar")));
@@ -364,11 +373,23 @@ mod tests {
         crate::merkez::kaydet(&p, &Merkez { numara: "4511643".into(), cihaz_anahtari: "a".into(), ..Default::default() }).unwrap();
         let govde: &'static str = Box::leak(format!(r#"{{"tamam":true,"guncelleme":{{"surum":"0.4.1","sha256":"{}","boyut":12345,"hemen":false}}}}"#, "b".repeat(64)).into_boxed_str());
         let (h, _) = sahte(Ok((200, govde)));
-        let hedef = calistir(&cfg, &p, &k, &*h, 1000.0).unwrap().unwrap();
+        let hedef = calistir(&cfg, &p, &k, &*h, 1000.0).unwrap().hedef.unwrap();
         assert_eq!((hedef.surum.as_str(), hedef.boyut, hedef.hemen), ("0.4.1", 12345, false));
         // bozuk hedef yok sayılır
         let (h, _) = sahte(Ok((200, r#"{"tamam":true,"guncelleme":{"surum":"1.2","sha256":"x","boyut":0}}"#)));
-        assert_eq!(calistir(&cfg, &p, &k, &*h, 1000.0), Ok(None));
+        assert_eq!(calistir(&cfg, &p, &k, &*h, 1000.0).map(|c| c.hedef), Ok(None));
+    }
+
+    #[test]
+    fn cevaptaki_etkin_deneme_modu_doner() {
+        let (cfg, root, k) = kur();
+        let p = root.join("merkez.json");
+        crate::merkez::kaydet(&p, &Merkez { numara: "4511643".into(), cihaz_anahtari: "a".into(), ..Default::default() }).unwrap();
+        for (govde, beklenen) in [(r#"{"tamam":true,"sms_etkin_mock":true}"#, Some(true)), (r#"{"tamam":true,"sms_etkin_mock":false}"#, Some(false)),
+                                  (r#"{"tamam":true,"sms_etkin_mock":"x"}"#, None), (r#"{"tamam":true}"#, None)] {
+            let (h, _) = sahte(Ok((200, govde)));
+            assert_eq!(calistir(&cfg, &p, &k, &*h, 1000.0).unwrap().sms_mock, beklenen, "{govde}");
+        }
     }
 
     #[test]

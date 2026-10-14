@@ -209,6 +209,29 @@ fn ara_secenegi(args: &[String]) -> Option<(&'static str, String)> {
     }
 }
 
+/// Merkezden gelen deneme modu `ek_uygula` ile `yeni`ye uygulandıysa ve değiştiyse ayar dosyasına (atomik) yazılır.
+/// Portal yeniden başlatılmaz: deneme modu yalnızca Özet ve sağlık raporunda kullanılır (bekleyen kodlar düşmesin).
+fn sms_sonucu_kaydet(sms: Result<bool, String>, yeni: &Config, cfg_path: &str, denetim: &dyn Fn(&str, String)) {
+    match sms {
+        Ok(true) => match yeni.save(cfg_path) {
+            Ok(()) => denetim("SMS_AYARI_MERKEZ", format!("mock={}", u8::from(yeni.sms.mock))),
+            Err(e) => denetim("MERKEZ_EK_HATA", e),
+        },
+        Ok(false) => {}
+        Err(e) => denetim("MERKEZ_EK_HATA", e),
+    }
+}
+
+/// `ayar::Config::eski_sirlari_temizle` (postinst ve açılış): hata tek satır, çıkış etkilenmez.
+fn eski_sirlari_temizle() {
+    let cfg_path = std::env::var("WFC_AYAR").unwrap_or_else(|_| crate::ayar::PATH.to_string());
+    match Config::eski_sirlari_temizle(&cfg_path) {
+        Ok(true) => println!("ayar dosyasındaki eski SMS bilgileri silindi"),
+        Ok(false) => {}
+        Err(e) => eprintln!("eski SMS bilgileri silinemedi: {e}"),
+    }
+}
+
 pub fn run(cfg: Config, args: &[String]) -> ExitCode {
     let runner = |c: &[String]| ortak::run(c);
     let now = ortak::wall();
@@ -219,7 +242,13 @@ pub fn run(cfg: Config, args: &[String]) -> ExitCode {
             ExitCode::SUCCESS
         }
         Some("yukle") => {
+            eski_sirlari_temizle(); // paket kurulumunda yapılamadıysa açılışta
             println!("{} oturum geri yüklendi", yukle(&cfg, now, &runner));
+            ExitCode::SUCCESS
+        }
+        // Paket kurulumu (postinst): 0.4.8 öncesinden ayar dosyasında kalan SMS sırları
+        Some("ayar-temizle") => {
+            eski_sirlari_temizle();
             ExitCode::SUCCESS
         }
         Some("oturumlar") => {
@@ -284,17 +313,7 @@ pub fn run(cfg: Config, args: &[String]) -> ExitCode {
                         Ok(false) => {}
                         Err(e) => denetim("MERKEZ_EK_HATA", e),
                     }
-                    match sms {
-                        Ok(true) => match yeni.save(&cfg_path) {
-                            Ok(()) => {
-                                denetim("SMS_AYARI_MERKEZ", String::new()); // şifre yazılmaz
-                                runner(&["systemctl".into(), "restart".into(), "wificorrect-portal".into()]);
-                            }
-                            Err(e) => denetim("MERKEZ_EK_HATA", e),
-                        },
-                        Ok(false) => {}
-                        Err(e) => denetim("MERKEZ_EK_HATA", e),
-                    }
+                    sms_sonucu_kaydet(sms, &yeni, &cfg_path, &denetim);
                     ExitCode::SUCCESS
                 }
                 Ok(crate::merkez::Eslesme::Serbest) => {
@@ -317,16 +336,26 @@ pub fn run(cfg: Config, args: &[String]) -> ExitCode {
             let http = |y: &str, g: &str| crate::merkez::curl_sure(y, g, 10);
             let k = crate::saglik::Kaynak::sistem();
             match crate::saglik::calistir(&cfg, std::path::Path::new(crate::merkez::PATH), &k, &http, now) {
-                Ok(Some(h)) => {
-                    // karar Kur ise hedef.json yazılır ve güncelleme ayrı systemd işinde başlar (birim varsa systemd reddeder)
-                    let kurulu = crate::guncelleme::kurulu(&*k.komut);
-                    let baslat = || {
-                        let c: Vec<String> = ["systemd-run", "--collect", "--unit", "wfc-guncelle", "/usr/local/bin/wificorrect", "ctl", "guncelle"].map(String::from).to_vec();
-                        ortak::run(&c);
-                    };
-                    crate::guncelleme::hedefi_isle(&k.guncelleme, &h, &kurulu, now, &baslat);
+                Ok(cevap) => {
+                    // merkezin etkin deneme modu (Özet uyarısı, sms_sorunu): yalnızca değiştiyse kaydedilir
+                    if cevap.sms_mock.is_some() {
+                        let cfg_path = std::env::var("WFC_AYAR").unwrap_or_else(|_| crate::ayar::PATH.to_string());
+                        let mut yeni = cfg.clone();
+                        let ek = crate::merkez::Ek { admin: None, sms_mock: cevap.sms_mock };
+                        let (_, sms) = crate::merkez::ek_uygula(&mut yeni, &crate::hesap::Hesaplar::new(crate::hesap::PATH), &ek);
+                        let denetim = |olay: &str, ek: String| ortak::audit(&cfg.main.log_root, Row::new(olay, &ortak::now_iso(now)).set("ek", ek));
+                        sms_sonucu_kaydet(sms, &yeni, &cfg_path, &denetim);
+                    }
+                    if let Some(h) = cevap.hedef {
+                        // karar Kur ise hedef.json yazılır ve güncelleme ayrı systemd işinde başlar (birim varsa systemd reddeder)
+                        let kurulu = crate::guncelleme::kurulu(&*k.komut);
+                        let baslat = || {
+                            let c: Vec<String> = ["systemd-run", "--collect", "--unit", "wfc-guncelle", "/usr/local/bin/wificorrect", "ctl", "guncelle"].map(String::from).to_vec();
+                            ortak::run(&c);
+                        };
+                        crate::guncelleme::hedefi_isle(&k.guncelleme, &h, &kurulu, now, &baslat);
+                    }
                 }
-                Ok(None) => {}
                 Err(e) => eprintln!("sağlık raporu gönderilemedi: {e}"),
             }
             ExitCode::SUCCESS
@@ -479,7 +508,7 @@ pub fn run(cfg: Config, args: &[String]) -> ExitCode {
         _ => {
             eprintln!(
                 "Kullanım: wificorrect ctl <komut>\n  dhcp-olay <add|old|del> <mac> <ip> [ad]\n  yukle\n  oturumlar\n  \
-                 gun-kapat [YYYY-AA-GG] [--zorla]\n  dogrula [--son N]\n  temizle [--kuru]\n  yedekle\n  ara ...  (ayrıntı: ctl ara)\n  disa-aktar --baslangic G --bitis G --cikti DOSYA\n  ag-uygula | ag-gecis DOSYA | ag-onayla | ag-geri-al | ag-ilk\n  filtre-uygula\n  hiz-uygula\n  admin-parola\n  merkez-eslesme\n  saglik\n  guncelle"
+                 gun-kapat [YYYY-AA-GG] [--zorla]\n  dogrula [--son N]\n  temizle [--kuru]\n  yedekle\n  ara ...  (ayrıntı: ctl ara)\n  disa-aktar --baslangic G --bitis G --cikti DOSYA\n  ag-uygula | ag-gecis DOSYA | ag-onayla | ag-geri-al | ag-ilk\n  ayar-temizle\n  filtre-uygula\n  hiz-uygula\n  admin-parola\n  merkez-eslesme\n  saglik\n  guncelle"
             );
             ExitCode::from(2)
         }

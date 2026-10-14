@@ -124,12 +124,12 @@ const METINLER: &[(&str, &str, &str)] = &[
     ("hata_pasaport", "Pasaport numaranızı girin (5-20 harf ya da rakam).", "Enter your passport number (5-20 letters or digits)."),
     ("hata_uyruk", "Uyruğunuzu seçin.", "Select your nationality."),
     ("hata_misafir_kod", "6 haneli kodu girin.", "Enter the 6-digit code."),
-    // SMS sağlayıcı iletileri (sms.rs / twilio.rs Türkçe döndürür; `cevir` ile çevrilir)
+    // SMS sağlayıcı iletileri (sms.rs Türkçe döndürür; `cevir` ile çevrilir)
     ("sms_yabanci", "Yabancı numaralara şu an SMS gönderilemiyor, lütfen personele başvurun.", "SMS cannot be sent to foreign numbers right now, please ask the staff."),
     ("sms_numara", "Bu numaraya SMS gönderilemiyor, lütfen numarayı kontrol edin.", "SMS cannot be sent to this number, please check the number."),
     ("sms_cok", "Çok fazla deneme yapıldı, lütfen biraz sonra tekrar deneyin.", "Too many attempts, please try again a little later."),
     ("sms_yanitsiz", "SMS servisi geçici olarak yanıt vermiyor, lütfen biraz sonra tekrar deneyin.", "The SMS service is temporarily not responding, please try again a little later."),
-    ("sms_ag", "SMS servisine ulaşılamadı, lütfen personele başvurun.", "The SMS service could not be reached, please ask the staff."),
+    ("sms_ag", "Şu an kod gönderilemiyor, lütfen biraz sonra tekrar deneyin.", "The code cannot be sent right now, please try again a little later."),
     ("sms_genel", "SMS gönderilemedi, lütfen personele başvurun.", "The SMS could not be sent, please ask the staff."),
     // düz metin HTTP cevapları
     ("cok_istek", "Çok fazla istek. Biraz bekleyip tekrar deneyin.", "Too many requests. Wait a moment and try again."),
@@ -208,12 +208,12 @@ mod tests {
         assert_eq!(cevir(Dil::En, crate::sms::YABANCI_YOK), "SMS cannot be sent to foreign numbers right now, please ask the staff.");
         assert_eq!(cevir(Dil::Tr, crate::sms::YABANCI_YOK), crate::sms::YABANCI_YOK);
         assert_eq!(cevir(Dil::En, "tabloda yok"), "tabloda yok");
-        // sms.rs / twilio.rs'nin bütün kullanıcı iletileri tabloda
-        for k in ["50", "80", "100", "AG", "?"] {
+        // sms.rs'nin bütün kullanıcı iletileri tabloda
+        for k in ["50", "80", "100", "AG", "SINIR", "?"] {
             assert_ne!(cevir(Dil::En, crate::sms::user_message(k)), crate::sms::user_message(k), "{k}");
         }
         for k in ["60200", "60203", "AG", "?"] {
-            assert_ne!(cevir(Dil::En, crate::twilio::user_message(k)), crate::twilio::user_message(k), "{k}");
+            assert_ne!(cevir(Dil::En, crate::sms::twilio_message(k)), crate::sms::twilio_message(k), "{k}");
         }
     }
 }

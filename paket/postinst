@@ -6,6 +6,8 @@ install -d -m 700 /srv/5651 /srv/hotspot /srv/hotspot/state
 install -d -m 755 /var/lib/wificorrect
 [ -e /etc/wificorrect/ayarlar.toml ] || install -m 600 /etc/wificorrect/ayarlar.ornek.toml /etc/wificorrect/ayarlar.toml
 [ -e /etc/wificorrect/yasak-siteler.conf ] || : > /etc/wificorrect/yasak-siteler.conf
+# 0.4.8: SMS merkezden gider; ayar dosyasında kalan eski NetGSM/Twilio bilgileri silinir (diğer ayarlar aynen)
+/usr/local/bin/wificorrect ctl ayar-temizle || true
 /usr/local/bin/wificorrect ctl ag-ilk || echo "wificorrect: ağ rolleri belirlenemedi; panel → Portlar" >&2
 systemctl mask hostapd.service >/dev/null 2>&1 || true
 systemctl disable nftables.service >/dev/null 2>&1 || true

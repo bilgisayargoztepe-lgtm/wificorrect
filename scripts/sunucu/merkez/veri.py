@@ -11,6 +11,7 @@ import time
 
 import common
 import guvenlik
+import twilio as twilio_modulu
 
 NUMARA_ARALIGI = (1_000_000, 9_999_999)  # 7 haneli, rastgele (sıralı değil: müşteri sayısı ve sırası anlaşılmasın)
 SEMA = """
@@ -42,6 +43,10 @@ CREATE TABLE IF NOT EXISTS sorun (
 CREATE INDEX IF NOT EXISTS sorun_musteri ON sorun(musteri, kapanis);
 CREATE TABLE IF NOT EXISTS surum (
   surum TEXT PRIMARY KEY, sha256 TEXT NOT NULL, boyut INTEGER NOT NULL, kaynak TEXT NOT NULL, zaman TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS sms_sayac (
+  musteri INTEGER NOT NULL, gun TEXT NOT NULL, sayi INTEGER NOT NULL, PRIMARY KEY (musteri, gun));
+CREATE TABLE IF NOT EXISTS sms_son (
+  musteri INTEGER PRIMARY KEY, zaman TEXT NOT NULL, saglayici TEXT NOT NULL, sonuc TEXT NOT NULL, kod TEXT NOT NULL);
 """
 CIHAZ_ALANLARI = {"tunel_ip", "isletme_adi", "unvan", "surum", "son_eslesme", "isletme_turu"}
 # Cihazın eşitlemede bildirdiği işletme türü (cihaz ayarı main.isletme_turu); başka değer saklanmaz
@@ -59,7 +64,20 @@ UYARI_TELEFON_EN_COK = 3
 UYARI_SINIR_ARALIK = (2, 100)  # günlük uyarı SMS sınırı (yönetim formu da bunu kullanır)
 SORUN_SMS_ALANLARI = ("acilis_sms", "kapanis_sms")
 SMS_ALANLARI = ("usercode", "password", "msgheader", "appkey")
+TR_SAGLAYICILAR = ("netgsm", "twilio")
+TWILIO_ALANLARI = ("account_sid", "auth_token", "api_key_sid", "api_key_secret", "verify_sid")
+TWILIO_SIRLARI = ("auth_token", "api_key_secret")
+TWILIO_VARSAYILAN = {"acik": False, **{k: "" for k in TWILIO_ALANLARI}}
 LISANS_GUN = 365
+
+
+def sms_hazir(s):
+    """Seçili Türk numarası sağlayıcısının ayarı tam mı (deneme modu kapalıyken gerçekten gönderilebilir mi)."""
+    if s.get("tr_saglayici", "netgsm") == "twilio":
+        t = s.get("twilio") or {}
+        return bool(t.get("acik") and twilio_modulu.SID_RE["verify_sid"].fullmatch(str(t.get("verify_sid") or ""))
+                    and twilio_modulu.kimlik(t))
+    return all(s.get(k) for k in ("usercode", "password", "msgheader"))
 
 
 def _yil_sonra(gun):
@@ -348,21 +366,70 @@ class Veri:
             db.execute("INSERT OR REPLACE INTO ayar (anahtar, deger) VALUES ('admin', ?)",
                        (json.dumps({"tuz": tuz, "ozet": oz, "yineleme": y}),))
 
-    # --- bütün cihazlara giden SMS (NetGSM) ayarı ---
+    # --- SMS ayarı: NetGSM (eski cihazlara da gider) + doğrulama SMS'i sağlayıcı seçimi ve Twilio (yalnızca merkezde) ---
     def sms_ayari(self):
         r = self._bir("SELECT deger FROM ayar WHERE anahtar = 'sms'")
-        return json.loads(r["deger"]) if r else None
+        if not r:
+            return None
+        a = json.loads(r["deger"])
+        a.setdefault("tr_saglayici", "netgsm")
+        a["twilio"] = {**TWILIO_VARSAYILAN, **(a.get("twilio") or {})}
+        return a
 
     def sms_ayari_koy(self, d):
         a = {"mock": bool(d.get("mock"))}
         for k in SMS_ALANLARI:
             a[k] = str(d.get(k) or "").strip()
+        a["tr_saglayici"] = d.get("tr_saglayici") or "netgsm"
+        if a["tr_saglayici"] not in TR_SAGLAYICILAR:
+            raise ValueError("Türk numaraları için sağlayıcı netgsm ya da twilio olmalı.")
+        tw = d.get("twilio") or {}
+        t = {"acik": bool(tw.get("acik"))}
+        for k in TWILIO_ALANLARI:
+            t[k] = str(tw.get(k) or "").strip()
+        for k, desen in twilio_modulu.SID_RE.items():
+            if t[k] and not desen.fullmatch(t[k]):
+                raise ValueError(f"Twilio {k} biçimi geçersiz.")
+        if a["tr_saglayici"] == "twilio" and not t["acik"]:
+            raise ValueError("Türk numaraları için Twilio seçildiyse Twilio açık olmalı.")
+        if t["acik"] and not (t["account_sid"] and t["verify_sid"] and twilio_modulu.kimlik(t)):
+            raise ValueError("Twilio açıkken account_sid, verify_sid ve auth_token (ya da API anahtarı sid + secret) gerekli.")
         eksik = [k for k in ("usercode", "password", "msgheader") if not a[k]]
-        if not a["mock"] and eksik:
+        if not a["mock"] and a["tr_saglayici"] == "netgsm" and eksik:
             raise ValueError(f"Deneme modu kapalıyken şu alanlar gerekli: {', '.join(eksik)}")
+        a["twilio"] = t
         with self._islem() as db:
-            # ponytail: NetGSM şifresi açık saklanır (cihaza gönderilmesi gerekir); veritabanı yalnızca wcpanel'in (600)
+            # ponytail: NetGSM şifresi ve Twilio sırları açık saklanır (sağlayıcıya gönderilmesi gerekir); veritabanı
+            # yalnızca wcpanel'in (600). NetGSM bilgisi eski sürüm cihazlara da gider; Twilio hiçbir cihaza gitmez.
             db.execute("INSERT OR REPLACE INTO ayar (anahtar, deger) VALUES ('sms', ?)", (json.dumps(a, ensure_ascii=False),))
+
+    def sms_etkin_mock(self):
+        """Cihaza bildirilen etkin deneme modu: ayar yok, deneme modu açık ya da seçili sağlayıcının ayarı eksik."""
+        s = self.sms_ayari()
+        return s is None or bool(s["mock"]) or not sms_hazir(s)
+
+    # --- müşteri (cihaz) başına günlük doğrulama SMS'i sayacı (/api/sms; kod saklanmaz). Yabancı numaralar ayrıca
+    # `<gün>/yabanci` anahtarında sayılır (daha düşük sınır) ---
+    def sms_sayac(self, musteri, gun):
+        r = self._bir("SELECT sayi FROM sms_sayac WHERE musteri = ? AND gun = ?", musteri, gun)
+        return r["sayi"] if r else 0
+
+    def sms_sayac_artir(self, musteri, gun):
+        """Bir artırır, yeni değeri döner."""
+        with self._islem() as db:
+            db.execute("INSERT INTO sms_sayac (musteri, gun, sayi) VALUES (?, ?, 1) "
+                       "ON CONFLICT(musteri, gun) DO UPDATE SET sayi = sayi + 1", (musteri, gun))
+            return db.execute("SELECT sayi FROM sms_sayac WHERE musteri = ? AND gun = ?", (musteri, gun)).fetchone()["sayi"]
+
+    # --- müşterinin son doğrulama SMS'i sonucu (hareket satırı yerine tek satır; kod ve numara yok) ---
+    def sms_son_kaydet(self, musteri, saglayici, sonuc, kod):
+        with self._islem() as db:
+            db.execute("INSERT OR REPLACE INTO sms_son (musteri, zaman, saglayici, sonuc, kod) VALUES (?, ?, ?, ?, ?)",
+                       (musteri, self._simdi(), saglayici or "", sonuc, str(kod)[:16]))
+
+    def sms_son(self, musteri):
+        r = self._bir("SELECT * FROM sms_son WHERE musteri = ?", musteri)
+        return dict(r) if r else None
 
     # --- sağlık raporu, sorun kaydı, uyarı ayarı ---
     def saglik_kaydet(self, cid, rapor):
@@ -494,10 +561,16 @@ class Veri:
             db.execute("INSERT INTO hareket (zaman, kim, ip, olay, musteri, ayrinti) VALUES (?, ?, ?, ?, ?, ?)",
                        (self._simdi(), str(kim)[:64], str(ip)[:64], olay, musteri, str(ayrinti)[:500]))
 
-    def hareketler(self, musteri=None, limit=300):
-        if musteri is None:
-            return self._hepsi("SELECT * FROM hareket ORDER BY id DESC LIMIT ?", limit)
-        return self._hepsi("SELECT * FROM hareket WHERE musteri = ? ORDER BY id DESC LIMIT ?", musteri, limit)
+    def hareketler(self, musteri=None, limit=300, olay=None):
+        kosul, a = [], []
+        if musteri is not None:
+            kosul.append("musteri = ?")
+            a.append(musteri)
+        if olay is not None:
+            kosul.append("olay = ?")
+            a.append(olay)
+        nerede = " WHERE " + " AND ".join(kosul) if kosul else ""
+        return self._hepsi(f"SELECT * FROM hareket{nerede} ORDER BY id DESC LIMIT ?", *a, limit)
 
     # --- eski arşivler ---
     def eski_arsiv_bagla(self, ad, numara):

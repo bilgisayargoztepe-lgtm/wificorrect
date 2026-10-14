@@ -499,3 +499,18 @@ def lookup_mac(ip, leases_text=None, arp_text=None):
     leases_text = read_text("/tmp/dhcp.leases") if leases_text is None else leases_text
     arp_text = read_text("/proc/net/arp") if arp_text is None else arp_text
     return parse_leases(leases_text).get(ip) or parse_arp(arp_text).get(ip)
+
+
+def saglayici_istegi(ac, istek, zaman_asimi, okuma=16384):
+    """`ac(istek, timeout)` (urlopen) çağrısı; zaman aşımı işlem başına (bağlan, oku). Çağrı BİTMEDEN dönülmez: sağlayıcı
+    SMS'i gönderdiyse cevap (iş no) kaybolmasın. HTTP hata durumu (4xx/5xx) istisna değil, (durum, gövde) döner."""
+    import urllib.error
+    try:
+        with ac(istek, timeout=zaman_asimi) as r:
+            return getattr(r, "status", 200), r.read(okuma)
+    except urllib.error.HTTPError as h:
+        try:
+            g = h.read(okuma)
+        except Exception:
+            g = b""
+        return h.code, g

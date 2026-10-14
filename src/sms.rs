@@ -1,14 +1,30 @@
-//! SMS: sağlayıcı seçimi + deneme modu + NetGSM OTP (eski netgsm.py; docs/MASTER_ENGINEERING.md §12). Twilio: twilio.rs.
+//! Doğrulama SMS'i (spec 2026-10-13 "SMS merkezden"): cihaz sağlayıcıya (NetGSM / Twilio) hiç gitmez; kodu yönetim
+//! merkezine (`POST /api/sms`) gönderir, merkez kendi şablonu ve kendi sağlayıcı ayarıyla iletir. Twilio Verify'da kodu
+//! Twilio üretir; doğrulama da merkezden (`POST /api/sms-dogrula`). Yeniden deneme yok (çift SMS = çift ücret).
 
-use crate::ayar::Config;
-use std::time::Duration;
+use crate::merkez::{Http, Merkez};
+use std::path::Path;
+
+/// Cihaz → merkez zaman aşımı (sn). Merkez sağlayıcı çağrısı bitmeden cevap dönmez; çağrı işlem başına 5 sn (netgsm/twilio
+/// ISLEM_SURE; bağlan + oku en kötü ~10-11 sn), merkez cihaz vazgeçmeden cevap verir; cihaz erken vazgeçerse SMS gitmiş ama kod kaybolmuş olur, misafir yeniden ister.
+pub const MERKEZ_SURE: u32 = 15;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Sonuc {
     pub ok: bool,
-    /// Sağlayıcı kodu ("0" başarılı) ya da "AG" (ağ hatası) / "PARSE" (anlaşılmayan cevap).
+    /// Sağlayıcı kodu ("0" başarılı), merkez kodu (`SINIR`, `YABANCI`, `AYAR` …) ya da "AG" (merkeze ulaşılamadı / bozuk cevap).
     pub kod: String,
     pub is: Option<String>,
+    /// Merkezin seçtiği sağlayıcı (cevapta yoksa NetGSM: denetimde `netgsm=<kod>`).
+    pub saglayici: Saglayici,
+    /// Merkez deneme modunda: SMS gitmedi, kod yerelde doğrulanır (Twilio seçili olsa da).
+    pub mock: bool,
+}
+
+impl Sonuc {
+    fn hata(kod: &str) -> Sonuc {
+        Sonuc { ok: false, kod: kod.into(), is: None, saglayici: Saglayici::Netgsm, mock: false }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -27,155 +43,196 @@ impl Saglayici {
 }
 
 pub const YABANCI_YOK: &str = "Yabancı numaralara şu an SMS gönderilemiyor, lütfen personele başvurun.";
+pub const GONDERILEMIYOR: &str = "Şu an kod gönderilemiyor, lütfen biraz sonra tekrar deneyin.";
 
-/// Türk numaraları ayardaki sağlayıcıdan; yabancı numaralar Twilio'dan (açıksa). NetGSM yalnızca Türk numaralarına gönderir.
-pub fn route(cfg: &Config, phone: &str) -> Result<Saglayici, &'static str> {
-    if cfg.sms.provider == "twilio" {
-        Ok(Saglayici::Twilio)
-    } else if crate::ulkeler::is_tr(phone) {
-        Ok(Saglayici::Netgsm)
-    } else if cfg.twilio.enabled {
-        Ok(Saglayici::Twilio)
-    } else {
-        Err(YABANCI_YOK)
+fn merkez_http(yol: &str, govde: &str) -> Result<(u16, String), String> {
+    crate::merkez::curl_sure(yol, govde, MERKEZ_SURE)
+}
+
+/// Gerçek gönderim (portal): `merkez.json` (portalın kullandığı yol) + curl (`MERKEZ_SURE`).
+pub fn send(merkez_path: &Path, phone: &str, code: &str) -> Sonuc {
+    gonder(crate::merkez::oku(merkez_path).as_ref(), phone, code, &merkez_http)
+}
+
+/// Gerçek Twilio doğrulaması (portal): (onaylandı, hata). Hata "AG" ise misafirin deneme hakkı düşmez.
+pub fn check(merkez_path: &Path, phone: &str, code: &str) -> (bool, Option<String>) {
+    dogrula(crate::merkez::oku(merkez_path).as_ref(), phone, code, &merkez_http)
+}
+
+/// Kodu merkeze gönderir. Merkeze bağlı değilse, ulaşılamazsa ya da cevap bozuksa `AG`. Numara cihazda süzülmez:
+/// hangi numaraya gönderilebileceğine merkez karar verir (`YABANCI`).
+pub fn gonder(m: Option<&Merkez>, phone: &str, code: &str, http: &Http) -> Sonuc {
+    let Some(m) = m else { return Sonuc::hata("AG") };
+    let c = match crate::merkez::sms_gonder(m, phone, code, http) {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("SMS: {e}"); // kod ve cihaz anahtarı yazılmaz
+            return Sonuc::hata("AG");
+        }
+    };
+    let saglayici = if c.saglayici == "twilio" { Saglayici::Twilio } else { Saglayici::Netgsm };
+    match c.sonuc.as_str() {
+        "mock" => {
+            eprintln!("MOCK OTP {phone} -> {code}");
+            Sonuc { ok: true, kod: "0".into(), is: Some("MOCK".into()), saglayici, mock: true }
+        }
+        "gonderildi" => Sonuc { ok: true, kod: c.kod, is: c.is, saglayici, mock: false },
+        _ => Sonuc { ok: false, kod: if c.kod.is_empty() { "AG".into() } else { c.kod }, is: None, saglayici, mock: false },
     }
 }
 
-/// Deneme modunda hiçbir sağlayıcıya istek gitmez; kod sistem günlüğüne yazılır ve yerelde karşılaştırılır.
-pub fn send(cfg: &Config, p: Saglayici, phone: &str, code: &str) -> Sonuc {
-    if cfg.sms.mock {
-        eprintln!("MOCK OTP {phone} -> {code}");
-        return Sonuc { ok: true, kod: "0".into(), is: Some("MOCK".into()) };
-    }
-    match p {
-        Saglayici::Netgsm => send_netgsm(cfg, phone.strip_prefix("90").unwrap_or(phone), code),
-        Saglayici::Twilio => crate::twilio::send(cfg, phone),
+/// Twilio kodunu merkez üzerinden doğrular: (onaylandı, hata). Onay/ret dışındaki her şey "AG" (deneme hakkı düşmez).
+pub fn dogrula(m: Option<&Merkez>, phone: &str, code: &str, http: &Http) -> (bool, Option<String>) {
+    let Some(m) = m else { return (false, Some("AG".into())) };
+    match crate::merkez::sms_dogrula(m, phone, code, http) {
+        Ok(Some(onay)) => (onay, None),
+        Ok(None) => (false, Some("AG".into())),
+        Err(e) => {
+            eprintln!("SMS doğrulama: {e}");
+            (false, Some("AG".into()))
+        }
     }
 }
 
+/// Misafire gösterilen ileti (Türkçe; `dil::cevir` ile çevrilir).
 pub fn message_for(p: Saglayici, kod: &str) -> &'static str {
-    match p {
-        Saglayici::Netgsm => user_message(kod),
-        Saglayici::Twilio => crate::twilio::user_message(kod),
+    match kod {
+        "YABANCI" => YABANCI_YOK,
+        _ => match p {
+            Saglayici::Netgsm => user_message(kod),
+            Saglayici::Twilio => twilio_message(kod),
+        },
     }
 }
 
+/// NetGSM kodları (merkez sağlayıcının kodunu olduğu gibi döner).
 pub fn user_message(kod: &str) -> &'static str {
     match kod {
         "50" => "Bu numaraya SMS gönderilemiyor, lütfen numarayı kontrol edin.",
         "80" => "Çok fazla deneme yapıldı, lütfen biraz sonra tekrar deneyin.",
         "100" => "SMS servisi geçici olarak yanıt vermiyor, lütfen biraz sonra tekrar deneyin.",
-        "AG" => "SMS servisine ulaşılamadı, lütfen personele başvurun.",
+        "AG" | "SINIR" | "PARSE" => GONDERILEMIYOR,
         _ => "SMS gönderilemedi, lütfen personele başvurun.",
     }
 }
 
-fn xml_escape(s: &str) -> String {
-    s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;").replace('\'', "&apos;")
-}
-
-pub fn build_xml(usercode: &str, password: &str, msgheader: &str, appkey: &str, msg: &str, phone: &str) -> String {
-    let e = xml_escape;
-    let appkey = if appkey.is_empty() { String::new() } else { format!("<appkey>{}</appkey>", e(appkey)) };
-    format!(
-        "<?xml version='1.0' encoding='utf-8'?>\n<mainbody><header><usercode>{}</usercode><password>{}</password>\
-         <msgheader>{}</msgheader>{appkey}</header><body><msg>{}</msg><no>{}</no></body></mainbody>",
-        e(usercode),
-        e(password),
-        e(msgheader),
-        e(msg),
-        e(phone)
-    )
-}
-
-fn tag<'a>(text: &'a str, name: &str) -> Option<&'a str> {
-    let start = text.find(&format!("<{name}>"))? + name.len() + 2;
-    let end = text[start..].find(&format!("</{name}>"))? + start;
-    Some(text[start..end].trim())
-}
-
-/// XML (`<code>`, `<jobID>`) ya da düz metin (`00 123456`) cevabı → (kod, iş no).
-pub fn parse_response(text: &str) -> (String, Option<String>) {
-    let text = text.trim();
-    if let Some(code) = tag(text, "code") {
-        let job = tag(text, "jobID").filter(|j| !j.is_empty()).map(String::from);
-        return (code.to_string(), job);
-    }
-    let mut parts = text.split_whitespace();
-    match parts.next() {
-        Some(c) if c.bytes().all(|b| b.is_ascii_digit()) => (c.to_string(), parts.next().map(String::from)),
-        _ => ("PARSE".into(), None),
-    }
-}
-
-/// `national`: 10 haneli Türk numarası (5XXXXXXXXX).
-fn send_netgsm(cfg: &Config, national: &str, code: &str) -> Sonuc {
-    let n = &cfg.netgsm;
-    let phone = national;
-    let msg = n.message.replace("{kod}", code);
-    let body = build_xml(&n.usercode, &n.password, &n.msgheader, &n.appkey, &msg, phone);
-    // Yeniden deneme yok: çift SMS ve çift ücret riski (§12.1)
-    let resp = ureq::post(&n.url)
-        .timeout(Duration::from_secs(n.timeout_sec.max(1)))
-        .set("Content-Type", "application/xml; charset=UTF-8")
-        .send_string(&body);
-    // İstek gövdesi (şifre) asla yazılmaz; yalnızca hata türü
-    let text = match resp {
-        Ok(r) => r.into_string().map_err(|e| eprintln!("NetGSM cevabı okunamadı: {}", e.kind())).ok(),
-        Err(e) => {
-            eprintln!("NetGSM erişim hatası: {}", e.kind());
-            None
-        }
-    };
-    match text {
-        Some(t) => {
-            let (kod, is) = parse_response(&t);
-            Sonuc { ok: kod == "0" || kod == "00", kod, is }
-        }
-        None => Sonuc { ok: false, kod: "AG".into(), is: None },
+/// Twilio Verify hata kodları (merkez Twilio'nun kodunu olduğu gibi döner).
+pub fn twilio_message(kod: &str) -> &'static str {
+    match kod {
+        "60200" | "21211" | "60205" => "Bu numaraya SMS gönderilemiyor, lütfen numarayı kontrol edin.",
+        "60203" | "20429" => "Çok fazla deneme yapıldı, lütfen biraz sonra tekrar deneyin.",
+        "AG" | "SINIR" | "PARSE" => GONDERILEMIYOR,
+        _ => "SMS gönderilemedi, lütfen personele başvurun.",
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::{Arc, Mutex};
 
-    #[test]
-    fn xml_is_escaped_and_complete() {
-        let x = build_xml("850", "p<&>'\"", "gztp.blgsyr", "", "WiFi kodunuz: 123456", "5334553132");
-        assert!(x.contains("<password>p&lt;&amp;&gt;&apos;&quot;</password>"));
-        assert!(x.contains("<msgheader>gztp.blgsyr</msgheader>"));
-        assert!(x.contains("<no>5334553132</no>"));
-        assert!(!x.contains("<appkey>"));
-        assert!(build_xml("u", "p", "h", "k1", "m", "5").contains("<appkey>k1</appkey>"));
+    type Cagrilar = Arc<Mutex<Vec<(String, serde_json::Value)>>>;
+
+    /// Sahte merkez: tek cevap; çağrıları kaydeder.
+    fn sahte(cevap: Result<(u16, &'static str), &'static str>) -> (Box<Http>, Cagrilar) {
+        let c = Arc::new(Mutex::new(vec![]));
+        let c2 = c.clone();
+        let f = move |yol: &str, govde: &str| {
+            c2.lock().unwrap().push((yol.to_string(), serde_json::from_str(govde).unwrap()));
+            cevap.map(|(d, g)| (d, g.to_string())).map_err(String::from)
+        };
+        (Box::new(f), c)
+    }
+
+    fn bag() -> Merkez {
+        Merkez { numara: "4511643".into(), cihaz_anahtari: "k-1".into(), ..Default::default() }
     }
 
     #[test]
-    fn responses() {
-        let ok = "<?xml version=\"1.0\"?><xml><main><code>0</code><jobID>179095243099687544310585884</jobID></main></xml>";
-        assert_eq!(parse_response(ok), ("0".into(), Some("179095243099687544310585884".into())));
-        assert_eq!(parse_response("<xml><main><code>30</code><jobID></jobID></main></xml>"), ("30".into(), None));
-        assert_eq!(parse_response("00 123456"), ("00".into(), Some("123456".into())));
-        assert_eq!(parse_response("<html>hata</html>"), ("PARSE".into(), None));
-        assert_eq!(user_message("50"), "Bu numaraya SMS gönderilemiyor, lütfen numarayı kontrol edin.");
-        assert_eq!(user_message("30"), "SMS gönderilemedi, lütfen personele başvurun.");
+    fn sms_basari_is_numarasi_ve_istek() {
+        let (h, c) = sahte(Ok((200, r#"{"sonuc":"gonderildi","kod":"0","is":"J9","saglayici":"netgsm"}"#)));
+        let r = gonder(Some(&bag()), "905334553132", "123456", &*h);
+        assert_eq!(r, Sonuc { ok: true, kod: "0".into(), is: Some("J9".into()), saglayici: Saglayici::Netgsm, mock: false });
+        let c = c.lock().unwrap();
+        assert_eq!(c[0].0, "/api/sms");
+        assert_eq!(c[0].1, serde_json::json!({"cihaz_anahtari": "k-1", "telefon": "905334553132", "kod": "123456"}));
     }
 
     #[test]
-    fn routing() {
-        let mut c = Config::default();
-        assert_eq!(route(&c, "905334553132"), Ok(Saglayici::Netgsm));
-        assert_eq!(route(&c, "4915123456789"), Err(YABANCI_YOK)); // Twilio kapalı
-        c.twilio.enabled = true;
-        assert_eq!(route(&c, "4915123456789"), Ok(Saglayici::Twilio));
-        assert_eq!(route(&c, "905334553132"), Ok(Saglayici::Netgsm));
-        c.sms.provider = "twilio".into();
-        assert_eq!(route(&c, "905334553132"), Ok(Saglayici::Twilio));
+    fn sms_mock_twilio_olsa_da_yerel() {
+        let (h, _) = sahte(Ok((200, r#"{"sonuc":"mock","kod":"0","saglayici":"twilio"}"#)));
+        let r = gonder(Some(&bag()), "4915123456789", "123456", &*h);
+        assert_eq!(r, Sonuc { ok: true, kod: "0".into(), is: Some("MOCK".into()), saglayici: Saglayici::Twilio, mock: true });
     }
 
     #[test]
-    fn mock_sends_nothing() {
-        let r = send(&Config::default(), Saglayici::Twilio, "4915123456789", "123456");
-        assert_eq!(r, Sonuc { ok: true, kod: "0".into(), is: Some("MOCK".into()) });
+    fn sms_hatalari() {
+        for (cevap, kod, saglayici) in [
+            (Err("ağ"), "AG", Saglayici::Netgsm),
+            (Ok((200, "<html>bozuk</html>")), "AG", Saglayici::Netgsm),
+            (Ok((500, r#"{"hata":"x"}"#)), "AG", Saglayici::Netgsm),
+            (Ok((403, r#"{"hata":"hizmet kapali"}"#)), "AG", Saglayici::Netgsm),
+            (Ok((200, r#"{"sonuc":"bilinmeyen","kod":"0"}"#)), "AG", Saglayici::Netgsm),
+            (Ok((200, r#"{"sonuc":"hata","kod":"SINIR","saglayici":"netgsm"}"#)), "SINIR", Saglayici::Netgsm),
+            (Ok((200, r#"{"sonuc":"hata","kod":"YABANCI"}"#)), "YABANCI", Saglayici::Netgsm),
+            (Ok((200, r#"{"sonuc":"hata","kod":"50","saglayici":"netgsm"}"#)), "50", Saglayici::Netgsm),
+            (Ok((200, r#"{"sonuc":"hata","kod":"60200","saglayici":"twilio"}"#)), "60200", Saglayici::Twilio),
+        ] {
+            let (h, _) = sahte(cevap);
+            let r = gonder(Some(&bag()), "905334553132", "123456", &*h);
+            assert_eq!((r.ok, r.kod.as_str(), r.saglayici, r.mock), (false, kod, saglayici, false), "{cevap:?}");
+        }
+        // merkeze bağlı değil: istek yok
+        let (h, c) = sahte(Err("çağrılmamalı"));
+        assert_eq!(gonder(None, "905334553132", "123456", &*h).kod, "AG");
+        assert!(c.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn sms_dogrulama_merkezden() {
+        let (h, c) = sahte(Ok((200, r#"{"onay":true}"#)));
+        assert_eq!(dogrula(Some(&bag()), "4915123456789", "424242", &*h), (true, None));
+        assert_eq!(c.lock().unwrap()[0].0, "/api/sms-dogrula");
+        assert_eq!(c.lock().unwrap()[0].1, serde_json::json!({"cihaz_anahtari": "k-1", "telefon": "4915123456789", "kod": "424242"}));
+        let (h, _) = sahte(Ok((200, r#"{"onay":false}"#)));
+        assert_eq!(dogrula(Some(&bag()), "4915123456789", "111111", &*h), (false, None));
+        for cevap in [Ok((200, r#"{"sonuc":"hata","kod":"AG"}"#)), Ok((200, r#"{"sonuc":"hata","kod":"AYAR"}"#)), Ok((200, "bozuk")), Err("ağ")] {
+            let (h, _) = sahte(cevap);
+            assert_eq!(dogrula(Some(&bag()), "4915123456789", "111111", &*h), (false, Some("AG".into())), "{cevap:?}");
+        }
+        let (h, _) = sahte(Err("çağrılmamalı"));
+        assert_eq!(dogrula(None, "4915123456789", "111111", &*h), (false, Some("AG".into())));
+    }
+
+    #[test]
+    fn merkez_zaman_asimi_saglayici_butcesinden_uzun() {
+        // merkezin sağlayıcı çağrısı en kötü ~10-11 sn (işlem başına 5 sn); cihaz cevabı beklemeden vazgeçmemeli
+        assert_eq!(MERKEZ_SURE, 15);
+        let a = crate::merkez::curl_args_sure("https://api.wificorrect.com/api/sms", MERKEZ_SURE);
+        assert!(a.windows(2).any(|w| w[0] == "--max-time" && w[1] == "15"));
+    }
+
+    #[test]
+    fn sms_iletileri() {
+        for k in ["AG", "SINIR", "PARSE"] {
+            assert_eq!(message_for(Saglayici::Netgsm, k), "Şu an kod gönderilemiyor, lütfen biraz sonra tekrar deneyin.");
+            assert_eq!(message_for(Saglayici::Twilio, k), GONDERILEMIYOR);
+        }
+        assert_eq!(message_for(Saglayici::Netgsm, "YABANCI"), YABANCI_YOK);
+        assert_eq!(message_for(Saglayici::Netgsm, "50"), "Bu numaraya SMS gönderilemiyor, lütfen numarayı kontrol edin.");
+        assert_eq!(message_for(Saglayici::Netgsm, "30"), "SMS gönderilemedi, lütfen personele başvurun.");
+        assert_eq!(message_for(Saglayici::Twilio, "60200"), "Bu numaraya SMS gönderilemiyor, lütfen numarayı kontrol edin.");
+        assert_eq!(message_for(Saglayici::Twilio, "x"), "SMS gönderilemedi, lütfen personele başvurun.");
+    }
+
+    #[test]
+    fn sms_saglayiciya_dogrudan_istek_yok() {
+        // cihaz kodunda sağlayıcı HTTP istemcisi ve adresleri kalmadı (ölü kod / sırların cihazda kullanılması)
+        let kaynaklar = [include_str!("sms.rs"), include_str!("portal.rs"), include_str!("merkez.rs"), include_str!("panel.rs"), include_str!("ayar.rs")];
+        for k in kaynaklar {
+            for yasak in [concat!("ureq", "::"), concat!("api.netgsm", ".com.tr"), concat!("verify.twilio", ".com")] {
+                assert!(!k.contains(yasak), "{yasak}");
+            }
+        }
     }
 }

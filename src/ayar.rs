@@ -49,74 +49,18 @@ impl Default for Main {
     }
 }
 
-/// SMS genel ayarı. `mock`: deneme modu (gerçek SMS gitmez, kod sistem günlüğüne yazılır) — yalnızca hizmet sağlayıcı değiştirir.
-/// `provider`: Türk numaraları için "netgsm" ya da "twilio". Yabancı numaralar Twilio açıksa Twilio'dan gider.
+/// SMS genel ayarı. `mock`: merkezdeki deneme modu (bağlı cihazda eşitlemede merkezden gelir; Özet uyarısı ve sağlık raporu).
+/// Doğrulama SMS'i yönetim merkezinden gider (spec 2026-10-13): NetGSM / Twilio bilgileri ve sağlayıcı seçimi cihazda
+/// tutulmaz. Eski dosyalardaki `[netgsm]`, `[twilio]`, `sms.provider`, `sms.merkez` okunurken yok sayılır, ilk kayıtta silinir.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 #[serde(default)]
 pub struct Sms {
     pub mock: bool,
-    pub provider: String,
-    /// Bağlı cihazda NetGSM bilgileri ve deneme modu yönetim merkezinden gelir; panelde salt okunur.
-    #[serde(default)]
-    pub merkez: bool,
 }
 
 impl Default for Sms {
     fn default() -> Self {
-        Sms { mock: true, provider: "netgsm".into(), merkez: false }
-    }
-}
-
-/// Twilio Verify (kodu Twilio üretir ve doğrular). Kimlik: Auth Token ya da API Key SID + Secret.
-#[derive(Serialize, Deserialize, Clone, Debug)]
-#[serde(default)]
-pub struct Twilio {
-    pub enabled: bool,
-    pub account_sid: String,
-    pub verify_sid: String,
-    pub auth_token: String,
-    pub api_key_sid: String,
-    pub api_key_secret: String,
-    pub timeout_sec: u64,
-}
-
-impl Default for Twilio {
-    fn default() -> Self {
-        Twilio {
-            enabled: false,
-            account_sid: String::new(),
-            verify_sid: String::new(),
-            auth_token: String::new(),
-            api_key_sid: String::new(),
-            api_key_secret: String::new(),
-            timeout_sec: 10,
-        }
-    }
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
-#[serde(default)]
-pub struct Netgsm {
-    pub url: String,
-    pub usercode: String,
-    pub password: String,
-    pub msgheader: String,
-    pub appkey: String,
-    pub message: String,
-    pub timeout_sec: u64,
-}
-
-impl Default for Netgsm {
-    fn default() -> Self {
-        Netgsm {
-            url: "https://api.netgsm.com.tr/sms/send/otp".into(),
-            usercode: String::new(),
-            password: String::new(),
-            msgheader: String::new(),
-            appkey: String::new(),
-            message: "WiFi dogrulama kodunuz: {kod}. Kod 3 dakika gecerlidir.".into(),
-            timeout_sec: 10,
-        }
+        Sms { mock: true }
     }
 }
 
@@ -302,8 +246,6 @@ pub struct Device {
 pub struct Config {
     pub main: Main,
     pub sms: Sms,
-    pub netgsm: Netgsm,
-    pub twilio: Twilio,
     pub limits: Limits,
     pub backup: Backup,
     pub filtre: Filtre,
@@ -330,45 +272,23 @@ impl Config {
         Self::parse(&text)
     }
 
+    /// 0.4.8 öncesinden kalan SMS sırları ve ayarları (`[netgsm]`, `[twilio]`, `[sms]` altında `provider` / `merkez`;
+    /// SMS artık merkezden gider): dosyada varsa ayarlar bir kez yeniden yazılır (atomik, 600; diğer ayarlar aynen).
+    /// Paket kurulumunda (postinst) ve açılışta (`ctl yukle`) çağrılır. Dönen: dosya yeniden yazıldı mı.
+    pub fn eski_sirlari_temizle(path: &str) -> Result<bool, String> {
+        let text = std::fs::read_to_string(path).map_err(|e| format!("{path} açılamadı: {e}"))?;
+        let ham: toml::Table = text.parse().map_err(|e| format!("ayar dosyası okunamadı: {e}"))?;
+        let sms_eski = ham.get("sms").and_then(toml::Value::as_table).is_some_and(|s| s.contains_key("provider") || s.contains_key("merkez"));
+        if !(ham.contains_key("netgsm") || ham.contains_key("twilio") || sms_eski) {
+            return Ok(false);
+        }
+        Self::parse(&text)?.save(path)?;
+        Ok(true)
+    }
+
     /// Geçerli MAC'li girdiler: {mac: ad}.
     pub fn devices(list: &[Device]) -> std::collections::BTreeMap<String, String> {
         list.iter().filter_map(|d| crate::ortak::norm_mac(&d.mac).map(|m| (m, d.name.clone()))).collect()
-    }
-
-    pub fn twilio_missing(&self) -> Vec<&'static str> {
-        let t = &self.twilio;
-        let mut out = vec![];
-        if t.account_sid.is_empty() {
-            out.push("twilio.account_sid");
-        }
-        if t.auth_token.is_empty() && (t.api_key_sid.is_empty() || t.api_key_secret.is_empty()) {
-            out.push("twilio.auth_token veya api_key_sid+api_key_secret");
-        }
-        if t.verify_sid.is_empty() {
-            out.push("twilio.verify_sid");
-        }
-        out
-    }
-
-    /// Gerçek SMS modunda eksik sağlayıcı bilgileri (portal bunlarla başlamaz).
-    pub fn sms_missing(&self) -> Vec<&'static str> {
-        if self.sms.mock {
-            return vec![];
-        }
-        let n = &self.netgsm;
-        let mut out: Vec<&'static str> = vec![];
-        if self.sms.provider != "twilio" {
-            out.extend(
-                [("netgsm.usercode", &n.usercode), ("netgsm.password", &n.password), ("netgsm.msgheader", &n.msgheader)]
-                    .into_iter()
-                    .filter(|(_, v)| v.is_empty())
-                    .map(|(k, _)| k),
-            );
-        }
-        if self.sms.provider == "twilio" || self.twilio.enabled {
-            out.extend(self.twilio_missing());
-        }
-        out
     }
 }
 
@@ -382,15 +302,59 @@ mod tests {
         assert_eq!(c.main.site_name, "Bocafe");
         assert_eq!(c.main.session_minutes, 43200);
         assert_eq!(c.limits.otp_ttl_sec, 180);
-        assert_eq!(c.sms_missing(), vec!["netgsm.password", "netgsm.msgheader"]);
-        assert!(Config::parse("").unwrap().sms_missing().is_empty()); // varsayılan: deneme modu
-        let c = Config::parse("[sms]\nmock = false\nprovider = 'twilio'\n[twilio]\naccount_sid = 'AC1'\napi_key_sid = 'SK1'\n").unwrap();
-        assert_eq!(c.sms_missing(), vec!["twilio.auth_token veya api_key_sid+api_key_secret", "twilio.verify_sid"]);
+        assert!(!c.sms.mock);
+        assert!(Config::parse("").unwrap().sms.mock); // varsayılan: deneme modu
+        // eski dosya (cihazda NetGSM/Twilio sırları vardı): okunur, ilk kayıtta sırlar dosyadan silinir
+        let eski = "[sms]\nmock = false\nprovider = 'twilio'\nmerkez = true\n[netgsm]\nusercode = '850'\npassword = 'gizli-1'\n\
+                    [twilio]\nenabled = true\naccount_sid = 'AC1'\nauth_token = 'gizli-2'\n";
+        let c = Config::parse(eski).unwrap();
+        assert!(!c.sms.mock);
+        let yeni = toml::to_string_pretty(&c).unwrap();
+        for yok in ["gizli-1", "gizli-2", "[netgsm]", "[twilio]", "provider =", "merkez ="] {
+            assert!(!yeni.contains(yok), "{yok}");
+        }
         let c = Config::parse("[[allow]]\nmac = 'AA-BB-CC-DD-EE-99'\nname = 'AP'\n[[allow]]\nmac = 'bozuk'\n").unwrap();
         let back = Config::parse(&toml::to_string_pretty(&c).unwrap()).unwrap(); // yaz-oku aynı
         assert_eq!(back.allow.len(), 2);
         assert_eq!(Config::devices(&c.allow).into_iter().collect::<Vec<_>>(), vec![("aa:bb:cc:dd:ee:99".into(), "AP".into())]);
         assert!(Config::parse("[main\n").is_err());
+    }
+
+    #[test]
+    fn eski_sirlar_dosyadan_silinir() {
+        use std::os::unix::fs::PermissionsExt;
+        let d = std::env::temp_dir().join(format!("wfc-ayar-sir-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(&d).unwrap();
+        let p = d.join("ayarlar.toml");
+        let ps = p.to_str().unwrap();
+        let eski = "# yorum\n[main]\nsite_name = 'Bocafe'\nsession_minutes = 1440\n[sms]\nmock = false\nprovider = 'twilio'\nmerkez = true\n\
+                    [netgsm]\nusercode = '850'\npassword = 'gizli-1'\n[twilio]\nenabled = true\nauth_token = 'gizli-2'\n\
+                    [[allow]]\nmac = 'aa:bb:cc:dd:ee:99'\nname = 'AP'\n";
+        std::fs::write(&p, eski).unwrap();
+        std::fs::set_permissions(&p, std::fs::Permissions::from_mode(0o644)).unwrap();
+        assert_eq!(Config::eski_sirlari_temizle(ps), Ok(true));
+        let yeni = std::fs::read_to_string(&p).unwrap();
+        for yok in ["gizli-1", "gizli-2", "[netgsm]", "[twilio]", "provider =", "merkez ="] {
+            assert!(!yeni.contains(yok), "{yok}");
+        }
+        let c = Config::load(ps).unwrap();
+        assert_eq!((c.main.site_name.as_str(), c.main.session_minutes, c.sms.mock, c.allow.len()), ("Bocafe", 1440, false, 1));
+        assert_eq!(std::fs::metadata(&p).unwrap().permissions().mode() & 0o777, 0o600);
+        // temiz dosyaya dokunulmaz (yorumlar kalır)
+        let temiz = "# yorum\n[main]\nsite_name = 'X'\n[sms]\nmock = true\n";
+        std::fs::write(&p, temiz).unwrap();
+        assert_eq!(Config::eski_sirlari_temizle(ps), Ok(false));
+        assert_eq!(std::fs::read_to_string(&p).unwrap(), temiz);
+        // yalnızca [sms] altındaki eski anahtar da yeter; bozuk dosya hata, dokunulmaz
+        std::fs::write(&p, "[sms]\nmock = false\nmerkez = true\n").unwrap();
+        assert_eq!(Config::eski_sirlari_temizle(ps), Ok(true));
+        assert!(!std::fs::read_to_string(&p).unwrap().contains("merkez ="));
+        std::fs::write(&p, "[main\n[netgsm]\n").unwrap();
+        assert!(Config::eski_sirlari_temizle(ps).is_err());
+        assert_eq!(std::fs::read_to_string(&p).unwrap(), "[main\n[netgsm]\n");
+        assert!(Config::eski_sirlari_temizle(d.join("yok.toml").to_str().unwrap()).is_err());
+        let _ = std::fs::remove_dir_all(&d);
     }
 
     #[test]

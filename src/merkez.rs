@@ -166,62 +166,78 @@ fn ozet_alanlari(v: &Value) -> Option<(String, String, u32)> {
     Some((metin(v, "tuz")?, metin(v, "ozet")?, u32::try_from(v.get("yineleme")?.as_u64()?).ok()?))
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct SmsAyari {
-    pub mock: bool,
-    pub usercode: String,
-    pub password: String,
-    pub msgheader: String,
-    pub appkey: String,
-}
-
 /// Merkezin bağlı cihaza gönderdiği ekler (spec 2026-10-05 §5-6). Eski merkez göndermezse boş.
+/// `sms_mock`: merkezin etkin deneme modu (Özet uyarısı ve sağlık raporu için; bkz. `sms_mock_oku`). Merkez eski cihazlar
+/// için NetGSM bilgilerini de gönderir; bu cihaz onları okumaz (SMS merkezden gider, spec 2026-10-13).
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Ek {
     pub admin: Option<(String, String, u32)>,
-    pub sms: Option<SmsAyari>,
+    pub sms_mock: Option<bool>,
 }
 
 fn ek(v: &Value) -> Ek {
-    let sms = v.get("sms").and_then(|s| {
-        let n = s.get("netgsm")?;
-        Some(SmsAyari { mock: s.get("mock")?.as_bool()?, usercode: metin(n, "usercode")?, password: metin(n, "password")?,
-                        msgheader: metin(n, "msgheader")?, appkey: metin(n, "appkey").unwrap_or_default() })
-    });
-    Ek { admin: v.get("admin").and_then(ozet_alanlari), sms }
+    Ek { admin: v.get("admin").and_then(ozet_alanlari), sms_mock: v.get("sms").and_then(sms_mock_oku) }
+}
+
+/// SMS ekinden etkin deneme modu: `etkin_mock` (deneme modu açık ya da merkezde seçili sağlayıcının ayarı eksik) varsa o,
+/// yoksa (bu alandan önceki merkez) `mock`.
+pub fn sms_mock_oku(s: &Value) -> Option<bool> {
+    s.get("etkin_mock").and_then(Value::as_bool).or_else(|| s.get("mock")?.as_bool())
 }
 
 /// Bağlanırken ve her eşitlemede: (admin sonucu, SMS sonucu); ikisi birbirinden bağımsız, her biri "değişti mi" döner.
-/// Admin özeti hesaplara, SMS ayarı `cfg`'ye uygulanır (kaydetmek çağıranın işi).
-/// SMS ayarı önce `cfg` kopyasına uygulanır; deneme modu kapalıyken portalın kendi denetimi (`sms_missing`) geçmezse `cfg` değişmez.
+/// Admin özeti hesaplara, deneme modu bilgisi `cfg`'ye uygulanır (kaydetmek çağıranın işi).
 pub fn ek_uygula(cfg: &mut Config, hesaplar: &crate::hesap::Hesaplar, ek: &Ek) -> (Result<bool, String>, Result<bool, String>) {
     let admin = match &ek.admin {
         Some((tuz, ozet, y)) => hesaplar.set_admin_ozet(tuz, ozet, *y),
         None => Ok(false),
     };
-    let sms = match &ek.sms {
-        Some(s) => sms_uygula(cfg, s),
+    let sms = match ek.sms_mock {
+        Some(mock) => {
+            let degisti = cfg.sms.mock != mock;
+            cfg.sms.mock = mock;
+            Ok(degisti)
+        }
         None => Ok(false),
     };
     (admin, sms)
 }
 
-fn sms_uygula(cfg: &mut Config, s: &SmsAyari) -> Result<bool, String> {
-    let mut yeni = cfg.clone();
-    yeni.sms.mock = s.mock;
-    yeni.sms.provider = "netgsm".into();
-    yeni.sms.merkez = true;
-    yeni.netgsm.usercode.clone_from(&s.usercode);
-    yeni.netgsm.password.clone_from(&s.password);
-    yeni.netgsm.msgheader.clone_from(&s.msgheader);
-    yeni.netgsm.appkey.clone_from(&s.appkey);
-    let eksik = yeni.sms_missing();
-    if !eksik.is_empty() {
-        return Err(format!("merkezden gelen SMS ayarı uygulanamıyor, eksik: {}", eksik.join(", ")));
+/// `POST /api/sms` cevabı (spec 2026-10-13). `saglayici` cevapta yoksa boş (AYAR, YABANCI).
+#[derive(Debug, Clone, PartialEq)]
+pub struct SmsCevap {
+    pub sonuc: String,
+    pub kod: String,
+    pub is: Option<String>,
+    pub saglayici: String,
+}
+
+/// Doğrulama kodunu merkeze gönderir; mesajı merkez kendi şablonundan kurar. Err: merkeze ulaşılamadı, HTTP 200 değil ya da
+/// cevap bozuk. Kod ve cihaz anahtarı hata metnine girmez.
+pub fn sms_gonder(m: &Merkez, telefon: &str, kod: &str, http: &Http) -> Result<SmsCevap, String> {
+    let (d, v) = cagir(http, "/api/sms", &json!({"cihaz_anahtari": m.cihaz_anahtari, "telefon": telefon, "kod": kod}))?;
+    if d != 200 {
+        return Err(hata(&v).map_or(format!("merkez SMS: HTTP {d}"), |(h, _)| format!("merkez SMS: {h}")));
     }
-    let degisti = (&cfg.sms, &cfg.netgsm) != (&yeni.sms, &yeni.netgsm);
-    *cfg = yeni;
-    Ok(degisti)
+    let sonuc = metin(&v, "sonuc").filter(|s| ["gonderildi", "mock", "hata"].contains(&s.as_str())).ok_or("merkez SMS: geçersiz yanıt")?;
+    Ok(SmsCevap { sonuc, kod: metin(&v, "kod").unwrap_or_default(), is: metin(&v, "is").filter(|s| !s.is_empty()), saglayici: metin(&v, "saglayici").unwrap_or_default() })
+}
+
+/// Twilio Verify kodunu merkez üzerinden doğrular: Some(onay) ya da None (merkez Twilio'ya ulaşamadı, `hata/AG`).
+/// Err: merkeze ulaşılamadı ya da başka bir hata (AYAR …) / bozuk cevap.
+pub fn sms_dogrula(m: &Merkez, telefon: &str, kod: &str, http: &Http) -> Result<Option<bool>, String> {
+    let (d, v) = cagir(http, "/api/sms-dogrula", &json!({"cihaz_anahtari": m.cihaz_anahtari, "telefon": telefon, "kod": kod}))?;
+    if d != 200 {
+        return Err(format!("merkez SMS doğrulama: HTTP {d}"));
+    }
+    if let Some(onay) = v.get("onay").and_then(Value::as_bool) {
+        return Ok(Some(onay));
+    }
+    match (metin(&v, "sonuc").as_deref(), metin(&v, "kod").as_deref()) {
+        (Some("hata"), Some("AG")) => Ok(None),
+        (Some("hata"), Some(k)) => Err(format!("merkez SMS doğrulama: {k}")),
+        _ => Err("merkez SMS doğrulama: geçersiz yanıt".into()),
+    }
 }
 
 /// Hata yanıtı ise (mesaj, kod).
@@ -421,80 +437,89 @@ mod tests {
         let (h, _) = sahte(vec![Ok((200, ekli(GIRIS_OK, &oz)))]);
         let g = giris(N, "parola-12345", "W", "S", "", "", &*h, 0.0).unwrap();
         assert_eq!(g.ek.admin, Some(("ab12".into(), oz.clone(), 120_000)));
-        assert_eq!(g.ek.sms.as_ref().map(|s| (s.mock, s.msgheader.as_str())), Some((false, "gztp.blgsyr")));
+        assert_eq!(g.ek.sms_mock, Some(false));
         let (h, _) = sahte(vec![Ok((200, GIRIS_OK))]); // eski merkez: ek yok
         assert_eq!(giris(N, "parola-12345", "W", "S", "", "", &*h, 0.0).unwrap().ek, Ek::default());
         let mut m = ornek();
         let b = ekli(r#"{"durum":"bagli","tuz":"a1b2c3d4","ozet":"ee38d08b3d6573ecc281263ad6259d2e7ee39f37d6b8958b3180906580a44495","yineleme":120000,"uyelik":"aktif"}"#, &oz);
         let (h, _) = sahte(vec![Ok((200, b))]);
-        assert!(matches!(eslesme(&mut m, "", "", "", false, &*h, 1.0), Ok(Eslesme::Bagli { ek, .. }) if ek.admin.is_some() && ek.sms.is_some()));
+        assert!(matches!(eslesme(&mut m, "", "", "", false, &*h, 1.0), Ok(Eslesme::Bagli { ek, .. }) if ek.admin.is_some() && ek.sms_mock == Some(false)));
     }
 
-    fn sms_ek(mock: bool, usercode: &str, password: &str, msgheader: &str) -> SmsAyari {
-        SmsAyari { mock, usercode: usercode.into(), password: password.into(), msgheader: msgheader.into(), appkey: String::new() }
+    #[test]
+    fn ek_etkin_deneme_modu_once() {
+        // merkez deneme modunda değil ama seçili sağlayıcının ayarı eksik: etkin deneme modu açık
+        assert_eq!(ek(&json!({"sms": {"mock": false, "etkin_mock": true, "netgsm": {}}})).sms_mock, Some(true));
+        assert_eq!(ek(&json!({"sms": {"mock": true, "etkin_mock": false}})).sms_mock, Some(false));
+        assert_eq!(ek(&json!({"sms": {"etkin_mock": true}})).sms_mock, Some(true)); // merkezde SMS ayarı hiç yok
+        assert_eq!(ek(&json!({"sms": {"mock": false}})).sms_mock, Some(false)); // eski merkez
+        assert_eq!(ek(&json!({"sms": {"etkin_mock": "evet", "mock": true}})).sms_mock, Some(true));
+        assert_eq!(ek(&json!({"sms": {}})).sms_mock, None);
     }
 
     #[test]
     fn ek_uygula_sms_ve_admin() {
+        // SMS ekinden yalnızca deneme modu alınır; NetGSM bilgileri cihaza yazılmaz (SMS merkezden gider)
         let d = tmp("ek");
         let hs = crate::hesap::Hesaplar::new(d.join("hesaplar.json"));
         let oz = crate::hesap::digest("merkez-parola-1", "ab12", 120_000);
-        let ek = Ek { admin: Some(("ab12".into(), oz, 120_000)), sms: Some(sms_ek(false, "8503027084", "gizli-1", "gztp.blgsyr")) };
+        let ek = Ek { admin: Some(("ab12".into(), oz, 120_000)), sms_mock: Some(false) };
         let mut cfg = Config::default();
         assert_eq!(ek_uygula(&mut cfg, &hs, &ek), (Ok(true), Ok(true)));
-        assert!(!cfg.sms.mock && cfg.sms.merkez && cfg.netgsm.password == "gizli-1" && cfg.sms.provider == "netgsm");
-        assert!(cfg.sms_missing().is_empty());
+        assert!(!cfg.sms.mock);
         assert_eq!(ek_uygula(&mut cfg, &hs, &ek), (Ok(false), Ok(false))); // aynı değerler: dokunulmaz
-    }
-
-    #[test]
-    fn ek_eksik_sms_uygulanmaz() {
-        // deneme modu kapalı ama zorunlu alan yok: uygulanırsa portal açılmaz (2026-10-05)
-        let d = tmp("ek-eksik");
-        let hs = crate::hesap::Hesaplar::new(d.join("hesaplar.json"));
-        for s in [sms_ek(false, "850", "x", ""), sms_ek(false, "", "x", "BASLIK"), sms_ek(false, "850", "", "BASLIK")] {
-            let ek = Ek { admin: None, sms: Some(s) };
-            let mut cfg = Config::default();
-            let (admin, sms) = ek_uygula(&mut cfg, &hs, &ek);
-            assert_eq!(admin, Ok(false));
-            assert!(sms.is_err());
-            assert!(cfg.sms.mock && !cfg.sms.merkez);
-            assert_eq!(cfg.netgsm, Config::default().netgsm);
-        }
-    }
-
-    #[test]
-    fn ek_twilio_acikken_eksikse_uygulanmaz() {
-        // portalın gerçek denetimi (sms_missing): Twilio açık ve alanları boşsa tam NetGSM bloğu da uygulanmaz
-        let d = tmp("ek-twilio");
-        let hs = crate::hesap::Hesaplar::new(d.join("hesaplar.json"));
-        let mut cfg = Config::default();
-        cfg.twilio.enabled = true;
-        let once = cfg.clone();
-        let ek = Ek { admin: None, sms: Some(sms_ek(false, "8503027084", "gizli-1", "gztp.blgsyr")) };
-        assert!(ek_uygula(&mut cfg, &hs, &ek).1.is_err());
-        assert_eq!((cfg.sms.clone(), cfg.netgsm.clone()), (once.sms, once.netgsm));
+        assert_eq!(ek_uygula(&mut cfg, &hs, &Ek { admin: None, sms_mock: Some(true) }), (Ok(false), Ok(true)));
+        assert!(cfg.sms.mock);
     }
 
     #[test]
     fn ek_admin_ve_sms_birbirinden_bagimsiz() {
         let d = tmp("ek-bagimsiz");
         let hs = crate::hesap::Hesaplar::new(d.join("hesaplar.json"));
-        // bozuk admin özeti + geçerli SMS: SMS yine uygulanır
-        let ek = Ek { admin: Some(("ab12".into(), "zz".into(), 120_000)), sms: Some(sms_ek(false, "8503027084", "gizli-1", "gztp.blgsyr")) };
+        // bozuk admin özeti + SMS: deneme modu yine uygulanır
+        let ek = Ek { admin: Some(("ab12".into(), "zz".into(), 120_000)), sms_mock: Some(false) };
         let mut cfg = Config::default();
         let (admin, sms) = ek_uygula(&mut cfg, &hs, &ek);
         assert!(admin.is_err());
         assert_eq!(sms, Ok(true));
-        assert!(!cfg.sms.mock && cfg.sms.merkez && cfg.netgsm.password == "gizli-1");
-        // geçerli admin özeti + bozuk SMS: admin değişti bilgisi kaybolmaz, cfg değişmez
-        let oz = crate::hesap::digest("merkez-parola-1", "ab12", 120_000);
-        let ek = Ek { admin: Some(("ab12".into(), oz, 120_000)), sms: Some(sms_ek(false, "850", "x", "")) };
-        let mut cfg = Config::default();
-        let (admin, sms) = ek_uygula(&mut cfg, &hs, &ek);
-        assert_eq!(admin, Ok(true));
-        assert!(sms.is_err());
-        assert!(cfg.sms.mock && !cfg.sms.merkez && cfg.netgsm == Config::default().netgsm);
+        assert!(!cfg.sms.mock);
+    }
+
+    fn bag() -> Merkez {
+        Merkez { numara: N.into(), cihaz_anahtari: "k-1".into(), ..Default::default() }
+    }
+
+    #[test]
+    fn sms_gonder_cevaplari() {
+        let (h, c) = sahte(vec![Ok((200, r#"{"sonuc":"gonderildi","kod":"0","is":"J9","saglayici":"netgsm"}"#))]);
+        assert_eq!(sms_gonder(&bag(), "905334553132", "123456", &*h),
+                   Ok(SmsCevap { sonuc: "gonderildi".into(), kod: "0".into(), is: Some("J9".into()), saglayici: "netgsm".into() }));
+        assert_eq!(c.lock().unwrap()[0], ("/api/sms".to_string(), json!({"cihaz_anahtari": "k-1", "telefon": "905334553132", "kod": "123456"})));
+        let (h, _) = sahte(vec![Ok((200, r#"{"sonuc":"hata","kod":"YABANCI"}"#))]);
+        assert_eq!(sms_gonder(&bag(), "4915123456789", "123456", &*h),
+                   Ok(SmsCevap { sonuc: "hata".into(), kod: "YABANCI".into(), is: None, saglayici: String::new() }));
+        for y in [Err("ağ"), Ok((200, "bozuk")), Ok((401, r#"{"hata":"tanınmayan cihaz"}"#)), Ok((200, r#"{"sonuc":"?"}"#))] {
+            let (h, _) = sahte(vec![y]);
+            let e = sms_gonder(&bag(), "905334553132", "123456", &*h).unwrap_err();
+            assert!(!e.contains("123456") && !e.contains("k-1"), "{e}");
+        }
+    }
+
+    #[test]
+    fn sms_dogrula_cevaplari() {
+        for (y, beklenen) in [
+            (Ok((200, r#"{"onay":true}"#)), Ok(Some(true))),
+            (Ok((200, r#"{"onay":false}"#)), Ok(Some(false))),
+            (Ok((200, r#"{"sonuc":"hata","kod":"AG"}"#)), Ok(None)),
+        ] {
+            let (h, c) = sahte(vec![y]);
+            assert_eq!(sms_dogrula(&bag(), "4915123456789", "424242", &*h), beklenen);
+            assert_eq!(c.lock().unwrap()[0].0, "/api/sms-dogrula");
+        }
+        for y in [Err("ağ"), Ok((200, r#"{"sonuc":"hata","kod":"AYAR"}"#)), Ok((403, r#"{"hata":"x"}"#)), Ok((200, "{}"))] {
+            let (h, _) = sahte(vec![y]);
+            assert!(sms_dogrula(&bag(), "4915123456789", "424242", &*h).is_err());
+        }
     }
 
     #[test]

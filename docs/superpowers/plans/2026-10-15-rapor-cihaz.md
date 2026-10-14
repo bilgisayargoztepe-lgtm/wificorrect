@@ -169,6 +169,7 @@ Süre gösterimi (`raporlar.sure_metni`): < 60 dk "N dk", < 1 gün "S sa D dk", 
 ### Cihaz tarafı için notlar
 
 - Cevaptaki her metin cihaz için güvenilmez girdidir: türünü denetleyin, HTML'e kaçışlayarak basın (merkez zaten doğrular).
-- Merkezde rapor dosyaları günde iki kez (02:30, 12:30) güncellenir; cihazda önbellek gerekmez.
-- `/api/*` IP başına dakikada 20 istek: liste + birkaç rapor açmak sınırın altında kalır; sağlık raporu (5 dk) da bu
-  sayaca girer.
+- Merkezde rapor dosyaları günde iki kez (02:30, 12:30) güncellenir. Cihaz yine de kısa süre önbellekte tutar
+  (liste ve süren dönem 5 dk, kesinleşmiş dönem 1 sa, hata 60 sn) ve curl cevabı en çok 2 MB okur.
+- `/api/raporlar` ve `/api/rapor` kendi sayacındadır: IP başına dakikada 60 istek. Diğer `/api/*` uçlarının (SMS,
+  sağlık, eşleşme…) IP başına dakikada 20 isteklik sayacına girmez; rapor gezinmek misafir SMS'ini aksatmaz.

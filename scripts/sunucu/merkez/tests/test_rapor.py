@@ -768,6 +768,25 @@ def test_alan_adi_verisi_yok_ve_eski_bicim_yenilenir():
         assert not hasattr(R, "kok_alan")
 
 
+def test_listeden_cikan_arsivin_eski_bicim_hamlari_silinir():
+    """M2: arşivi artık listede olmayan ham klasöründe eski biçimli (alan adı listeli) ham kalmaz; güncel biçim kalır."""
+    with tempfile.TemporaryDirectory() as tmp:
+        k = os.path.join(tmp, "a")
+        for g in ("2026-10-05", "2026-10-06"):
+            basit_gun(k, g)
+        muhurle(k, ["2026-10-05", "2026-10-06"])
+        assert calis(tmp, {"eski-kafe": ars(k)}, "2026-10-07") == []
+        d = os.path.join(tmp, "ham", "eski-kafe")
+        h = oku(os.path.join(d, "2026-10-05.json"))
+        h["bicim"], h["alan"] = 1, {"instagram.com": 3}
+        with open(os.path.join(d, "2026-10-05.json"), "w", encoding="utf-8") as f:
+            json.dump(h, f)
+        with open(os.path.join(d, "bizim-degil.txt"), "w", encoding="utf-8") as f:
+            f.write("x")
+        assert calis(tmp, {}, "2026-10-07") == []  # arşiv listeden çıktı
+        assert sorted(os.listdir(d)) == ["2026-10-06.json", "bizim-degil.txt"]
+
+
 def test_sir_arsiv_adiyla_cakismaz():
     """Root sırrı `.sir`: `sir` adlı bir arşivin ham klasörüyle çakışmaz (arşiv adı noktayla başlayamaz)."""
     with tempfile.TemporaryDirectory() as tmp:

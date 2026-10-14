@@ -125,6 +125,9 @@ def saglik_temizle(r):
     return t
 
 
+RAPOR_UCLARI = ("/api/raporlar", "/api/rapor")
+
+
 class Api:
     def __init__(self, veri, saat=time.time, kuyruk_ekle=kuyruk.ekle, kuyruk_bekle=kuyruk.bekle,
                  surum_dizini=surumler.DIZIN, sms_ac=None, liste_dizini=listeler.DIZIN, raporlar=None):
@@ -133,6 +136,8 @@ class Api:
         self.sms_ac = sms_ac  # NetGSM/Twilio isteği (testte sahte; None = urlopen, WC_TEST altında reddedilir)
         self.kuyruk_ekle, self.kuyruk_bekle = kuyruk_ekle, kuyruk_bekle
         self.kilit, self.hiz = guvenlik.GirisKilidi(), guvenlik.HizSiniri(20, 60)
+        # rapor gezinmek misafir SMS'inin (aynı dış IP) bütçesini tüketmesin: raporlara ayrı, IP başına dakikada 60
+        self.rapor_hiz = guvenlik.HizSiniri(60, 60)
 
     def istek(self, yontem, yol, basliklar, govde, sorgu="", ip=""):
         uclar = {"/api/giris": self.giris, "/api/eslesme": self.eslesme, "/api/parola": self.parola,
@@ -143,7 +148,8 @@ class Api:
             return _hata(404, "yok", "Bulunamadı.")
         if len(govde) > GOVDE_SINIRI:
             return _hata(413, "gecersiz", "İstek çok büyük.")
-        if not self.hiz.izin(ip, self.saat()):
+        hiz = self.rapor_hiz if yol in RAPOR_UCLARI else self.hiz
+        if not hiz.izin(ip, self.saat()):
             return _hata(429, "hiz", "Çok fazla istek, biraz sonra tekrar deneyin.")
         try:
             b = json.loads(govde)

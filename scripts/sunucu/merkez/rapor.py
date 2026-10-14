@@ -782,6 +782,29 @@ def _grubu_kalkan_temizle(cikti, numaralar):
     return hatalar
 
 
+def _yetim_ham_temizle(ham_dizini, arsivler):
+    """Listede olmayan arşivlerin ham klasörlerinde eski biçimli (ör. bicim 1: takma kimlikli alan adı listeli) günleri
+    siler (spec Ek §1). Güncel biçim ve bizim olmayan dosyalar kalır. Dönüş: hata metinleri."""
+    hatalar = []
+    try:
+        adlar = os.listdir(ham_dizini)
+    except FileNotFoundError:
+        return hatalar
+    for ad in sorted(adlar):
+        yol = os.path.join(ham_dizini, ad)
+        if ad in arsivler or not AD_RE.fullmatch(ad) or os.path.islink(yol) or not os.path.isdir(yol):
+            continue
+        try:
+            for a in os.listdir(yol):
+                if a.endswith(".json") and GUN_RE.fullmatch(a[:-5]):
+                    v = _json_oku(os.path.join(yol, a))
+                    if v is None or v.get("bicim") != BICIM:
+                        _sil(os.path.join(yol, a))
+        except Exception as e:
+            hatalar.append(f"ham {ad}: {type(e).__name__}")
+    return hatalar
+
+
 def calistir(arsivler, grup_dosyasi=GRUPLAR, ham_dizini=HAM, cikti=CIKTI, panel_grubu=PANEL_GRUBU, simdi=None, sir=None):
     """wc-istatistik'ten: önce her arşivin ham özetleri (bütün kaynakları TEK çağrıda: ayrı çağrılar birbirinin günlerini
     silerdi), sonra her müşterinin raporları; grubu kalmayan numaraların raporları silinir. Bir arşivin/grubun hatası
@@ -798,6 +821,7 @@ def calistir(arsivler, grup_dosyasi=GRUPLAR, ham_dizini=HAM, cikti=CIKTI, panel_
             hatalar += [f"{ad}: {h}" for h in ham_guncelle(ad, a["kaynaklar"], ham_dizini, sir)]
         except Exception as e:
             hatalar.append(f"{ad}: {type(e).__name__}")
+    hatalar += _yetim_ham_temizle(ham_dizini, arsivler)
     _dizin_panel(cikti, panel_grubu)
     gr = gruplar(arsivler, grup_dosyasi)
     for numara, grup in sorted(gr.items()):

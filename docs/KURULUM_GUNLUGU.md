@@ -316,6 +316,7 @@ Dal `rapor-cihaz`; spec "Ek (2026-10-15)", plan `docs/superpowers/plans/2026-10-
 - Veri istek anında merkezden: `POST /api/raporlar`, `/api/rapor` (cihaz anahtarı, curl, en çok 8 sn). Tür/dönem URL'de
   sıkı doğrulanır (geçersizse merkeze sorulmaz, 404). Merkezin cevabı güvenilmez girdi: alanlar tür denetimli, metinler kaçışlı.
 - Önbellek (bellekte, müşteri numarasıyla): liste 5 dk, süren/kesinleşmemiş dönem 5 dk, kesinleşmiş geçmiş dönem 1 saat,
-  404 5 dk, hata 1 dk — merkezin `/api/*` sınırının (IP başına dakikada 20) çok altında.
+  404 5 dk, hata 1 dk. Merkezde raporların kendi sınırı var (IP başına dakikada 60); SMS/sağlık sayacına (dakikada 20) girmez.
+  curl cevabı en çok 2 MB okunur.
 - Merkeze ulaşılamazsa "Raporlar şu an alınamıyor…"; lisans/üyelik kapalıysa (yerelde ya da merkez 403) uygun not, yerelde
   kapalıyken merkeze sorulmaz; dosya yoksa "Bu dönem için rapor yok." Görüntüleme denetime yazılmaz (kişisel veri yok).

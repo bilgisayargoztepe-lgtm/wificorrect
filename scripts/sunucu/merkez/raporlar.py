@@ -46,7 +46,7 @@ def _gun(v):
 
 
 def donem_gecerli(tur, donem):
-    m = DONEM_RE.get(tur).fullmatch(donem) if tur in DONEM_RE and isinstance(donem, str) else None
+    m = DONEM_RE.get(tur).fullmatch(donem) if isinstance(tur, str) and tur in DONEM_RE and isinstance(donem, str) else None
     if not m:
         return False
     return 1 <= int(m.group(2)) <= (53 if tur == "hafta" else 12)

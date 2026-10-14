@@ -408,7 +408,7 @@ _IP = [0]
 
 
 def rpost(api, yol, govde):
-    """Her istek ayrı IP'den: sabit saatte IP başına dakikada 20 istek sınırına takılmasın."""
+    """Her istek ayrı IP'den: sabit saatte IP başına rapor sınırına (dakikada 60) takılmasın."""
     _IP[0] += 1
     return post(api, yol, govde, ip=f"198.51.{100 + _IP[0] // 250}.{_IP[0] % 250 + 1}")
 
@@ -484,6 +484,33 @@ def test_api_rapor_dogrulama_ve_yetki():
         assert iki() == (403, 403)
         d, j = rpost(api, "/api/rapor", {"cihaz_anahtari": k, "tur": "ay", "donem": "2026-09"})
         assert j["kod"] == "yetki"
+
+
+def test_rapor_hiz_siniri_sms_butcesinden_ayri():
+    """Rapor gezinmek (/api/raporlar, /api/rapor) misafir SMS'inin IP başına bütçesini tüketmez; kendi sınırı var."""
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        api, v, n, k, RP, TR = _raporlu(tmp)
+        TR.yaz(tmp, n, "liste.json", TR.LISTE)
+        TR.yaz(tmp, n, "ay-2026-09.json", TR.ay_raporu())
+        ip = "203.0.113.9"
+        kodlar = [post(api, "/api/rapor" if i % 2 else "/api/raporlar",
+                       {"cihaz_anahtari": k, "tur": "ay", "donem": "2026-09"}, ip)[0] for i in range(61)]
+        assert kodlar[:60] == [200] * 60 and kodlar[60] == 429  # raporlara IP başına dakikada 60
+        # aynı IP'den SMS/sağlık/eşleşme bütçesi (dakikada 20) hâlâ dolu değil
+        assert [post(api, "/api/eslesme", {"cihaz_anahtari": k}, ip)[0] for _ in range(20)] == [200] * 20
+        assert post(api, "/api/eslesme", {"cihaz_anahtari": k}, ip)[0] == 429
+        # ortak bütçe dolunca da raporlar kendi sınırına bakar (başka IP, temiz rapor bütçesi)
+        ip2 = "203.0.113.10"
+        assert [post(api, "/api/eslesme", {"cihaz_anahtari": k}, ip2)[0] for _ in range(21)][-1] == 429
+        assert post(api, "/api/rapor", {"cihaz_anahtari": k, "tur": "ay", "donem": "2026-09"}, ip2)[0] == 200
+
+
+def test_api_rapor_liste_ya_da_sozluk_tur_400():
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        api, v, n, k, RP, TR = _raporlu(tmp)
+        for tur, donem in (([], "2026-09"), ({}, "2026-09"), ("ay", []), ("ay", {})):
+            d, j = rpost(api, "/api/rapor", {"cihaz_anahtari": k, "tur": tur, "donem": donem})
+            assert d == 400 and j["kod"] == "gecersiz", (tur, donem)
 
 
 if __name__ == "__main__":

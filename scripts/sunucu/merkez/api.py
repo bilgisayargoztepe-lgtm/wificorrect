@@ -7,6 +7,7 @@ import time
 
 import guvenlik
 import kuyruk
+import listeler
 import netgsm
 import surumler
 import twilio
@@ -123,8 +124,8 @@ def saglik_temizle(r):
 
 class Api:
     def __init__(self, veri, saat=time.time, kuyruk_ekle=kuyruk.ekle, kuyruk_bekle=kuyruk.bekle,
-                 surum_dizini=surumler.DIZIN, sms_ac=None):
-        self.veri, self.saat, self.surum_dizini = veri, saat, surum_dizini
+                 surum_dizini=surumler.DIZIN, sms_ac=None, liste_dizini=listeler.DIZIN):
+        self.veri, self.saat, self.surum_dizini, self.liste_dizini = veri, saat, surum_dizini, liste_dizini
         self.sms_ac = sms_ac  # NetGSM/Twilio isteği (testte sahte; None = urlopen, WC_TEST altında reddedilir)
         self.kuyruk_ekle, self.kuyruk_bekle = kuyruk_ekle, kuyruk_bekle
         self.kilit, self.hiz = guvenlik.GirisKilidi(), guvenlik.HizSiniri(20, 60)
@@ -132,7 +133,7 @@ class Api:
     def istek(self, yontem, yol, basliklar, govde, sorgu="", ip=""):
         uclar = {"/api/giris": self.giris, "/api/eslesme": self.eslesme, "/api/parola": self.parola,
                 "/api/saglik": self.saglik, "/api/paket": self.paket, "/api/sms": self.sms,
-                "/api/sms-dogrula": self.sms_dogrula}
+                "/api/sms-dogrula": self.sms_dogrula, "/api/liste": self.liste}
         if yontem != "POST" or yol not in uclar:
             return _hata(404, "yok", "Bulunamadı.")
         if len(govde) > GOVDE_SINIRI:
@@ -232,7 +233,8 @@ class Api:
                 if g != onceki:
                     self.veri.hareket(f"cihaz:{c['id']}", ip, "GUNCELLEME_SONUC", c["musteri"],
                                       f"surum={g['surum']} sonuc={g['sonuc']}")
-        yanit = {"tamam": True, "sms_etkin_mock": self.veri.sms_etkin_mock()}  # 06:00 eşitlemesini beklemesin
+        yanit = {"tamam": True, "sms_etkin_mock": self.veri.sms_etkin_mock(),  # 06:00 eşitlemesini beklemesin
+                 "listeler": listeler.ozet(self.liste_dizini)}  # hazır engel listelerinin sürümleri; cihaz değişeni indirir
         m = self.veri.musteri(c["musteri"])
         hedef = self.veri.cihaz_hedefi(m)
         if m["guncelleme_hemen"] > 0 and (hedef is None or m["guncelleme_hemen_surum"] != hedef["surum"]
@@ -267,6 +269,23 @@ class Api:
         except OSError:
             return _hata(404, "yok", "Paket bulunamadı.")
         return 200, {"Content-Type": "application/octet-stream", "Cache-Control": "no-store"}, icerik
+
+    def liste(self, b, ip):
+        """Hazır engel listesi (gzip, düz metnin sha256'sı sağlık cevabında). Yalnızca bağlı ve hizmeti açık cihaza."""
+        c = self.veri.cihaz_anahtarla(b.get("cihaz_anahtari"))
+        if c is None:
+            return _hata(401, "taninmadi", "Cihaz tanınmadı.")
+        k = b.get("kategori")
+        if not (isinstance(k, str) and k in listeler.KATEGORILER):
+            return _hata(400, "gecersiz", "Bilinmeyen kategori.")
+        if c["durum"] != "bagli" or not self.veri.hizmet_acik(self.veri.musteri(c["musteri"])):
+            return _hata(403, "yetki", "Bu liste için yetkiniz yok.")
+        try:
+            with open(listeler.liste_yolu(self.liste_dizini, k), "rb") as f:
+                icerik = f.read()
+        except OSError:
+            return _hata(404, "yok", "Liste bulunamadı.")
+        return 200, {"Content-Type": "application/gzip", "Cache-Control": "no-store"}, icerik
 
     # --- doğrulama SMS'i merkezden (2026-10-13): NetGSM OTP ya da Twilio Verify ---
     def _sms_cihazi(self, b):

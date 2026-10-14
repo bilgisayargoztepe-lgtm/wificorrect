@@ -28,7 +28,7 @@ class Kuyruk:
 def kur(tmp, sonuc=TAMAM):
     v, _, saat = Y.ortam(tmp)
     q = Kuyruk(sonuc)
-    return A.Api(v, saat, q.ekle, q.bekle), v, q, saat
+    return A.Api(v, saat, q.ekle, q.bekle, liste_dizini=os.path.join(tmp, "listeler")), v, q, saat
 
 
 def baska(n):
@@ -204,7 +204,7 @@ def test_saglik_raporu_kaydedilir():
         _, j = giris(api, n, pw)
         c = v.bagli_cihaz(n)
         d, r = post(api, "/api/saglik", {"cihaz_anahtari": j["cihaz_anahtari"], "rapor": dict(RAPOR, ad="Ali", telefon="5551112233")})
-        assert d == 200 and r == {"tamam": True, "sms_etkin_mock": True}
+        assert d == 200 and r == {"tamam": True, "sms_etkin_mock": True, "listeler": {}}
         assert v.saglik(c["id"])["rapor"] == RAPOR  # bilinmeyen alanlar atıldı
         assert post(api, "/api/saglik", {"cihaz_anahtari": j["cihaz_anahtari"], "rapor": dict(RAPOR, son_muhur="", bagli=0)})[0] == 200
         assert v.saglik(c["id"])["rapor"]["son_muhur"] == "" and v.saglik(c["id"])["rapor"]["bagli"] == 0
@@ -212,7 +212,7 @@ def test_saglik_raporu_kaydedilir():
         v.saglik_kaydet(c["id"], {"eski": 1})
         v.serbest_birak(n)
         d, r = post(api, "/api/saglik", {"cihaz_anahtari": j["cihaz_anahtari"], "rapor": RAPOR})
-        assert d == 200 and r == {"tamam": True, "sms_etkin_mock": True} and v.saglik(c["id"])["rapor"] == {"eski": 1}
+        assert d == 200 and r == {"tamam": True, "sms_etkin_mock": True, "listeler": {}} and v.saglik(c["id"])["rapor"] == {"eski": 1}
 
 
 def test_bozuk_rapor_reddedilir():
@@ -300,7 +300,7 @@ def test_guncelleme_hedefi_kanal_lisans_ve_hemen():
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
         api, v, n, k, saat = _surumlu(tmp)
         d, r = rapor_yolla(api, k)
-        assert r == {"tamam": True, "sms_etkin_mock": True, "guncelleme": {"surum": "0.4.1", "sha256": "ab" * 32, "boyut": 9, "hemen": False}}
+        assert r == {"tamam": True, "sms_etkin_mock": True, "listeler": {}, "guncelleme": {"surum": "0.4.1", "sha256": "ab" * 32, "boyut": 9, "hemen": False}}
         v.guncelleme_hemen_koy(n, 100, "0.4.1")
         assert rapor_yolla(api, k)[1]["guncelleme"]["hemen"] is True
         assert rapor_yolla(api, k, guncelleme={"surum": "0.4.1", "sonuc": "hata", "zaman": 50})[1]["guncelleme"]["hemen"] is True

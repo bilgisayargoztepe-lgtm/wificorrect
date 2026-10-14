@@ -205,7 +205,10 @@ class Yonetim(web.Taban):
         if (yontem, yol) == ("GET", "/listeler"):
             return self.listeler_sayfasi(ot)
         if (yontem, yol) == ("POST", "/listeler/guncelle"):
-            listeler.calistir(self.veri, self.liste_getir, self.liste_dizini, self.saat(), kim="admin", ip=ip)
+            try:
+                listeler.calistir(self.veri, self.liste_getir, self.liste_dizini, self.saat(), kim="admin", ip=ip, bekle=False)
+            except listeler.Mesgul:
+                return yanit_html(self.mesaj(ot, "Engel listeleri", "Güncelleme zaten sürüyor; birkaç dakika sonra sayfayı yenileyin."))
             return yonlendir("/listeler")
         if yol == "/uyari":
             return self.uyari(ot, yontem, form, ip)

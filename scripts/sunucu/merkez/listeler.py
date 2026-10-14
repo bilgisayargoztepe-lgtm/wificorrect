@@ -27,6 +27,7 @@ EN_COK = 300_000  # kategori başına; fazlası kesilir (önce elle ek, sonra ka
 KAYNAK_SINIRI = 64 * 1024 * 1024
 KATEGORILER = {"kumar": "Kumar ve bahis", "yetiskin": "Yetişkin içerik", "zararli": "Zararlı ve dolandırıcı siteler"}
 EK_AD = "Elle eklenenler"
+TABAN_ESIK, TABAN_ORAN = 1000, 0.5  # küçük liste tabanı (bkz. _kaynak)
 
 # Kaynaklar (adresler 2026-10-14'te doğrulandı). Lisanslar:
 # - HaGeZi DNS Blocklists (github.com/hagezi/dns-blocklists): GPL-3.0. "wildcard/*-onlydomains" biçimi: satır başına alan
@@ -58,12 +59,27 @@ KAYNAKLAR = {
 ASLA = frozenset({
     "wificorrect.com", "netgsm.com.tr", "twilio.com", "google.com", "googleapis.com", "gstatic.com", "android.com",
     "apple.com", "icloud.com", "microsoft.com", "windowsupdate.com", "msftconnecttest.com", "msftncsi.com",
+    "connectivitycheck.gstatic.com", "captive.apple.com", "detectportal.firefox.com", "pool.ntp.org", "ntp.org",
     "gov.tr", "edu.tr",
 })
-# Kamu son ekleri: tek başına engellenirse bütün bir alan kapanır.
+# Paylaşımlı platformlar: zararlı listelerde (özellikle URL listelerinde) bir kullanıcının dosyası/sayfası yüzünden bütün
+# platform listelenebilir. Bunlar ve alt adları (platformun kendi altyapısı, kullanıcıya ayrılmış değil) engellenmez.
+PAYLASIMLI = frozenset({
+    "github.com", "githubusercontent.com", "discordapp.com", "discord.com", "discord.gg", "dropbox.com",
+    "dropboxusercontent.com", "bit.ly", "t.me", "telegram.org", "ipfs.io", "mediafire.com", "pastebin.com",
+    "onedrive.live.com", "1drv.ms", "sharepoint.com", "wetransfer.com", "mega.nz", "tinyurl.com",
+})
+# Aşırı geniş girdiler — yalnızca KENDİSİ atılır, alt adları listelenebilir: kamu son ekleri (tek başına engellenirse
+# bütün bir alan kapanır) ve kullanıcıya alt ad veren barındırma platformları (kotu.github.io listelenebilir, github.io değil).
 KAMU_SON_EK = frozenset({
     "com", "net", "org", "com.tr", "gov.tr", "edu.tr", "bel.tr", "k12.tr", "org.tr", "net.tr", "gen.tr", "av.tr",
     "tv.tr", "info.tr", "biz.tr", "web.tr", "name.tr", "tel.tr", "pol.tr", "tsk.tr", "dr.tr", "bbs.tr", "nc.tr", "kep.tr",
+    "co.uk", "org.uk", "ac.uk", "gov.uk", "com.br", "com.au", "net.au", "org.au", "co.jp", "ne.jp", "co.in", "co.za",
+    "com.cn", "com.mx", "co.kr", "com.ar", "co.nz", "com.sg", "com.ua", "com.pl", "co.id", "com.hk", "com.tw", "eu.org",
+    "blogspot.com", "github.io", "gitlab.io", "wordpress.com", "weebly.com", "wixsite.com", "firebaseapp.com", "web.app",
+    "pages.dev", "workers.dev", "vercel.app", "netlify.app", "herokuapp.com", "azurewebsites.net", "cloudfront.net",
+    "amazonaws.com", "s3.amazonaws.com", "appspot.com", "glitch.me", "repl.co", "ngrok.io", "ngrok-free.app",
+    "duckdns.org", "no-ip.com", "ddns.net", "000webhostapp.com", "r2.dev", "onrender.com", "fly.dev", "surge.sh",
 })
 # VPN/proxy/DoH: VPN kategorisi yok ve iş VPN'leri çalışmalı; tehdit listelerinde geçse de hiçbir listeden gelmez.
 # Basit yöntem: bilinen sağlayıcıların alan adları (ve alt adları) + ilk etiketi tam olarak vpn/doh/dot/dns/proxy
@@ -99,17 +115,21 @@ def gecerli(ad):
         return None
     if all(x.isdigit() for x in p):  # IP adresi
         return None
-    if ad in KAMU_SON_EK or _ust_mu(ad, ASLA) or _ust_mu(ad, VPN_DOH) or p[0] in VPN_ETIKET:
+    if ad in KAMU_SON_EK or _ust_mu(ad, ASLA) or _ust_mu(ad, PAYLASIMLI) or _ust_mu(ad, VPN_DOH) or p[0] in VPN_ETIKET:
         return None
     return ad
 
 
 def _usom_ad(s):
+    """USOM satırından ana bilgisayar adı; yol ya da sorgu içeren URL'ler için None. Bir URL çoğu kez paylaşımlı bir
+    sitedeki tek dosyayı gösterir (github.com/x/y, cdn.discordapp.com/attachments/…); bütün siteyi engellemek yanlış olur.
+    Yalnızca çıplak ana bilgisayar girdileri (kotu.com, http://kotu.com/) alınır."""
     if "://" in s:
         s = s.split("://", 1)[1]
-    for ayrac in "/?#":
-        s = s.split(ayrac, 1)[0]
-    s = s.rsplit("@", 1)[-1]
+    i = min([s.find(c) for c in "/?#" if c in s] or [len(s)])
+    if s[i:] not in ("", "/"):
+        return None
+    s = s[:i].rsplit("@", 1)[-1]
     if ":" in s:
         s = s.split(":", 1)[0]
     return s
@@ -127,7 +147,8 @@ def _adaylar(satir, bicim):
         m = _ADBLOCK.fullmatch(s)
         return [m.group(1)] if m else []
     if bicim == "usom":
-        return [_usom_ad(s.split()[0])]
+        ad = _usom_ad(s.split()[0])
+        return [ad] if ad else []
     raise ValueError(f"bilinmeyen biçim: {bicim}")
 
 
@@ -199,17 +220,28 @@ def _onbellek_oku(yol):
         return None
 
 
+def html_mi(ham):
+    """Liste yerine bir web sayfası (yönlendirme, hata ya da giriş sayfası) mı döndü."""
+    bas = ham.lstrip("\ufeff").lstrip()[:4096].lower()
+    return bas[:1] == "<" or "<html" in bas or "<!doctype" in bas
+
+
 def _kaynak(kategori, ad, url, bicim, getir, dizin):
-    """(alan adları, durum satırı, bugün indi mi)."""
+    """(alan adları, durum satırı, bugün indi mi). Hatada son başarılı kopya kullanılır ve kopyanın üzerine yazılmaz.
+    Taban: önceki kopya TABAN_ESIK'ten büyükken yeni liste onun TABAN_ORAN'ından küçükse (kaynak yarım ya da bozuk
+    yayımlamış olabilir) hata sayılır. Kaynak gerçekten kalıcı küçüldüyse yönetici kaynak/ altındaki kopyayı silerek yeni
+    listeyi kabul ettirir."""
+    eski = _onbellek_oku(_onbellek_yolu(dizin, kategori, url))
     try:
-        ham = getir(url, KAYNAK_SINIRI).decode("utf-8", "replace")
-        if ham.lstrip()[:1] == "<":
+        ham = getir(url, KAYNAK_SINIRI).decode("utf-8", "replace").lstrip("\ufeff")
+        if html_mi(ham):
             raise ValueError("liste yerine HTML sayfası döndü")
         alanlar = temizle(ham.splitlines(), bicim)
         if not alanlar:
             raise ValueError("liste boş")
+        if eski and len(eski) > TABAN_ESIK and len(alanlar) < len(eski) * TABAN_ORAN:
+            raise ValueError(f"liste beklenenden çok küçük: {len(alanlar)} / eski {len(eski)}")
     except Exception as h:
-        eski = _onbellek_oku(_onbellek_yolu(dizin, kategori, url))
         durum = {"ad": ad, "sayi": len(eski or ()), "hata": (str(h) or type(h).__name__)[:200]}
         if eski:
             durum["eski"] = True
@@ -256,8 +288,12 @@ def uret(kategori, getir, dizin, simdi):
                 if len(secilen) >= EN_COK:
                     break
                 secilen.add(a)
+            if len(secilen) >= EN_COK:
+                break
         sade = secilen
     metin = "".join(a + "\n" for a in sorted(sade))
+    # Önce liste, sonra meta: arada (ya da meta yazılamazsa) cihaz eski sha ile yeni dosyayı alabilir; cihaz sha'yı
+    # doğruladığı için yazmaz, eskisini tutar ve sonraki raporda yeniden dener. Zararsız pencere.
     _atomik(liste_yolu(dizin, kategori), _gz(metin))
     meta = {"kategori": kategori, "sha256": hashlib.sha256(metin.encode("utf-8")).hexdigest(), "sayi": len(sade),
             "zaman": common.now_iso(simdi), "kesildi": kesildi, "kaynaklar": durumlar}
@@ -265,29 +301,39 @@ def uret(kategori, getir, dizin, simdi):
     return meta
 
 
+class Mesgul(Exception):
+    """Başka bir güncelleme sürüyor (bekle=False)."""
+
+
 class _Kilit:
-    """Zamanlayıcı ve yönetimdeki "Şimdi güncelle" aynı anda yazmasın (Linux'ta flock; testte Windows'ta yok sayılır)."""
-    def __init__(self, dizin):
-        self.yol, self.f = os.path.join(dizin, ".kilit"), None
+    """Zamanlayıcı ve yönetimdeki "Şimdi güncelle" aynı anda yazmasın (Linux'ta flock; testte Windows'ta yok sayılır).
+    bekle=False: kilit tutuluyorsa beklemeden Mesgul (web isteği asılı kalmasın)."""
+    def __init__(self, dizin, bekle=True):
+        self.yol, self.bekle, self.f = os.path.join(dizin, ".kilit"), bekle, None
 
     def __enter__(self):
         os.makedirs(os.path.dirname(self.yol), exist_ok=True)
         self.f = open(self.yol, "a")
         try:
             import fcntl
-            fcntl.flock(self.f, fcntl.LOCK_EX)
         except ImportError:
-            pass
+            return self
+        try:
+            fcntl.flock(self.f, fcntl.LOCK_EX | (0 if self.bekle else fcntl.LOCK_NB))
+        except BlockingIOError:
+            self.f.close()
+            raise Mesgul()
         return self
 
     def __exit__(self, *a):
         self.f.close()
 
 
-def calistir(veri, getir, dizin, simdi, kim="listeler", ip=""):
-    """Üç kategoriyi üretir, hareket yazar. Dönen: 0 hepsi temiz, 1 bir kaynak ya da kategori hatalı."""
+def calistir(veri, getir, dizin, simdi, kim="listeler", ip="", bekle=True):
+    """Üç kategoriyi üretir, hareket yazar. Dönen: 0 hepsi temiz, 1 bir kaynak ya da kategori hatalı.
+    bekle=False iken başka güncelleme sürüyorsa Mesgul fırlatır."""
     sonuc = 0
-    with _Kilit(dizin):
+    with _Kilit(dizin, bekle):
         for k in KATEGORILER:
             onceki = (meta_oku(dizin, k) or {}).get("sha256")
             try:

@@ -67,9 +67,36 @@ def test_adblock_bicimi():
 
 
 def test_usom_bicimi():
-    s = ["http://phish.example.com/login.php?x=1", "https://Kotu.COM:8443/yol", "zararli.net", "ftp://user@dosya.org/a",
-         "http://1.2.3.4/x", "www.banka-giris.xyz/", "# yorum"]
-    assert L.temizle(s, "usom") == {"phish.example.com", "kotu.com", "zararli.net", "dosya.org", "www.banka-giris.xyz"}
+    """Yol ya da sorgu içeren URL atlanır (paylaşımlı sitedeki tek dosya bütün siteyi engellemesin); çıplak adlar alınır."""
+    s = ["http://phish.example.com/login.php?x=1", "https://Kotu.COM:8443/", "zararli.net", "ftp://user@dosya.org",
+         "http://1.2.3.4/", "www.banka-giris.xyz/", "# yorum", "https://github.com/kotu/repo/raw/a.exe",
+         "https://cdn.discordapp.com/attachments/1/2/x.exe", "http://bit.ly/abc", "https://t.me/kanal", "yol.com/a",
+         "sorgu.com?x=1", "sorgu2.com/?x=1", "parca.com#x", "http://kotu2.com"]
+    assert L.temizle(s, "usom") == {"kotu.com", "zararli.net", "dosya.org", "www.banka-giris.xyz", "parca.com", "kotu2.com"}
+
+
+def test_paylasimli_platformlar_ve_genis_son_ekler():
+    s = ["github.com", "raw.githubusercontent.com", "cdn.discordapp.com", "discord.com", "dropbox.com", "dl.dropbox.com",
+         "bit.ly", "t.me", "ipfs.io", "mediafire.com", "pastebin.com", "drive.google.com", "docs.google.com",
+         "github.io", "blogspot.com", "co.uk", "com.br", "workers.dev", "cloudfront.net", "amazonaws.com",
+         "kotu.github.io", "sahte.blogspot.com", "d111.cloudfront.net", "kotu.co.uk", "phish.workers.dev"]
+    assert L.temizle(s, "duz") == {"kotu.github.io", "sahte.blogspot.com", "d111.cloudfront.net", "kotu.co.uk",
+                                   "phish.workers.dev"}
+
+
+def test_baglanti_denetimi_ve_ntp_asla():
+    s = ["detectportal.firefox.com", "connectivitycheck.gstatic.com", "captive.apple.com", "www.msftconnecttest.com",
+         "pool.ntp.org", "tr.pool.ntp.org", "firefox.com"]
+    assert L.temizle(s, "duz") == {"firefox.com"}
+
+
+def test_html_denetimi_bom_ve_dogtype():
+    assert L.html_mi("\ufeff<!DOCTYPE html><html></html>")
+    assert L.html_mi("\ufeff\n  <HTML lang=tr>")
+    assert L.html_mi("# baslik\n" + "x" * 100 + "\n<!doctype html>")
+    assert L.html_mi("kotu.com\n<html>")
+    assert not L.html_mi("\ufeffkotu.com\nbaska.com\n")
+    assert not L.html_mi("a.com\n" * 2000 + "<html>")  # ilk 4 KB'ın dışında
 
 
 def test_gecersizler_ip_tek_etiket_kamu_son_eki_atilir():
@@ -250,6 +277,80 @@ def test_main_uretir_ve_hareket():
             assert [(h["olay"], h["ayrinti"].split()[0]) for h in yeni] == [("LISTE_GUNCEL", "kategori=zararli")]
     finally:
         L.KAYNAKLAR = eski
+
+
+def test_bom_ile_baslayan_html_kaynak_hata_bom_li_liste_iyi():
+    eski = kaynaklar_koy(iki_kaynak())
+    try:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+            meta = L.uret(K, sahte({"https://a/liste": "\ufeff<!DOCTYPE html><p>kotu.com</p>".encode(),
+                                    "https://b/liste": "\ufeff||c.com^\n".encode()}), tmp, SIMDI)
+            assert "HTML" in meta["kaynaklar"][0]["hata"] and meta["kaynaklar"][1] == {"ad": "B", "sayi": 1}
+            meta = L.uret(K, sahte({"https://a/liste": "\ufeffilk.com\nikinci.com\n".encode(),
+                                    "https://b/liste": b"||c.com^\n"}), tmp, SIMDI)
+            assert meta["kaynaklar"][0] == {"ad": "A", "sayi": 2}  # BOM ilk satırı bozmaz
+    finally:
+        L.KAYNAKLAR = eski
+
+
+def test_kucuk_liste_tabani():
+    """Önceki kopya > 1000 iken yeni liste yarısından küçükse hata: kopya kullanılır ve üzerine yazılmaz."""
+    eski = kaynaklar_koy(iki_kaynak())
+    try:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+            buyuk = "".join(f"a{i}.com\n" for i in range(2000)).encode()
+            L.uret(K, sahte({"https://a/liste": buyuk, "https://b/liste": b"||c.com^\n"}), tmp, SIMDI)
+            kucuk = "".join(f"a{i}.com\n" for i in range(999)).encode()
+            for _ in range(2):  # ikinci turda da kopya hâlâ 2000'lik (üzerine yazılmadı)
+                meta = L.uret(K, sahte({"https://a/liste": kucuk, "https://b/liste": b"||c.com^\n"}), tmp, SIMDI + 10)
+                d = meta["kaynaklar"][0]
+                assert "beklenenden çok küçük: 999 / eski 2000" in d["hata"] and d["sayi"] == 2000 and d["eski"] is True
+                assert meta["sayi"] == 2001
+            # yarısı ya da fazlası kabul edilir
+            meta = L.uret(K, sahte({"https://a/liste": "".join(f"a{i}.com\n" for i in range(1000)).encode(),
+                                    "https://b/liste": b"||c.com^\n"}), tmp, SIMDI + 20)
+            assert meta["kaynaklar"][0] == {"ad": "A", "sayi": 1000} and meta["sayi"] == 1001
+            # küçük önceki kopyada (≤ 1000) taban uygulanmaz
+            meta = L.uret(K, sahte({"https://a/liste": b"z.com\n", "https://b/liste": b"||c.com^\n"}), tmp, SIMDI + 30)
+            assert meta["kaynaklar"][0] == {"ad": "A", "sayi": 1}
+    finally:
+        L.KAYNAKLAR = eski
+
+
+def test_kaynak_hatasi_hareketi_ve_guncel():
+    eski = kaynaklar_koy({"kumar": [("A", "https://a", "duz"), ("B", "https://b", "duz")], "yetiskin": [], "zararli": []})
+    try:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+            v, _, _ = Y.ortam(tmp)
+            d = os.path.join(tmp, "l")
+            assert L.calistir(v, sahte({"https://a": OSError("ag yok"), "https://b": b"b.com\n"}), d, SIMDI) == 1
+            h = [(x["olay"], x["ayrinti"]) for x in v.hareketler() if "kategori=kumar" in x["ayrinti"]]
+            assert ("LISTE_HATA", "kategori=kumar kaynak=A neden=ag yok") in h
+            assert any(o == "LISTE_GUNCEL" and a.startswith("kategori=kumar surum=") and "sayi=1" in a for o, a in h)
+    finally:
+        L.KAYNAKLAR = eski
+
+
+def test_simdi_guncelle_mesgulse_beklemez():
+    eski_kilit = L._Kilit
+
+    class Dolu:
+        def __init__(self, dizin, bekle=True):
+            assert bekle is False  # web isteği beklememeli
+        def __enter__(self):
+            raise L.Mesgul()
+        def __exit__(self, *a):
+            pass
+    L._Kilit = Dolu
+    try:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+            cagri = []
+            app, v, c, d = yonetim_kur(tmp, sahte({}, cagri))
+            t = Y.csrf(Y.al(app, "/listeler", c))
+            r = Y.gonder(app, "/listeler/guncelle", c, {"csrf": t})
+            assert r[0] == 200 and "zaten sürüyor" in r[2].decode() and cagri == []
+    finally:
+        L._Kilit = eski_kilit
 
 
 # --- API ---

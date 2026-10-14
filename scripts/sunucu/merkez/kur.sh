@@ -8,10 +8,11 @@ command -v caddy >/dev/null || DEBIAN_FRONTEND=noninteractive apt-get install -y
 command -v fail2ban-client >/dev/null || DEBIAN_FRONTEND=noninteractive apt-get install -y -q fail2ban >/dev/null
 id wcpanel >/dev/null 2>&1 || useradd --system --no-create-home --home-dir /nonexistent --shell /usr/sbin/nologin wcpanel
 install -d -m 755 $L /var/lib/wificorrect /var/lib/wificorrect/istatistik
-install -d -o root -g wcpanel -m 750 /var/lib/wificorrect/detay /var/lib/wificorrect/kuyruk-sonuc
+install -d -o root -g wcpanel -m 750 /var/lib/wificorrect/detay /var/lib/wificorrect/kuyruk-sonuc /var/lib/wificorrect/rapor
+install -d -m 700 /var/lib/wificorrect/rapor-ham   # takma kimlikli ham özetler + sır: yalnızca root
 install -d -o wcpanel -g wcpanel -m 700 /var/lib/wificorrect/merkez /var/lib/wificorrect/kuyruk
 rm -f $L/panel.py $L/panel_auth.py $L/hesap.py   # eski kafe paneli
-install -m 644 common.py ozet.py detay.py guvenlik.py veri.py kayitlar.py web.py musteri.py yonetim.py api.py cihaz.py netgsm.py twilio.py surumler.py $L/
+install -m 644 common.py ozet.py detay.py guvenlik.py veri.py kayitlar.py web.py musteri.py yonetim.py api.py cihaz.py netgsm.py twilio.py surumler.py rapor.py $L/
 install -m 755 merkez.py istatistik.py durum.py kuyruk.py yonetici.py saglik.py listeler.py $L/
 ln -sf $L/istatistik.py /usr/local/sbin/wc-istatistik
 ln -sf $L/durum.py /usr/local/sbin/wc-durum

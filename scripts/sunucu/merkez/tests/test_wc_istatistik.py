@@ -133,6 +133,10 @@ def test_sembolik_bag_gun_ve_dosya_atlanir():
         assert len(hatalar) == 1 and hatalar[0].startswith("2026-09-28")
 
 
+def rapor_yollari(tmp):
+    return os.path.join(tmp, "rapor-ham"), os.path.join(tmp, "rapor"), os.path.join(tmp, "yok-gruplar.json")
+
+
 def test_main_arsivleri_isler_yeni_once():
     with tempfile.TemporaryDirectory() as tmp:
         yeni, eski = os.path.join(tmp, "yeni"), os.path.join(tmp, "eski")
@@ -143,8 +147,31 @@ def test_main_arsivleri_isler_yeni_once():
         gun_yaz(os.path.join(eski, "bocafe"), "2026-09-20", ["5334553132", "5551112233"])
         gun_yaz(os.path.join(eski, "bocafe"), "2026-10-01", ["5550000000", "5551111111", "5552222222"])
         cikti, detay = os.path.join(tmp, "ist"), os.path.join(tmp, "detay")
-        assert I.main(kayit, yeni, eski, cikti, detay, None) == 0
+        assert I.main(kayit, yeni, eski, cikti, detay, None, *rapor_yollari(tmp)) == 0
         assert oku(os.path.join(cikti, "bocafe.json")) == {"2026-09-20": 2, "2026-10-01": 1}
+
+
+def test_main_raporlari_uretir():
+    import rapor as R
+    with tempfile.TemporaryDirectory() as tmp:
+        yeni, eski = os.path.join(tmp, "yeni"), os.path.join(tmp, "eski")
+        kayit = os.path.join(tmp, "kayit.csv")
+        open(kayit, "w").close()
+        gun_yaz(os.path.join(yeni, "1234567", "veri"), "2026-10-01", ["905334553132"])
+        gun_yaz(os.path.join(eski, "1234567"), "2026-09-30", ["905551112233"])  # aynı adın eski klasörü
+        gun_yaz(os.path.join(eski, "bocafe"), "2026-09-29", ["905550000000"])
+        ham, rapor, gd = rapor_yollari(tmp)
+        with open(gd, "w", encoding="utf-8") as f:
+            json.dump({"1234567": ["bocafe"]}, f)
+        simdi = 1_791_000_000.0  # 2026-10-03
+        assert I.main(kayit, yeni, eski, os.path.join(tmp, "ist"), os.path.join(tmp, "detay"), None, ham, rapor, gd,
+                      simdi) == 0
+        assert sorted(os.listdir(os.path.join(ham, "1234567"))) == ["2026-09-30.json", "2026-10-01.json"]
+        assert os.listdir(os.path.join(rapor)) == ["1234567"]
+        w40 = oku(os.path.join(rapor, "1234567", "hafta-2026-W40.json"))
+        assert w40["misafir"]["farkli"] == 3 and [x["farkli"] for x in w40["gunler"][1:4]] == [1, 1, 1]
+        assert w40["gunler"][1]["durum"] == "dogrulanamadi"  # zincir.txt yok: "tam" değil
+        assert os.path.exists(os.path.join(ham, "sir")) and R.BICIM == w40["bicim"]
 
 
 def test_main_bozuk_arsiv_digerlerini_durdurmaz():
@@ -157,7 +184,7 @@ def test_main_bozuk_arsiv_digerlerini_durdurmaz():
             f.write("x")
         gun_yaz(os.path.join(eski, "b-kafe"), "2026-10-01", ["5334553132"])
         cikti, detay = os.path.join(tmp, "ist"), os.path.join(tmp, "detay")
-        I.main(kayit, yeni, eski, cikti, detay, None)
+        I.main(kayit, yeni, eski, cikti, detay, None, *rapor_yollari(tmp))
         assert oku(os.path.join(cikti, "b-kafe.json")) == {"2026-10-01": 1}
 
 

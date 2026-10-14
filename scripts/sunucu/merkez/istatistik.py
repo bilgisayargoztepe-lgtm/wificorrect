@@ -12,6 +12,9 @@ import common  # noqa: E402
 
 CIKTI = "/var/lib/wificorrect/istatistik"
 DETAY = "/var/lib/wificorrect/detay"
+RAPOR = "/var/lib/wificorrect/rapor"
+RAPOR_HAM = "/var/lib/wificorrect/rapor-ham"
+RAPOR_GRUPLARI = "/var/lib/wificorrect/merkez/rapor-gruplari.json"
 PANEL_GRUBU = "wcpanel"  # özetler root:wcpanel 640; testlerde None (sahiplik değişmez)
 GUN_RE = re.compile(r"\d{4}-\d{2}-\d{2}")
 
@@ -72,11 +75,14 @@ def guncelle(kafe_dizini, json_yolu):
     return hatalar
 
 
-def main(kayit=None, yeni=None, eski=None, cikti=CIKTI, detay=DETAY, grup=PANEL_GRUBU):
+def main(kayit=None, yeni=None, eski=None, cikti=CIKTI, detay=DETAY, grup=PANEL_GRUBU,
+         rapor_ham=RAPOR_HAM, rapor_cikti=RAPOR, rapor_gruplari=RAPOR_GRUPLARI, simdi=None):
     import durum  # durum → common; döngü yok ama istatistik'i hafif tutmak için burada
     import ozet  # istatistik'i içe aktarır; döngüsel içe aktarma olmasın diye burada
+    import rapor  # aynı sebep
     kod = 0
-    for ad, a in durum.arsivler(kayit or durum.KAYIT, yeni or durum.YENI, eski or durum.ESKI).items():
+    arsivler = durum.arsivler(kayit or durum.KAYIT, yeni or durum.YENI, eski or durum.ESKI)
+    for ad, a in arsivler.items():
         hatalar = []
         for kaynak in a["kaynaklar"]:  # yeni arşiv önce: aynı gün eskide de varsa atlanır
             try:
@@ -87,6 +93,14 @@ def main(kayit=None, yeni=None, eski=None, cikti=CIKTI, detay=DETAY, grup=PANEL_
         for hata in hatalar:
             print(f"{ad}: {hata}", file=sys.stderr)
             kod = 1
+    # haftalık/aylık raporlar (ham özet önbelleği + müşteri başına dönem raporları); hatası yukarıdakileri etkilemez
+    try:
+        hatalar = rapor.calistir(arsivler, rapor_gruplari, rapor_ham, rapor_cikti, grup, simdi)
+    except Exception as e:
+        hatalar = [type(e).__name__]
+    for hata in hatalar:
+        print(f"rapor: {hata}", file=sys.stderr)
+        kod = 1
     return kod
 
 

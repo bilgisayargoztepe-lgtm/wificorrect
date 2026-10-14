@@ -121,13 +121,14 @@ class Yonetim(web.Taban):
     def __init__(self, veri, kayitlar, saat=time.time, yonetici_yolu=yonetici.YONETICI,
                  durum_yolu=durum_modulu.DURUM, kuyruk_ekle=kuyruk.ekle, gonder=netgsm.gonder, gecis=None, musteri_app=None,
                  github_al=surumler.github_al, getir=surumler.getir, surum_dizini=surumler.DIZIN,
-                 liste_getir=surumler.getir, liste_dizini=listeler.DIZIN):
+                 liste_getir=surumler.getir, liste_dizini=listeler.DIZIN, rapor_gruplari=None):
         super().__init__(veri, kayitlar, saat)
         self.yonetici_yolu, self.durum_yolu, self.kuyruk_ekle, self.gonder = yonetici_yolu, durum_yolu, kuyruk_ekle, gonder
         # cihaz paneline doğrudan geçiş: müşteri paneliyle aynı belirteç deposu ve cihaz adresi kuralı
         self.gecis, self.musteri_app = gecis, musteri_app
         self.github_al, self.getir, self.surum_dizini = github_al, getir, surum_dizini  # uzaktan güncelleme sürüm deposu
         self.liste_getir, self.liste_dizini = liste_getir, liste_dizini  # hazır engel listeleri
+        self.rapor_gruplari = rapor_gruplari  # raporlar: eski arşiv bağı değişince root'un okuduğu grup dosyası (None: yazılmaz)
 
     # --- Taban ---
     def dogrula(self, kul, pw):
@@ -775,6 +776,11 @@ class Yonetim(web.Taban):
                 return yanit_html(self.mesaj(ot, "Geçersiz", "Arşiv ya da müşteri numarası bulunamadı."), 400)
             self.veri.eski_arsiv_bagla(ad, int(mn) if mn else None)
             self.veri.hareket("admin", ip, "ESKI_ARSIV_BAGLANDI", int(mn) if mn else None, f"arsiv={ad}")
+            if self.rapor_gruplari:
+                try:
+                    self.veri.rapor_gruplari_yaz(self.rapor_gruplari)
+                except OSError as ex:  # bağ kaydedildi; dosya merkez açılışında yeniden yazılır
+                    web.log(f"rapor-gruplari yazilamadi: {ex!r}")
             return yonlendir("/eski-arsivler")
         cs = e(ot["csrf"])
         satirlar = "".join(

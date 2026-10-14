@@ -90,9 +90,13 @@ class Isleyici(BaseHTTPRequestHandler):
 def main():
     os.umask(0o077)
     v, k = veri.Veri(DB), kayitlar.Kayitlar()
+    try:
+        v.rapor_gruplari_yaz(veri.RAPOR_GRUPLARI)  # raporlar için müşteri ↔ eski arşiv bağı (root okur)
+    except OSError as ex:
+        web.log(f"rapor-gruplari yazilamadi: {ex!r}")
     gecis = guvenlik.GecisBelirtecleri()
     m = musteri.Musteri(v, k, gecis=gecis)
-    Isleyici.app = Merkez({"yonetim": yonetim.Yonetim(v, k, gecis=gecis, musteri_app=m), "musteri": m, "api": api.Api(v),
+    Isleyici.app = Merkez({"yonetim": yonetim.Yonetim(v, k, gecis=gecis, musteri_app=m, rapor_gruplari=veri.RAPOR_GRUPLARI), "musteri": m, "api": api.Api(v),
                            "cihaz": cihaz.Cihaz(v, gecis, m)})
     srv = ThreadingHTTPServer(("127.0.0.1", 8081), Isleyici)
     srv.daemon_threads = True

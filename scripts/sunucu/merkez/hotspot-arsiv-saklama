@@ -9,4 +9,9 @@ for f in /var/lib/wificorrect/detay/*/????-??-??.json; do
   g=${f##*/}
   [[ -f $f && ${g%.json} < $sinir ]] && rm -f -- "$f"
 done
+# Rapor ham özetleri (takma kimlikli, root) de aynı sürede; dönem raporları yalnızca sayı, wc-istatistik pencereyle siler
+for f in /var/lib/wificorrect/rapor-ham/*/????-??-??.json; do
+  g=${f##*/}
+  [[ -f $f && ${g%.json} < $sinir ]] && rm -f -- "$f"
+done
 exit 0

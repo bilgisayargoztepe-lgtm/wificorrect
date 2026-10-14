@@ -98,6 +98,13 @@ gönderilemiyor…"). Cihazda NetGSM/Twilio sırrı yok (eski dosyadan temizlend
 cihaz 0.4.8'e uzaktan güncellendi; deneme modunda sahte misafir uçtan uca giriş yaptı, deneme modu geri kapatıldı.
 Ertelenmiş küçükler: SMS ayarlarında Twilio sırrı silinemiyor; `ctl saglik` ile panel aynı anda kaydederse küçük yarış;
 5 sn/işlem zaman aşımı DNS'i kapsamaz.
+**Hazır engel listeleri — BİTTİ (2026-10-14, PR #18, v0.4.9):** kumar (HaGeZi gambling), yetişkin (HaGeZi nsfw + StevenBlack),
+zararlı (HaGeZi tif.mini + USOM; USOM şu an HTML döndürüyor, kaynak hatalı sayılıyor, diğeri yetiyor). VPN/proxy kategorisi yok
+(kullanıcı kararı). Merkez `wc-listeler.timer` 04:30, Yönetim → Engel listeleri; kategori hiç güncellenemez ya da 48 sa eskirse
+"Merkez" satırıyla sağlık uyarısı. Cihaz dnsmasq `servers-file` + SIGHUP; panel Yasaklı siteler → Hazır listeler (varsayılan açık).
+Canlı ölçüm (561.821 alan): dnsmasq RSS ~3 MB → ~47 MB; SIGHUP'ta DNS ~4 sn duruyor (yalnızca liste değişince, günde ~1);
+bet365/pornhub NXDOMAIN, google/netgsm/banka/e-Devlet/bağlantı denetimi açık. `wc-listeler.service` USOM hatası yüzünden
+çıkış 1 veriyor (zararsız). Ertelenmiş küçükler: `.superpowers/sdd/2026-10-14-hazir-engel-listeleri/progress.md`.
 **Bulgular 2026-10-13:** cihaz telefon (mobil) hattına alınınca HTTPS/sağlık raporu çalışıyor ama WireGuard 1–2 dk sonra kesiliyor
 (büyük olasılıkla mobil operatör engeli); müşteriler sabit hatlı (TT/Superonline) olacağı için ilk müşteri kurulumundan önce
 gerçek bir dış sabit hatta 15 dk tünel denemesi yapılacak, engel çıkarsa tüneli HTTPS/443 kılıfına almak. NetGSM izinsiz-IP
@@ -106,9 +113,9 @@ kullanıcıya anlatıldı, HDMI sahte fiş önerildi). Uzaktan AP yönetimi fikr
 aktarımı (Referer/Host AP'nin adresine çevrilir), 2) bilinen modellere sürücü, 3) standart AP — kullanıcıya "AP'yi siz mi
 vereceksiniz?" soruldu, cevap bekleniyor. AP'ye bugün erişim: `ssh -N -D 1080 wificorrect` + ayrı Chrome
 `--proxy-server=socks5://127.0.0.1:1080` → http://10.50.0.2/ (TP-Link 127.0.0.1 üzerinden girişte Referer yüzünden reddeder).
-Canlı cihaz 0.4.8 (Admin, Ayarlar'ın son kutucuğu; kullanıcılar 10'arlı sayfa; tarihler gün.ay.yıl).
+Canlı cihaz 0.4.9 (Admin, Ayarlar'ın son kutucuğu; kullanıcılar 10'arlı sayfa; tarihler gün.ay.yıl).
 Kullanıcının onayladığı sıra (2026-10-11; donanım bekçisi hariç): ~~1 küçük işler~~ · ~~2 sağlık izleme~~ ·
-~~3 merkezden uzaktan güncelleme~~ · **4 hazır engel listeleri** · 5 aylık rapor · 6 personel kodu ile giriş ·
+~~3 merkezden uzaktan güncelleme~~ · ~~4 hazır engel listeleri~~ · **5 aylık rapor** · 6 personel kodu ile giriş ·
 7 imzalı resmi talep raporu · 8 online ödeme (`veri.lisans_uzat`) · 9 **merkezi Rust'a taşıma** (2026-10-13 kararı;
 ~4.300 satır Python + 3.600 satır test, 9 işe bölünür: veritabanı, güvenlik, web tabanı, cihaz API, yönetim, müşteri paneli,
 arka plan işleri, kurulum/yan yana geçiş, uçtan uca + Python'u kaldırma; aynı SQLite şeması ve parola biçimi korunur). Zaman damgası: kontör alınınca. İki aşamalı giriş istenmedi.

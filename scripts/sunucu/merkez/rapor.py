@@ -5,7 +5,8 @@ Görev 1: arşiv günü başına **ham özet** (rapor-ham/<arşiv>/<gün>.json, 
 özel sırla HMAC'lenmiş takma kimliktir (tekil sayım için); telefon, TC, pasaport, MAC, IP, ad hiç yazılmaz.
 Hata metinleri yalnızca gün + istisna türü taşır (dosya adı `kullanicilar/<telefon>.csv.gz` kişisel veridir).
 Görev 2: müşteri grupları (numara arşivi + panelin rapor-gruplari.json'daki bağlı eski arşivler), gün durumu ("tam" yalnızca
-doğrulanmışsa) ve haftalık/aylık dönem raporları rapor/<numara>/ (root:wcpanel 750/640; yalnızca sayılar, takma kimlik yok)."""
+doğrulanmışsa) ve haftalık/aylık dönem raporları rapor/<numara>/ (root:wcpanel 750/640; yalnızca sayılar, takma kimlik yok).
+Alan adı (DNS) verisi tutulmaz (spec Ek 2026-10-15): dns.csv okunmaz."""
 import datetime
 import hashlib
 import hmac
@@ -27,7 +28,7 @@ CIKTI = "/var/lib/wificorrect/rapor"
 GRUPLAR = "/var/lib/wificorrect/merkez/rapor-gruplari.json"  # panel (wcpanel) yazar; root için güvenilmez girdi
 PANEL_GRUBU = "wcpanel"
 SIR_YOLU = os.path.join(HAM, ".sir")  # nokta: hiçbir arşiv adı (durum.AD_RE) noktayla başlamaz, çakışmaz
-BICIM = 1
+BICIM = 2  # 2 (2026-10-15): alan adı verisi kaldırıldı; eski (1) ham ve raporlar bir kez yeniden üretilir
 ZINCIR_SINIRI = 8 * 1024 * 1024  # zincir.txt ve eski/zincir.txt.* başına; büyüğü atlanır
 MANIFEST_SINIRI = 16 * 1024 * 1024
 PARCA = 1 << 20
@@ -37,31 +38,7 @@ GUN_RE = re.compile(r"\d{4}-\d{2}-\d{2}")
 AD_RE = re.compile(r"[a-z0-9][a-z0-9._-]{0,31}")  # durum.AD_RE ile aynı
 HEX64_RE = re.compile(r"[0-9a-f]{64}")
 ZAMAN_RE = re.compile(r"\d{4}-\d{2}-\d{2}T([01]\d|2[0-3]):[0-5]\d:[0-5]\d", re.ASCII)
-ETIKET_RE = re.compile(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?", re.ASCII)
 SURUM_RE = re.compile(r"[0-9A-Za-z.+~-]{1,32}", re.ASCII)
-IKINCI_DUZEY = frozenset(
-    "com.tr net.tr org.tr gov.tr edu.tr k12.tr bel.tr gen.tr biz.tr info.tr web.tr tv.tr av.tr pol.tr tsk.tr "
-    "co.uk org.uk ac.uk com.au co.jp com.br co.kr co.in".split())
-YEREL_SONEK = ("arpa", "local", "lan", "home", "internal")
-
-
-# --- alan adı kökü ---
-def kok_alan(ad):
-    """`www.instagram.com.` → `instagram.com`; `a.b.example.com.tr` → `example.com.tr`. IP, yerel ad, biçimsiz ad → None."""
-    if not isinstance(ad, str):
-        return None
-    ad = ad.strip().lower()
-    if ad.endswith("."):
-        ad = ad[:-1]
-    if not ad or len(ad) > 253:
-        return None
-    etiketler = ad.split(".")
-    if len(etiketler) < 2 or not all(ETIKET_RE.fullmatch(t) for t in etiketler):
-        return None
-    if etiketler[-1].isdigit() or etiketler[-1] in YEREL_SONEK:  # IP biçimi (son etiket sayı olamaz), yerel adlar
-        return None
-    n = 3 if ".".join(etiketler[-2:]) in IKINCI_DUZEY else 2
-    return ".".join(etiketler[-n:]) if len(etiketler) >= n else None
 
 
 # --- güvenli okuma (cihazdan gelen sembolik bağ/FIFO root'u takmasın, başka dosyayı okutmasın) ---
@@ -247,7 +224,7 @@ def gun_ham(gun_dizini, sir):
     """Tamam (istatistik.tamam_mi) bir günün ham özeti; bkz. plan Görev 1 §4. Bozuk gz istisna fırlatır."""
     imz = imza(gun_dizini)
     man_sha, dosya_ok = gun_dogrula(gun_dizini)
-    misafir, izinli, saat, alan = set(), set(), {}, {}
+    misafir, izinli, saat = set(), set(), {}
     giris = {"sms": 0, "kod": 0}
     gonderilen = alinan = sms = 0
     surum, surum_zaman = None, ""
@@ -283,18 +260,10 @@ def gun_ham(gun_dizini, sir):
             if v is not None and z >= surum_zaman:
                 surum, surum_zaman = v, z
 
-    for r in _satirlar(gun_dizini, "dns.csv.gz"):
-        tel = _alan(r, "telefon")
-        if _alan(r, "olay") != "DNS" or not tel or _saat(r) is None:
-            continue
-        k = kok_alan(_alan(r, "alan_adi"))
-        if k:
-            alan.setdefault(k, set()).add(takma(sir, tel))
-
     return {"bicim": BICIM, "imza": imz, "sir_izi": sir_izi(sir), "manifest_sha": man_sha, "dosya_ok": dosya_ok,
             "misafir": sorted(misafir), "saat": {str(s): sorted(saat[s]) for s in sorted(saat)},
             "giris": giris, "izinli": sorted(izinli), "gonderilen": gonderilen, "alinan": alinan, "sms": sms,
-            "alan": {k: sorted(alan[k]) for k in sorted(alan)}, "surum": surum}
+            "surum": surum}
 
 
 def _json_oku(yol):
@@ -394,7 +363,6 @@ NUMARA_RE = re.compile(r"[1-9][0-9]{6}", re.ASCII)
 GRUP_SINIRI = 64 * 1024
 HAFTA_EN_COK, AY_EN_COK = 26, 24
 KESIN_GUN = 7  # bitişten sonraki gün gelmese de bu kadar gün sonra rapor kesinleşir
-ALAN_EN_AZ, ALAN_EN_COK = 3, 10  # alan adı en az 3 farklı misafir (tek kişiyi ele vermesin), ilk 10
 DONEM_DOSYA_RE = re.compile(r"(?:hafta-\d{4}-W\d{2}|ay-\d{4}-\d{2})\.json")
 
 
@@ -472,7 +440,7 @@ def _ham_gecerli(h, iz=None):
     """`iz` verilirse ham aynı sırla yazılmış olmalı (sır_izi tutmalı)."""
     return (isinstance(h, dict) and h.get("bicim") == BICIM and isinstance(h.get("imza"), str)
             and all(isinstance(h.get(k), list) for k in ("misafir", "izinli"))
-            and all(isinstance(h.get(k), dict) for k in ("saat", "alan", "giris"))
+            and all(isinstance(h.get(k), dict) for k in ("saat", "giris"))
             and (iz is None or h.get("sir_izi") == iz))
 
 
@@ -661,7 +629,7 @@ def donem_raporu(tur, anahtar, bas, bit, bugun, simdi, grup_adlari, harita, haml
         gunler.append({"gun": g, "durum": durum, "neden": neden,
                        "farkli": len(_kume(h["misafir"])) if h is not None else None})
 
-    farkli, izinli, alan = set(), set(), {}
+    farkli, izinli = set(), set()
     saat, hafta_gunu = [set() for _ in range(24)], [set() for _ in range(7)]
     giris_sms = giris_kod = gonderilen = alinan = sms = 0
     gunluk = []
@@ -673,9 +641,6 @@ def donem_raporu(tur, anahtar, bas, bit, bugun, simdi, grup_adlari, harita, haml
         for k, v in h["saat"].items():
             if isinstance(k, str) and k.isascii() and k.isdigit() and int(k) < 24:
                 saat[int(k)] |= _kume(v)
-        for k, v in h["alan"].items():
-            if kok_alan(k) == k:
-                alan.setdefault(k, set()).update(_kume(v))
         giris_sms += _int(h["giris"].get("sms"))
         giris_kod += _int(h["giris"].get("kod"))
         gonderilen += _int(h.get("gonderilen"))
@@ -692,7 +657,6 @@ def donem_raporu(tur, anahtar, bas, bit, bugun, simdi, grup_adlari, harita, haml
     for g, n in gunluk:  # eşitlikte erken gün
         if en_yogun is None or n > en_yogun["farkli"]:
             en_yogun = {"gun": g, "farkli": n}
-    alanlar = sorted(((k, len(v)) for k, v in alan.items() if len(v) >= ALAN_EN_AZ), key=lambda x: (-x[1], x[0]))
 
     return {"bicim": BICIM, "tur": tur, "donem": anahtar, "baslangic": bas_s, "bitis": bit_s,
             "uretim": common.now_iso(simdi), "kesin": on["kesin"], "imza": on["imza"],
@@ -703,8 +667,7 @@ def donem_raporu(tur, anahtar, bas, bit, bugun, simdi, grup_adlari, harita, haml
                         "en_yogun_gun": en_yogun},
             "saat": [len(x) for x in saat], "hafta_gunu": [len(x) for x in hafta_gunu],
             "gunler": gunler, "kayit": on["kayit"],
-            "kullanim": {"gonderilen": gonderilen, "alinan": alinan, "sms": sms,
-                         "alanlar": [{"alan": k, "misafir": n} for k, n in alanlar[:ALAN_EN_COK]]},
+            "kullanim": {"gonderilen": gonderilen, "alinan": alinan, "sms": sms},
             "surum": on["surum"], "surum_sonra_degisti": on["sonra"]}
 
 

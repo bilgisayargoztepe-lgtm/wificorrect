@@ -403,6 +403,89 @@ def test_api_paket_yetkisi():
         assert paket("0.4.1")[0] == 404
 
 
+# --- raporlar cihaz panelinde (spec Ek 2026-10-15): /api/raporlar, /api/rapor ---
+_IP = [0]
+
+
+def rpost(api, yol, govde):
+    """Her istek ayrı IP'den: sabit saatte IP başına dakikada 20 istek sınırına takılmasın."""
+    _IP[0] += 1
+    return post(api, yol, govde, ip=f"198.51.{100 + _IP[0] // 250}.{_IP[0] % 250 + 1}")
+
+
+def _raporlu(tmp):
+    import raporlar as RP
+    import test_raporlar as TR
+    v, _, saat = Y.ortam(tmp)
+    q = Kuyruk()
+    api = A.Api(v, saat, q.ekle, q.bekle, liste_dizini=os.path.join(tmp, "listeler"),
+                raporlar=RP.Raporlar(os.path.join(tmp, "rapor")))
+    n, pw = v.musteri_ekle()
+    k = giris(api, n, pw)[1]["cihaz_anahtari"]
+    return api, v, n, k, RP, TR
+
+
+def test_api_raporlar_liste_ve_donem():
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        api, v, n, k, RP, TR = _raporlu(tmp)
+        d, j = rpost(api, "/api/raporlar", {"cihaz_anahtari": k})
+        assert d == 200 and j == {"raporlar": [], "bugun": "2026-09-21"}  # henüz rapor yok
+        TR.yaz(tmp, n, "liste.json", TR.LISTE + [{"tur": "yil", "donem": "2026"}])
+        TR.yaz(tmp, n, "ay-2026-09.json", TR.ay_raporu())
+        d, j = rpost(api, "/api/raporlar", {"cihaz_anahtari": k})
+        assert d == 200 and j["raporlar"] == TR.LISTE and j["bugun"] == "2026-09-21"
+        d, j = rpost(api, "/api/rapor", {"cihaz_anahtari": k, "tur": "ay", "donem": "2026-09"})
+        assert d == 200 and set(j) == {"rapor", "isletme", "cihaz", "bugun"}
+        beklenen = RP.rapor_verisi(v, api.raporlar, n, "ay", "2026-09", Y.Saat.t)  # panel sayfasıyla aynı veri
+        assert {a: j[a] for a in ("rapor", "isletme", "cihaz")} == json.loads(json.dumps(beklenen))
+        assert j["isletme"] == {"numara": str(n), "ad": "Bocafe", "unvan": "Bocafe Ltd."}
+        assert j["cihaz"] == {"surum": "0.4.9", "cevrimdisi_sn": 0, "sorunlar": []}
+        assert j["rapor"]["misafir"]["farkli"] == 41 and j["rapor"]["kayit"] == {"gun": 20, "tam": 16}
+        assert j["rapor"]["kullanim"] == {"gonderilen": 1024 ** 3, "alinan": 3 * 1024 ** 3, "sms": 70}
+        metin = json.dumps(j)
+        assert "instagram" not in metin and "alan" not in metin and "imza" not in metin
+        d, j = rpost(api, "/api/rapor", {"cihaz_anahtari": k, "tur": "hafta", "donem": "2026-W38"})
+        assert d == 404 and j["kod"] == "yok"
+        # görüntüleme hareket yazmaz
+        assert [h["olay"] for h in v.hareketler(n)] == ["CIHAZ_BAGLANDI"]
+
+
+def test_api_rapor_dogrulama_ve_yetki():
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        api, v, n, k, RP, TR = _raporlu(tmp)
+        n2, _ = v.musteri_ekle()
+        TR.yaz(tmp, n2, "ay-2026-09.json", TR.ay_raporu())
+        TR.yaz(tmp, n2, "liste.json", TR.LISTE)
+        assert rpost(api, "/api/rapor", {"cihaz_anahtari": k, "tur": "ay", "donem": "2026-09"})[0] == 404  # başka müşteri
+        assert rpost(api, "/api/raporlar", {"cihaz_anahtari": k})[1]["raporlar"] == []
+        TR.yaz(tmp, n, "ay-2026-09.json", TR.ay_raporu())
+        for tur, donem in (("ay", "2026-13"), ("hafta", "2026-W54"), ("hafta", "../x"), ("yil", "2026"), ("ay", 202609),
+                           (None, "2026-09"), ("ay", f"2026-09/../../{n2}"), ("ay", "2026-9"), ("hafta", "2026-w38")):
+            d, j = rpost(api, "/api/rapor", {"cihaz_anahtari": k, "tur": tur, "donem": donem})
+            assert d == 400 and j["kod"] == "gecersiz", (tur, donem)
+        assert rpost(api, "/api/rapor", {"tur": "ay", "donem": "2026-09"})[0] == 401
+        assert rpost(api, "/api/raporlar", {"cihaz_anahtari": "bilinmeyen"})[0] == 401
+
+        def iki():
+            return (rpost(api, "/api/raporlar", {"cihaz_anahtari": k})[0],
+                    rpost(api, "/api/rapor", {"cihaz_anahtari": k, "tur": "ay", "donem": "2026-09"})[0])
+        assert iki() == (200, 200)
+        v.askiya_al(n, True)
+        assert iki() == (403, 403)
+        v.askiya_al(n, False)
+        v.lisans_ayarla(n, "2020-01-01")
+        assert iki() == (403, 403)
+        v.lisans_uzat(n)
+        v.uyelik(n, "bitti")
+        assert iki() == (403, 403)
+        v.uyelik(n, "aktif")
+        assert iki() == (200, 200)
+        v.serbest_birak(n)
+        assert iki() == (403, 403)
+        d, j = rpost(api, "/api/rapor", {"cihaz_anahtari": k, "tur": "ay", "donem": "2026-09"})
+        assert j["kod"] == "yetki"
+
+
 if __name__ == "__main__":
     for _name, _fn in sorted(globals().items()):
         if _name.startswith("test_") and callable(_fn):

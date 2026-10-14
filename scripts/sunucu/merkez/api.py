@@ -1,14 +1,17 @@
-"""Cihaz API'si (spec §4): api.wificorrect.com/api/{giris,eslesme,parola}. JSON gövde ≤ 4 KB, IP başına dakikada 20 istek.
+"""Cihaz API'si (spec §4): api.wificorrect.com/api/{giris,eslesme,parola,…}; raporlar (spec 2026-10-14 Ek): /api/raporlar,
+/api/rapor (cihaz panelindeki Raporlar; sözleşme docs/superpowers/plans/2026-10-15-rapor-cihaz.md "API sözleşmesi"). JSON gövde ≤ 4 KB, IP başına dakikada 20 istek.
 Cihazın kimliği ilk girişte verilen cihaz anahtarıdır (merkez yalnızca SHA-256'sını tutar)."""
 import datetime
 import json
 import re
 import time
 
+import common
 import guvenlik
 import kuyruk
 import listeler
 import netgsm
+import raporlar as raporlar_modulu
 import surumler
 import twilio
 import veri as veri_modulu
@@ -124,8 +127,9 @@ def saglik_temizle(r):
 
 class Api:
     def __init__(self, veri, saat=time.time, kuyruk_ekle=kuyruk.ekle, kuyruk_bekle=kuyruk.bekle,
-                 surum_dizini=surumler.DIZIN, sms_ac=None, liste_dizini=listeler.DIZIN):
+                 surum_dizini=surumler.DIZIN, sms_ac=None, liste_dizini=listeler.DIZIN, raporlar=None):
         self.veri, self.saat, self.surum_dizini, self.liste_dizini = veri, saat, surum_dizini, liste_dizini
+        self.raporlar = raporlar or raporlar_modulu.Raporlar()  # yalnızca rapor/<cihazın müşteri numarası>/ okunur
         self.sms_ac = sms_ac  # NetGSM/Twilio isteği (testte sahte; None = urlopen, WC_TEST altında reddedilir)
         self.kuyruk_ekle, self.kuyruk_bekle = kuyruk_ekle, kuyruk_bekle
         self.kilit, self.hiz = guvenlik.GirisKilidi(), guvenlik.HizSiniri(20, 60)
@@ -133,7 +137,8 @@ class Api:
     def istek(self, yontem, yol, basliklar, govde, sorgu="", ip=""):
         uclar = {"/api/giris": self.giris, "/api/eslesme": self.eslesme, "/api/parola": self.parola,
                 "/api/saglik": self.saglik, "/api/paket": self.paket, "/api/sms": self.sms,
-                "/api/sms-dogrula": self.sms_dogrula, "/api/liste": self.liste}
+                "/api/sms-dogrula": self.sms_dogrula, "/api/liste": self.liste,
+                "/api/raporlar": self.rapor_listesi, "/api/rapor": self.rapor}
         if yontem != "POST" or yol not in uclar:
             return _hata(404, "yok", "Bulunamadı.")
         if len(govde) > GOVDE_SINIRI:
@@ -287,6 +292,40 @@ class Api:
         except OSError:
             return _hata(404, "yok", "Liste bulunamadı.")
         return 200, {"Content-Type": "application/gzip", "Cache-Control": "no-store"}, icerik
+
+    # --- raporlar cihaz panelinde (2026-10-15): merkezin ürettiği hazır JSON, yalnızca cihazın kendi müşterisinin ---
+    def _rapor_cihazi(self, b):
+        """(müşteri numarası, None) ya da (None, hata). /api/paket ve /api/liste ile aynı kural: bağlı + hizmet açık
+        (üyelik aktif, askıda değil, lisans süresi dolmamış). Görüntüleme hareket yazmaz (raporda kişisel veri yok)."""
+        c = self.veri.cihaz_anahtarla(b.get("cihaz_anahtari"))
+        if c is None:
+            return None, _hata(401, "taninmadi", "Cihaz tanınmadı.")
+        if c["durum"] != "bagli" or not self.veri.hizmet_acik(self.veri.musteri(c["musteri"])):
+            return None, _hata(403, "yetki", "Raporlar için yetkiniz yok.")
+        return c["musteri"], None
+
+    def _bugun(self):
+        return datetime.datetime.fromtimestamp(self.saat(), common.TZ).date().isoformat()
+
+    def rapor_listesi(self, b, ip):
+        """{raporlar: liste.json (doğrulanmış; önce haftalar sonra aylar, yeniden eskiye), bugun}; rapor yoksa boş liste."""
+        n, h = self._rapor_cihazi(b)
+        if h:
+            return h
+        return _json(200, {"raporlar": self.raporlar.liste(n), "bugun": self._bugun()})
+
+    def rapor(self, b, ip):
+        """{rapor, isletme, cihaz, bugun}: panel sayfasıyla aynı veri (raporlar.rapor_verisi)."""
+        n, h = self._rapor_cihazi(b)
+        if h:
+            return h
+        tur, donem = b.get("tur"), b.get("donem")
+        if not raporlar_modulu.donem_gecerli(tur, donem):  # yol yalnızca doğrulanmış tür + dönemden kurulur
+            return _hata(400, "gecersiz", "Geçersiz dönem.")
+        v = raporlar_modulu.rapor_verisi(self.veri, self.raporlar, n, tur, donem, self.saat())
+        if v is None:
+            return _hata(404, "yok", "Bu dönem için rapor yok.")
+        return _json(200, dict(v, bugun=self._bugun()))
 
     # --- doğrulama SMS'i merkezden (2026-10-13): NetGSM OTP ya da Twilio Verify ---
     def _sms_cihazi(self, b):

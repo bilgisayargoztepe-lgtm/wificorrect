@@ -41,13 +41,14 @@ def ay_raporu(**degisik):
     g[3].update(durum="dogrulanamadi", neden="zincir_yok")
     g[4].update(durum="kayit_yok", farkli=None)
     g[5].update(durum="eksik", farkli=None)
-    r = {"bicim": 1, "tur": "ay", "donem": "2026-09", "baslangic": "2026-09-01", "bitis": "2026-09-30",
+    r = {"bicim": 2, "tur": "ay", "donem": "2026-09", "baslangic": "2026-09-01", "bitis": "2026-09-30",
          "uretim": "2026-09-21T12:31:07+03:00", "kesin": False, "imza": "x" * 64,
          "misafir": {"farkli": 41, "yeni": 30, "donen": 11, "giris": 77, "giris_sms": 70, "giris_kod": 7, "izinli_cihaz": 2,
                      "gunluk_ortalama": 4.5, "en_yogun_gun": {"gun": "2026-09-12", "farkli": 9}},
          "saat": [0] * 9 + [5, 9] + [1] * 13, "hafta_gunu": [1, 2, 3, 4, 5, 6, 7],
          "gunler": g, "kayit": {"gun": 20, "tam": 16},
          "kullanim": {"gonderilen": 1024 ** 3, "alinan": 3 * 1024 ** 3, "sms": 70,
+                      # eski biçimden kalan alan adı listesi: hiç okunmaz, gösterilmez
                       "alanlar": [{"alan": "instagram.com", "misafir": 12}, {"alan": "<script>alert(1)</script>.com", "misafir": 3}]},
          "surum": "0.4.9", "surum_sonra_degisti": False}
     r.update(degisik)
@@ -55,14 +56,14 @@ def ay_raporu(**degisik):
 
 
 def hafta_raporu(**degisik):
-    r = {"bicim": 1, "tur": "hafta", "donem": "2026-W38", "baslangic": "2026-09-14", "bitis": "2026-09-20",
+    r = {"bicim": 2, "tur": "hafta", "donem": "2026-W38", "baslangic": "2026-09-14", "bitis": "2026-09-20",
          "uretim": "2026-09-21T02:31:07+03:00", "kesin": False, "imza": "y" * 64,
          "misafir": {"farkli": 6, "yeni": 1, "donen": 5, "giris": 9, "giris_sms": 9, "giris_kod": 0, "izinli_cihaz": 1,
                      "gunluk_ortalama": 2.0, "en_yogun_gun": None},
          "saat": [0] * 24, "hafta_gunu": [0] * 7, "gunler": gunler("2026-09-14", 7) [:6] + [
              {"gun": "2026-09-20", "durum": "bekleniyor", "neden": "", "farkli": None}],
          "kayit": {"gun": 7, "tam": 6},
-         "kullanim": {"gonderilen": 0, "alinan": 0, "sms": 9, "alanlar": []}, "surum": None, "surum_sonra_degisti": False}
+         "kullanim": {"gonderilen": 0, "alinan": 0, "sms": 9}, "surum": None, "surum_sonra_degisti": False}
     r.update(degisik)
     return r
 
@@ -127,8 +128,12 @@ def test_liste_ve_rapor_okuma_dogrulama():
         assert rp.rapor(7654321, "ay", "2026-09") is None and rp.rapor("../1234567", "ay", "2026-09") is None
         yaz(tmp, 1234567, "ay-2026-08.json", "{bozuk")
         assert rp.rapor(1234567, "ay", "2026-08") is None
-        yaz(tmp, 1234567, "ay-2026-08.json", ay_raporu(bicim=2, donem="2026-08"))
+        yaz(tmp, 1234567, "ay-2026-08.json", ay_raporu(bicim=3, donem="2026-08"))
         assert rp.rapor(1234567, "ay", "2026-08") is None
+        yaz(tmp, 1234567, "ay-2026-08.json", ay_raporu(bicim=1, donem="2026-08"))  # eski biçim: root yenileyene kadar okunur
+        eski = rp.rapor(1234567, "ay", "2026-08")
+        assert eski["bicim"] == RP.BICIM and eski["kullanim"] == {"gonderilen": 1024 ** 3, "alinan": 3 * 1024 ** 3, "sms": 70}
+        assert "instagram" not in json.dumps(eski)
         yaz(tmp, 1234567, "ay-2026-08.json", ay_raporu())  # dosya adı ile içerik farklı dönem
         assert rp.rapor(1234567, "ay", "2026-08") is None
         yaz(tmp, 1234567, "liste.json", "[bozuk")
@@ -150,9 +155,9 @@ def test_rapor_turleri_denetlenir():
         assert n["misafir"]["giris"] == 0 and n["misafir"]["gunluk_ortalama"] == 0.0 and n["misafir"]["en_yogun_gun"] is None
         assert n["saat"] == [0] * 24 and n["hafta_gunu"] == [0] * 7 and n["kayit"] == {"gun": 0, "tam": 0}
         assert n["gunler"] == [{"gun": "2026-09-01", "durum": "bilinmiyor", "neden": "", "farkli": None}]
-        assert n["kullanim"]["gonderilen"] == 0 and n["kullanim"]["alanlar"] == [{"alan": "a.com", "misafir": 0}]
+        assert n["kullanim"] == {"gonderilen": 0, "alinan": 0, "sms": 0}
         assert n["surum"] is None and n["kesin"] is False
-        s = RP.rapor_html(n, "İşletme", "", 1234567, [], 0, "", Y.Saat.t)  # çökmez
+        s = RP.rapor_html(veri_(n), Y.Saat.t)  # çökmez
         assert "<script" not in s
 
 
@@ -192,8 +197,8 @@ def test_musteri_menu_ve_rapor_sayfasi():
         assert "21.09.2026 12:31" in s and "sürüyor" in s and "02:30" in s
         assert "20 günün 16'sı tam" in s
         assert "gün mühür zincirinde yok" in s and "Kayıt gelmedi" in s and "Eksik geldi" in s
-        assert "&lt;script&gt;alert(1)&lt;/script&gt;.com" in s and "<script" not in s
-        assert "instagram.com" in s and "en az 3 farklı misafir" in s
+        assert "alert(1)" not in s and "<script" not in s
+        assert "instagram" not in s and "alan adı" not in s.lower() and "en az 3 farklı misafir" not in s
         assert "4,0 GB" in s and "4,5" in s and "12.09.2026" in s
         assert "@media print" in s and 'class="yazdirma' in s and "Ctrl+P" in s and 'href="/raporlar"' in s
         assert "0.4.9" in s
@@ -201,7 +206,7 @@ def test_musteri_menu_ve_rapor_sayfasi():
         assert [h["olay"] for h in v.hareketler(n)] == ["GIRIS"]
         yaz(tmp, n, "hafta-2026-W38.json", hafta_raporu())
         s = html(Y.al(app, "/rapor/hafta/2026-W38", c))
-        assert "14–20.09.2026" in s and "7 günün 6'sı tam" in s and "Gösterilecek alan adı yok" in s
+        assert "14–20.09.2026" in s and "7 günün 6'sı tam" in s
         assert "0.5.0" in s  # sürüm null ve sonra değişmedi: cihazın bugünkü sürümü
         assert [h["olay"] for h in v.hareketler(n)] == ["GIRIS"]
 
@@ -288,16 +293,34 @@ def test_cihaz_bolumu_sorunlar_ve_cevrimdisi():
         assert "31.08.2026" not in cihaz  # dönemden önce açılan listelenmez ama süresi sayılır
         assert "açık" in cihaz and "en az 4 sa 0 dk" in cihaz
         assert RP.cevrimdisi_sn(ar, "2026-09-01", "2026-09-30", Y.Saat.t) == 4 * 3600
+        # panel ve cihaz API'si aynı veriyi kullanır
+        vr = RP.rapor_verisi(v, app.raporlar, n, "ay", "2026-09", Y.Saat.t)
+        assert vr["cihaz"]["cevrimdisi_sn"] == 4 * 3600 and vr["isletme"] == {"numara": str(n), "ad": f"Müşteri {n}", "unvan": ""}
+        assert [(x["tur"], x["onem"], x["kapanis"] is None, x["sure_sn"]) for x in vr["cihaz"]["sorunlar"]] == [
+            ("servis", "kritik", False, 5400), ("ulasilamiyor", "kritik", True, 7200)]
+        assert vr["cihaz"]["sorunlar"][0] == {"tur": "servis", "onem": "kritik", "metin": "Servis durdu: <portal>",
+                                              "acilis": "2026-09-10T08:00:00+03:00", "kapanis": "2026-09-10T09:30:00+03:00",
+                                              "sure_sn": 5400}
+        assert RP.rapor_verisi(v, app.raporlar, n, "ay", "2026-13", Y.Saat.t) is None
+        assert RP.rapor_verisi(v, app.raporlar, n, "ay", "2026-08", Y.Saat.t) is None
         assert RP.cevrimdisi_sn(ar, "2026-09-14", "2026-09-20", Y.Saat.t) == 0
+
+
+def veri_(r, cihaz_surumu="", sorunlar=()):
+    return {"rapor": r, "isletme": RP.isletme_bilgisi(None, 1234567),
+            "cihaz": RP.cihaz_bolumu(r, list(sorunlar), cihaz_surumu, Y.Saat.t)}
 
 
 def test_surum_kurali():
     r = RP.normal_rapor(ay_raporu(surum=None, surum_sonra_degisti=True), "ay", "2026-09")
-    assert "0.5.0" not in RP.rapor_html(r, "X", "", 1234567, [], 0, "0.5.0", Y.Saat.t)
+    assert RP.cihaz_bolumu(r, [], "0.5.0", Y.Saat.t)["surum"] is None
+    assert "0.5.0" not in RP.rapor_html(veri_(r, "0.5.0"), Y.Saat.t)
     r = RP.normal_rapor(ay_raporu(surum=None), "ay", "2026-09")
-    assert "0.5.0" in RP.rapor_html(r, "X", "", 1234567, [], 0, "0.5.0", Y.Saat.t)
+    assert RP.cihaz_bolumu(r, [], "0.5.0", Y.Saat.t)["surum"] == "0.5.0"
+    assert RP.cihaz_bolumu(r, [], "<b>", Y.Saat.t)["surum"] is None  # cihazın bildirdiği biçimsiz sürüm alınmaz
+    assert "0.5.0" in RP.rapor_html(veri_(r, "0.5.0"), Y.Saat.t)
     r = RP.normal_rapor(ay_raporu(surum="0.4.7", surum_sonra_degisti=True), "ay", "2026-09")
-    s = RP.rapor_html(r, "X", "", 1234567, [], 0, "0.5.0", Y.Saat.t)
+    s = RP.rapor_html(veri_(r, "0.5.0"), Y.Saat.t)
     assert "0.4.7" in s and "0.5.0" not in s
 
 
@@ -342,7 +365,7 @@ def test_uctan_uca_kisisel_veri_yok():
         s = html(Y.al(app, "/raporlar", c)) + html(Y.al(app, "/rapor/ay/2026-09", c))
         s += html(Y.al(app, "/rapor/hafta/2026-W36", c))
         # ilk arşiv günü 05.09: 1–4 Eylül hizmet öncesi, sayılmaz (16 gün = 05–20 Eylül)
-        assert "ornek.com.tr" in s and "16 günün 4'ü tam" in s and "Hizmet öncesi" in s
+        assert "ornek" not in s and "16 günün 4'ü tam" in s and "Hizmet öncesi" in s
         assert "Kayıt gelmedi" in s  # 09–19 Eylül: hizmet içinde, kayıt yok
         gizli = [T.TEL1, T.TEL2, T.TEL3, "5551112233", "TC:", "10000000146", "PASAPORT", "X1234567", T.MAC_MISAFIR,
                  T.MAC_IZINLI, "aa:bb", "10.50.0", "142.250", "Ali", "Veli", "Ayşe", "oturum-abc", "csv", "kullanicilar"]

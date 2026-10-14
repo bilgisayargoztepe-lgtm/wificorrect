@@ -99,20 +99,6 @@ def basit_gun(kok, gun, tel=TEL1):
                    kisi=[tel])
 
 
-# --- kok_alan ---
-def test_kok_alan():
-    assert R.kok_alan("www.instagram.com.") == "instagram.com"
-    assert R.kok_alan("WWW.Instagram.COM") == "instagram.com"
-    assert R.kok_alan("a.b.example.com.tr") == "example.com.tr"
-    assert R.kok_alan("bbc.co.uk") == "bbc.co.uk"
-    assert R.kok_alan("news.bbc.co.uk") == "bbc.co.uk"
-    assert R.kok_alan("instagram.com") == "instagram.com"
-    for kotu in ("10.0.0.1", "localhost", "x.local", "1.0.168.192.in-addr.arpa", "ab_c.com", "", None, "a..b.com",
-                 "router.lan", "x.home", "x.internal", "-a.com", "a" * 64 + ".com", ("a." * 130) + "com", "com.tr",
-                 "<script>.com", 5):
-        assert R.kok_alan(kotu) is None, kotu
-
-
 # --- zincir ---
 def test_zincir_dogru():
     with tempfile.TemporaryDirectory() as kok:
@@ -313,7 +299,7 @@ def test_gun_ham_sayilar():
         assert h["izinli"] == [R.takma(SIR, "mac:" + MAC_IZINLI)]
         assert h["gonderilen"] == 100 + 5 + 7 and h["alinan"] == 1000 + 3
         assert h["sms"] == 2
-        assert h["alan"] == {"instagram.com": sorted([kim[TEL1], kim[TC]])}
+        assert "alan" not in h and "instagram" not in json.dumps(h)  # alan adı verisi tutulmaz (spec Ek 2026-10-15)
         assert h["surum"] == "0.4.9"
         assert len(h["imza"]) == 64
 
@@ -630,42 +616,6 @@ def test_yeni_donen():
         assert (m("ay-2026-10")["yeni"], m("ay-2026-10")["donen"]) == (0, 2)
 
 
-def test_alanlar_en_az_uc_misafir():
-    with tempfile.TemporaryDirectory() as tmp:
-        k = os.path.join(tmp, "a")
-        g = "2026-10-05"
-        dns = []
-        for i in range(11):
-            dns += [satir(z(g), "DNS", telefon=t, alan_adi=f"www.a{i}.com") for t in (TEL1, TEL2, TEL3)]
-        dns += [satir(z(g), "DNS", telefon=t, alan_adi="cok.com") for t in (TEL1, TEL2, TEL3, TC)]
-        dns += [satir(z(g), "DNS", telefon=TEL1, alan_adi="iki.com")] * 50
-        dns += [satir(z(g), "DNS", telefon=TEL2, alan_adi="m.iki.com")]
-        misafir_gun(k, g, [TEL1, TEL2, TEL3, TC], dns=dns)
-        muhurle(k, [g])
-        assert calis(tmp, {"1234567": ars(k)}, "2026-10-20") == []
-        for ad in ("hafta-2026-W41", "ay-2026-10"):  # haftalıkta da aynı kural
-            r = rp(tmp, "1234567", ad)
-            alanlar = r["kullanim"]["alanlar"]
-            assert alanlar[0] == {"alan": "cok.com", "misafir": 4}
-            assert [x["alan"] for x in alanlar] == ["cok.com", "a0.com", "a1.com", "a10.com", "a2.com", "a3.com",
-                                                    "a4.com", "a5.com", "a6.com", "a7.com"]  # en çok 10; eşitlikte ada göre
-            assert all(x["misafir"] == 3 for x in alanlar[1:])
-            assert "iki.com" not in json.dumps(r)  # 2 misafir (50 sorgu = 1 misafir) → çıkmaz
-        bos = os.path.join(tmp, "b")
-        misafir_gun(bos, g, [TEL1], dns=[satir(z(g), "DNS", telefon=TEL1, alan_adi="instagram.com")])
-        muhurle(bos, [g])
-        assert calis(tmp, {"2345678": ars(bos)}, "2026-10-20") == []
-        assert rp(tmp, "2345678", "hafta-2026-W41")["kullanim"]["alanlar"] == []
-
-
-def test_alan_esigi_sinir():
-    g, t = "2026-10-05", datetime.date(2026, 10, 5)
-    ham = {"bicim": R.BICIM, "imza": "x", "misafir": [], "izinli": [], "saat": {}, "giris": {},
-           "alan": {"uc.com": ["a", "b", "c"], "iki.com": ["a", "b"], "kotu_ad.com": ["a", "b", "c", "d"]}}
-    r = R.donem_raporu("hafta", "x", t, t, datetime.date(2026, 10, 20), 0, [], {}, {g: ham}, {g: ("tam", "")})
-    assert r["kullanim"]["alanlar"] == [{"alan": "uc.com", "misafir": 3}]  # <3 çıkar, ==3 girer
-
-
 def test_kesin_ve_imza():
     with tempfile.TemporaryDirectory() as tmp:
         k = os.path.join(tmp, "a")
@@ -746,7 +696,7 @@ def test_gunu_olmayan_donem_ve_bos_grup():
         assert calis(tmp, {"1234567": ars(k), "2345678": ars(os.path.join(tmp, "bos"))}, "2026-10-20") == []
         r = rp(tmp, "1234567", "hafta-2026-W42")
         assert r["misafir"]["farkli"] == 0 and r["misafir"]["en_yogun_gun"] is None
-        assert r["saat"] == [0] * 24 and r["kullanim"]["alanlar"] == [] and r["misafir"]["gunluk_ortalama"] == 0.0
+        assert r["saat"] == [0] * 24 and "alanlar" not in r["kullanim"] and r["misafir"]["gunluk_ortalama"] == 0.0
         assert oku(os.path.join(tmp, "rapor", "2345678", "liste.json")) == []
 
 
@@ -775,6 +725,47 @@ def test_raporlarda_kisisel_veri_yok():
             assert x not in metin, x
         nedenler = {x["neden"] for x in rp(tmp, "1234567", "ay-2026-10")["gunler"]}
         assert nedenler <= {"", "okunamadi", "dosya", "zincir_yok", "zincir", "manifest"}
+
+
+def test_alan_adi_verisi_yok_ve_eski_bicim_yenilenir():
+    """Spec Ek (2026-10-15): ham özette ve raporlarda alan adı verisi yok; eski biçimdeki (alan adı içeren) ham ve
+    raporlar bir kez yeniden üretilir."""
+    with tempfile.TemporaryDirectory() as tmp:
+        k = os.path.join(tmp, "a")
+        for g in ("2026-10-05", "2026-10-06", "2026-10-07"):
+            zengin_gun(k, g)
+        muhurle(k, ["2026-10-05", "2026-10-06", "2026-10-07"])
+        a = {"1234567": ars(k)}
+        eski, R.BICIM = R.BICIM, 1  # önceki sürümün yazdığı dosyalar
+        try:
+            assert calis(tmp, a, "2026-10-20") == []
+        finally:
+            R.BICIM = eski
+        assert R.BICIM >= 2
+        ham_d, rap_d = os.path.join(tmp, "ham", "1234567"), os.path.join(tmp, "rapor", "1234567")
+        for a_ in os.listdir(ham_d):  # eski hamlar alan adı listesi taşıyordu
+            h = oku(os.path.join(ham_d, a_))
+            h["alan"] = {"instagram.com": h["misafir"]}
+            with open(os.path.join(ham_d, a_), "w", encoding="utf-8") as f:
+                json.dump(h, f)
+        for a_ in os.listdir(rap_d):
+            if a_ != "liste.json":
+                r = oku(os.path.join(rap_d, a_))
+                r["kullanim"]["alanlar"] = [{"alan": "instagram.com", "misafir": 3}]
+                with open(os.path.join(rap_d, a_), "w", encoding="utf-8") as f:
+                    json.dump(r, f)
+        assert calis(tmp, a, "2026-10-20") == []
+        metin = ""
+        for d in (ham_d, rap_d):
+            for a_ in os.listdir(d):
+                v = oku(os.path.join(d, a_))
+                if isinstance(v, dict):
+                    assert v["bicim"] == R.BICIM, a_
+                    assert "alan" not in v and "alanlar" not in v.get("kullanim", {}), a_
+                metin += json.dumps(v)
+        assert "instagram" not in metin and "alan" not in metin.replace("alan_", "")
+        assert rp(tmp, "1234567", "ay-2026-10")["kullanim"] == {"gonderilen": 3 * 112, "alinan": 3 * 1003, "sms": 6}
+        assert not hasattr(R, "kok_alan")
 
 
 def test_sir_arsiv_adiyla_cakismaz():

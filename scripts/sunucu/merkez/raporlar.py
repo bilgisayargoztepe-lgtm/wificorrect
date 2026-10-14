@@ -1,7 +1,8 @@
 """Panel: haftalık ve aylık raporlar (spec 2026-10-14). Root'un (rapor.py, wc-istatistik) yazdığı
 /var/lib/wificorrect/rapor/<numara>/{liste.json, hafta-*.json, ay-*.json} dosyalarını okur ve HTML'e çevirir.
 Sayfa açılışında arşiv (/srv) ya da rapor-ham okunmaz. Raporda kişisel veri yoktur (yalnızca sayılar): gerekçe istenmez,
-hareket yazılmaz. JSON güvenilmez kabul edilir: her alan tür denetlenir, her metin e() ile basılır. JS yok."""
+hareket yazılmaz. JSON güvenilmez kabul edilir: her alan tür denetlenir, her metin e() ile basılır. JS yok.
+`rapor_verisi` panel sayfası ile cihaz API'sinin (/api/rapor, cihaz panelindeki raporlar) ortak verisidir."""
 import datetime
 import json
 import math
@@ -13,7 +14,8 @@ import detay
 from web import bilgi_tablosu, e, kart, yanit_html
 
 RAPOR = "/var/lib/wificorrect/rapor"
-BICIM = 1
+BICIM = 2  # rapor.BICIM ile aynı
+OKUNAN_BICIMLER = (1, 2)  # 1: alan adı listeli eski biçim; root yeniden üretene kadar okunur, alan adları hiç alınmaz
 DOSYA_SINIRI = 1024 * 1024
 NUMARA_RE = re.compile(r"[1-9][0-9]{6}", re.ASCII)
 DONEM_RE = {"hafta": re.compile(r"(\d{4})-W(\d{2})", re.ASCII), "ay": re.compile(r"(\d{4})-(\d{2})", re.ASCII)}
@@ -25,7 +27,7 @@ NEDEN = {"okunamadi": "kayıt dosyaları okunamadı", "dosya": "bir dosyanın ö
          "manifest": "MANIFEST zincirdeki özetle tutmuyor"}
 TAM_ACIKLAMA = ("Tam: kayıt geldi, mühürlü, merkezde yedekli, bütünlük (MANIFEST ve mühür zinciri) doğrulandı. "
                 "Cihazın ilk kayıt gününden önceki günler sayılmaz.")
-ALAN_EN_COK, LISTE_EN_COK = 10, 100
+LISTE_EN_COK = 100
 
 
 # --- tür denetimi ---
@@ -71,7 +73,7 @@ def _sayi_listesi(v, n):
 
 def normal_rapor(r, tur, donem):
     """Dosyadan gelen raporun güvenli kopyası; biçim, tür, dönem ya da tarihler tutmuyorsa None."""
-    if not isinstance(r, dict) or r.get("bicim") != BICIM or r.get("tur") != tur or r.get("donem") != donem:
+    if not isinstance(r, dict) or r.get("bicim") not in OKUNAN_BICIMLER or r.get("tur") != tur or r.get("donem") != donem:
         return None
     bas, bit = _gun(r.get("baslangic")), _gun(r.get("bitis"))
     if bas is None or bit is None:
@@ -89,10 +91,6 @@ def normal_rapor(r, tur, donem):
                        "neden": g.get("neden") if g.get("neden") in NEDEN else "",
                        "farkli": f if isinstance(f, int) and not isinstance(f, bool) and f >= 0 else None})
     k, ku = _sozluk(r.get("kayit")), _sozluk(r.get("kullanim"))
-    alanlar = []
-    for a in ku.get("alanlar") if isinstance(ku.get("alanlar"), list) else []:
-        if isinstance(a, dict) and isinstance(a.get("alan"), str) and 0 < len(a["alan"]) <= 253:
-            alanlar.append({"alan": a["alan"], "misafir": _sayi(a.get("misafir"))})
     surum = r.get("surum")
     return {"bicim": BICIM, "tur": tur, "donem": donem, "baslangic": bas, "bitis": bit,
             "uretim": r.get("uretim") if isinstance(r.get("uretim"), str) else "", "kesin": r.get("kesin") is True,
@@ -100,8 +98,7 @@ def normal_rapor(r, tur, donem):
             | {"gunluk_ortalama": _ondalik(m.get("gunluk_ortalama")), "en_yogun_gun": en_yogun},
             "saat": _sayi_listesi(r.get("saat"), 24), "hafta_gunu": _sayi_listesi(r.get("hafta_gunu"), 7),
             "gunler": gunler, "kayit": {"gun": _sayi(k.get("gun")), "tam": _sayi(k.get("tam"))},
-            "kullanim": {"gonderilen": _sayi(ku.get("gonderilen")), "alinan": _sayi(ku.get("alinan")), "sms": _sayi(ku.get("sms")),
-                         "alanlar": alanlar[:ALAN_EN_COK]},
+            "kullanim": {"gonderilen": _sayi(ku.get("gonderilen")), "alinan": _sayi(ku.get("alinan")), "sms": _sayi(ku.get("sms"))},
             "surum": surum if isinstance(surum, str) and SURUM_RE.fullmatch(surum) else None,
             "surum_sonra_degisti": r.get("surum_sonra_degisti") is True}
 
@@ -218,6 +215,42 @@ def donemde_acilan(sorunlar, bas, bit):
     return [s for s in sorunlar if s.get("onem") in ("kritik", "uyari") and a <= str(s.get("acilis", "")) < b]
 
 
+def cihaz_bolumu(r, sorunlar, cihaz_surumu, simdi):
+    """Raporun "Cihaz" bölümü (panel ve cihaz API'si aynı veriyi kullanır). `sorunlar`: dönemle kesişen bütün sorunlar
+    (veri.sorunlar_aralik); listede yalnızca dönemde açılan kritik/uyarılar, çevrimdışı süre hepsinden.
+    Sürüm: raporun dönem sonu sürümü; yoksa ve sonradan değişmediyse cihazın bugünkü sürümü; yoksa None."""
+    bas, bit = r["baslangic"], r["bitis"]
+    surum = r["surum"]
+    if surum is None and not r["surum_sonra_degisti"] and isinstance(cihaz_surumu, str) and SURUM_RE.fullmatch(cihaz_surumu):
+        surum = cihaz_surumu
+    liste = []
+    for s in donemde_acilan(sorunlar, bas, bit):
+        ac = _epoch(s.get("acilis"))
+        kapanis = s.get("kapanis") or None
+        kp = _epoch(kapanis) if kapanis else None
+        liste.append({"tur": str(s.get("tur") or ""), "onem": s["onem"], "metin": str(s.get("metin") or ""),
+                      "acilis": str(s.get("acilis") or ""), "kapanis": str(kapanis) if kapanis else None,
+                      "sure_sn": max(0, int((kp if kp is not None else simdi) - ac)) if ac is not None else None})
+    return {"surum": surum, "cevrimdisi_sn": cevrimdisi_sn(sorunlar, bas, bit, simdi), "sorunlar": liste}
+
+
+def isletme_bilgisi(c, numara):
+    """Rapor başlığı: bağlı cihazın bildirdiği işletme adı (yoksa "Müşteri <numara>") ve unvanı."""
+    return {"numara": str(numara), "ad": c["isletme_adi"] if c is not None and c["isletme_adi"] else f"Müşteri {numara}",
+            "unvan": c["unvan"] if c is not None and c["unvan"] else ""}
+
+
+def rapor_verisi(veri, raporlar, numara, tur, donem, simdi):
+    """{rapor, isletme, cihaz} ya da None (dönem geçersiz, dosya yok/bozuk). Okunan: tek dönem JSON'u + bir sorun sorgusu."""
+    r = raporlar.rapor(numara, tur, donem)
+    if r is None:
+        return None
+    c = veri.bagli_cihaz(numara)
+    a, b, _, _ = donem_sinirlari(r["baslangic"], r["bitis"])
+    return {"rapor": r, "isletme": isletme_bilgisi(c, numara),
+            "cihaz": cihaz_bolumu(r, veri.sorunlar_aralik(numara, a, b), c["surum"] if c is not None else "", simdi)}
+
+
 # --- sayfalar ---
 def liste_html(liste, onek, simdi):
     if not liste:
@@ -269,8 +302,9 @@ def _gun_durumu(g):
     return '<span class="bos">Bilinmiyor</span>'
 
 
-def rapor_html(r, baslik, unvan, numara, sorunlar, cevrimdisi, cihaz_surumu, simdi, onek=""):
-    """r: normal_rapor çıktısı; sorunlar: dönemde açılan kritik/uyarı sorunlar; cevrimdisi: saniye."""
+def rapor_html(v, simdi, onek=""):
+    """v: rapor_verisi çıktısı ({rapor, isletme, cihaz})."""
+    r, isl, ch = v["rapor"], v["isletme"], v["cihaz"]
     bugun = _bugun(simdi).isoformat()
     ad = donem_adi(r["tur"], r["baslangic"], r["bitis"])
     tur_adi = "Haftalık rapor" if r["tur"] == "hafta" else "Aylık rapor"
@@ -280,7 +314,7 @@ def rapor_html(r, baslik, unvan, numara, sorunlar, cevrimdisi, cihaz_surumu, sim
     ust = (f'<p class="yazdirma alt"><a href="{e(onek)}/raporlar">← Raporlar</a> · Yazdırmak ya da PDF olarak kaydetmek '
            "için Ctrl+P'ye basın (telefonda tarayıcı menüsünden Yazdır / Paylaş).</p>")
     bas_kart = kart(f"<h1>{e(tur_adi)} · {e(ad)}</h1>" + bilgi_tablosu([
-        ("İşletme", e(baslik)), ("Unvan", e(unvan or "—")), ("Müşteri no", e(numara)),
+        ("İşletme", e(isl["ad"])), ("Unvan", e(isl["unvan"] or "—")), ("Müşteri no", e(isl["numara"])),
         ("Dönem", e(f'{common.tarih_goster(r["baslangic"])} – {common.tarih_goster(r["bitis"])}')),
         ("Üretim", e(common.tarih_goster(r["uretim"]) or "—"))]) + durum)
 
@@ -308,34 +342,20 @@ def rapor_html(r, baslik, unvan, numara, sorunlar, cevrimdisi, cihaz_surumu, sim
                     + "<h3>Haftanın gününe göre</h3>" + _cubuklar(detay.GUN_ADI, r["hafta_gunu"]))
 
     ku = r["kullanim"]
-    if ku["alanlar"]:
-        alanlar = ('<div class="kaydir"><table class="detay"><tr><th>Alan adı</th><th>Farklı misafir</th></tr>'
-                   + "".join(f'<tr><td>{e(a["alan"])}</td><td class="n">{a["misafir"]}</td></tr>' for a in ku["alanlar"])
-                   + "</table></div>")
-    else:
-        alanlar = '<p class="alt">Gösterilecek alan adı yok.</p>'
     kullanim = kart("<h2>Kullanım</h2>" + bilgi_tablosu([
         ("Toplam veri", e(f'{detay.boyut(ku["gonderilen"] + ku["alinan"])} (indirme {detay.boyut(ku["alinan"])}, '
                           f'yükleme {detay.boyut(ku["gonderilen"])})')),
-        ("Doğrulama SMS'i", str(ku["sms"]))])
-        + "<h3>En çok ziyaret edilen alan adları</h3>" + alanlar
-        + '<p class="alt">Yalnızca en az 3 farklı misafirin ziyaret ettiği alan adları gösterilir (tek kişiyi ele vermesin).</p>')
+        ("Doğrulama SMS'i", str(ku["sms"]))]))
 
-    if r["surum"]:
-        surum = r["surum"]
-    elif not r["surum_sonra_degisti"] and cihaz_surumu:
-        surum = cihaz_surumu
-    else:
-        surum = "—"
+    surum = ch["surum"] or "—"
+    cevrimdisi = ch["cevrimdisi_sn"]
     sorun_satirlari = []
-    for s in sorunlar:
-        ac = _epoch(s.get("acilis"))
-        kp = _epoch(s.get("kapanis")) if s.get("kapanis") else None
-        sure = sure_metni((kp if kp is not None else simdi) - ac) if ac is not None else "—"
-        kapanis = e(common.tarih_goster(s.get("kapanis"))) if s.get("kapanis") else '<b class="kotu">açık</b>'
+    for s in ch["sorunlar"]:
+        sure = sure_metni(s["sure_sn"]) if s["sure_sn"] is not None else "—"
+        kapanis = e(common.tarih_goster(s["kapanis"])) if s["kapanis"] else '<b class="kotu">açık</b>'
         sorun_satirlari.append(
-            f'<tr><td>{e(s.get("metin", ""))}</td><td>{"Kritik" if s.get("onem") == "kritik" else "Uyarı"}</td>'
-            f'<td>{e(common.tarih_goster(s.get("acilis")))}</td><td>{kapanis}</td><td>{e(sure)}</td></tr>')
+            f'<tr><td>{e(s["metin"])}</td><td>{"Kritik" if s["onem"] == "kritik" else "Uyarı"}</td>'
+            f'<td>{e(common.tarih_goster(s["acilis"]))}</td><td>{kapanis}</td><td>{e(sure)}</td></tr>')
     sorun_tablo = ('<div class="kaydir"><table class="detay"><tr><th>Sorun</th><th>Önem</th><th>Açılış</th><th>Kapanış</th>'
                    "<th>Süre</th></tr>" + "".join(sorun_satirlari) + "</table></div>" if sorun_satirlari
                    else '<p class="alt">Bu dönemde açılan sorun yok.</p>')
@@ -353,14 +373,9 @@ def istek(app, ot, numara, alt, onek):
     if alt == "/raporlar":
         return yanit_html(app.sayfa("Raporlar", liste_html(app.raporlar.liste(numara), onek, simdi), ot, genis=True))
     m = YOL_RE.fullmatch(alt)
-    r = app.raporlar.rapor(numara, m.group(1), m.group(2)) if m else None
-    if r is None:
+    v = rapor_verisi(app.veri, app.raporlar, numara, m.group(1), m.group(2), simdi) if m else None
+    if v is None:
         return yanit_html(app.mesaj(ot, "Bulunamadı", "Bu dönem için rapor yok."), 404)
-    c = app.veri.bagli_cihaz(numara)
-    baslik = (c["isletme_adi"] if c is not None and c["isletme_adi"] else f"Müşteri {numara}")
-    unvan, surum = (c["unvan"], c["surum"]) if c is not None else ("", "")
-    a, b, _, _ = donem_sinirlari(r["baslangic"], r["bitis"])
-    sorunlar = app.veri.sorunlar_aralik(numara, a, b)
-    h = rapor_html(r, baslik, unvan, numara, donemde_acilan(sorunlar, r["baslangic"], r["bitis"]),
-                   cevrimdisi_sn(sorunlar, r["baslangic"], r["bitis"], simdi), surum, simdi, onek)
-    return yanit_html(app.sayfa(f'Rapor {donem_adi(r["tur"], r["baslangic"], r["bitis"])}', h, ot, genis=True))
+    r = v["rapor"]
+    return yanit_html(app.sayfa(f'Rapor {donem_adi(r["tur"], r["baslangic"], r["bitis"])}', rapor_html(v, simdi, onek),
+                                ot, genis=True))

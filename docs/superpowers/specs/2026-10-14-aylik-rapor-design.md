@@ -1,6 +1,7 @@
-# Aylık rapor — tasarım
+# Haftalık ve aylık rapor — tasarım
 
-Tarih: 2026-10-14 · Kullanıcı soruları atladı ("spec yaz"); aşağıdaki kararlar **benim varsayımlarımdır**, onayla kesinleşir.
+Tarih: 2026-10-14 · Kullanıcı soruları atladı ("spec yaz"); haftalık rapor kullanıcı isteğiyle eklendi ("aylıktan önce
+haftalık da olsun"); aşağıdaki kararlar **benim varsayımlarımdır**, onayla kesinleşir.
 
 ## Neden
 
@@ -14,8 +15,11 @@ cihaz ay boyunca çalıştı mı. Aylık rapor bunu tek sayfada gösterir. İki 
 
 ## Hedefler
 
-1. **Yer:** müşteri paneli (panel.wificorrect.com) menüsünde **"Aylık rapor"**. Ay listesi (en yeni üstte; bu ay "sürüyor"
-   etiketiyle, geçmiş aylar kesin). Yönetim (yonetim.wificorrect.com) müşteri sayfasında aynı rapora bağlantı.
+0. **İki dönem:** **haftalık** (Pazartesi 00:00 – Pazar 24:00, TR saati) ve **aylık** (TR takvim ayı). İkisi de aynı
+   sayfa düzeni ve aynı bölümlerle; aşağıda "ay" yazan her yer hafta için de geçerlidir. Menüde önce haftalık, sonra aylık.
+   Haftalıkta "yeni misafir" = o haftadan önce hiç görülmemiş; günlük kutular 7 gün; saat/gün grafikleri aynı.
+1. **Yer:** müşteri paneli (panel.wificorrect.com) menüsünde **"Raporlar"**: üstte haftalar, altta aylar (en yeni üstte;
+   süren dönem "sürüyor" etiketiyle, geçmiş dönemler kesin). Yönetim (yonetim.wificorrect.com) müşteri sayfasında aynı rapora bağlantı.
 2. **Kişisel veri yok:** raporda telefon, ad, MAC, IP, kimlik, kişi başına site **hiç yoktur**; yalnızca sayılar ve
    toplamlar. Bu yüzden kayıt görüntüleme gerekçesi (GEREKCE) istenmez, maskeleme gerekmez; yönetici de gerekçesiz açar.
 3. **İçerik (ay için):**
@@ -64,7 +68,8 @@ cihaz ay boyunca çalıştı mı. Aylık rapor bunu tek sayfada gösterir. İki 
 - Merkez Python stdlib, mevcut panel görünümü ve kaçışlama kuralları (`e()`); JS yok.
 - "Yeni misafir" = bu aydan önce bu müşterinin arşivlerinde hiç görülmemiş kişi anahtarı (telefon / TC / pasaport).
 - Saat ve gün TR saatine göre; ay = TR takvim ayı.
-- İlk rapor ayı: müşterinin arşivindeki ilk gün hangi aydaysa (Göztepe için Ekim 2026).
+- İlk rapor dönemi: müşterinin arşivindeki ilk günün haftası/ayı (Göztepe için Ekim 2026). Liste en çok son 26 hafta ve
+  son 24 ay (daha eskisi hedef dışı; saklama süresi zaten 2 yıl).
 - Yönetici "Cihaz paneline git" gibi müşteri raporunu da açabilir.
 
 ## Uygulayıcıya bırakılanlar

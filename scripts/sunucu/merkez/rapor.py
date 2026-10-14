@@ -119,18 +119,24 @@ def _zincir_dosyasi(metin):
     return out
 
 
-def zincir_oku(kaynak):
-    """`kaynak/zincir.txt` + `kaynak/eski/zincir.txt*` (yeniden kurulumda eski zincir). Bir gün herhangi bir dosyada
-    doğrulanıyorsa ok (o satırın manifest_sha'sı); hiçbirinde değilse ilk bulunan. Normal olmayan ya da büyük dosya okunmaz."""
+def zincir_oku(kaynak, gerekli=None):
+    """`kaynak/zincir.txt` + `kaynak/eski/zincir.txt*` (yeniden kurulumda eski zincir; cihaz her yedekte bir kopya
+    bırakır, iki yılda ~730 dosya). Bir gün herhangi bir dosyada doğrulanıyorsa ok (o satırın manifest_sha'sı); hiçbirinde
+    değilse ilk bulunan. Normal olmayan ya da büyük dosya okunmaz. Eski kopyalar en yeniden eskiye okunur; `gerekli`
+    (gün kümesi) verilirse hepsi doğrulandığında durulur.
+    Not: "ok kazanır" yüzünden güncel zincirde bozuk ama eski bir kopyada sağlam olan gün `tam` görünebilir (cihazdaki
+    muhur::verify `zincir` derdi); sunucudaki gün klasörleri `--ignore-existing` ile geldiği için kabul edildi."""
     yollar = [os.path.join(kaynak, "zincir.txt")]
     eski = os.path.join(kaynak, "eski")
     if os.path.isdir(eski) and not os.path.islink(eski):
         try:
-            yollar += [os.path.join(eski, a) for a in sorted(os.listdir(eski)) if a.startswith("zincir.txt")]
+            yollar += [os.path.join(eski, a) for a in sorted(os.listdir(eski), reverse=True) if a.startswith("zincir.txt")]
         except OSError:
             pass
     out = {}
     for yol in yollar:
+        if gerekli is not None and all(g in out and out[g][1] for g in gerekli):
+            break
         b = _oku_sinirli(yol, ZINCIR_SINIRI)
         if b is None:
             continue
@@ -203,6 +209,12 @@ def imza(gun_dizini):
 # --- ham özet ---
 def takma(sir, anahtar):
     return hmac.new(sir, anahtar.encode("utf-8", "surrogateescape"), hashlib.sha256).hexdigest()[:16]
+
+
+def sir_izi(sir):
+    """Sırrın kısa parmak izi (ham'a yazılır): sır yeniden üretilirse eski takma kimlikli hamlar geçersiz sayılır,
+    eski ve yeni kimlikler karışıp herkes "yeni" görünmez. Takma kimliklerle çakışmaz (ayrı ön ek)."""
+    return hmac.new(sir, b"\0wificorrect-rapor-sir-izi", hashlib.sha256).hexdigest()[:8]
 
 
 def _alan(r, k):
@@ -279,7 +291,7 @@ def gun_ham(gun_dizini, sir):
         if k:
             alan.setdefault(k, set()).add(takma(sir, tel))
 
-    return {"bicim": BICIM, "imza": imz, "manifest_sha": man_sha, "dosya_ok": dosya_ok,
+    return {"bicim": BICIM, "imza": imz, "sir_izi": sir_izi(sir), "manifest_sha": man_sha, "dosya_ok": dosya_ok,
             "misafir": sorted(misafir), "saat": {str(s): sorted(saat[s]) for s in sorted(saat)},
             "giris": giris, "izinli": sorted(izinli), "gonderilen": gonderilen, "alinan": alinan, "sms": sms,
             "alan": {k: sorted(alan[k]) for k in sorted(alan)}, "surum": surum}
@@ -294,15 +306,26 @@ def _json_oku(yol):
     return v if isinstance(v, dict) else None
 
 
-def _yaz_600(yol, veri):
+def _yaz_atomik(yol, veri, kip, grup=None):
+    """Geçici dosya + fsync + os.replace; hata olursa geçici dosya kalmaz."""
     gecici = f"{yol}.{os.getpid()}.tmp"
-    fd = os.open(gecici, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    with os.fdopen(fd, "w", encoding="utf-8") as f:
-        json.dump(veri, f, ensure_ascii=False, separators=(",", ":"))
-        f.flush()
-        os.fsync(f.fileno())
-    os.chmod(gecici, 0o600)
-    os.replace(gecici, yol)
+    try:
+        fd = os.open(gecici, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, kip)
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(veri, f, ensure_ascii=False, separators=(",", ":"))
+            f.flush()
+            os.fsync(f.fileno())
+        os.chmod(gecici, kip)
+        if grup:
+            shutil.chown(gecici, group=grup)
+        os.replace(gecici, yol)
+    except BaseException:
+        _sil(gecici)
+        raise
+
+
+def _yaz_600(yol, veri):
+    _yaz_atomik(yol, veri, 0o600)
 
 
 def _sil(yol):
@@ -334,15 +357,16 @@ def ham_guncelle(arsiv_adi, kaynak, ham_dizini, sir):
             d = os.path.join(g, gun)
             if gun in gunler or not GUN_RE.fullmatch(gun) or os.path.islink(d) or not os.path.isdir(d):
                 continue
-            if istatistik.tamam_mi(d):
+            if _tamam(d):  # bozuk MANIFEST (UTF-8 değil, klasör, okunamaz) yalnızca o günü düşürür
                 gunler[gun] = d
 
-    hatalar = []
+    hatalar, iz = [], sir_izi(sir)
     for gun, d in sorted(gunler.items()):
         yol = os.path.join(hedef, gun + ".json")
         try:
             mevcut = _json_oku(yol)
-            if mevcut and mevcut.get("bicim") == BICIM and mevcut.get("imza") == imza(d):
+            if (mevcut and mevcut.get("bicim") == BICIM and mevcut.get("sir_izi") == iz
+                    and mevcut.get("imza") == imza(d)):
                 continue
             _yaz_600(yol, gun_ham(d, sir))
         except Exception as e:  # bozuk/kesik gz, normal olmayan dosya: yalnızca o gün düşer
@@ -444,31 +468,84 @@ def gun_haritasi(grup):
     return out
 
 
-def _ham_gecerli(h):
+def _ham_gecerli(h, iz=None):
+    """`iz` verilirse ham aynı sırla yazılmış olmalı (sır_izi tutmalı)."""
     return (isinstance(h, dict) and h.get("bicim") == BICIM and isinstance(h.get("imza"), str)
             and all(isinstance(h.get(k), list) for k in ("misafir", "izinli"))
-            and all(isinstance(h.get(k), dict) for k in ("saat", "alan", "giris")))
+            and all(isinstance(h.get(k), dict) for k in ("saat", "alan", "giris"))
+            and (iz is None or h.get("sir_izi") == iz))
 
 
-def _ham_yukle(ham_dizini, girdi):
-    """Seçilen kaynağın ham özeti; yoksa, bozuksa ya da gün klasörü ham yazıldıktan sonra değiştiyse None."""
-    ad, _kaynak, d, tamam = girdi
-    if not tamam:
+def _ham_yolu(ham_dizini, girdi):
+    return os.path.join(ham_dizini, girdi[0], os.path.basename(girdi[2]) + ".json")
+
+
+def _ham_yukle(ham_dizini, girdi, iz=None):
+    """Seçilen kaynağın ham özeti; yoksa, bozuksa, başka sırla yazılmışsa ya da gün klasörü ham yazıldıktan sonra
+    değiştiyse None."""
+    if not girdi[3]:
         return None
-    h = _json_oku(os.path.join(ham_dizini, ad, os.path.basename(d) + ".json"))
-    if not _ham_gecerli(h) or h["imza"] != imza(d):
+    h = _json_oku(_ham_yolu(ham_dizini, girdi))
+    if not _ham_gecerli(h, iz) or h["imza"] != imza(girdi[2]):
         return None
     return h
 
 
-def gun_durumu(gun, bugun, girdi, ham, zincir):
+def _ozet_ekle(ozet, g, h):
+    m = _kume(h["misafir"])
+    ozet["meta"][g] = {"imza": h["imza"], "surum": h.get("surum"), "farkli": len(m),
+                       "dosya_ok": h.get("dosya_ok"), "manifest_sha": h.get("manifest_sha")}
+    ilk = ozet["ilk"]
+    for k in m:
+        if k not in ilk or g < ilk[k]:
+            ilk[k] = g
+
+
+def genel_ozet(ham_dizini, harita, iz=None):
+    """Grubun bütün günlerinden yalnızca küçük bilgiler: `meta` {gün: imza, sürüm, farklı sayısı, doğrulama} ve `ilk`
+    {takma kimlik: ilk görüldüğü gün} ("yeni" misafir için). Ham özetler tek tek okunup bırakılır: bellek bir günün
+    hamı + farklı misafir sayısı kadar (bütün günlerin hamı birlikte tutulmaz)."""
+    ozet = {"meta": {}, "ilk": {}, "iz": iz or ""}
+    for g in sorted(harita):
+        h = _ham_yukle(ham_dizini, harita[g], iz)
+        if h is not None:
+            _ozet_ekle(ozet, g, h)
+    return ozet
+
+
+def _hamlardan_ozet(hamlar):
+    ozet = {"meta": {}, "ilk": {}, "iz": ""}
+    for g in sorted(hamlar):
+        _ozet_ekle(ozet, g, hamlar[g])
+    return ozet
+
+
+def _donem_hamlari(ham_dizini, harita, ozet, bas, bit, bugun):
+    """Yalnızca bu dönemin bugünden önceki, genel özette yer alan günlerinin ham özetleri (bellek ≤ bir ayın hamları)."""
+    out = {}
+    for t in _gunler(bas, min(bit, bugun - datetime.timedelta(days=1))):
+        g = t.isoformat()
+        meta = ozet["meta"].get(g)
+        if meta is None or g not in harita:
+            continue
+        h = _json_oku(_ham_yolu(ham_dizini, harita[g]))
+        if _ham_gecerli(h, ozet.get("iz") or None) and h["imza"] == meta["imza"]:
+            out[g] = h
+    return out
+
+
+def gun_durumu(gun, bugun, girdi, ham, zincir, ilk=None):
     """(durum, neden). `tam`'ın tek yolu: klasör tamam + ham var + dosya hash'leri tutuyor + zincir satırı doğru +
-    zincirdeki manifest_sha MANIFEST'in sha'sına eşit. Emin olunamayan her şey `tam` değildir."""
+    zincirdeki manifest_sha MANIFEST'in sha'sına eşit. Emin olunamayan her şey `tam` değildir.
+    `ilk`: grubun ilk arşiv günü; ondan önceki günler `hizmet_oncesi` (cihaz henüz yoktu; kayıt sayımına girmez).
+    `ham`: ham özet ya da genel özetteki gün bilgisi (dosya_ok, manifest_sha)."""
     t = _tarih(gun)
     if t > bugun:
         return "gelecek", ""
     if t == bugun:
         return "bugun", ""
+    if ilk is not None and t < ilk:
+        return "hizmet_oncesi", ""
     if girdi is None:
         return ("bekleniyor" if t >= bugun - datetime.timedelta(days=1) else "kayit_yok"), ""
     if not girdi[3]:
@@ -530,17 +607,55 @@ def _kume(v):
     return {x for x in v if isinstance(x, str)} if isinstance(v, list) else set()
 
 
-def donem_raporu(tur, anahtar, bas, bit, bugun, simdi, grup_adlari, harita, hamlar, durumlar):
-    """Bir dönemin raporu (yalnızca sayılar). `hamlar`: {gün: geçerli ham özet} (grubun bütün günleri),
-    `durumlar`: {gün: (durum, neden)}. İstatistik yalnızca bugünden önceki, ham özeti olan günlerden."""
-    gunler, kayit_gun, kayit_tam, s_gunler = [], 0, 0, []
+def _donem_on(bas, bit, bugun, grup_adlari, harita, durumlar, ozet):
+    """Dönemin ham özet okumadan hesaplanan kısmı: gün durumları, kayıt sayımı, sürüm, kesinlik ve imza.
+    İmza aynıysa dönem raporu (ve dönemin hamları) yeniden okunmaz."""
+    meta = ozet["meta"]
+    bas_s, bit_s = bas.isoformat(), bit.isoformat()
+    gunler, kayit_gun, kayit_tam = [], 0, 0
     for t in _gunler(bas, bit):
         g = t.isoformat()
         durum, neden = durumlar[g]
-        h = hamlar.get(g) if t < bugun else None
-        if t < bugun:
+        if t < bugun and durum != "hizmet_oncesi":  # cihaz kurulmadan önceki günler kayıt sayımına girmez
             kayit_gun += 1
             kayit_tam += durum == "tam"
+        gunler.append((g, durum, neden))
+
+    surum, sonra = None, False
+    for g in sorted(meta):
+        v = meta[g].get("surum")
+        if not (isinstance(v, str) and SURUM_RE.fullmatch(v)):
+            continue
+        if g <= bit_s:
+            surum = v
+        else:
+            sonra = True
+    kesin = bit < bugun and (any(g > bit_s for g in harita) or bugun >= bit + datetime.timedelta(days=KESIN_GUN))
+
+    # imza: dönemin günleri + dönemden önceki günler ("yeni" ve sürüm onlara bağlı) + sonraki sürüm bilgisi + kesin + sır
+    def h_imza(g):
+        return meta[g]["imza"] if g in meta else ""
+    onceki_ozet = hashlib.sha256(json.dumps([(g, h_imza(g)) for g in sorted(meta) if g < bas_s]).encode()).hexdigest()
+    imz = hashlib.sha256(json.dumps({
+        "bicim": BICIM, "grup": grup_adlari, "onceki": onceki_ozet, "sonra_surum": sonra, "kesin": kesin,
+        "sir": ozet.get("iz", ""),
+        "gunler": [(g, (harita.get(g) or ("",))[0], h_imza(g), durum, neden) for g, durum, neden in gunler]},
+        sort_keys=True).encode()).hexdigest()
+    return {"imza": imz, "kesin": kesin, "surum": surum, "sonra": sonra, "gunler": gunler,
+            "kayit": {"gun": kayit_gun, "tam": kayit_tam}}
+
+
+def donem_raporu(tur, anahtar, bas, bit, bugun, simdi, grup_adlari, harita, hamlar, durumlar, ozet=None):
+    """Bir dönemin raporu (yalnızca sayılar). `hamlar`: {gün: geçerli ham özet}, en az dönemin günleri;
+    `ozet`: genel_ozet (grubun bütün günlerinin küçük bilgileri; verilmezse `hamlar`dan kurulur);
+    `durumlar`: {gün: (durum, neden)}. İstatistik yalnızca bugünden önceki, ham özeti olan günlerden."""
+    if ozet is None:
+        ozet = _hamlardan_ozet(hamlar)
+    on = _donem_on(bas, bit, bugun, grup_adlari, harita, durumlar, ozet)
+    gunler, s_gunler = [], []
+    for g, durum, neden in on["gunler"]:
+        t = _tarih(g)
+        h = hamlar.get(g) if t < bugun and g in ozet["meta"] else None
         if h is not None:
             s_gunler.append((t, h))
         gunler.append({"gun": g, "durum": durum, "neden": neden,
@@ -569,64 +684,33 @@ def donem_raporu(tur, anahtar, bas, bit, bugun, simdi, grup_adlari, harita, haml
         gunluk.append((t.isoformat(), len(m)))
 
     bas_s, bit_s = bas.isoformat(), bit.isoformat()
-    onceki = set()
-    for g, h in hamlar.items():
-        if g < bas_s:
-            onceki |= _kume(h["misafir"])
-    yeni = len(farkli - onceki)
-
-    surum, sonra = None, False
-    for g in sorted(hamlar):
-        v = hamlar[g].get("surum")
-        if not (isinstance(v, str) and SURUM_RE.fullmatch(v)):
-            continue
-        if g <= bit_s:
-            surum = v
-        else:
-            sonra = True
+    ilk = ozet["ilk"]
+    donen = sum(1 for k in farkli if ilk.get(k, bas_s) < bas_s)  # dönemden önce görülmüş
+    yeni = len(farkli) - donen
 
     en_yogun = None
     for g, n in gunluk:  # eşitlikte erken gün
         if en_yogun is None or n > en_yogun["farkli"]:
             en_yogun = {"gun": g, "farkli": n}
     alanlar = sorted(((k, len(v)) for k, v in alan.items() if len(v) >= ALAN_EN_AZ), key=lambda x: (-x[1], x[0]))
-    kesin = bit < bugun and (any(g > bit_s for g in harita) or bugun >= bit + datetime.timedelta(days=KESIN_GUN))
-
-    # imza: dönemin günleri + dönemden önceki günler ("yeni" ve sürüm onlara bağlı) + sonraki sürüm bilgisi + kesin
-    def h_imza(g):
-        return hamlar[g]["imza"] if g in hamlar else ""
-    onceki_ozet = hashlib.sha256(json.dumps([(g, h_imza(g)) for g in sorted(hamlar) if g < bas_s]).encode()).hexdigest()
-    imz = hashlib.sha256(json.dumps({
-        "bicim": BICIM, "grup": grup_adlari, "onceki": onceki_ozet, "sonra_surum": sonra, "kesin": kesin,
-        "gunler": [(x["gun"], (harita.get(x["gun"]) or ("",))[0], h_imza(x["gun"]), x["durum"], x["neden"])
-                   for x in gunler]}, sort_keys=True).encode()).hexdigest()
 
     return {"bicim": BICIM, "tur": tur, "donem": anahtar, "baslangic": bas_s, "bitis": bit_s,
-            "uretim": common.now_iso(simdi), "kesin": kesin, "imza": imz,
-            "misafir": {"farkli": len(farkli), "yeni": yeni, "donen": len(farkli) - yeni,
+            "uretim": common.now_iso(simdi), "kesin": on["kesin"], "imza": on["imza"],
+            "misafir": {"farkli": len(farkli), "yeni": yeni, "donen": donen,
                         "giris": giris_sms + giris_kod, "giris_sms": giris_sms, "giris_kod": giris_kod,
                         "izinli_cihaz": len(izinli),
                         "gunluk_ortalama": round(sum(n for _, n in gunluk) / len(gunluk), 1) if gunluk else 0.0,
                         "en_yogun_gun": en_yogun},
             "saat": [len(x) for x in saat], "hafta_gunu": [len(x) for x in hafta_gunu],
-            "gunler": gunler, "kayit": {"gun": kayit_gun, "tam": kayit_tam},
+            "gunler": gunler, "kayit": on["kayit"],
             "kullanim": {"gonderilen": gonderilen, "alinan": alinan, "sms": sms,
                          "alanlar": [{"alan": k, "misafir": n} for k, n in alanlar[:ALAN_EN_COK]]},
-            "surum": surum, "surum_sonra_degisti": sonra}
+            "surum": on["surum"], "surum_sonra_degisti": on["sonra"]}
 
 
 def _yaz_panel(yol, veri, grup):
     """root:wcpanel 640, atomik."""
-    gecici = f"{yol}.{os.getpid()}.tmp"
-    fd = os.open(gecici, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o640)
-    with os.fdopen(fd, "w", encoding="utf-8") as f:
-        json.dump(veri, f, ensure_ascii=False, separators=(",", ":"))
-        f.flush()
-        os.fsync(f.fileno())
-    os.chmod(gecici, 0o640)
-    if grup:
-        shutil.chown(gecici, group=grup)
-    os.replace(gecici, yol)
+    _yaz_atomik(yol, veri, 0o640, grup)
 
 
 def _dizin_panel(yol, grup):
@@ -636,21 +720,46 @@ def _dizin_panel(yol, grup):
         shutil.chown(yol, group=grup)
 
 
-def grup_raporla(numara, grup, ham_dizini, cikti, panel_grubu, bugun, simdi):
-    """Bir müşterinin dönem raporları + liste.json. İmzası aynı rapor yeniden yazılmaz; pencere dışı dosyalar silinir."""
-    harita = gun_haritasi(grup)
+def _liste_girdisi(tur, anahtar, r):
+    """liste.json satırı; rapor bozuk/eksikse None (yeniden üretilir)."""
+    if not isinstance(r, dict):
+        return None
+    m, k = r.get("misafir"), r.get("kayit")
+    if not (isinstance(m, dict) and isinstance(k, dict)):
+        return None
+    girdi = {"tur": tur, "donem": anahtar, "baslangic": r.get("baslangic"), "bitis": r.get("bitis"),
+             "kesin": r.get("kesin"), "farkli": m.get("farkli"), "kayit_gun": k.get("gun"), "kayit_tam": k.get("tam")}
+    if not (isinstance(girdi["baslangic"], str) and isinstance(girdi["bitis"], str) and isinstance(girdi["kesin"], bool)
+            and all(isinstance(girdi[a], int) and not isinstance(girdi[a], bool)
+                    for a in ("farkli", "kayit_gun", "kayit_tam"))):
+        return None
+    return girdi
+
+
+def grup_raporla(numara, grup, ham_dizini, cikti, panel_grubu, bugun, simdi, sir=None):
+    """Bir müşterinin dönem raporları + liste.json. İmzası aynı rapor yeniden yazılmaz (hamları da okunmaz);
+    pencere dışı dosyalar silinir. Bellek: genel özet + en çok bir dönemin hamları.
+    Bugünden sonraki tarihli günler (cihaz saati yanlış) hiç kullanılmaz."""
+    bugun_s = bugun.isoformat()
+    harita = {g: v for g, v in gun_haritasi(grup).items() if g <= bugun_s}
     adlar = list(dict.fromkeys(ad for ad, _ in grup))
-    hamlar = {}
-    for g, girdi in harita.items():
-        h = _ham_yukle(ham_dizini, girdi)
-        if h is not None:
-            hamlar[g] = h
-    gecmis = [_tarih(g) for g in harita if _tarih(g) <= bugun]
+    ozet = genel_ozet(ham_dizini, harita, sir_izi(sir) if sir is not None else None)
+    ilk = _tarih(min(harita)) if harita else None  # grubun ilk arşiv günü; öncesi "hizmet öncesi"
+    pencere = donemler(ilk, bugun) if ilk else []
     hedef = os.path.join(cikti, numara)
     _dizin_panel(hedef, panel_grubu)
 
+    # zincir: kaynak başına bir kez; yalnızca "tam" olabilecek pencere günleri için eski kopyalara inilir
+    gerekli = {}
+    for _tur, _anahtar, bas, bit in pencere:
+        for t in _gunler(bas, bit):
+            g = t.isoformat()
+            girdi, meta = harita.get(g), ozet["meta"].get(g)
+            if girdi is not None and meta is not None and meta.get("dosya_ok") is True:
+                gerekli.setdefault(girdi[1], set()).add(g)
+
     zincirler, durumlar, liste, isteniyor = {}, {}, [], set()
-    for tur, anahtar, bas, bit in (donemler(min(gecmis), bugun) if gecmis else []):
+    for tur, anahtar, bas, bit in pencere:
         for t in _gunler(bas, bit):
             g = t.isoformat()
             if g in durumlar:
@@ -659,19 +768,22 @@ def grup_raporla(numara, grup, ham_dizini, cikti, panel_grubu, bugun, simdi):
             zincir = {}
             if girdi is not None:
                 if girdi[1] not in zincirler:
-                    zincirler[girdi[1]] = zincir_oku(girdi[1])  # her çalıştırmada (ucuz); dosya hash'i ham önbellekten
+                    zincirler[girdi[1]] = zincir_oku(girdi[1], gerekli.get(girdi[1], set()))
                 zincir = zincirler[girdi[1]]
-            durumlar[g] = gun_durumu(g, bugun, girdi, hamlar.get(g), zincir)
-        r = donem_raporu(tur, anahtar, bas, bit, bugun, simdi, adlar, harita, hamlar, durumlar)
+            durumlar[g] = gun_durumu(g, bugun, girdi, ozet["meta"].get(g), zincir, ilk)
         ad = f"{tur}-{anahtar}.json"
         isteniyor.add(ad)
         yol = os.path.join(hedef, ad)
+        on = _donem_on(bas, bit, bugun, adlar, harita, durumlar, ozet)
         mevcut = _json_oku(yol)
-        if not mevcut or mevcut.get("imza") != r["imza"]:
+        satir = _liste_girdisi(tur, anahtar, mevcut) if mevcut and mevcut.get("imza") == on["imza"] else None
+        if satir is None:
+            hamlar = _donem_hamlari(ham_dizini, harita, ozet, bas, bit, bugun)
+            r = donem_raporu(tur, anahtar, bas, bit, bugun, simdi, adlar, harita, hamlar, durumlar, ozet)
+            del hamlar
             _yaz_panel(yol, r, panel_grubu)
-        liste.append({"tur": tur, "donem": anahtar, "baslangic": r["baslangic"], "bitis": r["bitis"],
-                      "kesin": r["kesin"], "farkli": r["misafir"]["farkli"], "kayit_gun": r["kayit"]["gun"],
-                      "kayit_tam": r["kayit"]["tam"]})
+            satir = _liste_girdisi(tur, anahtar, r)
+        liste.append(satir)
 
     liste_yolu = os.path.join(hedef, "liste.json")
     try:
@@ -686,10 +798,31 @@ def grup_raporla(numara, grup, ham_dizini, cikti, panel_grubu, bugun, simdi):
             _sil(os.path.join(hedef, a))
 
 
+def _grubu_kalkan_temizle(cikti, numaralar):
+    """Artık grubu olmayan numaraların (eski arşiv bağı kaldırıldı, numara arşivi silindi) raporları ve listesi silinir;
+    başka dosya varsa klasör kalır. Yanlış bağlanmış eski arşivin verisi o müşteride görünmeye devam etmesin."""
+    hatalar = []
+    for n in sorted(os.listdir(cikti)):
+        yol = os.path.join(cikti, n)
+        if not NUMARA_RE.fullmatch(n) or n in numaralar or os.path.islink(yol) or not os.path.isdir(yol):
+            continue
+        try:
+            for a in os.listdir(yol):
+                if DONEM_DOSYA_RE.fullmatch(a) or a == "liste.json":
+                    _sil(os.path.join(yol, a))
+            try:
+                os.rmdir(yol)
+            except OSError:
+                pass  # bizim olmayan dosya var: dokunulmaz
+        except Exception as e:
+            hatalar.append(f"rapor {n}: {type(e).__name__}")
+    return hatalar
+
+
 def calistir(arsivler, grup_dosyasi=GRUPLAR, ham_dizini=HAM, cikti=CIKTI, panel_grubu=PANEL_GRUBU, simdi=None, sir=None):
     """wc-istatistik'ten: önce her arşivin ham özetleri (bütün kaynakları TEK çağrıda: ayrı çağrılar birbirinin günlerini
-    silerdi), sonra her müşterinin raporları. Bir arşivin/grubun hatası diğerlerini durdurmaz.
-    Dönüş: hata metinleri (arşiv/numara + gün + istisna türü; dosya adı yok)."""
+    silerdi), sonra her müşterinin raporları; grubu kalmayan numaraların raporları silinir. Bir arşivin/grubun hatası
+    diğerlerini durdurmaz. Dönüş: hata metinleri (arşiv/numara + gün + istisna türü; dosya adı yok)."""
     simdi = time.time() if simdi is None else simdi
     bugun = datetime.datetime.fromtimestamp(simdi, common.TZ).date()
     try:
@@ -703,9 +836,11 @@ def calistir(arsivler, grup_dosyasi=GRUPLAR, ham_dizini=HAM, cikti=CIKTI, panel_
         except Exception as e:
             hatalar.append(f"{ad}: {type(e).__name__}")
     _dizin_panel(cikti, panel_grubu)
-    for numara, grup in sorted(gruplar(arsivler, grup_dosyasi).items()):
+    gr = gruplar(arsivler, grup_dosyasi)
+    for numara, grup in sorted(gr.items()):
         try:
-            grup_raporla(numara, grup, ham_dizini, cikti, panel_grubu, bugun, simdi)
+            grup_raporla(numara, grup, ham_dizini, cikti, panel_grubu, bugun, simdi, sir)
         except Exception as e:
             hatalar.append(f"rapor {numara}: {type(e).__name__}")
+    hatalar += _grubu_kalkan_temizle(cikti, gr)
     return hatalar

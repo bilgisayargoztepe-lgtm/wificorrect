@@ -5,6 +5,7 @@ farklı telefon sayısını /var/lib/wificorrect/istatistik/<arşiv>.json'a yaza
 import json
 import os
 import re
+import stat
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
@@ -20,12 +21,24 @@ GUN_RE = re.compile(r"\d{4}-\d{2}-\d{2}")
 
 
 def tamam_mi(gun_dizini):
-    """MANIFEST var ve listelediği her dosya yerinde mi (rsync yarıdayken hayır)."""
+    """MANIFEST var ve listelediği her dosya yerinde mi (rsync yarıdayken hayır). MANIFEST normal dosya değilse
+    (sembolik bağ, FIFO, klasör), okunamıyorsa ya da UTF-8 değilse hayır: root beklemesin, bozuk bir gün diğerlerini
+    durdurmasın."""
+    yol = os.path.join(gun_dizini, "MANIFEST.sha256")
     try:
-        with open(os.path.join(gun_dizini, "MANIFEST.sha256"), encoding="utf-8") as f:
-            satirlar = [s.split(None, 1) for s in f if s.strip() and not s.startswith("#")]
-    except FileNotFoundError:
+        fd = os.open(yol, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
+                     | getattr(os, "O_BINARY", 0))
+    except OSError:
         return False
+    try:
+        with os.fdopen(fd, "rb") as f:
+            if os.path.islink(yol) or not stat.S_ISREG(os.fstat(f.fileno()).st_mode):
+                return False
+            metin = f.read().decode("utf-8")
+    except (OSError, UnicodeDecodeError):
+        return False
+    metin = metin.replace("\r\n", "\n").replace("\r", "\n")  # metin kipindeki satır sonu çevirisiyle aynı
+    satirlar = [s.split(None, 1) for s in metin.split("\n") if s.strip() and not s.startswith("#")]
     return all(len(p) == 2 and os.path.exists(os.path.join(gun_dizini, p[1].strip())) for p in satirlar)
 
 

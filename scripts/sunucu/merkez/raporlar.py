@@ -19,11 +19,12 @@ NUMARA_RE = re.compile(r"[1-9][0-9]{6}", re.ASCII)
 DONEM_RE = {"hafta": re.compile(r"(\d{4})-W(\d{2})", re.ASCII), "ay": re.compile(r"(\d{4})-(\d{2})", re.ASCII)}
 YOL_RE = re.compile(r"/rapor/(hafta|ay)/([^/]*)")
 SURUM_RE = re.compile(r"[0-9A-Za-z.+~-]{1,32}")
-DURUMLAR = ("tam", "kayit_yok", "eksik", "dogrulanamadi", "bekleniyor", "bugun", "gelecek")
+DURUMLAR = ("tam", "kayit_yok", "eksik", "dogrulanamadi", "bekleniyor", "bugun", "gelecek", "hizmet_oncesi")
 NEDEN = {"okunamadi": "kayıt dosyaları okunamadı", "dosya": "bir dosyanın özeti (hash) MANIFEST'le tutmuyor",
          "zincir_yok": "gün mühür zincirinde yok", "zincir": "mühür zinciri satırı bozuk",
          "manifest": "MANIFEST zincirdeki özetle tutmuyor"}
-TAM_ACIKLAMA = "Tam: kayıt geldi, mühürlü, merkezde yedekli, bütünlük (MANIFEST ve mühür zinciri) doğrulandı."
+TAM_ACIKLAMA = ("Tam: kayıt geldi, mühürlü, merkezde yedekli, bütünlük (MANIFEST ve mühür zinciri) doğrulandı. "
+                "Cihazın ilk kayıt gününden önceki günler sayılmaz.")
 ALAN_EN_COK, LISTE_EN_COK = 10, 100
 
 
@@ -263,6 +264,8 @@ def _gun_durumu(g):
         return "Sürüyor"
     if d == "gelecek":
         return '<span class="bos">—</span>'
+    if d == "hizmet_oncesi":
+        return '<span class="bos">Hizmet öncesi</span> <span class="alt">(cihaz henüz kurulmamıştı; sayılmaz)</span>'
     return '<span class="bos">Bilinmiyor</span>'
 
 

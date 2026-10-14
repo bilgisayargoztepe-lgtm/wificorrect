@@ -792,6 +792,237 @@ def test_sir_arsiv_adiyla_cakismaz():
         assert os.path.basename(R.SIR_YOLU) == ".sir" and not durum.AD_RE.fullmatch(".sir")
 
 
+# ======================================================================================================================
+# Son inceleme düzeltmeleri (I1–I4, küçükler)
+# ======================================================================================================================
+def test_bozuk_manifest_sonraki_gunleri_durdurmaz():
+    """I1: bir günün MANIFEST'i UTF-8 değil ya da klasör: o gün düşer, sonraki günler ham alır ve 'tam' olur."""
+    with tempfile.TemporaryDirectory() as tmp:
+        k = os.path.join(tmp, "a")
+        misafir_gun(k, "2026-10-05", [TEL1])
+        d6 = misafir_gun(k, "2026-10-06", [TEL1])
+        misafir_gun(k, "2026-10-07", [TEL2])
+        misafir_gun(k, "2026-10-08", [TEL2])
+        muhurle(k, ["2026-10-05", "2026-10-06", "2026-10-07", "2026-10-08"])
+        with open(os.path.join(d6, "MANIFEST.sha256"), "wb") as f:
+            f.write(b"\xff\xfe\x00bozuk")
+        d8 = os.path.join(k, "gunluk", "2026-10-08")
+        os.remove(os.path.join(d8, "MANIFEST.sha256"))
+        os.makedirs(os.path.join(d8, "MANIFEST.sha256"))
+        assert R.ham_guncelle("1234567", k, os.path.join(tmp, "ham"), SIR) == []
+        assert sorted(os.listdir(os.path.join(tmp, "ham", "1234567"))) == ["2026-10-05.json", "2026-10-07.json"]
+        assert calis(tmp, {"1234567": ars(k)}, "2026-10-10") == []
+        w41 = {x["gun"]: x["durum"] for x in rp(tmp, "1234567", "hafta-2026-W41")["gunler"]}
+        assert w41["2026-10-05"] == "tam" and w41["2026-10-07"] == "tam"
+        assert w41["2026-10-06"] == "eksik" and w41["2026-10-08"] == "eksik"
+
+
+def test_hizmet_oncesi_gunler_sayilmaz():
+    """I2: grubun ilk gününden önceki günler 'kayıt gelmedi' değil, hizmet öncesi; 'N günün M'i tam'a girmez."""
+    with tempfile.TemporaryDirectory() as tmp:
+        k = os.path.join(tmp, "a")
+        for g in ("2026-10-05", "2026-10-06", "2026-10-07"):
+            misafir_gun(k, g, [TEL1])
+        muhurle(k, ["2026-10-05", "2026-10-06", "2026-10-07"])
+        assert calis(tmp, {"1234567": ars(k)}, "2026-10-09") == []
+        ay = rp(tmp, "1234567", "ay-2026-10")
+        durum = {x["gun"]: (x["durum"], x["farkli"]) for x in ay["gunler"]}
+        for g in ("2026-10-01", "2026-10-02", "2026-10-03", "2026-10-04"):
+            assert durum[g] == ("hizmet_oncesi", None), g
+        assert durum["2026-10-08"][0] == "bekleniyor"
+        assert ay["kayit"] == {"gun": 4, "tam": 3}  # 10-05..10-08; 1-4 Ekim sayılmaz
+        liste = oku(os.path.join(tmp, "rapor", "1234567", "liste.json"))
+        ekim = next(x for x in liste if x["donem"] == "2026-10")
+        assert (ekim["kayit_gun"], ekim["kayit_tam"]) == (4, 3)
+        assert not os.path.exists(os.path.join(tmp, "rapor", "1234567", "hafta-2026-W40.json"))
+        # geç gelen daha eski gün ilk günü geri çeker: 10-03 artık sayılır, 10-04 kayıt gelmedi olur
+        misafir_gun(k, "2026-10-03", [TEL2])
+        muhurle(k, ["2026-10-03", "2026-10-05", "2026-10-06", "2026-10-07"])
+        assert calis(tmp, {"1234567": ars(k)}, "2026-10-09") == []
+        ay = rp(tmp, "1234567", "ay-2026-10")
+        durum = {x["gun"]: x["durum"] for x in ay["gunler"]}
+        assert durum["2026-10-02"] == "hizmet_oncesi" and durum["2026-10-03"] == "tam"
+        assert durum["2026-10-04"] == "kayit_yok"
+        assert ay["kayit"] == {"gun": 6, "tam": 4}
+
+
+def test_gun_durumu_hizmet_oncesi_ve_gelecek():
+    b = datetime.date(2026, 10, 9)
+    ilk = datetime.date(2026, 10, 5)
+    assert R.gun_durumu("2026-10-04", b, None, None, {}, ilk) == ("hizmet_oncesi", "")
+    assert R.gun_durumu("2026-10-06", b, None, None, {}, ilk) == ("kayit_yok", "")
+    assert R.gun_durumu("2026-10-10", b, None, None, {}, ilk) == ("gelecek", "")
+    assert R.gun_durumu("2026-10-04", b, None, None, {}) == ("kayit_yok", "")  # ilk gün verilmezse eski davranış
+
+
+def test_grup_kalkinca_raporlari_silinir():
+    """I3: eski arşiv yanlış müşteriye bağlanıp geri alınınca o müşterinin raporları kalmaz."""
+    with tempfile.TemporaryDirectory() as tmp:
+        k1, kb = os.path.join(tmp, "a"), os.path.join(tmp, "bocafe")
+        misafir_gun(k1, "2026-10-05", [TEL1])
+        misafir_gun(kb, "2026-10-06", [TEL2])
+        muhurle(k1, ["2026-10-05"])
+        muhurle(kb, ["2026-10-06"])
+        a = {"1234567": ars(k1), "bocafe": ars(kb, tur="eski")}
+        assert calis(tmp, a, "2026-10-08", {"4511643": ["bocafe"]}) == []
+        yanlis = os.path.join(tmp, "rapor", "4511643")
+        assert oku(os.path.join(yanlis, "liste.json")) and rp(tmp, "4511643", "hafta-2026-W41")["misafir"]["farkli"] == 1
+        with open(os.path.join(yanlis, "baska.txt"), "w") as f:
+            f.write("x")  # bizim olmayan dosyaya dokunulmaz
+        assert calis(tmp, a, "2026-10-08", {"1234567": ["bocafe"]}) == []
+        assert sorted(os.listdir(yanlis)) == ["baska.txt"]
+        assert rp(tmp, "1234567", "hafta-2026-W41")["misafir"]["farkli"] == 2
+        os.remove(os.path.join(yanlis, "baska.txt"))
+        assert calis(tmp, {"bocafe": ars(kb, tur="eski")}, "2026-10-08", {}) == []  # numara arşivi de kalktı
+        assert not os.path.exists(yanlis)
+        assert not os.path.exists(os.path.join(tmp, "rapor", "1234567"))
+
+
+def test_donem_yalnizca_kendi_gunlerinin_hamini_yukler():
+    """I4: dönem raporu yalnızca o dönemin ham özetlerini belleğe alır; imzası değişmeyen dönem için hiç yüklemez."""
+    with tempfile.TemporaryDirectory() as tmp:
+        k = os.path.join(tmp, "a")
+        gunler = ["2026-08-20", "2026-09-10", "2026-10-05", "2026-10-13"]
+        for g in gunler:
+            misafir_gun(k, g, [TEL1, TEL2] if g == "2026-10-05" else [TEL1])
+        muhurle(k, gunler)
+        cagri = []
+        asil = R._donem_hamlari
+
+        def izle(ham_dizini, harita, ozet, bas, bit, bugun):
+            h = asil(ham_dizini, harita, ozet, bas, bit, bugun)
+            cagri.append((bas, bit, sorted(h)))
+            return h
+        R._donem_hamlari = izle
+        try:
+            assert calis(tmp, {"1234567": ars(k)}, "2026-10-20") == []
+            assert cagri and all(all(bas.isoformat() <= g <= bit.isoformat() for g in gs) for bas, bit, gs in cagri)
+            assert max(len(gs) for _b, _bt, gs in cagri) <= 2
+            cagri.clear()
+            assert calis(tmp, {"1234567": ars(k)}, "2026-10-20", saat=13) == []
+            assert cagri == []  # hiçbir şey değişmedi: dönem hamları yüklenmez
+        finally:
+            R._donem_hamlari = asil
+        m = rp(tmp, "1234567", "ay-2026-10")["misafir"]
+        assert (m["farkli"], m["yeni"], m["donen"]) == (2, 1, 1)
+        assert rp(tmp, "1234567", "ay-2026-08")["misafir"]["yeni"] == 1
+        assert rp(tmp, "1234567", "ay-2026-09")["misafir"]["donen"] == 1
+
+
+def test_sir_degisince_hamlar_yeniden_hesaplanir():
+    """M1: sır yeniden üretilirse eski takma kimlikli hamlar yeniden hesaplanır; herkes 'yeni' görünmez."""
+    with tempfile.TemporaryDirectory() as tmp:
+        k = os.path.join(tmp, "a")
+        misafir_gun(k, "2026-09-10", [TEL1])
+        misafir_gun(k, "2026-10-05", [TEL1, TEL2])
+        muhurle(k, ["2026-09-10", "2026-10-05"])
+        assert calis(tmp, {"1234567": ars(k)}, "2026-10-20") == []
+        yeni_sir = b"t" * 32
+        hatalar = R.calistir({"1234567": ars(k)}, os.path.join(tmp, "yok.json"), os.path.join(tmp, "ham"),
+                             os.path.join(tmp, "rapor"), None, ts("2026-10-20"), yeni_sir)
+        assert hatalar == []
+        h = oku(os.path.join(tmp, "ham", "1234567", "2026-09-10.json"))
+        assert h["misafir"] == [R.takma(yeni_sir, TEL1)]
+        m = rp(tmp, "1234567", "ay-2026-10")["misafir"]
+        assert (m["yeni"], m["donen"]) == (1, 1)
+
+
+def test_sir_izi_tutmayan_ham_kullanilmaz():
+    """M1: ham başka sırla yazılmışsa (izi tutmuyor) rapor onu kullanmaz."""
+    with tempfile.TemporaryDirectory() as tmp:
+        k = os.path.join(tmp, "a")
+        misafir_gun(k, "2026-10-05", [TEL1])
+        muhurle(k, ["2026-10-05"])
+        R.ham_guncelle("1234567", k, os.path.join(tmp, "ham"), b"t" * 32)  # başka sırla
+        R.grup_raporla("1234567", [("1234567", k)], os.path.join(tmp, "ham"), os.path.join(tmp, "rapor"), None,
+                       datetime.date(2026, 10, 8), ts("2026-10-08"), SIR)
+        r = rp(tmp, "1234567", "hafta-2026-W41")
+        assert r["gunler"][0]["durum"] == "dogrulanamadi" and r["misafir"]["farkli"] == 0
+
+
+def test_gelecek_tarihli_gun_kesinlestirmez():
+    """M2: cihaz saati yanlışken gelen ileri tarihli gün biten dönemi hemen kesinleştirmez, sürüm bilgisi vermez."""
+    with tempfile.TemporaryDirectory() as tmp:
+        k = os.path.join(tmp, "a")
+        misafir_gun(k, "2026-10-05", [TEL1])
+        misafir_gun(k, "2026-10-16", [TEL1], denetim=[satir(z("2026-10-16"), "GUNCELLEME_TAMAM", ek="surum=0.9.9")])
+        muhurle(k, ["2026-10-05", "2026-10-16"])
+        assert calis(tmp, {"1234567": ars(k)}, "2026-10-14") == []
+        r = rp(tmp, "1234567", "hafta-2026-W41")
+        assert r["kesin"] is False and r["surum_sonra_degisti"] is False
+        assert rp(tmp, "1234567", "hafta-2026-W42")["surum"] is None
+
+
+def test_tamam_mi_fifo_beklemez():
+    """M3: MANIFEST.sha256 FIFO ise root takılmaz."""
+    if not hasattr(os, "mkfifo"):
+        return  # Windows: FIFO yok, sunucuda koşar
+    import istatistik
+    with tempfile.TemporaryDirectory() as tmp:
+        d = os.path.join(tmp, "gun")
+        os.makedirs(d)
+        os.mkfifo(os.path.join(d, "MANIFEST.sha256"))
+        assert istatistik.tamam_mi(d) is False
+
+
+def test_tamam_mi_bozuk_manifest():
+    import istatistik
+    with tempfile.TemporaryDirectory() as tmp:
+        d = basit_gun(tmp, "2026-10-05")
+        assert istatistik.tamam_mi(d) is True
+        with open(os.path.join(d, "MANIFEST.sha256"), "wb") as f:
+            f.write(b"\xff\xfe bozuk")
+        assert istatistik.tamam_mi(d) is False
+        os.remove(os.path.join(d, "MANIFEST.sha256"))
+        os.makedirs(os.path.join(d, "MANIFEST.sha256"))
+        assert istatistik.tamam_mi(d) is False
+
+
+def test_zincir_eski_dosyalar_gerekmedikce_okunmaz():
+    """M4: istenen günler güncel zincir.txt'de doğrulanıyorsa eski/zincir.txt.* okunmaz; değilse en yeniden eskiye."""
+    with tempfile.TemporaryDirectory() as kok:
+        os.makedirs(os.path.join(kok, "eski"))
+        for i in range(5):
+            _yaz(os.path.join(kok, "eski", f"zincir.txt.2026-09-2{i}"), zincir_satirlari([("2026-09-01", "a" * 64)]))
+        _yaz(os.path.join(kok, "zincir.txt"), zincir_satirlari([("2026-10-02", "c" * 64)]))
+        okunan = []
+        asil = R._oku_sinirli
+        R._oku_sinirli = lambda yol, sinir: okunan.append(os.path.basename(yol)) or asil(yol, sinir)
+        try:
+            assert R.zincir_oku(kok, {"2026-10-02"}) == {"2026-10-02": ("c" * 64, True)}
+            assert okunan == ["zincir.txt"]
+            okunan.clear()
+            assert R.zincir_oku(kok, {"2026-10-02", "2026-09-01"})["2026-09-01"] == ("a" * 64, True)
+            assert okunan == ["zincir.txt", "zincir.txt.2026-09-24"]  # en yeni eski kopya yetti
+        finally:
+            R._oku_sinirli = asil
+        assert set(R.zincir_oku(kok)) == {"2026-10-02", "2026-09-01"}  # gerekli verilmezse hepsi
+
+
+def test_gecici_dosya_hata_sonrasi_kalmaz():
+    """M5: yazma hatasında <yol>.<pid>.tmp kalmaz."""
+    with tempfile.TemporaryDirectory() as tmp:
+        for f in (lambda y: R._yaz_600(y, {"x": {1, 2}}), lambda y: R._yaz_panel(y, {"x": {1, 2}}, None)):
+            try:
+                f(os.path.join(tmp, "a.json"))
+            except TypeError:
+                pass
+            else:
+                raise AssertionError("TypeError bekleniyordu")
+            assert os.listdir(tmp) == []
+
+
+def test_kur_sh_ve_merkez_birimi():
+    """M7, M8: kur.sh rapor modüllerini ve dizinlerini kurar; merkez (wcpanel) rapor-ham'a erişemez."""
+    kok = os.path.dirname(HERE)
+    kur = open(os.path.join(kok, "kur.sh"), encoding="utf-8").read()
+    assert "rapor.py" in kur and "raporlar.py" in kur
+    assert "install -d -o root -g wcpanel -m 750" in kur and "/var/lib/wificorrect/rapor\n" in kur
+    assert "install -d -m 700 /var/lib/wificorrect/rapor-ham" in kur
+    srv = open(os.path.join(kok, "wc-merkez.service"), encoding="utf-8").read()
+    assert "InaccessiblePaths=-/var/lib/wificorrect/rapor-ham" in srv
+
+
 if __name__ == "__main__":
     for _name, _fn in sorted(globals().items()):
         if _name.startswith("test_") and callable(_fn):

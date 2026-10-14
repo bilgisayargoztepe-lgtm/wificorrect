@@ -16,6 +16,8 @@ PrivateTmp=yes
 PrivateDevices=yes
 ReadWritePaths=/var/lib/wificorrect/merkez /var/lib/wificorrect/kuyruk
 InaccessiblePaths=/srv
+# takma kimlikli ham özetler ve sırrı yalnızca root (wc-istatistik) içindir; dizin yoksa birim yine açılır
+InaccessiblePaths=-/var/lib/wificorrect/rapor-ham
 
 [Install]
 WantedBy=multi-user.target

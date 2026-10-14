@@ -206,6 +206,22 @@ def test_musteri_menu_ve_rapor_sayfasi():
         assert [h["olay"] for h in v.hareketler(n)] == ["GIRIS"]
 
 
+def test_hizmet_oncesi_gunler():
+    """Cihaz kurulmadan önceki günler 'Kayıt gelmedi' değil, nötr 'Hizmet öncesi' görünür."""
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        app, v, saat, n, c = kur_musteri(tmp)
+        v.cihaz_bagla(n, WG, SSH, "Bocafe Göztepe", "Bocafe Gıda Ltd. Şti.", "0.5.0")
+        r = ay_raporu()
+        r["gunler"][4].update(durum="tam", farkli=2)
+        for x in r["gunler"][:3]:
+            x.update(durum="hizmet_oncesi", neden="", farkli=None)
+        yaz(tmp, n, "ay-2026-09.json", r)
+        okunan = RP.Raporlar(os.path.join(tmp, "rapor")).rapor(n, "ay", "2026-09")
+        assert [x["durum"] for x in okunan["gunler"][:3]] == ["hizmet_oncesi"] * 3
+        s = html(Y.al(app, "/rapor/ay/2026-09", c))
+        assert s.count("Hizmet öncesi") == 3 and "Kayıt gelmedi" not in s
+
+
 def test_musteri_yollar_404_ve_baska_musteri():
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
         app, v, saat, n, c = kur_musteri(tmp)
@@ -325,7 +341,9 @@ def test_uctan_uca_kisisel_veri_yok():
         assert hatalar == [], hatalar
         s = html(Y.al(app, "/raporlar", c)) + html(Y.al(app, "/rapor/ay/2026-09", c))
         s += html(Y.al(app, "/rapor/hafta/2026-W36", c))
-        assert "ornek.com.tr" in s and "20 günün 4'ü tam" in s
+        # ilk arşiv günü 05.09: 1–4 Eylül hizmet öncesi, sayılmaz (16 gün = 05–20 Eylül)
+        assert "ornek.com.tr" in s and "16 günün 4'ü tam" in s and "Hizmet öncesi" in s
+        assert "Kayıt gelmedi" in s  # 09–19 Eylül: hizmet içinde, kayıt yok
         gizli = [T.TEL1, T.TEL2, T.TEL3, "5551112233", "TC:", "10000000146", "PASAPORT", "X1234567", T.MAC_MISAFIR,
                  T.MAC_IZINLI, "aa:bb", "10.50.0", "142.250", "Ali", "Veli", "Ayşe", "oturum-abc", "csv", "kullanicilar"]
         gizli += [T.R.takma(T.SIR, x) for x in (T.TEL1, T.TC, T.PAS, "mac:" + T.MAC_IZINLI)]

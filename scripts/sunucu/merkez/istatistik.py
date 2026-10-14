@@ -5,6 +5,7 @@ farklı telefon sayısını /var/lib/wificorrect/istatistik/<arşiv>.json'a yaza
 import json
 import os
 import re
+import stat
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
@@ -12,17 +13,32 @@ import common  # noqa: E402
 
 CIKTI = "/var/lib/wificorrect/istatistik"
 DETAY = "/var/lib/wificorrect/detay"
+RAPOR = "/var/lib/wificorrect/rapor"
+RAPOR_HAM = "/var/lib/wificorrect/rapor-ham"
+RAPOR_GRUPLARI = "/var/lib/wificorrect/merkez/rapor-gruplari.json"
 PANEL_GRUBU = "wcpanel"  # özetler root:wcpanel 640; testlerde None (sahiplik değişmez)
 GUN_RE = re.compile(r"\d{4}-\d{2}-\d{2}")
 
 
 def tamam_mi(gun_dizini):
-    """MANIFEST var ve listelediği her dosya yerinde mi (rsync yarıdayken hayır)."""
+    """MANIFEST var ve listelediği her dosya yerinde mi (rsync yarıdayken hayır). MANIFEST normal dosya değilse
+    (sembolik bağ, FIFO, klasör), okunamıyorsa ya da UTF-8 değilse hayır: root beklemesin, bozuk bir gün diğerlerini
+    durdurmasın."""
+    yol = os.path.join(gun_dizini, "MANIFEST.sha256")
     try:
-        with open(os.path.join(gun_dizini, "MANIFEST.sha256"), encoding="utf-8") as f:
-            satirlar = [s.split(None, 1) for s in f if s.strip() and not s.startswith("#")]
-    except FileNotFoundError:
+        fd = os.open(yol, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
+                     | getattr(os, "O_BINARY", 0))
+    except OSError:
         return False
+    try:
+        with os.fdopen(fd, "rb") as f:
+            if os.path.islink(yol) or not stat.S_ISREG(os.fstat(f.fileno()).st_mode):
+                return False
+            metin = f.read().decode("utf-8")
+    except (OSError, UnicodeDecodeError):
+        return False
+    metin = metin.replace("\r\n", "\n").replace("\r", "\n")  # metin kipindeki satır sonu çevirisiyle aynı
+    satirlar = [s.split(None, 1) for s in metin.split("\n") if s.strip() and not s.startswith("#")]
     return all(len(p) == 2 and os.path.exists(os.path.join(gun_dizini, p[1].strip())) for p in satirlar)
 
 
@@ -72,11 +88,14 @@ def guncelle(kafe_dizini, json_yolu):
     return hatalar
 
 
-def main(kayit=None, yeni=None, eski=None, cikti=CIKTI, detay=DETAY, grup=PANEL_GRUBU):
+def main(kayit=None, yeni=None, eski=None, cikti=CIKTI, detay=DETAY, grup=PANEL_GRUBU,
+         rapor_ham=RAPOR_HAM, rapor_cikti=RAPOR, rapor_gruplari=RAPOR_GRUPLARI, simdi=None):
     import durum  # durum → common; döngü yok ama istatistik'i hafif tutmak için burada
     import ozet  # istatistik'i içe aktarır; döngüsel içe aktarma olmasın diye burada
+    import rapor  # aynı sebep
     kod = 0
-    for ad, a in durum.arsivler(kayit or durum.KAYIT, yeni or durum.YENI, eski or durum.ESKI).items():
+    arsivler = durum.arsivler(kayit or durum.KAYIT, yeni or durum.YENI, eski or durum.ESKI)
+    for ad, a in arsivler.items():
         hatalar = []
         for kaynak in a["kaynaklar"]:  # yeni arşiv önce: aynı gün eskide de varsa atlanır
             try:
@@ -87,6 +106,14 @@ def main(kayit=None, yeni=None, eski=None, cikti=CIKTI, detay=DETAY, grup=PANEL_
         for hata in hatalar:
             print(f"{ad}: {hata}", file=sys.stderr)
             kod = 1
+    # haftalık/aylık raporlar (ham özet önbelleği + müşteri başına dönem raporları); hatası yukarıdakileri etkilemez
+    try:
+        hatalar = rapor.calistir(arsivler, rapor_gruplari, rapor_ham, rapor_cikti, grup, simdi)
+    except Exception as e:
+        hatalar = [type(e).__name__]
+    for hata in hatalar:
+        print(f"rapor: {hata}", file=sys.stderr)
+        kod = 1
     return kod
 
 

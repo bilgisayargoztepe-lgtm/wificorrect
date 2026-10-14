@@ -4,6 +4,7 @@ import contextlib
 import datetime
 import hashlib
 import json
+import os
 import secrets
 import sqlite3
 import threading
@@ -69,6 +70,8 @@ TWILIO_ALANLARI = ("account_sid", "auth_token", "api_key_sid", "api_key_secret",
 TWILIO_SIRLARI = ("auth_token", "api_key_secret")
 TWILIO_VARSAYILAN = {"acik": False, **{k: "" for k in TWILIO_ALANLARI}}
 LISANS_GUN = 365
+# Raporlar: müşteri → bağlı eski arşivler (root yalnızca bunu görür, veritabanını açmaz; rapor.gruplar güvenilmez girdi sayar)
+RAPOR_GRUPLARI = "/var/lib/wificorrect/merkez/rapor-gruplari.json"
 
 
 def sms_hazir(s):
@@ -496,6 +499,13 @@ class Veri:
     def sorun_gecmisi(self, musteri, limit=50):
         return [dict(r) for r in self._hepsi("SELECT * FROM sorun WHERE musteri = ? ORDER BY id DESC LIMIT ?", musteri, limit)]
 
+    def sorunlar_aralik(self, musteri, bas_iso, bit_iso):
+        """[bas, bit) aralığıyla kesişen sorunlar (raporlar): açılışı bitişten önce, kapanışı yok ya da başlangıçtan sonra.
+        Zamanlar hep +03:00 ISO: metin karşılaştırması sıralamayla aynı."""
+        return [dict(r) for r in self._hepsi(
+            "SELECT * FROM sorun WHERE musteri = ? AND acilis < ? AND (kapanis = '' OR kapanis >= ?) ORDER BY acilis, id",
+            musteri, bit_iso, bas_iso)]
+
     def son_kapanan(self, musteri, tur):
         r = self._bir("SELECT * FROM sorun WHERE musteri = ? AND tur = ? AND kapanis != '' ORDER BY id DESC LIMIT 1",
                       musteri, tur)
@@ -584,3 +594,15 @@ class Veri:
     def arsivler(self, numara):
         """Müşterinin arşiv adları: kendi numarası önce (aynı gün iki yerdeyse o geçerli), sonra bağlı eski arşivler."""
         return [str(numara)] + [r["ad"] for r in self._hepsi("SELECT ad FROM eski_arsiv WHERE musteri = ? ORDER BY ad", numara)]
+
+    def rapor_gruplari(self):
+        """{"<numara>": [eski arşiv adları (sıralı)]}: yalnızca bağlı eski arşivi olan müşteriler."""
+        out = {}
+        for r in self._hepsi("SELECT ad, musteri FROM eski_arsiv WHERE musteri IS NOT NULL ORDER BY musteri, ad"):
+            out.setdefault(str(r["musteri"]), []).append(r["ad"])
+        return out
+
+    def rapor_gruplari_yaz(self, yol=RAPOR_GRUPLARI):
+        """Atomik, 600 (wcpanel; root okur). Merkez açılışında ve eski arşiv bağı değişince."""
+        common.save_json(yol, self.rapor_gruplari())
+        os.chmod(yol, 0o600)

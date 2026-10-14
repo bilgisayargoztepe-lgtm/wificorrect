@@ -97,6 +97,26 @@ def test_uyelik_hareket_eski_arsiv():
         assert v.arsivler(n) == [str(n), "bocafe"]
 
 
+def test_rapor_gruplari_yaz():
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        v = yeni(tmp)
+        n1, _ = v.musteri_ekle()
+        n2, _ = v.musteri_ekle()
+        yol = os.path.join(tmp, "rapor-gruplari.json")
+        v.rapor_gruplari_yaz(yol)
+        with open(yol, encoding="utf-8") as f:
+            assert json.load(f) == {}
+        v.eski_arsiv_bagla("zkafe", n1)
+        v.eski_arsiv_bagla("akafe", n1)
+        v.eski_arsiv_bagla("bocafe", n2)
+        v.eski_arsiv_bagla("bagsiz", None)
+        v.rapor_gruplari_yaz(yol)
+        with open(yol, encoding="utf-8") as f:
+            assert json.load(f) == {str(n1): ["akafe", "zkafe"], str(n2): ["bocafe"]}
+        if os.name == "posix":
+            assert os.stat(yol).st_mode & 0o777 == 0o600
+
+
 def test_kalici():
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
         v = yeni(tmp)

@@ -5,6 +5,7 @@ import time
 import urllib.parse
 
 import guvenlik
+import raporlar as raporlar_modulu
 import web
 from web import e, kart, yanit_html, yonlendir
 
@@ -27,8 +28,8 @@ class Musteri(web.Taban):
     giris_basligi = "Müşteri girişi"
     giris_aciklama = "Size verilen müşteri numarası ve parolayla girin."
 
-    def __init__(self, veri, kayitlar, saat=time.time, gecis=None):
-        super().__init__(veri, kayitlar, saat)
+    def __init__(self, veri, kayitlar, saat=time.time, gecis=None, raporlar=None):
+        super().__init__(veri, kayitlar, saat, raporlar or raporlar_modulu.Raporlar())
         self.gecis = gecis or guvenlik.GecisBelirtecleri()
 
     def cihaz_adresi(self, numara):
@@ -65,7 +66,7 @@ class Musteri(web.Taban):
         return int(ot["user"])
 
     def menu(self, ot):
-        return '<a href="/cihaz">Cihaz paneli</a><a href="/">Yedek arşiv</a><a href="/parola">Parola</a>'
+        return '<a href="/cihaz">Cihaz paneli</a><a href="/">Yedek arşiv</a><a href="/raporlar">Raporlar</a><a href="/parola">Parola</a>'
 
     def sayfalar(self, ot, token, yontem, yol, sorgu, form, ip):
         n = int(ot["user"])
@@ -73,6 +74,8 @@ class Musteri(web.Taban):
             c = self.veri.bagli_cihaz(n)
             baslik = c["isletme_adi"] if c is not None and c["isletme_adi"] else f"Müşteri {n}"
             return self.kayit_sayfasi(ot, n, yol, sorgu, "", ip, baslik, yontem, form)
+        if yontem == "GET" and (yol == "/raporlar" or yol.startswith("/rapor/")):
+            return raporlar_modulu.istek(self, ot, n, yol, "")
         if yol == "/cihaz" and yontem == "GET":
             if self.cihaz_adresi(n) and "yok" not in urllib.parse.parse_qs(sorgu):  # yok=1: Caddy cihaza ulaşamadı → döngü olmasın
                 ozet = self.veri.musteri(n)["ozet"]

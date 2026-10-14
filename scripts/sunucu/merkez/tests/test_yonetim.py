@@ -140,10 +140,26 @@ def test_eski_arsiv_baglama_ve_hesabim():
         assert Y.gonder(app, "/eski-arsivler", c, {"csrf": Y.csrf(f), "ad": "bocafe", "musteri": "1234567" if n != 1234567 else "7654321"})[0] == 400
         assert Y.gonder(app, "/eski-arsivler", c, {"csrf": Y.csrf(f), "ad": "bocafe", "musteri": str(n)})[0] == 303
         assert v.arsivler(n) == [str(n), "bocafe"]
+        assert not os.path.exists(os.path.join(tmp, "rapor-gruplari.json"))  # yol verilmediyse yazılmaz
         h = Y.al(app, "/hesabim", c)
         assert Y.gonder(app, "/hesabim", c, {"csrf": Y.csrf(h), "mevcut": PW, "yeni": "kisa", "tekrar": "kisa"})[0] == 400
         assert Y.gonder(app, "/hesabim", c, {"csrf": Y.csrf(h), "mevcut": PW, "yeni": "yeni-yonetici-12", "tekrar": "yeni-yonetici-12"})[0] == 200
         assert Y.giris(app, "serkan", "yeni-yonetici-12")[0] == 303
+
+
+def test_eski_arsiv_baglaninca_rapor_gruplari_yazilir():
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        gy = os.path.join(tmp, "rapor-gruplari.json")
+        app, v, _, c, _ = kur(tmp, {"bocafe": {"tur": "eski", "son_gun": "2026-09-20", "boyut": 10, "el_sikisma": None}},
+                              rapor_gruplari=gy)
+        n, _ = v.musteri_ekle()
+        f = Y.al(app, "/eski-arsivler", c)
+        assert Y.gonder(app, "/eski-arsivler", c, {"csrf": Y.csrf(f), "ad": "bocafe", "musteri": str(n)})[0] == 303
+        with open(gy, encoding="utf-8") as fh:
+            assert json.load(fh) == {str(n): ["bocafe"]}
+        assert Y.gonder(app, "/eski-arsivler", c, {"csrf": Y.csrf(f), "ad": "bocafe", "musteri": ""})[0] == 303
+        with open(gy, encoding="utf-8") as fh:
+            assert json.load(fh) == {}  # bağ kaldırıldı
 
 
 def test_yonetici_parolasi_degisince_eski_oturum_duser():

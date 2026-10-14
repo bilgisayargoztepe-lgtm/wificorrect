@@ -302,8 +302,20 @@ Yalnızca merkez; cihazda değişiklik yok.
 - **"Tam" gün:** gün klasörü tamam + MANIFEST'teki her dosyanın sha256'sı tutuyor + MANIFEST'in sha'sı zincir satırındakine eşit +
   zincir satırı doğru (cihazdaki `muhur::verify` ile aynı). Emin olunamayan her gün "Doğrulanamadı" (neden yazılır).
 - **İçerik:** 5651 kayıt durumu (her gün), misafirler (farklı/yeni/dönen, giriş SMS/misafir kodu/izinli cihaz), saat ve gün
-  yoğunluğu (CSS çubuk), kullanım (veri, doğrulama SMS'i, en az **3 farklı misafirin** ziyaret ettiği en çok 10 kök alan adı),
+  yoğunluğu (CSS çubuk), kullanım (veri, doğrulama SMS'i; alan adı listesi 2026-10-15'te kaldırıldı, biçim 2),
   cihaz (dönemde açılan kritik/uyarı sorunlar, "en az" çevrimdışı süre, dönem sonu sürümü).
 - **Engellenenler bölümü yok:** `dns.csv` yalnızca dnsmasq'ın sorgu satırlarından yazılır, engel cevabı işaretlenmez; kelime
   filtresi sorguyu dnsmasq'a hiç ulaştırmaz. Uydurma sayı gösterilmez; eklemek için cihazda kaydedicinin engel cevabını işaretlemesi gerekir.
 - **Yazdırma:** JS yok (CSP); print CSS (menü gizli, A4) + "Ctrl+P ile yazdırın / PDF olarak kaydedin" notu.
+
+### Raporlar cihaz panelinde (2026-10-15, sürüm 0.4.10)
+Dal `rapor-cihaz`; spec "Ek (2026-10-15)", plan `docs/superpowers/plans/2026-10-15-rapor-cihaz.md` (API sözleşmesi).
+- Cihaz paneli **Ayarlar → Raporlar** kutucuğu (Admin'den önce; işletme sahibi ve admin): `/raporlar` (önce haftalar, sonra
+  aylar; "sürüyor"/"kesinleşmedi") ve `/rapor/<hafta|ay>/<dönem>` (merkezdeki bölümler: 5651 kayıt durumu, misafirler, giriş
+  yöntemi, saat/gün çubukları, kullanım, cihaz). Kod `src/panel/rapor_sayfalari.rs`; JS yok, yazdırma CSS'i şablonda (menü gizli, A4).
+- Veri istek anında merkezden: `POST /api/raporlar`, `/api/rapor` (cihaz anahtarı, curl, en çok 8 sn). Tür/dönem URL'de
+  sıkı doğrulanır (geçersizse merkeze sorulmaz, 404). Merkezin cevabı güvenilmez girdi: alanlar tür denetimli, metinler kaçışlı.
+- Önbellek (bellekte, müşteri numarasıyla): liste 5 dk, süren/kesinleşmemiş dönem 5 dk, kesinleşmiş geçmiş dönem 1 saat,
+  404 5 dk, hata 1 dk — merkezin `/api/*` sınırının (IP başına dakikada 20) çok altında.
+- Merkeze ulaşılamazsa "Raporlar şu an alınamıyor…"; lisans/üyelik kapalıysa (yerelde ya da merkez 403) uygun not, yerelde
+  kapalıyken merkeze sorulmaz; dosya yoksa "Bu dönem için rapor yok." Görüntüleme denetime yazılmaz (kişisel veri yok).

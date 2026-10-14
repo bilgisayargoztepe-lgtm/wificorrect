@@ -77,3 +77,15 @@ cihaz ay boyunca çalıştı mı. Aylık rapor bunu tek sayfada gösterir. İki 
 Aylık özet JSON biçimi ve yolu, mevcut gün özetlerinden mi yoksa CSV'den mi hesaplanacağı, bütünlük doğrulamasının
 merkezde nasıl yapılacağı (mevcut `tamam_mi` + zincir), engellenen sorgu sayımının mümkün olup olmadığı, sayfa yerleşimi
 ve grafik biçimi, test kurgusu.
+
+## Ek (2026-10-15, kullanıcı isteği)
+
+1. **"En çok ziyaret edilen alan adları" kaldırılır** ("ona gerek yok"): rapor JSON'unda, sayfada ve ham özetlerde alan adı
+   verisi tutulmaz (takma kimlikli alan adı listeleri de silinir; daha az veri, daha az bellek). "Kullanım"da yalnızca
+   toplam veri ve doğrulama SMS'i kalır.
+2. **Raporlar cihaz panelinde de:** işletme sahibi (ve "Cihaz paneline git" ile giren yönetici) cihaz panelinde
+   **Ayarlar → Raporlar** kutucuğundan haftalık ve aylık raporları görür; görünüm müşteri panelindekiyle aynı bölümler,
+   cihaz panelinin görünümüyle. Benim kararım: raporlar yine merkezde üretilir; cihaz paneli istek anında merkezden
+   (`/api/raporlar`, `/api/rapor`, cihaz anahtarıyla, yalnızca kendi müşterisinin) hazır JSON'u alıp gösterir. Cihaz
+   merkeze bağlı değilse ya da merkeze ulaşılamazsa "Raporlar şu an alınamıyor" yazar. Görüntüleme denetime yazılmaz
+   (kişisel veri yok).

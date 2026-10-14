@@ -2911,7 +2911,7 @@ mod tests {
         assert!(page.contains("Hazır listeler") && page.contains("Kumar ve bahis") && page.contains("Yetişkin içerik") && page.contains("Zararlı ve dolandırıcı siteler"));
         assert!(page.contains("14.10.2026") && page.contains("Henüz indirilmedi") && page.matches("<b>Açık</b>").count() == 3); // varsayılan açık
         let page = e.p.handle(&get("/yasakli-siteler", &[("ad", "m.bet365.com")], &tok)).body;
-        assert!(page.contains("engelli (Hazır liste: Kumar ve bahis)"));
+        assert!(page.contains("engelli (hazır liste: Kumar ve bahis)"));
         // CSRF'siz istek reddedilir
         assert_eq!(e.p.handle(&req("POST", "/yasakli-siteler/hazir", &[("kategori", "kumar"), ("durum", "kapali")], Some(&tok))).status, 403);
         assert!(Config::load(&e.p.cfg_path).unwrap().filtre.hazir.is_empty());

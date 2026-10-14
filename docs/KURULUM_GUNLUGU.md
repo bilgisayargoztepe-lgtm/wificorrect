@@ -255,10 +255,18 @@ Dal `hazir-listeler`; tasarım `docs/superpowers/specs/2026-10-14-hazir-engel-li
   `/var/lib/wificorrect/merkez/listeler/<k>.txt.gz` + `<k>.json` (sha256 = düz metnin özeti). Kaynak inmezse ya da HTML/boş
   /yarıdan küçük dönerse o kaynağın son temiz kopyası kullanılır (kopya okunurken bugünkü kurallarla yeniden süzülür);
   hiçbiri inmezse eski çıktı kalır. Sürümler `/api/saglik` cevabında (`listeler`), liste `/api/liste` (gzip). Yönetim →
-  Engel listeleri (kaynak durumu, Şimdi güncelle); hareket `LISTE_GUNCEL` / `LISTE_HATA`.
+  Engel listeleri (kaynak durumu, Şimdi güncelle); hareket `LISTE_GUNCEL` / `LISTE_HATA`. Sürümler yalnızca bağlı ve
+  hizmeti açık cihaza bildirilir. **Sağlık izleme:** bir kategoride hiçbir kaynak inmediyse (`hata`) ya da son başarılı
+  üretim 48 saatten eskiyse "Engel listeleri güncellenemiyor: …" (uyarı) açılır — müşteriye bağlı değil, Açık sorunlar'da
+  "Merkez" satırı (sorun tablosunda müşteri 0), SMS kuralları aynı (600 sn sonra tek SMS, düzelince "düzeldi"). Tek
+  kaynağın hatası (ör. USOM HTML) sorun açmaz.
 - **Asla engellenmez** (alt adlarıyla): sistem ve giriş akışı (wificorrect.com, netgsm, twilio, bağlantı denetimi, NTP),
   google/apple/microsoft, gov.tr/edu.tr ve büyük ortak altyapılar (googleusercontent, azureedge, windows.net, cloudflare,
-  trycloudflare, facebook/fbcdn/instagram, youtube/ytimg, akamaihd, live/office/outlook, whatsapp, wa.me). **Paylaşımlı
+  trycloudflare, facebook/fbcdn/instagram, youtube/ytimg, akamaihd, live/office/outlook, whatsapp, wa.me), telefon
+  üreticileri (hicloud, miui/xiaomi, oppomobile, samsung/samsungcloud), x/twitter, tiktok, amazon, trendyol, hepsiburada,
+  papara, iyzico, bankalar (garantibbva, isbank, ziraatbank, akbank, yapikredi, vakifbank, halkbank, qnb, denizbank, enpara)
+  ve turkiye.gov.tr. Cihaz da birleşik dosyayı yazarken bağlantı denetimi adlarını ve wificorrect/netgsm/twilio'yu
+  (alt adlarıyla) atar (merkez listesi bozuk gelse de giriş akışı kırılmaz). **Paylaşımlı
   platformlar** (github, githubusercontent, dropbox, sharepoint, onedrive, discord, mega.nz, t.me, pastebin, bit.ly …) de
   engellenmez: DNS tek bir dosyayı engelleyemez, bütün platform herkes için kapanırdı; bedeli bu sitelerdeki oltalama
   sayfalarının açık kalması.

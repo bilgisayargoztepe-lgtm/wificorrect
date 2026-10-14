@@ -40,7 +40,7 @@ pub fn check(cfg: &Config, hazir: &crate::liste::Yollar, domain: &str) -> Option
         return Some(format!("yasaklı site: {s}"));
     }
     if let Some(ad) = crate::liste::bul(cfg, hazir, &d) {
-        return Some(format!("Hazır liste: {ad}"));
+        return Some(format!("hazır liste: {ad}"));
     }
     let labels: Vec<&str> = d.split('.').collect();
     let has = |w: &String| labels.iter().any(|l| l.contains(w.as_str()));

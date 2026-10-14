@@ -21,6 +21,26 @@ pub const KATEGORILER: [(&str, &str); 3] = [("kumar", "Kumar ve bahis"), ("yetis
 /// dnsmasq `servers-file` (deploy/debian/etc/dnsmasq.d/wificorrect.conf); dosya yoksa dnsmasq açılmaz → hep yazılır.
 pub const CONF: &str = "/etc/wificorrect/hazir-liste.conf";
 pub const DIZIN: &str = "/var/lib/wificorrect/liste";
+/// Merkez listesi ne derse desin cihazda hiç engellenmeyen adlar (kendisi, alt adları ve üst adları — `gstatic.com`
+/// engellenirse `connectivitycheck.gstatic.com` da kapanır): telefonların bağlantı denetimi (giriş sayfası açılsın) ve
+/// sistemin kendisi (merkez, SMS sağlayıcıları).
+const ASLA: [&str; 9] = [
+    "connectivitycheck.gstatic.com",
+    "clients3.google.com",
+    "captive.apple.com",
+    "detectportal.firefox.com",
+    "msftconnecttest.com",
+    "www.msftncsi.com",
+    "wificorrect.com",
+    "netgsm.com.tr",
+    "twilio.com",
+];
+
+fn korunur(d: &str) -> bool {
+    let alt_ad = |a: &str, b: &str| a.len() > b.len() && a.ends_with(b) && a.as_bytes()[a.len() - b.len() - 1] == b'.';
+    ASLA.iter().any(|g| d == *g || alt_ad(d, g) || alt_ad(g, d))
+}
+
 /// Açılmış liste en çok bu kadar bayt (merkez kategori başına 300.000 alan adıyla sınırlar, ~10 MB).
 const EN_COK_BAYT: u64 = 64 << 20;
 
@@ -231,7 +251,7 @@ pub fn metin(cfg: &Config, y: &Yollar) -> (String, usize) {
     let mut set = BTreeSet::new();
     for (k, _) in KATEGORILER {
         if acik(cfg, k) {
-            set.extend(alanlar(y, k).into_iter().filter(|d| !istisnada(cfg, d)));
+            set.extend(alanlar(y, k).into_iter().filter(|d| !istisnada(cfg, d) && !korunur(d)));
         }
     }
     let mut s = String::from("# WifiCorrect üretir (panel → Yasaklı siteler → Hazır listeler). Alan adı ve alt adları NXDOMAIN döner.\n");
@@ -251,9 +271,8 @@ pub fn uygula(cfg: &Config, y: &Yollar, runner: &Runner) -> Result<usize, String
     let (text, n) = metin(cfg, y);
     let changed = std::fs::read(&y.conf).ok().as_deref() != Some(text.as_bytes());
     if changed {
-        ortak::write_atomic(&y.conf, text.as_bytes()).map_err(|e| format!("{} yazılamadı: {e}", y.conf.display()))?;
-        // dnsmasq SIGHUP'ta dosyayı yetkisini bırakmış kullanıcıyla okur
-        let _ = std::fs::set_permissions(&y.conf, std::os::unix::fs::PermissionsExt::from_mode(0o644));
+        // dnsmasq SIGHUP'ta dosyayı yetkisini bırakmış kullanıcıyla okur: 0644 yeniden adlandırmadan önce
+        ortak::write_atomic_mode(&y.conf, text.as_bytes(), 0o644).map_err(|e| format!("{} yazılamadı: {e}", y.conf.display()))?;
     }
     if changed || y.hup_bekliyor().exists() {
         let c = |p: &[&str]| p.iter().map(|s| s.to_string()).collect::<Vec<_>>();
@@ -264,6 +283,17 @@ pub fn uygula(cfg: &Config, y: &Yollar, runner: &Runner) -> Result<usize, String
         let _ = std::fs::remove_file(y.hup_bekliyor());
     }
     Ok(n)
+}
+
+/// `ctl saglik`: önceki yeniden okutma başarısız kaldıysa (`hup-bekliyor`) ve bu turda indirme işi başlamadıysa (o iş
+/// zaten uygular) uygulama işi başlatılır; liste değişmese de dnsmasq bir sonraki rapora kadar eski listede kalmasın.
+/// Dönen: iş başlatıldı mı.
+pub fn hup_yeniden(y: &Yollar, indirme_basladi: bool, baslat: &dyn Fn()) -> bool {
+    let gerek = !indirme_basladi && y.hup_bekliyor().exists();
+    if gerek {
+        baslat();
+    }
+    gerek
 }
 
 /// `ctl liste-uygula` / `liste-guncelle` (ayrı işler; panel ayarı kaydedip işi başlatır ve hemen döner): ayar dosyası
@@ -303,7 +333,7 @@ pub fn bul(cfg: &Config, y: &Yollar, d: &str) -> Option<&'static str> {
     KATEGORILER
         .iter()
         .filter(|(k, _)| acik(cfg, k))
-        .find(|(k, _)| listede_var(y, k, &|e| ustler.contains(e) && !istisnada(cfg, e)))
+        .find(|(k, _)| listede_var(y, k, &|e| ustler.contains(e) && !istisnada(cfg, e) && !korunur(e)))
         .map(|(_, a)| *a)
 }
 
@@ -577,12 +607,67 @@ mod tests {
         // dnsmasq çalışmıyorsa (açılış) yeniden okutma denenmez, hata değil
         let durgun = |a: &[String]| a[1] != "is-active" && a[1] != "kill";
         assert_eq!(uygula(&c, &y, &durgun), Ok(2));
+        // dnsmasq dosyayı yetkisini bırakmış kullanıcıyla okur
+        use std::os::unix::fs::PermissionsExt;
+        assert_eq!(std::fs::metadata(&y.conf).unwrap().permissions().mode() & 0o777, 0o644);
         // hiç liste yokken de dosya yazılır
         let (bos, root2) = kur();
         assert_eq!(uygula(&cfg(""), &bos, &runner), Ok(0));
         assert!(bos.conf.exists());
         let _ = std::fs::remove_dir_all(&root);
         let _ = std::fs::remove_dir_all(&root2);
+    }
+
+    /// Bağlantı denetimi adları ve sistemin kendi adları merkez listesinde olsa da (kendisi, alt adı ya da üst adı)
+    /// birleşik dosyaya girmez; "Bu adres engelli mi?" de engelli demez.
+    #[test]
+    fn asla_engellenmeyenler_cihazda_da_atilir() {
+        let (y, root) = kur();
+        koy(
+            &y,
+            "zararli",
+            "gstatic.com
+connectivitycheck.gstatic.com
+clients3.google.com
+apple.com
+captive.apple.com
+firefox.com
+             msftconnecttest.com
+www.msftconnecttest.com
+msftncsi.com
+api.wificorrect.com
+netgsm.com.tr
+verify.twilio.com
+             notwificorrect.com
+kotu.com
+",
+        );
+        let runner = |_: &[String]| true;
+        assert_eq!(uygula(&cfg(""), &y, &runner), Ok(2));
+        let text = std::fs::read_to_string(&y.conf).unwrap();
+        let satirlar: Vec<&str> = text.lines().filter(|l| !l.starts_with('#')).collect();
+        assert_eq!(satirlar, vec!["server=/kotu.com/", "server=/notwificorrect.com/"]);
+        assert_eq!(bul(&cfg(""), &y, "connectivitycheck.gstatic.com"), None);
+        assert_eq!(bul(&cfg(""), &y, "api.wificorrect.com"), None);
+        assert_eq!(bul(&cfg(""), &y, "a.kotu.com"), Some("Zararlı ve dolandırıcı siteler"));
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// `ctl saglik`: HUP başarısız kaldıysa indirme işi başlamadığı turda uygulama işi başlatılır.
+    #[test]
+    fn hup_bekliyorsa_saglik_yeniden_uygular() {
+        let (y, root) = kur();
+        let n = AtomicUsize::new(0);
+        let baslat = || {
+            n.fetch_add(1, Ordering::SeqCst);
+        };
+        assert!(!hup_yeniden(&y, false, &baslat)); // işaret yok
+        std::fs::create_dir_all(&y.dizin).unwrap();
+        std::fs::write(y.hup_bekliyor(), b"").unwrap();
+        assert!(!hup_yeniden(&y, true, &baslat)); // indirme işi zaten uygular
+        assert!(hup_yeniden(&y, false, &baslat));
+        assert_eq!(n.load(Ordering::SeqCst), 1);
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]

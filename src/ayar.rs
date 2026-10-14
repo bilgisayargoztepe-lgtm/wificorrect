@@ -157,6 +157,9 @@ pub struct Filtre {
     pub siteler: Vec<String>,
     pub kelimeler: Vec<String>,
     pub istisnalar: Vec<String>,
+    /// Hazır engel listeleri (src/liste.rs): kategori → açık mı. Anahtar yoksa açık (varsayılan: hepsi açık).
+    #[serde(skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub hazir: std::collections::BTreeMap<String, bool>,
 }
 
 /// İşletme türleri (değer, etiket); ilk öğe varsayılan davranış.

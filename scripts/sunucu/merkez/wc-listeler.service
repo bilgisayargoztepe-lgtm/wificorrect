@@ -1,0 +1,20 @@
+[Unit]
+Description=WifiCorrect yönetim merkezi: hazır engel listelerini kaynaklardan üretir
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=wcpanel
+Group=wcpanel
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=/usr/local/sbin/wc-listeler
+TimeoutStartSec=20min
+Nice=10
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ReadWritePaths=/var/lib/wificorrect/merkez
+InaccessiblePaths=/srv

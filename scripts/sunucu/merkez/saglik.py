@@ -5,6 +5,8 @@ SMS kuralı: kritik/uyarı sorun 600 sn açık kalınca tek SMS; kapanıp 600 sn
 aynı olaydır; bildirilmişse düzelince 600 sn temiz kalırsa tek "düzeldi" SMS'i; bilgi önemliler 09:00'da toplu; günlük üst
 sınır dolunca ilk bastırılan uyarıda tek "üst sınır" SMS'i; sınıra takılan açılış (sinir:<gün>) ertesi gün yeniden denenir,
 "düzeldi"si gitmez; izleme çalışamazsa günde bir "izleme çalışmıyor" SMS'i. Ağ hatasında yeniden deneme yok.
+Müşteriye bağlı olmayan merkez sorunları (hazır engel listeleri güncellenemiyor) MERKEZ (0) numarasıyla aynı sorun
+tablosuna ve aynı SMS kurallarına girer; yönetimde "Merkez" satırı olarak görünür.
 Her tamamlanan turun zamanı `saglik_son_tur` ayarına yazılır (yönetim ana sayfası izlemenin durduğunu oradan görür)."""
 import datetime
 import json
@@ -16,6 +18,7 @@ import traceback
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
 import common  # noqa: E402
 import durum as durum_modulu  # noqa: E402
+import listeler  # noqa: E402
 import merkez  # noqa: E402
 import netgsm  # noqa: E402
 import veri as veri_modulu  # noqa: E402
@@ -38,6 +41,8 @@ IZLEME_METNI = "WifiCorrect: izleme çalışmıyor ({})"
 SMS_SON_SN = 3600  # merkezdeki son doğrulama SMS'i sonucu bu kadar süre geçerli
 # misafirden kaynaklanan sağlayıcı/merkez kodları (yanlış/yabancı numara, aynı numaraya çok deneme): SMS çalışıyor sayılır
 MISAFIR_KODLARI = frozenset({"YABANCI", "50", "60200", "21211", "60205", "60203", "80"})
+MERKEZ = 0  # müşteriye bağlı olmayan sorunların "müşteri" numarası (gerçek numaralar 7 hanelidir)
+LISTE_BAYAT_SN = 48 * 3600  # hazır engel listesinin son başarılı üretiminden bu kadar geçtiyse sorun
 SINIR_METNI = "WifiCorrect: günlük SMS üst sınırına ({}) ulaşıldı, bugün başka uyarı SMS'i gitmeyecek."
 
 
@@ -121,7 +126,24 @@ def sorunlar(m, c, rapor, rapor_zaman, el_sikisma, son_gun, simdi, arsiv_var=Tru
     return out
 
 
+def liste_sorunu(dizin, simdi):
+    """Hazır engel listesi sorunu metni ya da None. Kategori düzeyinde hata (bugün hiçbir kaynak inmedi) ya da son başarılı
+    üretim LISTE_BAYAT_SN'den eski. Tek kaynağın hatası (diğeri indi) sorun değildir; hiç üretilmemiş ya da okunamayan
+    meta yok sayılır (yeni kurulum; yönetim sayfası gösterir)."""
+    kotu = []
+    for k, ad in listeler.KATEGORILER.items():
+        m = listeler.meta_oku(dizin, k)
+        if m is None:
+            continue
+        z = _epoch(m.get("zaman"))
+        if m.get("hata") or z is None or simdi - z > LISTE_BAYAT_SN:
+            kotu.append(ad)
+    return "Engel listeleri güncellenemiyor: " + ", ".join(kotu) if kotu else None
+
+
 def _kim(m, c):
+    if m is None:
+        return "merkez"
     ad = (c["isletme_adi"] if c is not None else "").strip()
     return f"{m['numara']} {ad}" if ad else str(m["numara"])
 
@@ -215,8 +237,12 @@ def _musteri_turu(veri, u, m, c, d, simdi):
     yeni = {t: (metin, onem) for t, metin, onem in
             sorunlar(m, c, rapor, rz, d_.get("el_sikisma"), d_.get("son_gun"), simdi, arsiv_var=d is not None,
                     hedef=hedef["surum"] if hedef else None, sms_son=veri.sms_son(n))}
+    _sorunlari_isle(veri, u, n, m, c, yeni, kapsam(m, c, simdi) == "tam", simdi)
+
+
+def _sorunlari_isle(veri, u, n, m, c, yeni, tam, simdi):
+    """yeni: {tur: (metin, onem)} bu turda geçerli sorunlar → aç/kapat/yeniden aç, SMS kararları. m None: merkez."""
     acik = {s["tur"]: s for s in veri.acik_sorunlar(n)}
-    tam = kapsam(m, c, simdi) == "tam"
     for tur, s in acik.items():
         if tur in yeni or ("ulasilamiyor" in yeni and tur in ULASILAMIYORKEN_BILINMEZ):  # bilinmiyor: düzeldi sayılmaz
             continue
@@ -251,9 +277,19 @@ def _musteri_turu(veri, u, m, c, d, simdi):
             u.acilis(m, c, s)
 
 
-def calistir(veri, durum, gonder=netgsm.gonder, simdi=None):
+def _merkez_turu(veri, u, simdi, liste_dizini):
+    metin = liste_sorunu(liste_dizini, simdi)
+    yeni = {"liste_guncellenemiyor": (metin, "uyari")} if metin else {}
+    _sorunlari_isle(veri, u, MERKEZ, None, None, yeni, True, simdi)
+
+
+def calistir(veri, durum, gonder=netgsm.gonder, simdi=None, liste_dizini=listeler.DIZIN):
     simdi = time.time() if simdi is None else simdi
     u = Uyari(veri, gonder, simdi)
+    try:  # cihazlardan (durum.json'dan) bağımsız: izleme bozuk olsa da değerlendirilir
+        _merkez_turu(veri, u, simdi, liste_dizini)
+    except Exception as h:
+        u.izleme_bozuk("merkez_hatasi", f"merkez denetimi: {type(h).__name__}")
     zaman = _epoch(durum.get("zaman")) if isinstance(durum, dict) else None
     # wc-durum çalışmıyorsa her cihaz "ulaşılamıyor" görünürdü: hiçbir sorun açılıp kapanmaz, günde bir SMS
     if zaman is None:

@@ -313,14 +313,20 @@ pub fn save_sessions(state_root: &str, s: &Sessions) -> std::io::Result<()> {
 
 /// Geçici dosyaya yaz + fsync + yeniden adlandır (yarım dosya kalmaz).
 pub fn write_atomic(path: &Path, data: &[u8]) -> std::io::Result<()> {
+    write_atomic_mode(path, data, 0o600)
+}
+
+/// `write_atomic`, dosya izni `mode` (geçici dosya bu izinle yazılır, yeniden adlandırmadan sonra izin değişmez:
+/// okuyan süreç dosyayı hiçbir an yanlış izinle görmez).
+pub fn write_atomic_mode(path: &Path, data: &[u8], mode: u32) -> std::io::Result<()> {
     if let Some(dir) = path.parent() {
         mkdirs(dir)?;
     }
     let tmp = path.with_extension("tmp");
-    let mut f = OpenOptions::new().write(true).create(true).truncate(true).mode(0o600).open(&tmp)?;
+    let mut f = OpenOptions::new().write(true).create(true).truncate(true).mode(mode).open(&tmp)?;
     f.write_all(data)?;
     f.sync_all()?;
-    fs::set_permissions(&tmp, fs::Permissions::from_mode(0o600))?;
+    fs::set_permissions(&tmp, fs::Permissions::from_mode(mode))?;
     fs::rename(&tmp, path)
 }
 

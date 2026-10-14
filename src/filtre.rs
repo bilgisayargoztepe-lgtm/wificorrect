@@ -31,12 +31,16 @@ pub fn normalize_word(raw: &str) -> Option<String> {
 }
 
 /// Engelli mi, hangi kuraldan. Güvenlik duvarı DNS paketinde ararken alan adı parçaları ayrı ayrı durur (aralarında
-/// uzunluk baytı) → kelime ve istisna her parçada ayrı aranır, bu da aynısını yapar.
-pub fn check(cfg: &Config, domain: &str) -> Option<String> {
+/// uzunluk baytı) → kelime ve istisna her parçada ayrı aranır, bu da aynısını yapar. Hazır listeler (src/liste.rs)
+/// elle girilen sitelerden sonra bakılır.
+pub fn check(cfg: &Config, hazir: &crate::liste::Yollar, domain: &str) -> Option<String> {
     let d = normalize_site(domain).or_else(|| normalize_word(domain))?;
     let f = &cfg.filtre;
     if let Some(s) = f.siteler.iter().find(|s| d == **s || d.ends_with(&format!(".{s}"))) {
         return Some(format!("yasaklı site: {s}"));
+    }
+    if let Some(ad) = crate::liste::bul(cfg, hazir, &d) {
+        return Some(format!("hazır liste: {ad}"));
     }
     let labels: Vec<&str> = d.split('.').collect();
     let has = |w: &String| labels.iter().any(|l| l.contains(w.as_str()));
@@ -133,15 +137,16 @@ mod tests {
         }
         assert_eq!(normalize_word(" Bet ").as_deref(), Some("bet"));
         assert!(normalize_word("b").is_none() && normalize_word("bet.com").is_none() && normalize_word("b\"et").is_none());
+        let yok = crate::liste::Yollar { dizin: "/yok/wfc-liste".into(), conf: "/yok/wfc-hazir.conf".into() }; // hazır liste yok
         let c = cfg("siteler = ['bet365.com']\nkelimeler = ['bet', 'porn']\nistisnalar = ['alphabet', 'better']\n");
-        assert_eq!(check(&c, "m.bet365.com").as_deref(), Some("yasaklı site: bet365.com"));
-        assert_eq!(check(&c, "superbet.com.tr").as_deref(), Some("yasaklı kelime: bet"));
-        assert_eq!(check(&c, "WWW.PoRnHuB.CoM").as_deref(), Some("yasaklı kelime: porn"));
-        assert_eq!(check(&c, "abc.alphabet.com"), None); // istisna
-        assert_eq!(check(&c, "betterhelp.com"), None);
-        assert_eq!(check(&c, "google.com"), None);
-        assert_eq!(check(&c, "notbet365.com").as_deref(), Some("yasaklı kelime: bet")); // site değil (alt ad değil), kelime
-        assert_eq!(check(&cfg(""), "bet365.com"), None); // boş liste: hiçbir şey engellenmez
+        assert_eq!(check(&c, &yok, "m.bet365.com").as_deref(), Some("yasaklı site: bet365.com"));
+        assert_eq!(check(&c, &yok, "superbet.com.tr").as_deref(), Some("yasaklı kelime: bet"));
+        assert_eq!(check(&c, &yok, "WWW.PoRnHuB.CoM").as_deref(), Some("yasaklı kelime: porn"));
+        assert_eq!(check(&c, &yok, "abc.alphabet.com"), None); // istisna
+        assert_eq!(check(&c, &yok, "betterhelp.com"), None);
+        assert_eq!(check(&c, &yok, "google.com"), None);
+        assert_eq!(check(&c, &yok, "notbet365.com").as_deref(), Some("yasaklı kelime: bet")); // site değil (alt ad değil), kelime
+        assert_eq!(check(&cfg(""), &yok, "bet365.com"), None); // boş liste: hiçbir şey engellenmez
     }
 
     #[test]

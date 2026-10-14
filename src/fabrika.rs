@@ -59,6 +59,7 @@ pub fn fabrika(
     merkez_path: &Path,
     bildir: &dyn Fn(&crate::merkez::Merkez) -> Result<(), String>,
     filtre_conf: &Path,
+    liste: &crate::liste::Yollar,
     y: &Yollar,
     now: f64,
     runner: &Runner,
@@ -130,6 +131,11 @@ pub fn fabrika(
     if let Err(e) = crate::filtre::uygula(&fresh, filtre_conf, runner) {
         errs.push(e);
     }
+    // 5b) hazır listeler varsayılan (hepsi açık), önceki işletmenin istisnaları hazır listeden de kalkar; dnsmasq durduğu
+    // için yeniden okutulmaz, ağ geçişi başlatınca okur
+    if let Err(e) = crate::liste::uygula(&fresh, liste, runner) {
+        errs.push(e);
+    }
     // 6) portlar varsayılan; bekleyen port değişikliği ve yedeği silinir
     for p in [&y.ag, &y.yeni()] {
         let _ = std::fs::remove_file(p);
@@ -161,7 +167,7 @@ mod tests {
         // eskimiş cihaz: işletme ayarlı, SMS bilgisi girilmiş, sahip hesabı ve açık oturum var, portlar değişmiş
         let cfg_path = root.join("ayarlar.toml");
         let text = format!(
-            "[main]\nsite_name = 'Bocafe'\nunvan = 'Boca Gıda Ltd.'\nlog_root = '{0}/5651'\nstate_root = '{0}/state'\n[netgsm]\npassword = 'gizli'\n[backup]\nenabled = true\ntarget = 'kafe-x@sunucu:'\n[filtre]\nkelimeler = ['bet']\n",
+            "[main]\nsite_name = 'Bocafe'\nunvan = 'Boca Gıda Ltd.'\nlog_root = '{0}/5651'\nstate_root = '{0}/state'\n[netgsm]\npassword = 'gizli'\n[backup]\nenabled = true\ntarget = 'kafe-x@sunucu:'\n[filtre]\nkelimeler = ['bet']\nistisnalar = ['bets10']\n",
             root.display()
         );
         std::fs::write(&cfg_path, &text).unwrap();
@@ -194,6 +200,14 @@ mod tests {
             hiz_uygulanan: root.join("hiz_uygulanan"),
         };
         ag::save(&y.ag, &Ag { wan: "enp1s0".into(), lan: vec!["enp3s0".into()], ..Ag::default() }).unwrap();
+        // hazır liste: önceki işletmenin istisnası (bets10) birleşik dosyadan çıkarmış
+        let hl = crate::liste::Yollar { dizin: root.join("liste"), conf: root.join("hazir-liste.conf") };
+        std::fs::create_dir_all(&hl.dizin).unwrap();
+        let mut gz = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+        std::io::Write::write_all(&mut gz, b"bet365.com\nbets10.com\n").unwrap();
+        std::fs::write(hl.dizin.join("kumar.txt.gz"), gz.finish().unwrap()).unwrap();
+        crate::liste::uygula(&cfg, &hl, &|_: &[String]| true).unwrap();
+        assert!(!std::fs::read_to_string(&hl.conf).unwrap().contains("bets10"));
         // önceki işletmenin yavaşlattığı cihazlar, bugünkü kullanım ve uygulanmış plan izi
         let mut sinir = crate::hiz::Sinirlar::new();
         sinir.insert("aa:bb:cc:dd:ee:01".into(), crate::hiz::Sinir { hiz: 2, ad: "Ayşe Yılmaz".into(), zaman: String::new(), kim: "mudur".into() });
@@ -213,12 +227,12 @@ mod tests {
         ortak::append_rows(&ortak::day_file(&cfg.main.log_root, "2026-10-01", "dhcp.csv"), &[Row::new("DHCP_ATAMA", "2026-10-01T10:00:00+03:00")]).unwrap();
         // sunucuya gönderilemezse iptal: hiçbir şey silinmez, ayarlar aynı, servisler geri açılır
         let fail = |c: &[String]| c[0] != "rsync";
-        let r = fabrika(&cfg, &cfg_path.to_string_lossy(), &root.join("hesaplar.json").to_string_lossy(), &mp, &bildir, &root.join("yasak.conf"), &y, 1_791_000_000.0, &fail);
+        let r = fabrika(&cfg, &cfg_path.to_string_lossy(), &root.join("hesaplar.json").to_string_lossy(), &mp, &bildir, &root.join("yasak.conf"), &hl, &y, 1_791_000_000.0, &fail);
         assert!(r.unwrap_err().contains("gönderilemedi"));
         assert!(root.join("5651/gunluk/2026-10-01").exists() && h.load().unwrap().len() == 1 && mp.exists() && bildirimler.lock().unwrap().is_empty());
         assert_eq!(Config::load(&cfg_path.to_string_lossy()).unwrap().main.site_name, "Bocafe");
         // gönderilince: kayıtlar mühürlü + yedeklendi işaretli olarak sunucuya, sonra cihazdan silinir
-        let errs = fabrika(&cfg, &cfg_path.to_string_lossy(), &root.join("hesaplar.json").to_string_lossy(), &mp, &bildir, &root.join("yasak.conf"), &y, 1_791_000_000.0, &runner).unwrap();
+        let errs = fabrika(&cfg, &cfg_path.to_string_lossy(), &root.join("hesaplar.json").to_string_lossy(), &mp, &bildir, &root.join("yasak.conf"), &hl, &y, 1_791_000_000.0, &runner).unwrap();
         assert!(errs.is_empty(), "{errs:?}");
         {
             let v = calls.lock().unwrap();
@@ -240,6 +254,8 @@ mod tests {
         // yavaşlatmalar, bugünkü kullanım ve plan izi silindi (yeni işletmede eski misafirler görünmez, yavaşlamaz)
         assert!(!state.join("hiz_sinir.json").exists() && !state.join("trafik_gun.json").exists() && !y.hiz_uygulanan.exists());
         assert!(!state.join("misafir_kodlari.json").exists() && !state.join("kisi_sir").exists());
+        // hazır liste istisnasız yeniden kuruldu
+        assert!(std::fs::read_to_string(&hl.conf).unwrap().contains("server=/bets10.com/"));
         // portlar varsayılan, ağ yeniden kuruldu
         assert!(std::fs::read_to_string(&y.nft).unwrap().contains("\"enp3s0\"") && !y.ag.exists());
         let v = calls.lock().unwrap();
@@ -287,8 +303,9 @@ mod tests {
             durum: root.join("durum"),
             hiz_uygulanan: root.join("hiz_uygulanan"),
         };
+        let hl = crate::liste::Yollar { dizin: root.join("liste"), conf: root.join("hazir-liste.conf") };
         let r = fabrika(&cfg, &cfg_path.to_string_lossy(), &root.join("hesaplar.json").to_string_lossy(), &root.join("merkez.json"),
-                        &|_: &crate::merkez::Merkez| Ok(()), &root.join("yasak.conf"), &y, 1_791_000_000.0, &runner);
+                        &|_: &crate::merkez::Merkez| Ok(()), &root.join("yasak.conf"), &hl, &y, 1_791_000_000.0, &runner);
         assert!(r.is_err());
         assert_eq!(ortak::load_sessions(&cfg.main.state_root).len(), 1); // misafir oturumu kapanmadı
         assert!(!calls.lock().unwrap().iter().any(|c| c.starts_with("systemctl stop"))); // servisler durdurulmadı

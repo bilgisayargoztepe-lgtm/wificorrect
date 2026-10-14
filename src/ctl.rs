@@ -4,9 +4,71 @@ use crate::ayar::Config;
 use crate::ortak::{self, Row, Runner};
 use std::process::ExitCode;
 
+/// dnsmasq'ın betiğe verdiği kira bitişi (epoch): `DNSMASQ_LEASE_EXPIRES`, yoksa şimdi + `DNSMASQ_TIME_REMAINING`.
+pub fn kira_bitisi(env: &dyn Fn(&str) -> Option<String>, now: f64) -> Option<f64> {
+    let sayi = |k: &str| env(k).and_then(|v| v.trim().parse::<u64>().ok()).map(|v| v as f64);
+    sayi("DNSMASQ_LEASE_EXPIRES").or_else(|| sayi("DNSMASQ_TIME_REMAINING").map(|r| now + r))
+}
+
+/// Son kaydedilen DHCP olayı (MAC başına): dnsmasq'ın SIGHUP/yeniden başlatmada bütün kiralar için `old` ile yeniden
+/// çağırdığı betiği gerçek yenilemeden ayırmak için.
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, Debug)]
+struct DhcpSon {
+    ip: String,
+    bitis: f64,
+    /// Temizlenmiş cihaz adı; eski durum dosyasında yok (None: karşılaştırılmaz, sonraki olayda tamamlanır).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    host: Option<String>,
+}
+
+const DHCP_SON: &str = "dhcp_son.json";
+/// `DNSMASQ_TIME_REMAINING`'den hesaplanan bitiş çağrı anına göre birkaç saniye oynar.
+const BITIS_TOLERANS: f64 = 5.0;
+
+/// `old` olayı son kaydedilenle aynı mı (IP ve kira bitişi değişmemiş: yeniden okutma, gerçek yenileme değil). Durum
+/// dosyası her olayda güncellenir; `del` kaydı siler; bitişinden bir gün geçen kayıtlar atılır. dnsmasq betiği tek tek
+/// (sırayla) çalıştırır, ayrıca kilit gerekmez.
+fn dhcp_tekrar_mi(state_root: &str, action: &str, mac: &str, ip: &str, host: &str, bitis: Option<f64>, now: f64) -> bool {
+    let yol = std::path::Path::new(state_root).join(DHCP_SON);
+    let mut son: std::collections::BTreeMap<String, DhcpSon> = std::fs::read(&yol).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default();
+    let once = son.clone();
+    let tekrar = action == "old"
+        && bitis.is_some_and(|b| {
+            son.get(mac).is_some_and(|s| s.ip == ip && (s.bitis - b).abs() <= BITIS_TOLERANS && s.host.as_deref().is_none_or(|h| h == host))
+        });
+    match (action, bitis) {
+        ("del", _) => {
+            son.remove(mac);
+        }
+        (_, Some(b)) if !tekrar => {
+            son.insert(mac.to_string(), DhcpSon { ip: ip.to_string(), bitis: b, host: Some(host.to_string()) });
+        }
+        ("old", Some(_)) => {
+            // eski durum dosyasından gelen adsız kayıt: ad tamamlanır (satır yazılmaz)
+            if let Some(s) = son.get_mut(mac).filter(|s| s.host.is_none()) {
+                s.host = Some(host.to_string());
+            }
+        }
+        _ => {}
+    }
+    son.retain(|_, s| s.bitis + 86_400.0 > now);
+    if son != once {
+        let _ = ortak::mkdirs(std::path::Path::new(state_root));
+        if let Ok(b) = serde_json::to_vec(&son) {
+            if let Err(e) = ortak::write_atomic(&yol, &b) {
+                eprintln!("dhcp-olay: {} yazılamadı: {e}", yol.display());
+            }
+        }
+    }
+    tekrar
+}
+
 /// dnsmasq `dhcp-script` çağrısı: `<add|old|del> <mac> <ip> [hostname]` (Debian dnsmasq biçimi).
 /// 5651 iç IP dağıtım kaydını (`dhcp.csv`) yazar; atama/yenilemede kayıtlı cihazın oturumunu yeni IP'ye taşır.
-pub fn dhcp_olay(cfg: &Config, action: &str, mac: &str, ip: &str, host: &str, now: f64, runner: &Runner) -> &'static str {
+/// `bitis` (kira bitişi, bkz. `kira_bitisi`) biliniyorsa ve `old` olayında IP ile bitiş son kaydedilenle aynıysa hiçbir
+/// şey yazılmaz ("tekrar"): dnsmasq SIGHUP (hazır liste) ve yeniden başlatmada bütün kiralar için betiği yeniden çağırır.
+#[allow(clippy::too_many_arguments)]
+pub fn dhcp_olay(cfg: &Config, action: &str, mac: &str, ip: &str, host: &str, bitis: Option<f64>, now: f64, runner: &Runner) -> &'static str {
     let olay = match action {
         "add" => "DHCP_ATAMA",
         "old" => "DHCP_YENILEME",
@@ -15,6 +77,9 @@ pub fn dhcp_olay(cfg: &Config, action: &str, mac: &str, ip: &str, host: &str, no
     };
     let (Some(mac), true) = (ortak::norm_mac(mac), ortak::in_subnet(ip, &cfg.main.subnet)) else { return "gecersiz" };
     let host: String = host.chars().filter(|c| c.is_ascii_alphanumeric() || "._-".contains(*c)).take(63).collect();
+    if dhcp_tekrar_mi(&cfg.main.state_root, action, &mac, ip, &host, bitis, now) {
+        return "tekrar";
+    }
     let zaman = ortak::now_iso(now);
     let row = Row::new(olay, &zaman).set("mac", &mac).set("ic_ip", ip).set("alan_adi", host);
     let path = ortak::day_file(&cfg.main.log_root, ortak::day_of(&zaman), "dhcp.csv");
@@ -178,6 +243,7 @@ fn fabrika_calistir(cfg: &Config, now: f64, runner: &Runner, serbest: bool) -> E
         std::path::Path::new(crate::merkez::PATH),
         &bildir,
         std::path::Path::new(crate::filtre::DNSMASQ_CONF),
+        &crate::liste::Yollar::sistem(),
         &crate::ag::Yollar::sistem(),
         now,
         runner,
@@ -238,7 +304,8 @@ pub fn run(cfg: Config, args: &[String]) -> ExitCode {
     match args.first().map(String::as_str) {
         Some("dhcp-olay") if args.len() >= 4 => {
             let host = args.get(4).map(String::as_str).unwrap_or("");
-            println!("{}", dhcp_olay(&cfg, &args[1], &args[2], &args[3], host, now, &runner));
+            let bitis = kira_bitisi(&|k| std::env::var(k).ok(), now);
+            println!("{}", dhcp_olay(&cfg, &args[1], &args[2], &args[3], host, bitis, now, &runner));
             ExitCode::SUCCESS
         }
         Some("yukle") => {
@@ -335,6 +402,7 @@ pub fn run(cfg: Config, args: &[String]) -> ExitCode {
         Some("saglik") => {
             let http = |y: &str, g: &str| crate::merkez::curl_sure(y, g, 10);
             let k = crate::saglik::Kaynak::sistem();
+            let mut liste_isi = false;
             match crate::saglik::calistir(&cfg, std::path::Path::new(crate::merkez::PATH), &k, &http, now) {
                 Ok(cevap) => {
                     // merkezin etkin deneme modu (Özet uyarısı, sms_sorunu): yalnızca değiştiyse kaydedilir
@@ -355,11 +423,63 @@ pub fn run(cfg: Config, args: &[String]) -> ExitCode {
                         };
                         crate::guncelleme::hedefi_isle(&k.guncelleme, &h, &kurulu, now, &baslat);
                     }
+                    if let Some(l) = cevap.listeler {
+                        // hazır engel listeleri: açık bir kategorinin sürümü değiştiyse ayrı işte indirilir
+                        let baslat = || {
+                            let c: Vec<String> = ["systemd-run", "--collect", "--unit", "wfc-liste", "/usr/local/bin/wificorrect", "ctl", "liste-guncelle"].map(String::from).to_vec();
+                            ortak::run(&c);
+                        };
+                        liste_isi = crate::liste::hedefi_isle(&crate::liste::Yollar::sistem(), &l, &crate::liste::acik_harita(&cfg), now, &baslat);
+                    }
                 }
                 Err(e) => eprintln!("sağlık raporu gönderilemedi: {e}"),
             }
+            // dnsmasq hazır listeyi yeniden okuyamadıysa (HUP başarısız) merkeze ulaşılamasa da yeniden denenir
+            let baslat = || {
+                let c: Vec<String> = ["systemd-run", "--collect", "--unit", "wfc-liste-uygula", "/usr/local/bin/wificorrect", "ctl", "liste-uygula"].map(String::from).to_vec();
+                ortak::run(&c);
+            };
+            crate::liste::hup_yeniden(&crate::liste::Yollar::sistem(), liste_isi, &baslat);
             ExitCode::SUCCESS
         }
+        // `ctl saglik` ya da panel başlatır (systemd-run --unit wfc-liste): eksik/eski açık hazır listeleri indirir, uygular
+        Some("liste-guncelle") => {
+            let Some(m) = crate::merkez::oku(std::path::Path::new(crate::merkez::PATH)) else {
+                eprintln!("cihaz merkeze bağlı değil");
+                return ExitCode::from(1);
+            };
+            let y = crate::liste::Yollar::sistem();
+            let indir = |yol: &str, g: &str, c: &std::path::Path| crate::merkez::indir(yol, g, c, 300);
+            let alinan = crate::liste::guncelle(&y, &cfg.main.log_root, &m, &crate::liste::hedef_oku(&y), &crate::liste::acik_harita(&cfg), &indir, now);
+            let cfg_path = std::env::var("WFC_AYAR").unwrap_or_else(|_| crate::ayar::PATH.to_string());
+            match crate::liste::uygula_guncel(&cfg_path, &cfg, &y, &runner) {
+                Ok(n) => {
+                    println!("{} liste indirildi; {n} alan adı engelli", alinan.len());
+                    ExitCode::SUCCESS
+                }
+                Err(e) => {
+                    eprintln!("{e}");
+                    ExitCode::from(1)
+                }
+            }
+        }
+        // Panel (systemd-run --unit wfc-liste-uygula; aç/kapat, istisna), fabrika dönüşü, paket kurulumu ve elle: birleşik
+        // hazır liste dosyasını güncel ayarla yeniden yazar (dnsmasq SIGHUP; önceki okutma başarısızsa yeniden dener)
+        Some("liste-uygula") => match crate::liste::uygula_guncel(
+            &std::env::var("WFC_AYAR").unwrap_or_else(|_| crate::ayar::PATH.to_string()),
+            &cfg,
+            &crate::liste::Yollar::sistem(),
+            &runner,
+        ) {
+            Ok(n) => {
+                println!("{n} alan adı engelli");
+                ExitCode::SUCCESS
+            }
+            Err(e) => {
+                eprintln!("{e}");
+                ExitCode::from(1)
+            }
+        },
         // `ctl saglik` başlatır (systemd-run --unit wfc-guncelle): hedef sürümü indirir, doğrular, kurar
         Some("guncelle") => {
             let Some(m) = crate::merkez::oku(std::path::Path::new(crate::merkez::PATH)) else {
@@ -508,7 +628,7 @@ pub fn run(cfg: Config, args: &[String]) -> ExitCode {
         _ => {
             eprintln!(
                 "Kullanım: wificorrect ctl <komut>\n  dhcp-olay <add|old|del> <mac> <ip> [ad]\n  yukle\n  oturumlar\n  \
-                 gun-kapat [YYYY-AA-GG] [--zorla]\n  dogrula [--son N]\n  temizle [--kuru]\n  yedekle\n  ara ...  (ayrıntı: ctl ara)\n  disa-aktar --baslangic G --bitis G --cikti DOSYA\n  ag-uygula | ag-gecis DOSYA | ag-onayla | ag-geri-al | ag-ilk\n  ayar-temizle\n  filtre-uygula\n  hiz-uygula\n  admin-parola\n  merkez-eslesme\n  saglik\n  guncelle"
+                 gun-kapat [YYYY-AA-GG] [--zorla]\n  dogrula [--son N]\n  temizle [--kuru]\n  yedekle\n  ara ...  (ayrıntı: ctl ara)\n  disa-aktar --baslangic G --bitis G --cikti DOSYA\n  ag-uygula | ag-gecis DOSYA | ag-onayla | ag-geri-al | ag-ilk\n  ayar-temizle\n  filtre-uygula\n  liste-uygula | liste-guncelle\n  hiz-uygula\n  admin-parola\n  merkez-eslesme\n  saglik\n  guncelle"
             );
             ExitCode::from(2)
         }
@@ -574,19 +694,86 @@ mod tests {
         ses.insert(M1.into(), sess("10.50.0.23", NOW + 3600.0));
         ses.insert(M2.into(), sess("10.50.0.30", NOW + 3600.0));
         ortak::save_sessions(&c.main.state_root, &ses).unwrap();
-        assert_eq!(dhcp_olay(&c, "add", "AA:BB:CC:DD:EE:01", "10.50.0.30", "iPhone;=x", NOW, &runner), "tasindi");
+        assert_eq!(dhcp_olay(&c, "add", "AA:BB:CC:DD:EE:01", "10.50.0.30", "iPhone;=x", None, NOW, &runner), "tasindi");
         let ses = ortak::load_sessions(&c.main.state_root);
         assert_eq!((ses[M1].ip.as_str(), ses[M2].ip.as_str()), ("10.50.0.30", "")); // eski sahibi beklemeye
         let dhcp = std::fs::read_to_string(root.join("5651/gunluk/2026-09-29/dhcp.csv")).unwrap();
         assert!(dhcp.contains("2026-09-29T21:05:34+03:00;DHCP_ATAMA;;;;aa:bb:cc:dd:ee:01;10.50.0.30;;;;;;;iPhonex;"));
         assert!(calls.lock().unwrap().iter().any(|c| c[1] == "add" && c[6].contains("10.50.0.30")));
-        assert_eq!(dhcp_olay(&c, "old", M1, "10.50.0.30", "", NOW, &runner), "degisiklik yok");
-        assert_eq!(dhcp_olay(&c, "del", M1, "10.50.0.30", "", NOW, &runner), "kaydedildi");
-        assert_eq!(dhcp_olay(&c, "add", "bozuk", "10.50.0.30", "", NOW, &runner), "gecersiz");
-        assert_eq!(dhcp_olay(&c, "add", M1, "192.168.1.5", "", NOW, &runner), "gecersiz");
-        assert_eq!(dhcp_olay(&c, "tftp", M1, "10.50.0.30", "", NOW, &runner), "yok sayildi");
+        assert_eq!(dhcp_olay(&c, "old", M1, "10.50.0.30", "", None, NOW, &runner), "degisiklik yok");
+        assert_eq!(dhcp_olay(&c, "del", M1, "10.50.0.30", "", None, NOW, &runner), "kaydedildi");
+        assert_eq!(dhcp_olay(&c, "add", "bozuk", "10.50.0.30", "", None, NOW, &runner), "gecersiz");
+        assert_eq!(dhcp_olay(&c, "add", M1, "192.168.1.5", "", None, NOW, &runner), "gecersiz");
+        assert_eq!(dhcp_olay(&c, "tftp", M1, "10.50.0.30", "", None, NOW, &runner), "yok sayildi");
         let dhcp = std::fs::read_to_string(root.join("5651/gunluk/2026-09-29/dhcp.csv")).unwrap();
         assert!(dhcp.contains(";DHCP_YENILEME;") && dhcp.contains(";DHCP_BIRAKMA;"));
+    }
+
+    /// dnsmasq SIGHUP'ta (hazır liste yeniden okutma) ve yeniden başlatmada bütün kiralar için betiği `old` ile yeniden
+    /// çağırır: kira bitişi ve IP aynıysa 5651 kaydına sahte DHCP_YENILEME yazılmaz, oturuma dokunulmaz.
+    #[test]
+    fn dhcp_tekrar_eden_old_yazilmaz() {
+        let (c, root) = cfg();
+        let runner = |_: &[String]| true;
+        let satir = || {
+            std::fs::read_to_string(root.join("5651/gunluk/2026-09-29/dhcp.csv")).unwrap_or_default().lines().filter(|l| l.contains(";DHCP_")).count()
+        };
+        let bitis = Some(NOW + 7200.0);
+        assert_ne!(dhcp_olay(&c, "add", M1, "10.50.0.30", "", bitis, NOW, &runner), "tekrar");
+        assert_eq!(satir(), 1);
+        // HUP / yeniden başlatma: aynı IP, aynı kira bitişi → satır yok
+        assert_eq!(dhcp_olay(&c, "old", M1, "10.50.0.30", "", bitis, NOW + 60.0, &runner), "tekrar");
+        assert_eq!(dhcp_olay(&c, "old", M1, "10.50.0.30", "", bitis, NOW + 90.0, &runner), "tekrar");
+        assert_eq!(satir(), 1);
+        // DNSMASQ_TIME_REMAINING'den hesaplanan bitiş birkaç saniye oynayabilir
+        assert_eq!(dhcp_olay(&c, "old", M1, "10.50.0.30", "", Some(NOW + 7201.0), NOW + 95.0, &runner), "tekrar");
+        // gerçek yenileme: bitiş uzar → yazılır
+        assert_ne!(dhcp_olay(&c, "old", M1, "10.50.0.30", "", Some(NOW + 3600.0 + 7200.0), NOW + 3600.0, &runner), "tekrar");
+        assert_eq!(satir(), 2);
+        // aynı bitiş ama farklı IP → yazılır
+        assert_ne!(dhcp_olay(&c, "old", M1, "10.50.0.31", "", Some(NOW + 3600.0 + 7200.0), NOW + 3601.0, &runner), "tekrar");
+        assert_eq!(satir(), 3);
+        // add ve del her zaman yazılır (aynı bitişle bile)
+        dhcp_olay(&c, "add", M1, "10.50.0.31", "", Some(NOW + 3600.0 + 7200.0), NOW + 3602.0, &runner);
+        dhcp_olay(&c, "del", M1, "10.50.0.31", "", Some(NOW + 3600.0 + 7200.0), NOW + 3603.0, &runner);
+        dhcp_olay(&c, "del", M1, "10.50.0.31", "", Some(NOW + 3600.0 + 7200.0), NOW + 3604.0, &runner);
+        assert_eq!(satir(), 6);
+        // bırakmadan sonra aynı bitişle gelen old artık tekrar değildir (kayıt silindi)
+        assert_ne!(dhcp_olay(&c, "old", M1, "10.50.0.31", "", Some(NOW + 3600.0 + 7200.0), NOW + 3605.0, &runner), "tekrar");
+        assert_eq!(satir(), 7);
+        // bitiş bilinmiyorsa (ortam değişkeni yok) bugünkü gibi her zaman yazılır
+        assert_ne!(dhcp_olay(&c, "old", M2, "10.50.0.40", "", None, NOW, &runner), "tekrar");
+        assert_ne!(dhcp_olay(&c, "old", M2, "10.50.0.40", "", None, NOW, &runner), "tekrar");
+        assert_eq!(satir(), 9);
+        // aynı IP ve bitiş ama cihaz adı değişti (temizlenmiş adla karşılaştırılır) → yazılır
+        dhcp_olay(&c, "add", M1, "10.50.0.50", "iPhone;", Some(NOW + 9000.0), NOW + 3700.0, &runner);
+        let n = satir();
+        assert_eq!(dhcp_olay(&c, "old", M1, "10.50.0.50", "iPhone", Some(NOW + 9000.0), NOW + 3701.0, &runner), "tekrar");
+        assert_ne!(dhcp_olay(&c, "old", M1, "10.50.0.50", "Galaxy", Some(NOW + 9000.0), NOW + 3702.0, &runner), "tekrar");
+        assert_eq!(satir(), n + 1);
+        // eski durum dosyası (cihaz adı yok): ad karşılaştırılmaz, tamamlanır
+        let yol = root.join("state/dhcp_son.json");
+        std::fs::write(&yol, format!(r#"{{"{M2}":{{"ip":"10.50.0.60","bitis":{}}}}}"#, NOW + 9000.0)).unwrap();
+        assert_eq!(dhcp_olay(&c, "old", M2, "10.50.0.60", "pc", Some(NOW + 9000.0), NOW + 3703.0, &runner), "tekrar");
+        assert!(std::fs::read_to_string(&yol).unwrap().contains(r#""host":"pc""#));
+        assert_ne!(dhcp_olay(&c, "old", M2, "10.50.0.60", "laptop", Some(NOW + 9000.0), NOW + 3704.0, &runner), "tekrar");
+        // eski kayıtlar birikmez: bitişinden bir gün sonra durum dosyasından düşer
+        dhcp_olay(&c, "add", M2, "10.50.0.40", "", Some(NOW + 100.0), NOW, &runner);
+        dhcp_olay(&c, "add", M1, "10.50.0.31", "", Some(NOW + 200_000.0), NOW + 100_000.0, &runner);
+        let son = std::fs::read_to_string(root.join("state/dhcp_son.json")).unwrap();
+        assert!(son.contains(M1) && !son.contains(M2), "{son}");
+    }
+
+    #[test]
+    fn dhcp_kira_bitisi_ortamdan() {
+        let e = |a: &[(&str, &str)]| {
+            let m: std::collections::HashMap<String, String> = a.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect();
+            move |k: &str| m.get(k).cloned()
+        };
+        assert_eq!(kira_bitisi(&e(&[("DNSMASQ_LEASE_EXPIRES", "1790712334")]), NOW), Some(1_790_712_334.0));
+        assert_eq!(kira_bitisi(&e(&[("DNSMASQ_TIME_REMAINING", "7200")]), NOW), Some(NOW + 7200.0));
+        assert_eq!(kira_bitisi(&e(&[("DNSMASQ_LEASE_EXPIRES", "bozuk")]), NOW), None);
+        assert_eq!(kira_bitisi(&e(&[]), NOW), None);
     }
 
     #[test]

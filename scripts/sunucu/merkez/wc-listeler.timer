@@ -1,0 +1,10 @@
+[Unit]
+Description=WifiCorrect hazır engel listeleri, her gün 04:30
+
+[Timer]
+OnCalendar=*-*-* 04:30
+Persistent=true
+RandomizedDelaySec=5min
+
+[Install]
+WantedBy=timers.target

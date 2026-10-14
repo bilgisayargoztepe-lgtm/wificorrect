@@ -13,6 +13,7 @@ import durum as durum_modulu
 import guvenlik
 import kayitlar as kayitlar_modulu
 import kuyruk
+import listeler
 import netgsm
 import surumler
 import veri as veri_modulu
@@ -119,12 +120,14 @@ class Yonetim(web.Taban):
 
     def __init__(self, veri, kayitlar, saat=time.time, yonetici_yolu=yonetici.YONETICI,
                  durum_yolu=durum_modulu.DURUM, kuyruk_ekle=kuyruk.ekle, gonder=netgsm.gonder, gecis=None, musteri_app=None,
-                 github_al=surumler.github_al, getir=surumler.getir, surum_dizini=surumler.DIZIN):
+                 github_al=surumler.github_al, getir=surumler.getir, surum_dizini=surumler.DIZIN,
+                 liste_getir=surumler.getir, liste_dizini=listeler.DIZIN):
         super().__init__(veri, kayitlar, saat)
         self.yonetici_yolu, self.durum_yolu, self.kuyruk_ekle, self.gonder = yonetici_yolu, durum_yolu, kuyruk_ekle, gonder
         # cihaz paneline doğrudan geçiş: müşteri paneliyle aynı belirteç deposu ve cihaz adresi kuralı
         self.gecis, self.musteri_app = gecis, musteri_app
         self.github_al, self.getir, self.surum_dizini = github_al, getir, surum_dizini  # uzaktan güncelleme sürüm deposu
+        self.liste_getir, self.liste_dizini = liste_getir, liste_dizini  # hazır engel listeleri
 
     # --- Taban ---
     def dogrula(self, kul, pw):
@@ -150,7 +153,7 @@ class Yonetim(web.Taban):
 
     def menu(self, ot):
         return ('<a href="/">Müşteriler</a><a href="/yeni">Yeni müşteri</a><a href="/hareketler">Hareketler</a>'
-                '<a href="/surumler">Sürümler</a><a href="/sms">SMS ayarları</a><a href="/uyari">Uyarı ayarları</a><a href="/admin-parolasi">Admin parolası</a><a href="/eski-arsivler">Eski arşivler</a><a href="/hesabim">Hesabım</a>')
+                '<a href="/surumler">Sürümler</a><a href="/listeler">Engel listeleri</a><a href="/sms">SMS ayarları</a><a href="/uyari">Uyarı ayarları</a><a href="/admin-parolasi">Admin parolası</a><a href="/eski-arsivler">Eski arşivler</a><a href="/hesabim">Hesabım</a>')
 
     # --- yardımcılar ---
     def _durum(self):
@@ -199,6 +202,14 @@ class Yonetim(web.Taban):
             return self.surum_al(ot, ip)
         if (yontem, yol) == ("POST", "/surumler/hedef"):
             return self.kanal_hedef(ot, form, ip)
+        if (yontem, yol) == ("GET", "/listeler"):
+            return self.listeler_sayfasi(ot)
+        if (yontem, yol) == ("POST", "/listeler/guncelle"):
+            try:
+                listeler.calistir(self.veri, self.liste_getir, self.liste_dizini, self.saat(), kim="admin", ip=ip, bekle=False)
+            except listeler.Mesgul:
+                return yanit_html(self.mesaj(ot, "Engel listeleri", "Güncelleme zaten sürüyor; birkaç dakika sonra sayfayı yenileyin."))
+            return yonlendir("/listeler")
         if yol == "/uyari":
             return self.uyari(ot, yontem, form, ip)
         if (yontem, yol) == ("POST", "/uyari/deneme"):
@@ -348,6 +359,34 @@ class Yonetim(web.Taban):
             metin += "Alınamayanlar: " + "; ".join(hatalar)
         return yanit_html(self.mesaj(ot, "Sürümler", metin.strip()))
 
+    # --- hazır engel listeleri ---
+    def listeler_sayfasi(self, ot):
+        satirlar = ""
+        for k, ad in listeler.KATEGORILER.items():
+            m = listeler.meta_oku(self.liste_dizini, k) or {}
+            kaynak = "<br>".join(
+                e(d.get("ad", "?")) + ": " + (f'<b class="kotu">hata</b> ({e(d["hata"])})'
+                                               + (f' · son başarılı kopya {e(d.get("sayi", 0))}' if d.get("eski") else "")
+                                               if d.get("hata") else f'{e(d.get("sayi", 0))}')
+                for d in m.get("kaynaklar") or [] if isinstance(d, dict))
+            durum = []
+            if m.get("hata"):
+                durum.append(f'<b class="kotu">{e(m["hata"])}</b> ({e(common.tarih_goster(m.get("hata_zaman")))})')
+            if m.get("kesildi"):
+                durum.append(f'<span class="uyarisi">{listeler.EN_COK} sınırında kesildi</span>')
+            satirlar += (f'<tr><td>{e(ad)}</td><td>{e(m.get("sayi", "—"))}</td>'
+                         f'<td>{e(common.tarih_goster(m.get("zaman")) or "henüz üretilmedi")}</td>'
+                         f'<td>{e(str(m.get("sha256", ""))[:8]) or "—"}</td><td>{kaynak or "—"}</td><td>{"<br>".join(durum) or "tamam"}</td></tr>')
+        tablo = ('<div class="kaydir"><table class="detay"><tr><th>Kategori</th><th>Alan adı</th><th>Son güncelleme</th>'
+                 f'<th>Sürüm</th><th>Kaynaklar</th><th>Durum</th></tr>{satirlar}</table></div>')
+        dugme = (f'<form method="post" action="/listeler/guncelle"><input type="hidden" name="csrf" value="{e(ot["csrf"])}">'
+                 '<button>Şimdi güncelle</button></form>')
+        return yanit_html(self.sayfa("Engel listeleri", kart(
+            "<h1>Engel listeleri</h1>" + dugme + tablo
+            + "<p class=\"alt\">Listeler her gün 04:30'da kaynaklardan yeniden üretilir; cihazlar değişen listeyi bir sonraki "
+              "sağlık raporunda (5 dk) alır. Bir kaynak indirilemezse onun son başarılı kopyası, hiçbiri indirilemezse önceki "
+              "liste kullanılır.</p>"), ot, genis=True))
+
     def kanal_hedef(self, ot, form, ip):
         kanal, sv = form.get("kanal", ""), form.get("surum", "")
         if kanal not in ("kararli", "test") or (sv and (not surumler.SURUM_RE.fullmatch(sv) or self.veri.surum(sv) is None)):
@@ -421,7 +460,12 @@ class Yonetim(web.Taban):
         for x in acik:
             c = cihazlar.get(x["musteri"])
             sn = simdi - (_epoch(x["acilis"]) or simdi)
-            satirlar.append(f'<tr><td><a href="/m/{x["musteri"]}">{x["musteri"]}</a></td><td>{e(c["isletme_adi"] if c is not None else "")}</td>'
+            if x["musteri"] == 0:  # saglik.MERKEZ: müşteriye bağlı olmayan sorun (ör. engel listeleri)
+                bas = '<td>—</td><td><a href="/listeler">Merkez</a></td>'
+            else:
+                bas = (f'<td><a href="/m/{x["musteri"]}">{x["musteri"]}</a></td>'
+                       f'<td>{e(c["isletme_adi"] if c is not None else "")}</td>')
+            satirlar.append(f'<tr>{bas}'
                             f'<td>{e(x["metin"])}</td><td>{e(ONEM_ETIKET.get(x["onem"], x["onem"]))}</td><td>{e(once(sn))}</td>'
                             f'<td>{e(sms_etiketi(x["acilis_sms"], x["onem"]))}</td></tr>')
         return kart('<h2>Açık sorunlar</h2><div class="kaydir"><table class="detay"><tr><th>No</th><th>İşletme</th><th>Sorun</th>'

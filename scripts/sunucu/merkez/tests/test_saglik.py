@@ -1,4 +1,5 @@
 import datetime
+import json
 import os
 import sys
 import tempfile
@@ -297,6 +298,7 @@ class Ortam:
         self.g = Sahte()
         self.el, self.sg, self.rd = {}, {}, {}
         self.wg_ok = True  # durum.json'daki `wg show` başarısı; None: alan yok (eski wc-durum)
+        self.ld = os.path.join(tmp, "listeler")  # hazır engel listeleri meta dizini (boş: denetim sessiz)
 
     def musteri(self, ad="Göztepe", lisans="2027-10-11", el_yas=60):
         n, _ = self.v.musteri_ekle()
@@ -322,7 +324,7 @@ class Ortam:
         d = {"zaman": common.now_iso(simdi), "arsivler": ars}
         if self.wg_ok is not None:
             d["wg_ok"] = self.wg_ok
-        S.calistir(self.v, d, gonder=self.g, simdi=simdi)
+        S.calistir(self.v, d, gonder=self.g, simdi=simdi, liste_dizini=self.ld)
 
     def acik(self, n):
         return {s["tur"]: s for s in self.v.acik_sorunlar(n)}
@@ -774,6 +776,63 @@ def test_netgsm_test_ortaminda_gercek_istek_yok():
             assert False
         except RuntimeError:
             pass
+
+
+def _liste_meta(dizin, kategori, **m):
+    os.makedirs(dizin, exist_ok=True)
+    with open(os.path.join(dizin, kategori + ".json"), "w", encoding="utf-8") as f:
+        json.dump({"kategori": kategori, **m}, f, ensure_ascii=False)
+
+
+def test_liste_sorunu_saf():
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        d = os.path.join(tmp, "l")
+        assert S.liste_sorunu(d, T0) is None  # dizin yok (merkez yeni kuruldu, liste hiç üretilmedi)
+        taze = common.now_iso(T0 - 3600)
+        _liste_meta(d, "kumar", sha256="a" * 64, sayi=5, zaman=taze, kaynaklar=[{"ad": "HaGeZi", "sayi": 5}])
+        # tek kaynağın hatası (USOM HTML döndü) kategori başarılıysa sorun değildir
+        _liste_meta(d, "zararli", sha256="b" * 64, sayi=5, zaman=taze,
+                    kaynaklar=[{"ad": "USOM", "sayi": 0, "hata": "liste yerine HTML sayfası döndü"}, {"ad": "HaGeZi", "sayi": 5}])
+        assert S.liste_sorunu(d, T0) is None
+        _liste_meta(d, "yetiskin", sha256="c" * 64, sayi=5, zaman=taze, hata="Hiçbir kaynak indirilemedi; önceki liste kullanılıyor.")
+        assert S.liste_sorunu(d, T0) == "Engel listeleri güncellenemiyor: Yetişkin içerik"
+        _liste_meta(d, "kumar", sha256="a" * 64, sayi=5, zaman=common.now_iso(T0 - 48 * 3600 - 1))  # 48 saatten eski
+        assert S.liste_sorunu(d, T0) == "Engel listeleri güncellenemiyor: Kumar ve bahis, Yetişkin içerik"
+        _liste_meta(d, "kumar", sha256="a" * 64, sayi=5, zaman=common.now_iso(T0 - 48 * 3600 + 60))
+        _liste_meta(d, "yetiskin", hata="Hiçbir kaynak indirilemedi; önceki liste kullanılıyor.")  # hiç başarılı olmadı
+        assert S.liste_sorunu(d, T0) == "Engel listeleri güncellenemiyor: Yetişkin içerik"
+        with open(os.path.join(d, "yetiskin.json"), "w") as f:
+            f.write("{bozuk")
+        assert S.liste_sorunu(d, T0) is None  # okunamayan meta: liste yok sayılır (yönetim sayfası gösterir)
+
+
+def test_liste_sorunu_merkez_satiri_ve_sms():
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        o = Ortam(tmp)
+        n, _ = o.musteri()
+        _liste_meta(o.ld, "kumar", sha256="a" * 64, sayi=5, zaman=common.now_iso(T0 - 3600), hata="Hiçbir kaynak indirilemedi.")
+        o.tur()
+        a = {s["tur"]: s for s in o.v.acik_sorunlar(S.MERKEZ)}
+        assert list(a) == ["liste_guncellenemiyor"] and a["liste_guncellenemiyor"]["onem"] == "uyari"
+        assert o.acik(n) == {} and o.g.giden == []
+        o.tur(600)
+        assert o.g.giden == ["WifiCorrect merkez: Engel listeleri güncellenemiyor: Kumar ve bahis (20:15'ten beri)"]
+        for _ in range(5):
+            o.tur(3600)
+        assert len(o.g.giden) == 1  # açık kaldıkça yeni SMS yok
+        _liste_meta(o.ld, "kumar", sha256="a" * 64, sayi=5, zaman=common.now_iso(o.t[0]))
+        o.tur(300)
+        assert o.v.acik_sorunlar(S.MERKEZ) == [] and len(o.g.giden) == 1
+        o.tur(600)
+        assert len(o.g.giden) == 2 and o.g.giden[1].startswith("WifiCorrect merkez: Engel listeleri güncellenemiyor: Kumar ve bahis düzeldi")
+
+
+def test_liste_denetimi_durum_bozukken_de_calisir():
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        o = Ortam(tmp)
+        _liste_meta(o.ld, "kumar", hata="Hiçbir kaynak indirilemedi.")
+        S.calistir(o.v, {}, gonder=o.g, simdi=o.t[0], liste_dizini=o.ld)  # durum.json yok
+        assert [s["tur"] for s in o.v.acik_sorunlar(S.MERKEZ)] == ["liste_guncellenemiyor"]
 
 
 if __name__ == "__main__":

@@ -6,6 +6,8 @@ install -d -m 700 /srv/5651 /srv/hotspot /srv/hotspot/state
 install -d -m 755 /var/lib/wificorrect
 [ -e /etc/wificorrect/ayarlar.toml ] || install -m 600 /etc/wificorrect/ayarlar.ornek.toml /etc/wificorrect/ayarlar.toml
 [ -e /etc/wificorrect/yasak-siteler.conf ] || : > /etc/wificorrect/yasak-siteler.conf
+# hazır engel listeleri (dnsmasq servers-file): dosya yoksa dnsmasq açılmaz; liste-uygula / liste-guncelle doldurur
+[ -e /etc/wificorrect/hazir-liste.conf ] || install -m 644 /dev/null /etc/wificorrect/hazir-liste.conf
 # 0.4.8: SMS merkezden gider; ayar dosyasında kalan eski NetGSM/Twilio bilgileri silinir (diğer ayarlar aynen)
 /usr/local/bin/wificorrect ctl ayar-temizle || true
 /usr/local/bin/wificorrect ctl ag-ilk || echo "wificorrect: ağ rolleri belirlenemedi; panel → Portlar" >&2
@@ -17,10 +19,22 @@ systemctl enable dnsmasq.service wificorrect-guvenlik.service wificorrect-ag-aci
 if command -v update-grub >/dev/null; then
   update-grub || echo "wificorrect: update-grub başarısız; açılış ayarları uygulanmadı" >&2
 fi
+# çalışan dnsmasq'ın "PID özet" kaydı (dnsmasq.service.d/wificorrect.conf ExecStartPost → dnsmasq-ozet yazar);
+# eski sürümlerin tuttuğu kalıcı özet dosyası artık kullanılmaz (geri dönüşte bayatlıyordu)
+dnsmasq_ozet=/run/wificorrect-dnsmasq-conf.sha256
+rm -f /var/lib/wificorrect/dnsmasq-conf.sha256
 # Çalışan cihazda güncelleme: servisler yeni ikiliyle açılsın (kurucunun içinde systemd çalışmaz)
 if [ -d /run/systemd/system ]; then
   systemctl daemon-reload
   sysctl -q -p /etc/wificorrect/conntrack.sysctl || true
   systemctl try-restart wificorrect-portal.service wificorrect-kaydedici.service wificorrect-panel.service
+  # Çalışan dnsmasq'ın okuduğu ayar diskteki ayardan farklıysa (ör. yeni servers-file satırı), kayıt yoksa ya da dnsmasq
+  # kanca olmadan yeniden başlamışsa (PID tutmaz; ör. geri dönüş) dnsmasq yeniden başlatılır (yeni satırlar ancak böyle
+  # okunur); aynıysa dokunulmaz (DNS kesintisi yok). Hazır liste önce değil SONRA uygulanır: eski dnsmasq'a boşuna SIGHUP gitmez.
+  dnsmasq_simdi="$(systemctl show -p MainPID --value dnsmasq.service) $(sha256sum /etc/dnsmasq.d/wificorrect.conf | cut -d' ' -f1)"
+  if systemctl -q is-enabled dnsmasq.service && [ "$(cat "$dnsmasq_ozet" 2>/dev/null)" != "$dnsmasq_simdi" ]; then
+    systemctl restart dnsmasq.service || echo "wificorrect: dnsmasq yeniden başlatılamadı" >&2
+  fi
+  /usr/local/bin/wificorrect ctl liste-uygula >/dev/null || true
   systemctl start wificorrect-guncelleme-denetle.timer || true
 fi

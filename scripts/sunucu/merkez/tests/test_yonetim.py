@@ -285,6 +285,10 @@ def test_acik_sorunlar_karti():
         v.sorun_kapat(i1)
         s = Y.al(app, "/", c)[2].decode()
         assert "5651 kaydı durdu" not in s
+        v.sorun_ac(0, "liste_guncellenemiyor", "Engel listeleri güncellenemiyor: Kumar ve bahis", "uyari")  # merkezin satırı
+        s = Y.al(app, "/", c)[2].decode()
+        assert '<a href="/listeler">Merkez</a>' in s and "Engel listeleri güncellenemiyor: Kumar ve bahis" in s
+        assert 'href="/m/0"' not in s
 
 
 def test_sms_durum_etiketleri():

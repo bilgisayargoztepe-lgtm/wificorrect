@@ -239,3 +239,52 @@ Dal `sms-merkez`; sürüm **0.4.8**. Doğrulama SMS'i artık cihazdan değil yö
 - **Ayarlar:** Yönetim → **SMS ayarları**: deneme modu, NetGSM, Twilio ve TR sağlayıcı (netgsm|twilio) tek takım, bütün cihazlar için. Cihazda NetGSM/Twilio sırları ve `ureq` bağımlılığı kalktı (HTTP için `merkez.rs` curl).
 - **Geçiş sırası:** (1) merkez güncellenir (`scripts/sunucu/merkez-guncelle.sh`) ve SMS ayarları Yönetim'de girilir; NetGSM whitelist'e merkezin IP'si eklenir; (2) cihazlar 0.4.8'e uzaktan güncellemeyle geçer (önce test kanalı/Göztepe). Merkez önce gelmezse yeni cihaz `/api/sms` bulamaz ve misafir kod alamaz.
 - **Eski cihazlar:** 0.4.8'den önceki cihazlar kendi SMS'ini göndermeye devam eder; merkez bunlara NetGSM bilgisini eşitlemede göndermeyi sürdürür (hepsi yükselene kadar). Hepsi geçince bu gönderim kaldırılır.
+
+## Hazır engel listeleri (2026-10-14)
+Dal `hazir-listeler`; tasarım `docs/superpowers/specs/2026-10-14-hazir-engel-listeleri-design.md`. Sürüm **0.4.9**.
+- **Kategoriler:** `kumar` "Kumar ve bahis", `yetiskin` "Yetişkin içerik", `zararli` "Zararlı ve dolandırıcı siteler"; üçü
+  varsayılan **açık** (`[filtre.hazir]` anahtarı yoksa açık). Kategori başına en çok 300.000 alan adı (fazlası kesilir,
+  meta'da `kesildi`). **VPN/proxy kategorisi bilerek yok** (iş VPN'leri çalışmalı); VPN/proxy/DoH sağlayıcıları ve ilk etiketi
+  `vpn|doh|dot|dns|proxy` olan adlar hiçbir listeden gelmez.
+- **Kaynaklar ve lisanslar:** HaGeZi DNS Blocklists (GPL-3.0; `gambling.medium`, `nsfw`, `tif.mini`, `wildcard/*-onlydomains`
+  biçimi), StevenBlack/hosts `porn-only` (MIT; eki oluşturan kaynakların kendi lisansları), USOM zararlı bağlantılar (kamuya
+  açık; yalnızca yolsuz ana bilgisayar adları alınır — bir URL çoğu kez paylaşımlı sitedeki tek dosyayı gösterir). Elle ek:
+  merkezde `<kategori>.ek.txt`. Adresler `scripts/sunucu/merkez/listeler.py` başında.
+- **Merkez:** `wc-listeler.timer` her gün **04:30** (`Persistent=true`) → `listeler.py` (wcpanel) indirir, temizler
+  (geçerlilik, IP'ler, kamu son ekleri, aşırı geniş barındırma son ekleri, "asla" listesi), kategori başına
+  `/var/lib/wificorrect/merkez/listeler/<k>.txt.gz` + `<k>.json` (sha256 = düz metnin özeti). Kaynak inmezse ya da HTML/boş
+  /yarıdan küçük dönerse o kaynağın son temiz kopyası kullanılır (kopya okunurken bugünkü kurallarla yeniden süzülür);
+  hiçbiri inmezse eski çıktı kalır. Sürümler `/api/saglik` cevabında (`listeler`), liste `/api/liste` (gzip). Yönetim →
+  Engel listeleri (kaynak durumu, Şimdi güncelle); hareket `LISTE_GUNCEL` / `LISTE_HATA`. Sürümler yalnızca bağlı ve
+  hizmeti açık cihaza bildirilir. **Sağlık izleme:** bir kategoride hiçbir kaynak inmediyse (`hata`) ya da son başarılı
+  üretim 48 saatten eskiyse "Engel listeleri güncellenemiyor: …" (uyarı) açılır — müşteriye bağlı değil, Açık sorunlar'da
+  "Merkez" satırı (sorun tablosunda müşteri 0), SMS kuralları aynı (600 sn sonra tek SMS, düzelince "düzeldi"). Tek
+  kaynağın hatası (ör. USOM HTML) sorun açmaz.
+- **Asla engellenmez** (alt adlarıyla): sistem ve giriş akışı (wificorrect.com, netgsm, twilio, bağlantı denetimi, NTP),
+  google/apple/microsoft, gov.tr/edu.tr ve büyük ortak altyapılar (googleusercontent, azureedge, windows.net, cloudflare,
+  trycloudflare, facebook/fbcdn/instagram, youtube/ytimg, akamaihd, live/office/outlook, whatsapp, wa.me), telefon
+  üreticileri (hicloud, miui/xiaomi, oppomobile, samsung/samsungcloud), x/twitter, tiktok, amazon, trendyol, hepsiburada,
+  papara, iyzico, bankalar (garantibbva, isbank, ziraatbank, akbank, yapikredi, vakifbank, halkbank, qnb, denizbank, enpara)
+  ve turkiye.gov.tr. Cihaz da birleşik dosyayı yazarken bağlantı denetimi adlarını ve wificorrect/netgsm/twilio'yu
+  (alt adlarıyla) atar (merkez listesi bozuk gelse de giriş akışı kırılmaz). **Paylaşımlı
+  platformlar** (github, githubusercontent, dropbox, sharepoint, onedrive, discord, mega.nz, t.me, pastebin, bit.ly …) de
+  engellenmez: DNS tek bir dosyayı engelleyemez, bütün platform herkes için kapanırdı; bedeli bu sitelerdeki oltalama
+  sayfalarının açık kalması.
+- **Cihaz:** `ctl saglik` sürümleri `/var/lib/wificorrect/liste/hedef.json`'a yazar; açık bir kategori eksik/eskiyse
+  `systemd-run --unit wfc-liste … ctl liste-guncelle` indirir (`<k>.txt.gz` + `<k>.json`), sha256 tutmazsa yazmaz (eski kalır).
+  Aynı sürüm hata verdiyse (`HAZIR_LISTE_HATA`, `hata.json`) bir saat yeniden denenmez. Birleşik dosya
+  `/etc/wificorrect/hazir-liste.conf` (0644, `server=/alan/` → alan adı ve alt adları NXDOMAIN, sorgu 5651 DNS kaydına
+  düşer); dnsmasq `servers-file` ile okur, değişince **SIGHUP** (`systemctl kill --kill-whom=main`). HUP başarısızsa
+  `hup-bekliyor` işareti kalır, sonraki uygulamada yeniden denenir. Dosya hep vardır (boş da olsa; yoksa dnsmasq açılmaz).
+  Denetim: `HAZIR_LISTE_GUNCEL`, `HAZIR_LISTE_HATA`, `PANEL_HAZIR_LISTE`.
+- **Panel → Yasaklı siteler → Hazır listeler:** Aç/Kapat ayarı yazar ve `wfc-liste-uygula` işini (`ctl liste-uygula`)
+  başlatıp hemen döner (birkaç saniyede geçerli; iş ayarı uygulama anında yeniden okur, sürerken gelen değişikliği de
+  uygular); açılınca merkezdeki yenisi de indirilir. **İstisnalar** (alt dize, kelime filtresiyle aynı anlam) hazır listeden
+  de çıkarır; "Bu adres engelli mi?" listeyi satır satır tarar. Fabrika dönüşü hazır listeyi istisnasız yeniden kurar.
+- **Paket:** postinst ve dnsmasq birimi (ExecStartPre) boş `hazir-liste.conf` garanti eder; dnsmasq yalnızca çalışırken okuduğu `dnsmasq.d/wificorrect.conf` diskteki sürümden farklıysa yeniden
+  başlar (ExecStartPost `dnsmasq-ozet` her açılışta PID + özeti `/run/wificorrect-dnsmasq-conf.sha256`ye yazar; kancasız
+  yeniden başlama — ör. geri dönüş — PID tutmadığı için yakalanır), liste ondan sonra uygulanır.
+- **5651 DHCP kaydı:** dnsmasq SIGHUP ve yeniden başlatmada bütün kiralar için dhcp-script'i `old` ile yeniden çağırır.
+  `ctl dhcp-olay`, IP ve kira bitişi (`DNSMASQ_LEASE_EXPIRES`, yoksa `DNSMASQ_TIME_REMAINING`) son kaydedilenle aynı olan
+  `old` olayını yazmaz, oturuma dokunmaz (`/srv/hotspot/state/dhcp_son.json`; gerçek yenileme bitişi uzattığı için yazılır).
+  `add`/`del` her zaman yazılır; bitiş bilinmiyorsa eskisi gibi yazılır.

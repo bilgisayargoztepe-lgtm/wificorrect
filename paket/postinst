@@ -19,23 +19,22 @@ systemctl enable dnsmasq.service wificorrect-guvenlik.service wificorrect-ag-aci
 if command -v update-grub >/dev/null; then
   update-grub || echo "wificorrect: update-grub başarısız; açılış ayarları uygulanmadı" >&2
 fi
-# dnsmasq ayarının (dnsmasq.d/wificorrect.conf) son okunan sürümü: güncellemede yalnızca değiştiyse dnsmasq yeniden başlar
-dnsmasq_ozet=/var/lib/wificorrect/dnsmasq-conf.sha256
-yeni_ozet=$(sha256sum /etc/dnsmasq.d/wificorrect.conf | cut -d' ' -f1)
+# çalışan dnsmasq'ın "PID özet" kaydı (dnsmasq.service.d/wificorrect.conf ExecStartPost → dnsmasq-ozet yazar);
+# eski sürümlerin tuttuğu kalıcı özet dosyası artık kullanılmaz (geri dönüşte bayatlıyordu)
+dnsmasq_ozet=/run/wificorrect-dnsmasq-conf.sha256
+rm -f /var/lib/wificorrect/dnsmasq-conf.sha256
 # Çalışan cihazda güncelleme: servisler yeni ikiliyle açılsın (kurucunun içinde systemd çalışmaz)
 if [ -d /run/systemd/system ]; then
   systemctl daemon-reload
   sysctl -q -p /etc/wificorrect/conntrack.sysctl || true
   systemctl try-restart wificorrect-portal.service wificorrect-kaydedici.service wificorrect-panel.service
-  # dnsmasq ayarı (ör. servers-file satırı) bu güncellemede değiştiyse dnsmasq yeniden başlatılır (yeni satırlar ancak
-  # böyle okunur), değişmediyse dokunulmaz (DNS kesintisi yok). Hazır liste önce değil SONRA uygulanır: eski dnsmasq'a
-  # boşuna SIGHUP gitmez; liste değişmediyse yeni dnsmasq'a da gitmez.
-  if [ "$(cat "$dnsmasq_ozet" 2>/dev/null)" != "$yeni_ozet" ]; then
-    if systemctl try-restart dnsmasq.service; then echo "$yeni_ozet" > "$dnsmasq_ozet"; fi
+  # Çalışan dnsmasq'ın okuduğu ayar diskteki ayardan farklıysa (ör. yeni servers-file satırı), kayıt yoksa ya da dnsmasq
+  # kanca olmadan yeniden başlamışsa (PID tutmaz; ör. geri dönüş) dnsmasq yeniden başlatılır (yeni satırlar ancak böyle
+  # okunur); aynıysa dokunulmaz (DNS kesintisi yok). Hazır liste önce değil SONRA uygulanır: eski dnsmasq'a boşuna SIGHUP gitmez.
+  dnsmasq_simdi="$(systemctl show -p MainPID --value dnsmasq.service) $(sha256sum /etc/dnsmasq.d/wificorrect.conf | cut -d' ' -f1)"
+  if systemctl -q is-enabled dnsmasq.service && [ "$(cat "$dnsmasq_ozet" 2>/dev/null)" != "$dnsmasq_simdi" ]; then
+    systemctl restart dnsmasq.service || echo "wificorrect: dnsmasq yeniden başlatılamadı" >&2
   fi
   /usr/local/bin/wificorrect ctl liste-uygula >/dev/null || true
   systemctl start wificorrect-guncelleme-denetle.timer || true
-else
-  # kurulum (ISO): dnsmasq ilk açılışta bu ayarla başlar
-  echo "$yeni_ozet" > "$dnsmasq_ozet"
 fi

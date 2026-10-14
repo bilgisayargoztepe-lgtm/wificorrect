@@ -273,8 +273,9 @@ Dal `hazir-listeler`; tasarım `docs/superpowers/specs/2026-10-14-hazir-engel-li
   başlatıp hemen döner (birkaç saniyede geçerli; iş ayarı uygulama anında yeniden okur, sürerken gelen değişikliği de
   uygular); açılınca merkezdeki yenisi de indirilir. **İstisnalar** (alt dize, kelime filtresiyle aynı anlam) hazır listeden
   de çıkarır; "Bu adres engelli mi?" listeyi satır satır tarar. Fabrika dönüşü hazır listeyi istisnasız yeniden kurar.
-- **Paket:** postinst boş `hazir-liste.conf` oluşturur; dnsmasq yalnızca `dnsmasq.d/wificorrect.conf` değiştiyse yeniden
-  başlar (özet `/var/lib/wificorrect/dnsmasq-conf.sha256`), liste ondan sonra uygulanır.
+- **Paket:** postinst ve dnsmasq birimi (ExecStartPre) boş `hazir-liste.conf` garanti eder; dnsmasq yalnızca çalışırken okuduğu `dnsmasq.d/wificorrect.conf` diskteki sürümden farklıysa yeniden
+  başlar (ExecStartPost `dnsmasq-ozet` her açılışta PID + özeti `/run/wificorrect-dnsmasq-conf.sha256`ye yazar; kancasız
+  yeniden başlama — ör. geri dönüş — PID tutmadığı için yakalanır), liste ondan sonra uygulanır.
 - **5651 DHCP kaydı:** dnsmasq SIGHUP ve yeniden başlatmada bütün kiralar için dhcp-script'i `old` ile yeniden çağırır.
   `ctl dhcp-olay`, IP ve kira bitişi (`DNSMASQ_LEASE_EXPIRES`, yoksa `DNSMASQ_TIME_REMAINING`) son kaydedilenle aynı olan
   `old` olayını yazmaz, oturuma dokunmaz (`/srv/hotspot/state/dhcp_son.json`; gerçek yenileme bitişi uzattığı için yazılır).

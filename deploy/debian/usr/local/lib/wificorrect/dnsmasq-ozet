@@ -1,0 +1,4 @@
+#!/bin/sh
+# dnsmasq.service ExecStartPost: çalışan dnsmasq'ın PID'i ve okuduğu ayarın özeti. postinst bunu diskteki ayarla
+# karşılaştırır; dnsmasq bu kanca olmadan (ör. eski sürüme geri dönüşte) yeniden başlarsa PID tutmaz → yeniden başlatılır.
+echo "$MAINPID $(sha256sum /etc/dnsmasq.d/wificorrect.conf | cut -d' ' -f1)" > /run/wificorrect-dnsmasq-conf.sha256

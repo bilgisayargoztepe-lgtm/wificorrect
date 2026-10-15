@@ -131,3 +131,10 @@ misafirlere adres dağıtır (portalsız, 5651 kaydı dışı, internetsiz misaf
    edebiliyorsa (ör. kaydedici, misafir köprüsünde başka sunucudan DHCPOFFER/ACK) Özet'te ve merkezin sağlık
    raporunda uyarı (benim kararım; uygulayıcı maliyeti küçükse yapar, değilse yalnızca sayfadaki denetim).
 4. Denetim: `AP_YAN_ODA acildi|kapandi adres=… neden=…`, `AP_DHCP_DENETIM sonuc=…`.
+
+**Uygulama (2026-10-15, 0.4.12):** yan oda adsız ağ ad alanı; onu `wfc-ap-araci` geçici birimi (SOCKS5 aracı,
+127.0.0.1:1085) tutar, birim durunca (zamanlayıcı, elle, `RuntimeMaxSec`, yeniden başlatma, fabrika) çekirdek siler.
+Bağ: köprü üzerinde macvlan (veth köprü portu yalıtıma takılıyor; cihazda geçici ad alanlarında denendi). Aracı ad
+çözmez (AP'ye IP ile girilir). Yabancı DHCP denetimi kısa ömürlü ayrı bir yan odadan (AF_PACKET, ~3 sn). Kendiliğinden
+fark etme (kaydedici/Özet/merkez sağlık) yapılmadı: 5651 kaydedicisine sürekli ham paket dinleyicisi ve merkez kural
+değişikliği gerektiriyor. Ayrıntı: KURULUM_GUNLUGU "AP yan odası…".

@@ -359,3 +359,53 @@ Sürüm **0.4.11**. Hizmet sağlayıcı müşterinin taktığı AP'yi cihaz üze
   çekirdek ömrü adresi düşürür); bozuk durum dosyası panelde "Kaldır" ile temizlenir; `PANEL_AP_CIHAZLAR` panel
   hareketlerinde kişisel veri sayılır. AP rehberinde yönetim IP kısıtı en sona alındı (önce 10.50.0.2'ye taşı, yeni
   adresten gir, sonra kısıtla) — önce kısıtlanırsa geçici adresten bağlı oturum kesilir ve AP'ye ulaşılamaz.
+
+## AP yan odası, SOCKS aracı, yabancı DHCP denetimi (2026-10-15)
+Dal `ap-yan-oda`; spec `docs/superpowers/specs/2026-10-15-ap-kurulum-design.md` → "Ek: yan oda". Sürüm **0.4.12**.
+Türkiye'deki modem/AP'lerin çoğu fabrikada 192.168.1.1 (ör. ZyXEL P-660HN-T1H) ve müşterinin modemi de çoğunlukla
+192.168.1.0/24'te: 0.4.11'in "köprüye ikinci adres" yöntemi WAN'la çakıştığı için reddediyordu.
+- **Yan oda** (eski geçici adresin yerine, tek yöntem): misafir köprüsüne **macvlan** (`mode private`) ile bağlı, adsız
+  ayrı bir ağ ad alanı; adres (ör. `192.168.1.250/24`) orada. Ana ağ ad alanına adres/rota eklenmez → WAN, tünel ve
+  rota çakışması denetimi kalktı; kalan kurallar: önek 16–30, özel aralık, ağ/yayın adresi değil, misafir ağıyla
+  çakışmıyor. Yan odada `ip_forward=0` (yeni ad alanı ana ad alanının 1 değerini miras alıyor — cihazda görüldü), IPv6
+  kapalı, tek rota kendi alt ağı.
+- **Neden macvlan:** veth'i köprü portu yapmak `kapi.nft`'teki köprü yalıtımına (`table bridge hotspot` → `isolate`,
+  forward kancası) takılır; macvlan'ın paketleri köprüden "yerel çıkış" olarak geçer, yalıtıma takılmaz. Cihazda yalnızca
+  geçici ad alanlarında (kopya köprü + aynı yalıtım kuralı) denendi: veth → AP'ye ulaşamadı, macvlan → ulaştı. Yan oda
+  açıkken köprü `promiscuity 1` olur (macvlan'ın MAC'i için), kapanınca 0'a döner.
+- **Ömür:** ad alanını `wfc-ap-araci` geçici birimi (`systemd-run --service-type=notify`, `TimeoutStartSec=12`,
+  `RuntimeMaxSec=süre+10`) tutar: bir iş parçacığı `unshare(CLONE_NEWNET)` yapar, ana ad alanından
+  `ip link add link <köprü> name wfcap0 address <rastgele yerel MAC> netns <tid> type macvlan mode private` ile arayüz
+  doğrudan yan odada doğar (ana ad alanında hiç görünmez; `ip netns add`/mount yok — panelin `PrivateTmp`'li mount ad
+  alanı sorun olmaz). Süreç bitince (zamanlayıcı, "Şimdi kapat", `RuntimeMaxSec`, çökme, yeniden başlatma, fabrika)
+  ad alanı ve macvlan çekirdekçe silinir. Sıra: kapatma zamanlayıcısı → durum dosyası → aracı; aracı açılamazsa üçü
+  geri alınır. flock, durum dosyası (`/var/lib/wificorrect/ap-gecici.json`), açılış temizliği (aracı yoksa
+  `neden=acilis`), fabrika kapanışı aynen.
+- **SOCKS5 aracı** (`ctl ap-araci ADRES`, yalnızca birim çalıştırır; `src/yan_oda.rs`): yalnızca `127.0.0.1:1085`,
+  kimliksiz, yalnızca CONNECT, IPv4 ya da IPv4 yazılmış alan adı (Chrome IP'yi de alan adı biçiminde gönderir); hedef
+  yalnızca yan odanın alt ağı (ağ/yayın adresi, port 0 hayır), ad çözümü yok (AP'ye IP ile girilir). Her bağlantının
+  iş parçacığı `setns` ile yan odaya girip bağlanır; en çok 32 bağlantı, el sıkışma 10 sn, bağlanma 5 sn, boşta 300 sn.
+- **Yabancı DHCP denetimi** (panel → AP kurulumu → "Yabancı DHCP sunucusu var mı?" → `ctl ap-dhcp-denetle`, panel
+  doğrudan çalıştırır): kısa ömürlü adressiz yan oda (`wfcdhcp0`), AF_PACKET ile iki DHCPDISCOVER (yayın bayrağı),
+  ~3 sn teklif toplanır; çıktı `TEKLIF <sunucu> <mac> <adres>` + `TAMAM <n>`. Cihazın kendi dnsmasq'ı bu yayını almıyor
+  (köprüden yerel çıkış); yine de köprü adresi + köprü MAC'inden gelen teklif atılır. Yabancı varsa kırmızı uyarı
+  ("Bu cihazın DHCP sunucusu kapatılmalı; açık kaldıkça bazı misafirler internete çıkamaz") + sunucu IP, MAC, teklif.
+  **Kendiliğinden fark etme (kaydedici + Özet + merkez sağlık raporu) yapılmadı:** 5651 kaydedicisine sürekli açık bir
+  ham paket dinleyicisi (BPF süzgeçli) eklemek gerekir, yalnızca yayınla gönderilen teklifleri görür ve merkezdeki
+  sağlık kurallarının da değişmesi gerekir; maliyet/risk küçük değil.
+- **Denetim:** `AP_YAN_ODA acildi adres=… sure=…` | `kapandi adres=… neden=elle|sure|acilis|fabrika [hata=araci_durmadi]`
+  (eski `AP_KURULUM_ADRES` yerine), `AP_DHCP_DENETIM sonuc=yok|var sunucular=<ip/mac,…>|hata`. Panelden yapılanlarda
+  kim + rol.
+- **Windows betiği:** `-Adres` misafir ağında (`-MisafirAg`, varsayılan 10.50.0.0/24) ya da alan adıysa eskisi gibi
+  `ssh -D`; misafir ağı dışında bir IPv4 ise `ssh -L 127.0.0.1:<port>:127.0.0.1:1085` (`-AraciPort`) + Chrome yine
+  `socks5://127.0.0.1:<port>` ile AP'nin kendi adresini açar (Referer/Host bozulmaz). Hazırlık denetimi artık SOCKS5 el
+  sıkışması (`05 01 00 → 05 00`); yan oda kapalıysa "Cihazda yan oda açık değil" der.
+- **Cihazda doğrulama (yalnızca geçici ad alanları, canlı ağa dokunulmadı; önce/sonra `ip addr`, `ip route`, `ip link`,
+  `nft -s list ruleset` aynı):** gerçek ikiliyle sahte "AP" (192.168.1.1, dnsmasq DHCP + web) ve kopya köprü
+  (10.50.0.1/24 + yalıtım kuralı + kendi dnsmasq'ı): DHCP denetimi yalnızca AP'nin teklifini buldu (3,1 sn); yan oda
+  `192.168.1.250/24`, `ip_forward=0`, IPv6 kapalı; SOCKS ile `http://192.168.1.1/` açıldı (IP ve alan adı biçimli IP),
+  `10.50.0.1`, `tplinkap.net`, kapalı port reddedildi; aracı durunca macvlan gitti, köprü promiscuity 0; `systemd-run
+  --service-type=notify` hazır olunca döndü, port doluyken başarısız döndü, `RuntimeMaxSec` aracıyı durdurdu; DHCP
+  denetimi panelin korumalarıyla (`ProtectSystem=full`, `PrivateTmp`, `NoNewPrivileges`, `ProtectHome`) da çalıştı.
+- **Bilinen:** port değişikliği (panel → Portlar) köprüyü yeniden kurarsa macvlan gider ama aracı çalışmaya devam eder:
+  yan odayı kapatıp yeniden açın. Canlı kabul (gerçek ZyXEL/TP-Link, uzaktan güncellemeyle 0.4.12) yapılmadı.

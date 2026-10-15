@@ -18,17 +18,20 @@ modunda böyle; o zaman cihazımızın DHCP'sinden 10.50.0.x alır ve görünür
 
 ## Hedefler
 
-1. **AP kurulum modu (cihaz paneli → Admin ayarları, yalnızca admin):**
+1. **AP kurulum modu (cihaz paneli → Ayarlar → AP kurulumu; hizmet sağlayıcı ve işletme sahibi):**
+   **Karar (2026-10-15, kullanıcı):** işletme sahibi de bu bölümü admin gibi kullanır (ağdaki cihazlar, geçici adres
+   ekle/kaldır, AP adresi kaydı); admin kilidi yoktur. CSRF, denetim (kim + rol) ve bütün çakışma/doğrulama kuralları
+   aynen geçerlidir. Bölüm Admin'den Ayarlar grup sayfasına taşındı. (İlk taslakta "yalnızca admin" idi.)
    - **Ağdaki cihazlar:** misafir portunda son görülen cihazlar — DHCP kiraları ve ARP/komşu tablosu: MAC, IP, cihaz adı,
      (biliniyorsa) üretici. Müşterinin verdiği MAC'le eşleştirmeye yarar.
-   - **Geçici adres:** admin bir alt ağ adresi girer (ör. `192.168.0.250/24`; müşterinin bildirdiği fabrika adresine göre);
+   - **Geçici adres:** kullanıcı bir alt ağ adresi girer (ör. `192.168.0.250/24`; müşterinin bildirdiği fabrika adresine göre);
      cihaz bunu misafir köprüsüne **ikinci adres** olarak ekler, böylece fabrika adresli AP'ye ulaşır. Adres **30 dk sonra
      kendiliğinden kalkar** (açılışta da kalmaz); "Şimdi kaldır" düğmesi vardır. Misafir ağının kendi adresiyle, WAN'ın
      ağıyla ya da tünel ağıyla (10.99.0.0/24) çakışan, özel ağ aralığı dışındaki ya da /16'dan geniş alt ağ reddedilir.
      Geçici adres açıkken bile misafir trafiği o alt ağa yönlendirilmez (misafirden özel ağlara erişim zaten kapalı;
      bu kural bozulmaz).
    - Denetim: `AP_KURULUM_ADRES eklendi|kaldirildi adres=… neden=elle|sure|acilis`.
-2. **AP adresi kaydı (aynı sayfa):** AP ayarlandıktan sonra admin AP'nin kalıcı yönetim adresini yazar (ör. 10.50.0.2;
+2. **AP adresi kaydı (aynı sayfa):** AP ayarlandıktan sonra kullanıcı AP'nin kalıcı yönetim adresini yazar (ör. 10.50.0.2;
    yalnızca misafir alt ağı içinde ve DHCP havuzu dışında kabul edilir). Ayar `ayarlar.toml`'da.
    **Önemli sınır:** AP'ye kablosuz bağlı bir misafirin AP'nin kendi adresine giden paketi cihazımızdan **hiç geçmez**
    (AP onu kendi içinde alır); cihazın güvenlik duvarı bunu göremez. Bu yüzden asıl koruma **AP'nin kendi ayarıdır**
@@ -55,9 +58,13 @@ modunda böyle; o zaman cihazımızın DHCP'sinden 10.50.0.x alır ve görünür
    çalışma modu Access Point · DHCP sunucusu ve "Smart IP" benzeri otomatik modlar kapalı · ağ adı (SSID) işletmenin adı,
    şifresiz · istemci yalıtımı (AP isolation) açık · kanal 1/6/11, 20 MHz, iletim gücü yüksek · **yönetim parolası =
    işletme sahibinin panel parolası** (merkezde müşteri sayfasında yöneticiye zaten görünür) · en son yönetim adresi sabit
-   10.50.0.2/24, ağ geçidi ve DNS 10.50.0.1 · **yönetim erişimi kısıtı**: modelde varsa "kablosuzdan yönetimi kapat"
-   ("Wireless management" / "Management via wireless" kapalı) ya da "yönetime yalnızca şu IP/MAC izin ver" = 10.50.0.1 /
-   cihazın misafir portu MAC'i (yoksa yalnızca güçlü parolaya kalır; bu not edilir) (adres değişince bağlantı kopar; yeni adresten yeniden girilir) · sonra adım 2.
+   10.50.0.2/24, ağ geçidi ve DNS 10.50.0.1 (adres değişince bağlantı kopar; yeni adresten yeniden girilir) · **en son,
+   AP 10.50.0.2'deyken ve yeni adresten girildikten sonra yönetim erişimi kısıtı**: modelde varsa "kablosuzdan yönetimi
+   kapat" ("Wireless management" / "Management via wireless" kapalı) ya da "yönetime yalnızca şu IP/MAC izin ver" =
+   10.50.0.1 / cihazın misafir portu MAC'i (yoksa yalnızca güçlü parolaya kalır; bu not edilir) · sonra adım 2.
+   **Sıra neden böyle:** fabrika adresli AP'ye geçici adresten (ör. 192.168.0.250) girilir; AP istekleri 10.50.0.1'den
+   değil oradan görür. IP kısıtı adres değişikliğinden önce yazılırsa kaydedince oturum kesilir, adres değiştirilemez ve
+   AP'ye cihazdan ulaşılamaz (müşteri yerinde sıfırlar). MAC kısıtı (köprü MAC'i aynı) erken de güvenlidir.
    Bilinen tuzaklar: TP-Link'te 127.0.0.1 port yönlendirmesiyle giriş Referer yüzünden reddedilir (SOCKS'ta olmaz); bazı
    modellerde parola en çok 15 karakter — müşteri parolası uzunsa kısaltılır ve kullanılan parola müşteri sayfasına not
    olarak yazılır.
@@ -78,7 +85,8 @@ modunda böyle; o zaman cihazımızın DHCP'sinden 10.50.0.x alır ve görünür
 - Yönetimden tek tıkla AP arayüzü aracısı (cihaz üzerinden HTTP proxy, Host/Referer çevirme).
 - Markaya özel otomatik ayar sürücüleri; AP'yi programla ayarlamak.
 - AP'nin parolasını müşteri parolası değişince kendiliğinden güncellemek (elle yeniden girilir).
-- İşletme sahibine AP yönetimi.
+- İşletme sahibine AP'nin kendi web arayüzüne giriş aracı (SOCKS betiği cihaza SSH anahtarı ister; panel bölümü ise
+  2026-10-15 kararıyla işletme sahibine de açık).
 
 ## Anti-hedefler
 

@@ -324,7 +324,8 @@ Dal `rapor-cihaz`; spec "Ek (2026-10-15)", plan `docs/superpowers/plans/2026-10-
 ## AP kurulumu (2026-10-15)
 Dal `ap-kurulum`; tasarım `docs/superpowers/specs/2026-10-15-ap-kurulum-design.md`, teknisyen rehberi `docs/AP_KURULUM.md`.
 Sürüm **0.4.11**. Hizmet sağlayıcı müşterinin taktığı AP'yi cihaz üzerinden uzaktan kurar; merkezde değişiklik yok.
-- **Panel → Admin → AP kurulumu** (yalnızca admin / admin kilidi; sahipte GET kilit formu, POST 403): cihazın misafir
+- **Panel → Ayarlar → AP kurulumu** (hizmet sağlayıcı ve işletme sahibi, admin kilidi yok — 2026-10-15 kullanıcı kararı;
+  her POST CSRF'li, denetim satırında kim + rol): cihazın misafir
   portu (köprü adresi + MAC; AP'de "yönetime yalnızca şu IP/MAC" için), **Ağdaki cihazlar** (`/ap-kurulum/cihazlar`:
   dnsmasq kiraları + `ip -4 neigh show dev <köprü>`; rastgele MAC = telefon; her açılış `PANEL_AP_CIHAZLAR sayi=…`),
   **Geçici adres**, **AP adresleri**. Kod `src/ap.rs`, `src/panel/ap_sayfasi.rs`.
@@ -350,4 +351,11 @@ Sürüm **0.4.11**. Hizmet sağlayıcı müşterinin taktığı AP'yi cihaz üze
   doluysa 1081–1099) + geçici profilli Chrome (yoksa Edge) `--proxy-server=socks5://…`; pencere kapanınca ssh durur, profil
   silinir. `-Adres` yalnızca adres/ad + isteğe bağlı port/yol kabul eder; `-Kuru` yalnızca komutları yazar. Adres
   doğrulaması büyük/küçük harf duyarlı (`-cnotmatch`): duyarsız eşleşme Türkçe yerel ayarda `I` yüzünden şaşıyor.
-  `.ps1`/`.cmd` depoda CRLF (`.gitattributes`), `.ps1` UTF-8 BOM'lu (5.1 BOM'suz dosyayı ANSI okur).
+  `.ps1`/`.cmd` depoda CRLF (`.gitattributes`), `.ps1` UTF-8 BOM'lu (5.1 BOM'suz dosyayı ANSI okur). ssh penceresi
+  simge durumunda (gizli değil: konsol X ile kapanırsa tünel elle kapatılabilsin).
+- **İnceleme düzeltmeleri:** geçici adres işlemleri `ap-gecici.kilit` (flock) ile sıralı (çift tıklamada iki zamanlayıcı
+  kurulmaz); `ip` çıktısında köprünün kendi adresi yoksa (okunamadı) ekleme reddedilir, elle kaldırmada durum dosyası
+  kalır; süre dolumunda `ip addr del` başarısız olsa da dosya silinir (`neden=sure hata=ip_addr_del|ip_okunamadi`;
+  çekirdek ömrü adresi düşürür); bozuk durum dosyası panelde "Kaldır" ile temizlenir; `PANEL_AP_CIHAZLAR` panel
+  hareketlerinde kişisel veri sayılır. AP rehberinde yönetim IP kısıtı en sona alındı (önce 10.50.0.2'ye taşı, yeni
+  adresten gir, sonra kısıtla) — önce kısıtlanırsa geçici adresten bağlı oturum kesilir ve AP'ye ulaşılamaz.

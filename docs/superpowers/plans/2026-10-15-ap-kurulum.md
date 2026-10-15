@@ -14,6 +14,12 @@ Windows tarafı `scripts/ap-ac.ps1` (+ `ap-ac.cmd`), belge `docs/AP_KURULUM.md`.
 
 **Spec:** `docs/superpowers/specs/2026-10-15-ap-kurulum-design.md` · Dal `ap-kurulum` · Sürüm **0.4.11**
 
+> **Sonradan değişenler (2026-10-15, son inceleme ve kullanıcı kararı):** (1) Bölüm **Ayarlar → AP kurulumu**'na taşındı;
+> işletme sahibi de admin gibi kullanır (admin kilidi yok; CSRF, kim + rol denetimi ve bütün doğrulamalar aynen). Aşağıdaki
+> "yalnızca admin / `if hizmet` / kilit formu / sahip 403" maddeleri bu kararla geçersizdir. (2) AP rehberinde yönetim
+> erişimi IP kısıtı en sona alındı: önce AP 10.50.0.2'ye taşınır ve yeni adresten girilir, sonra kısıt (geçici adresten
+> bağlıyken `10.50.0.1` kısıtı oturumu keser, AP'ye ulaşılamaz). (3) `ap.nft` kuralı yapılmadı (spec'teki karar).
+
 ## Önemli bulgu (plan yazılırken)
 
 `kapi.nft`'teki `table bridge hotspot` → `chain isolate` (`meta ibrname "br-hotspot" counter drop`, forward kancası)
@@ -260,14 +266,15 @@ tablosunda kayıtlı adres "kayıtlı AP adresi" notu alır.
 - `scripts/ap-ac.cmd`: `@powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0ap-ac.ps1" %*`.
 
 **`docs/AP_KURULUM.md`** (Türkçe, teknisyen için; spec madde 4 tam liste): müşteriden istenecekler (marka, model,
-etiketteki adres/alan adı, fabrika kullanıcı adı/parolası, MAC) · panel → Admin → AP kurulumu → Ağdaki cihazlar ile MAC
+etiketteki adres/alan adı, fabrika kullanıcı adı/parolası, MAC) · panel → Ayarlar → AP kurulumu → Ağdaki cihazlar ile MAC
 eşleştirme · DHCP'den 10.50.0.x aldıysa doğrudan, fabrika adresliyse geçici adres (aynı alt ağdan, AP'nin adresi değil;
 modem ağıyla çakışırsa panel reddeder → müşteriden sıfırlama/DHCP) · `scripts\ap-ac.cmd -Adres … [-Cihaz root@10.99.0.11]`
 · ayar listesi ve sırası (AP modu; DHCP sunucusu ve "Smart IP" kapalı; SSID işletme adı, şifresiz; AP isolation açık;
 kanal 1/6/11, 20 MHz, iletim gücü yüksek; yönetim parolası = işletme sahibinin panel parolası, ≤15 karakter sınırlı
-modelde kısaltılır ve kullanılan parola merkezde müşteri sayfasına not yazılır; "kablosuzdan yönetim" kapalı ya da yönetim
-yalnızca 10.50.0.1 / panelde gösterilen köprü MAC'i; yoksa yalnızca parolaya kalır — not edilir; **en son** yönetim
-adresi 10.50.0.2/24, ağ geçidi ve DNS 10.50.0.1, bağlantı kopar → yeni adresten girilir) · geçici adresi kaldır · AP
+modelde kısaltılır ve kullanılan parola merkezde müşteri sayfasına not yazılır; yönetim adresi 10.50.0.2/24, ağ geçidi
+ve DNS 10.50.0.1, bağlantı kopar → yeni adresten girilir; **en son** (yeni adresten girdikten sonra) "kablosuzdan yönetim"
+kapalı ya da yönetim yalnızca 10.50.0.1 / panelde gösterilen köprü MAC'i; yoksa yalnızca parolaya kalır — not edilir) ·
+geçici adresi kaldır · AP
 adresini kaydet · kontrol (telefonla portal açılıyor mu; panelde "Ağdaki cihazlar"da AP 10.50.0.2) · bilinen tuzaklar
 (TP-Link `ssh -L` ile 127.0.0.1'den girişte Referer reddi — SOCKS'ta yok; fabrika modunda DHCP sunucusu açık AP
 misafirlere yanlış adres dağıtabilir → takar takmaz kurulmalı; port değişikliği geçici adresi siler).

@@ -185,6 +185,8 @@ pub struct Kaydedici {
     merkez_son: f64,
     /// son sağlık raporu başlatma zamanı
     saglik_son: f64,
+    /// son kolay bağlama bildirimi başlatma zamanı (bağlı değilken)
+    bekleme_son: f64,
     /// son bilinen hizmet durumu (lisans); değişince misafir oturumları kapanır / denetime yazılır
     lisans_acik: Option<bool>,
     /// Trafik ölçümü ve yavaşlatma (5 sn); yollar ve nft yükleyicisi testte değiştirilir
@@ -228,6 +230,7 @@ impl Kaydedici {
             merkez_path: crate::merkez::PATH.into(),
             merkez_son: f64::NEG_INFINITY,
             saglik_son: f64::NEG_INFINITY,
+            bekleme_son: f64::NEG_INFINITY,
             lisans_acik: None,
             olcer,
             gun_son: f64::NEG_INFINITY,
@@ -534,6 +537,7 @@ impl Kaydedici {
         self.check_uzak(now);
         self.check_merkez(now);
         self.check_saglik(now);
+        self.check_bekleme(now);
         self.check_lisans(now);
     }
 
@@ -621,6 +625,24 @@ impl Kaydedici {
         self.saglik_son = now;
         let unit = format!("wfc-saglik-{}", now as u64);
         let c: Vec<String> = ["systemd-run", "--collect", "--unit", &unit, "--on-active", "1s", "/usr/local/bin/wificorrect", "ctl", "saglik"]
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
+        (self.runner)(&c);
+    }
+
+    /// Kolay bağlama (spec 2026-10-16): cihaz bir müşteriye bağlı değilken 2 dk'da bir arka planda `ctl bekliyor`
+    /// (merkeze "bağlanmayı bekliyorum"; müşteri aynı internetten girince bağlanır). Birim adı sabit: önceki iş sürüyorsa
+    /// systemd ikincisini başlatmaz. Saat geri gittiyse beklenmez.
+    fn check_bekleme(&mut self, now: f64) {
+        if now >= self.bekleme_son && now - self.bekleme_son < crate::bekleme::ARALIK_SN {
+            return;
+        }
+        if crate::merkez::oku(&self.merkez_path).is_some() {
+            return;
+        }
+        self.bekleme_son = now;
+        let c: Vec<String> = ["systemd-run", "--collect", "--unit", "wfc-bekliyor", "/usr/local/bin/wificorrect", "ctl", "bekliyor"]
             .iter()
             .map(|s| s.to_string())
             .collect();
@@ -1097,6 +1119,33 @@ mod tests {
         assert_eq!(n(&calls), 3);
         k.check_saglik(500.0); // saat geri gitti: beklenmez
         assert_eq!(n(&calls), 4);
+        let _ = root;
+    }
+
+    #[test]
+    fn bagli_degilken_2_dk_da_bir_bekliyor_bildirir() {
+        let (mut k, root, _) = setup();
+        let calls = Arc::new(Mutex::new(Vec::<String>::new()));
+        let c2 = calls.clone();
+        k.runner = Box::new(move |c: &[String]| {
+            c2.lock().unwrap().push(c.join(" "));
+            true
+        });
+        let n = |calls: &Arc<Mutex<Vec<String>>>| calls.lock().unwrap().iter().filter(|x| x.contains("ctl bekliyor")).count();
+        crate::merkez::kaydet(&k.merkez_path, &crate::merkez::Merkez { numara: "4511643".into(), son_eslesme: 9e9, ..Default::default() }).unwrap();
+        k.check_bekleme(1000.0);
+        assert_eq!(n(&calls), 0); // bağlı cihaz bildirmez
+        crate::merkez::sil(&k.merkez_path);
+        k.check_bekleme(1010.0);
+        assert_eq!(n(&calls), 1);
+        assert!(calls.lock().unwrap().iter().any(|c| c == "systemd-run --collect --unit wfc-bekliyor /usr/local/bin/wificorrect ctl bekliyor"));
+        k.check_bekleme(1100.0);
+        assert_eq!(n(&calls), 1); // 2 dk dolmadı
+        k.maintain(1130.0); // 30 sn'lik bakım turundan çağrılır
+        assert_eq!(n(&calls), 2);
+        k.check_bekleme(900.0); // saat geri gitti: beklenmez
+        assert_eq!(n(&calls), 3);
+        assert!(!calls.lock().unwrap().iter().any(|c| c.contains("ctl saglik"))); // bağlı değilken sağlık raporu yok
         let _ = root;
     }
 

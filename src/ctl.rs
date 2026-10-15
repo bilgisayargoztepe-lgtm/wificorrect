@@ -499,6 +499,24 @@ pub fn run(cfg: Config, args: &[String]) -> ExitCode {
                 }
             }
         }
+        // Kolay bağlama (spec 2026-10-16): kaydedici bağlı değilken 2 dk'da bir başlatır (systemd-run --unit wfc-bekliyor)
+        Some("bekliyor") => {
+            let anahtarlar = || -> Result<(String, String), String> {
+                let wg = crate::uzak::ensure_key(std::path::Path::new(crate::uzak::KEY)).and_then(|k| crate::uzak::public_key(&k))?;
+                Ok((wg, crate::uzak::yedek_anahtari(std::path::Path::new(crate::uzak::YEDEK_KEY))?))
+            };
+            let hs = crate::hesap::Hesaplar::new(crate::hesap::PATH);
+            match crate::bekleme::calistir(&cfg, &crate::bekleme::Yollar::sistem(), &hs, &anahtarlar, &crate::merkez::curl, &runner, now) {
+                Ok(s) => {
+                    println!("{s}");
+                    ExitCode::SUCCESS
+                }
+                Err(e) => {
+                    eprintln!("bekleme bildirimi: {e}");
+                    ExitCode::from(1)
+                }
+            }
+        }
         // Kaydedici 5 dk'da bir başlatır: bağlı değilse sessiz; gönderilemezse tek satır (merkez raporun gelmediğini görür)
         Some("saglik") => {
             let http = |y: &str, g: &str| crate::merkez::curl_sure(y, g, 10);

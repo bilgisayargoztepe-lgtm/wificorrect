@@ -1601,9 +1601,14 @@ mod tests {
         assert!(page.contains("<summary>KVKK Aydınlatma Metni</summary>") && page.contains("<li>Haberleşme ve İletişim Bilgileri: Telefon numarası</li>"));
         assert!(page.contains("<strong>SON KULLANICI LİSANS SÖZLEŞMESİ</strong>") && page.contains("Bocafe’nin uhdesindeki") && !page.contains("İŞLETMECİ"));
         assert!(page.contains("<strong>9. BOCAFE’NİN YETKİ VE İMKÂNLARI</strong>"));
+        // aydınlatma metninde veri sorumlusu ve başvuru yeri işletmenin unvanı; başka işletme adı yok
+        assert!(page.contains("Boca Gıda Tic. Ltd. Şti. (“İşletme”), veri sorumlusu sıfatıyla"));
+        assert!(page.contains("ADRESLERİ</strong><br>Boca Gıda Tic. Ltd. Şti.</p><p>Başvurularınızı işletmeye yazılı olarak iletebilirsiniz.</p>"));
+        assert!(!page.contains("goztepebilgisayar") && !page.contains("Göztepe Bilgisayar ("));
         // unvan girilmemişse yer tutucu görünür (kurulum yapılmamış)
         let t0 = setup(|_| {});
-        assert!(t0.p.render(&t0.p.form_page(&Form::new(), vec![], "")).contains("[vergi levhası unvanı]"));
+        let p0 = t0.p.render(&t0.p.form_page(&Form::new(), vec![], ""));
+        assert!(p0.contains("[vergi levhası unvanı] (“İşletme”), veri sorumlusu") && p0.contains("ADRESLERİ</strong><br>[vergi levhası unvanı]</p>"));
         // rıza ya da sözleşme işaretlenmeden kod gönderilmez
         let pg = t.p.send_code(IP, Some(MAC), &form(&[("ad", "Ayşe"), ("soyad", "Yılmaz"), ("telefon", "05334553132"), ("sozlesme", "1")]));
         assert!(!pg.get("hata_riza").is_empty() && t.sms_count() == 0);

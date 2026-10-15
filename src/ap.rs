@@ -234,6 +234,35 @@ fn oku(y: &Yollar) -> Option<Gecici> {
     (Cidr::parse(&g.adres).is_some() && kimlik_ok(&g.kimlik)).then_some(g)
 }
 
+const OKUNAMADI: &str = "Cihazın ağ bilgisi okunamadı (ip); hiçbir şey değiştirilmedi.";
+
+/// Canlı adres listesinde köprünün kendi adresi var mı: yoksa `ip` çıktısı okunamamıştır (boş/bozuk) ve çakışma ya da
+/// canlılık denetimi güvenilmez (açık başarısız olmasın).
+fn kopru_okundu(cfg: &Config, adresler: &[(String, Cidr)]) -> bool {
+    let kopru: Option<Ipv4Addr> = cfg.main.router_ip.parse().ok();
+    adresler.iter().any(|(i, c)| *i == cfg.main.iface && Some(c.ip) == kopru)
+}
+
+/// Geçici adres işlemlerini sıraya sokar (panelin iş parçacıkları, `ctl`, zamanlayıcı): durum dosyasının yanında
+/// `.kilit` dosyası, flock; dosya kapanınca bırakılır.
+fn kilit(y: &Yollar) -> Result<std::fs::File, String> {
+    use std::os::unix::fs::OpenOptionsExt;
+    use std::os::unix::io::AsRawFd;
+    if let Some(d) = y.gecici.parent() {
+        let _ = ortak::mkdirs(d);
+    }
+    let f = std::fs::OpenOptions::new()
+        .create(true)
+        .truncate(false)
+        .write(true)
+        .mode(0o600)
+        .open(y.gecici.with_extension("kilit"))
+        .map_err(|e| format!("Kilit dosyası açılamadı: {e}"))?;
+    // SAFETY: geçerli dosya tanıtıcısı; kilit dosya kapanınca bırakılır.
+    unsafe { libc::flock(f.as_raw_fd(), libc::LOCK_EX) };
+    Ok(f)
+}
+
 fn canli_adresler(cfg: &Config, ip_oku: &IpOku) -> Vec<Cidr> {
     let iface = cfg.main.iface.as_str();
     adresler(&ip_oku(&["ip", "-o", "-4", "addr", "show", "dev", iface])).into_iter().filter(|(i, _)| i == iface).map(|(_, c)| c).collect()
@@ -241,12 +270,17 @@ fn canli_adresler(cfg: &Config, ip_oku: &IpOku) -> Vec<Cidr> {
 
 /// Geçici adres ekler (panel ve `ctl ap-adres-ekle`). Sıra: denetim → zamanlayıcı → durum dosyası → `ip addr add`.
 pub fn ekle(cfg: &Config, y: &Yollar, girdi: &str, sure: u64, ip_oku: &IpOku, runner: &Runner, now: f64) -> Result<Gecici, String> {
+    let _kilit = kilit(y)?;
     let iface = cfg.main.iface.as_str();
     let etiket = format!("{iface}:ap");
     if y.gecici.exists() || !ip_oku(&["ip", "-o", "-4", "addr", "show", "dev", iface, "label", &etiket]).trim().is_empty() {
         return Err("Zaten bir geçici adres açık; önce kaldırın.".into());
     }
-    let c = gecici_dogrula(girdi, cfg, &ip_oku(&["ip", "-o", "-4", "addr", "show"]), &ip_oku(&["ip", "-4", "route", "show"]))?;
+    let ip_addr = ip_oku(&["ip", "-o", "-4", "addr", "show"]);
+    if !kopru_okundu(cfg, &adresler(&ip_addr)) {
+        return Err(OKUNAMADI.into());
+    }
+    let c = gecici_dogrula(girdi, cfg, &ip_addr, &ip_oku(&["ip", "-4", "route", "show"]))?;
     let kimlik = ortak::random_hex(4);
     let (zamanlayici, ip) = ekle_komutlari(&c, iface, &kimlik, sure);
     if !runner(&zamanlayici) {
@@ -268,9 +302,19 @@ pub fn ekle(cfg: &Config, y: &Yollar, girdi: &str, sure: u64, ip_oku: &IpOku, ru
     Ok(g)
 }
 
+/// Kaldırılan geçici adres (denetim için); `hata`: süre dolumunda adres silinemedi / ağ okunamadı ama durum dosyası yine
+/// silindi (çekirdek ömrü adresi 10 sn sonra düşürür).
+#[derive(Debug, Clone, PartialEq)]
+pub struct Kaldirilan {
+    pub adres: String,
+    pub hata: Option<&'static str>,
+}
+
 /// Geçici adresi kaldırır. `kimlik` (zamanlayıcı yolu) dosyadakiyle aynı değilse hiçbir şey yapmaz: eski bir zamanlayıcı
-/// yeni adresi erken silemez. `neden` "sure" değilse zamanlayıcı durdurulur. Dönen: kaldırılan adres (denetim için).
-pub fn kaldir(cfg: &Config, y: &Yollar, neden: &str, kimlik: Option<&str>, ip_oku: &IpOku, runner: &Runner) -> Result<Option<String>, String> {
+/// yeni adresi erken silemez. `neden` "sure" değilse zamanlayıcı durdurulur; "sure" değilken `ip` okunamaz ya da
+/// `ip addr del` başarısız olursa hata döner ve durum dosyası kalır.
+pub fn kaldir(cfg: &Config, y: &Yollar, neden: &str, kimlik: Option<&str>, ip_oku: &IpOku, runner: &Runner) -> Result<Option<Kaldirilan>, String> {
+    let _kilit = kilit(y)?;
     let Some(g) = oku(y) else {
         if y.gecici.exists() && kimlik.is_none() {
             let _ = std::fs::remove_file(&y.gecici); // bozuk dosya: elle kaldırmada temizlenir
@@ -282,14 +326,25 @@ pub fn kaldir(cfg: &Config, y: &Yollar, neden: &str, kimlik: Option<&str>, ip_ok
     }
     let c = Cidr::parse(&g.adres).expect("oku doğruladı");
     let iface = cfg.main.iface.as_str();
-    if canli_adresler(cfg, ip_oku).contains(&c) && !runner(&s(&["ip", "addr", "del", &g.adres, "dev", iface])) {
-        return Err("Adres kaldırılamadı (ip addr del başarısız).".into());
+    let canli = adresler(&ip_oku(&["ip", "-o", "-4", "addr", "show", "dev", iface]));
+    let sure = neden == "sure";
+    let hata = if !kopru_okundu(cfg, &canli) {
+        Some("ip_okunamadi")
+    } else if canli.iter().any(|(i, a)| i == iface && *a == c) && !runner(&s(&["ip", "addr", "del", &g.adres, "dev", iface])) {
+        Some("ip_addr_del")
+    } else {
+        None
+    };
+    match hata {
+        Some("ip_okunamadi") if !sure => return Err(OKUNAMADI.into()),
+        Some(_) if !sure => return Err("Adres kaldırılamadı (ip addr del başarısız).".into()),
+        _ => {}
     }
-    if neden != "sure" {
+    if !sure {
         runner(&zamanlayici_durdur(&g.kimlik));
     }
     std::fs::remove_file(&y.gecici).map_err(|e| format!("Durum dosyası silinemedi: {e}"))?;
-    Ok(Some(g.adres))
+    Ok(Some(Kaldirilan { adres: g.adres, hata }))
 }
 
 /// Panel gösterimi: açık geçici adres ve canlıda hâlâ var mı (ör. port değişikliği adresi silmiş olabilir).
@@ -306,6 +361,7 @@ pub fn acilis_temizle(cfg: &Config, y: &Yollar, ip_oku: &IpOku) -> Option<String
     if !y.gecici.exists() {
         return None;
     }
+    let _kilit = kilit(y).ok();
     match durum(y, cfg, ip_oku) {
         Some((_, true)) => None,
         Some((g, false)) => std::fs::remove_file(&y.gecici).ok().map(|_| g.adres),
@@ -550,7 +606,8 @@ unreachable 192.168.77.0/24
         assert!(calls.lock().unwrap().is_empty() && y.gecici.exists());
         // süre doldu: ip addr del, zamanlayıcı durdurulmaz
         let (calls, r) = kayitci(|_| true);
-        assert_eq!(kaldir(&cfg, &y, "sure", Some("0a1b2c3d"), &ip_sahte(ACIK), &*r).unwrap().as_deref(), Some("192.168.0.250/24"));
+        assert_eq!(kaldir(&cfg, &y, "sure", Some("0a1b2c3d"), &ip_sahte(ACIK), &*r).unwrap(),
+            Some(Kaldirilan { adres: "192.168.0.250/24".into(), hata: None }));
         assert_eq!(*calls.lock().unwrap(), vec![s(&["ip", "addr", "del", "192.168.0.250/24", "dev", "br-hotspot"])]);
         assert!(!y.gecici.exists());
         // elle: zamanlayıcı da durdurulur
@@ -567,6 +624,37 @@ unreachable 192.168.77.0/24
         yaz(&y, "0a1b2c3d");
         let (_, r) = kayitci(|c| c[0] != "ip");
         assert!(kaldir(&cfg, &y, "elle", None, &ip_sahte(ACIK), &*r).is_err() && y.gecici.exists());
+        // süre doldu ama ip addr del başarısız: dosya yine silinir, hata denetime (çekirdek ömrü adresi düşürür)
+        let (_, r) = kayitci(|c| c[0] != "ip");
+        assert_eq!(kaldir(&cfg, &y, "sure", Some("0a1b2c3d"), &ip_sahte(ACIK), &*r).unwrap().and_then(|k| k.hata), Some("ip_addr_del"));
+        assert!(!y.gecici.exists());
+        // ip çıktısı okunamadı (köprü adresi yok): elle → hata, dosya kalır, komut yok; süre → dosya silinir
+        yaz(&y, "0a1b2c3d");
+        let bos = |_: &[&str]| String::new();
+        let (calls, r) = kayitci(|_| true);
+        assert!(kaldir(&cfg, &y, "elle", None, &bos, &*r).unwrap_err().contains("okunamadı") && y.gecici.exists());
+        assert!(calls.lock().unwrap().is_empty());
+        assert_eq!(kaldir(&cfg, &y, "sure", Some("0a1b2c3d"), &bos, &*r).unwrap().and_then(|k| k.hata), Some("ip_okunamadi"));
+        assert!(!y.gecici.exists());
+    }
+
+    #[test]
+    fn ekle_ip_okunamazsa_ret_ve_sirali() {
+        let (cfg, y, _) = cfg_ve_yol();
+        // ip çıktısı boş: çakışma denetimi yapılamaz → ret, komut yok
+        let (calls, r) = kayitci(|_| true);
+        assert!(ekle(&cfg, &y, "192.168.0.250/24", SURE_SN, &|_: &[&str]| String::new(), &*r, 1000.0).unwrap_err().contains("okunamadı"));
+        assert!(calls.lock().unwrap().is_empty() && !y.gecici.exists());
+        // iki eşzamanlı ekleme (çift tıklama): biri eklenir, öteki "Zaten" ile reddedilir
+        let (calls, r) = kayitci(|_| true);
+        let r: &Runner = &*r;
+        let ip = ip_sahte("");
+        let sonuc: Vec<bool> = std::thread::scope(|t| {
+            let h: Vec<_> = (0..2).map(|_| t.spawn(|| ekle(&cfg, &y, "192.168.0.250/24", SURE_SN, &ip, r, 1000.0).is_ok())).collect();
+            h.into_iter().map(|h| h.join().unwrap()).collect()
+        });
+        assert_eq!(sonuc.iter().filter(|b| **b).count(), 1, "{sonuc:?}");
+        assert_eq!(calls.lock().unwrap().iter().filter(|c| c[0] == "systemd-run").count(), 1);
     }
 
     #[test]

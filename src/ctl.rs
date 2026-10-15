@@ -161,9 +161,10 @@ fn ap_adres_kaldir(cfg: &Config, y: &crate::ap::Yollar, args: &[String], ip_oku:
         return ExitCode::from(2);
     };
     match crate::ap::kaldir(cfg, y, neden, kimlik, ip_oku, runner) {
-        Ok(Some(a)) => {
-            ap_denetim(cfg, now, format!("kaldirildi adres={a} neden={neden}"));
-            println!("{a} kaldırıldı");
+        Ok(Some(k)) => {
+            let hata = k.hata.map_or(String::new(), |h| format!(" hata={h}"));
+            ap_denetim(cfg, now, format!("kaldirildi adres={} neden={neden}{hata}", k.adres));
+            println!("{} kaldırıldı{hata}", k.adres);
             ExitCode::SUCCESS
         }
         Ok(None) => {
@@ -375,7 +376,7 @@ pub fn run(cfg: Config, args: &[String]) -> ExitCode {
             }
             ExitCode::SUCCESS
         }
-        // Panel → Admin → AP kurulumu eşdeğeri (konsol) ve kaldırma zamanlayıcısı
+        // Panel → Ayarlar → AP kurulumu eşdeğeri (konsol) ve kaldırma zamanlayıcısı
         Some("ap-adres-ekle") => ap_adres_ekle(&cfg, &crate::ap::Yollar::sistem(), args, &|c: &[&str]| ortak::capture(c), &runner, now),
         Some("ap-adres-kaldir") => ap_adres_kaldir(&cfg, &crate::ap::Yollar::sistem(), args, &|c: &[&str]| ortak::capture(c), &runner, now),
         // Paket kurulumu (postinst): 0.4.8 öncesinden ayar dosyasında kalan SMS sırları
@@ -900,8 +901,18 @@ mod tests {
         let y = crate::ap::Yollar { gecici: root.join("ap-gecici.json") };
         let denetim = || std::fs::read_to_string(root.join("5651/gunluk/2026-09-29/denetim.csv")).unwrap_or_default();
         let canli = "4: br-hotspot    inet 192.168.0.250/24 scope global br-hotspot:ap\\       valid_lft 100sec preferred_lft 100sec\n";
-        let ip_var = |a: &[&str]| if a.len() == 7 && a[5] == "dev" { canli.to_string() } else { String::new() };
-        let ip_yok = |_: &[&str]| String::new();
+        // köprünün kendi adresi her zaman görünür (yoksa `ip` okunamadı sayılır); `label` sorgusu yalnızca geçici adresi döner
+        let kopru = "4: br-hotspot    inet 10.50.0.1/24 brd 10.50.0.255 scope global br-hotspot\\       valid_lft forever preferred_lft forever\n";
+        let ip_var = move |a: &[&str]| match a {
+            [.., "label", _] => canli.to_string(),
+            ["ip", "-o", "-4", "addr", ..] => format!("{kopru}{canli}"),
+            _ => String::new(),
+        };
+        let ip_yok = move |a: &[&str]| match a {
+            [.., "label", _] => String::new(),
+            ["ip", "-o", "-4", "addr", ..] => kopru.to_string(),
+            _ => String::new(),
+        };
         let calls = Arc::new(Mutex::new(Vec::<Vec<String>>::new()));
         let c2 = calls.clone();
         let runner = move |x: &[String]| {

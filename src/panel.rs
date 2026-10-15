@@ -430,10 +430,10 @@ const BOLUMLER: &[(&str, &str, &str, &str, bool)] = &[
     ("/ayarlar", "/ayarlar", "isletme", "İşletme", false),
     ("/ayarlar", "/portal-metinleri", "portal-metinleri", "Portal metinleri", false),
     ("/ayarlar", "/portlar", "portlar", "Portlar", false),
+    ("/ayarlar", "/ap-kurulum", "ap-kurulum", "AP kurulumu", false),
     ("/ayarlar", "/sistem", "sistem", "Sistem", false),
     ("/ayarlar", "/sifre", "sifre-degistir", "Şifremi değiştir", false),
     ("/admin", "/admin-ayarlari", "admin-ayarlari", "Admin ayarları", true),
-    ("/admin", "/ap-kurulum", "ap-kurulum", "AP kurulumu", true),
     ("/admin", "/panel-hareketleri", "panel-hareketleri", "Panel hareketleri", true),
 ];
 
@@ -869,13 +869,13 @@ impl Panel {
             ("GET", "/admin") if hizmet => self.grup_sayfasi(&cfg, req, &o, now),
             ("GET", "/panel-hareketleri") if hizmet => self.hareketler(&cfg, req, &o, now),
             ("GET", "/admin-ayarlari") if hizmet => self.ayarlar(&cfg, req, &o, &HashMap::new(), true),
-            ("GET", "/ap-kurulum") if hizmet => self.ap_kurulum(&cfg, req, &o, now),
-            ("GET", "/ap-kurulum/cihazlar") if hizmet => self.ap_cihazlar(&cfg, req, &o),
-            ("GET", "/admin" | "/admin-ayarlari" | "/panel-hareketleri" | "/ap-kurulum" | "/ap-kurulum/cihazlar") => self.admin_kilidi_formu(&cfg, req, &o, ""),
-            ("POST", "/ap-kurulum/gecici-ekle") if hizmet => self.ap_gecici_ekle(&cfg, req, &o, now),
-            ("POST", "/ap-kurulum/gecici-kaldir") if hizmet => self.ap_gecici_kaldir(&cfg, req, &o),
-            ("POST", "/ap-kurulum/adresler") if hizmet => self.ap_adres_kaydet(&cfg, req, &o),
-            ("POST", "/ap-kurulum/gecici-ekle" | "/ap-kurulum/gecici-kaldir" | "/ap-kurulum/adresler") => text(403, "Admin kilidi kapalı."),
+            ("GET", "/admin" | "/admin-ayarlari" | "/panel-hareketleri") => self.admin_kilidi_formu(&cfg, req, &o, ""),
+            // AP kurulumu: işletme sahibi de kullanır (2026-10-15 kullanıcı kararı; admin kilidi yok, CSRF ve denetim var)
+            ("GET", "/ap-kurulum") => self.ap_kurulum(&cfg, req, &o, now),
+            ("GET", "/ap-kurulum/cihazlar") => self.ap_cihazlar(&cfg, req, &o),
+            ("POST", "/ap-kurulum/gecici-ekle") => self.ap_gecici_ekle(&cfg, req, &o, now),
+            ("POST", "/ap-kurulum/gecici-kaldir") => self.ap_gecici_kaldir(&cfg, req, &o),
+            ("POST", "/ap-kurulum/adresler") => self.ap_adres_kaydet(&cfg, req, &o),
             ("POST", "/admin-kilidi") => self.admin_kilidi(&cfg, req, &o, now),
             ("POST", "/admin-kilidi/kapat") => {
                 if let Some(t) = &req.token {
@@ -1700,7 +1700,7 @@ const ADMIN_SURE: f64 = 1800.0;
 /// Admin kilidi açılınca dönülecek yer: yalnızca kilitli sayfalar (başka siteye yönlendirme yok).
 fn admin_donus(yol: &str) -> &str {
     match yol {
-        "/admin-ayarlari" | "/panel-hareketleri" | "/ap-kurulum" | "/ap-kurulum/cihazlar" => yol,
+        "/admin-ayarlari" | "/panel-hareketleri" => yol,
         _ => "/admin",
     }
 }
@@ -2613,7 +2613,7 @@ mod tests {
         assert!(!page.contains("href=\"/admin-ayarlari\"") && !page.contains("href=\"/hesaplar\""));
         assert_eq!(e.p.handle(&req("GET", "/hesaplar", &[], Some(&tok))).status, 404); // yerel ek hesap yok
         let page = e.p.handle(&req("GET", "/ayarlar", &[], Some(&tok))).body;
-        for gizli in ["netgsm", "NetGSM", "Twilio", "twilio", "sms.mock", "backup.target", "Yedek", "sms_global_day", "Fabrika"] {
+        for gizli in ["netgsm", "NetGSM", "Twilio", "twilio", "sms.mock", "backup.target", "Yedek", "sms_global_day", "Fabrika ayar"] {
             assert!(!page.contains(gizli), "{gizli}"); // işletme sahibi sağlayıcı / sunucu / sınır görmez
         }
         assert!(page.contains("main.unvan") && page.contains("main.session_minutes"));
@@ -4147,23 +4147,55 @@ mod tests {
     }
 
     #[test]
-    fn ap_kurulum_yalniz_admin() {
+    fn ap_kurulum_isletme_sahibi_de() {
+        // 2026-10-15 kullanıcı kararı: işletme sahibi de AP kurulumunu kullanır (admin kilidi yok); CSRF ve denetim aynen
         let e = env();
         let (tok, csrf) = setup_and_login(&e, "mudur", "sahip-parola-12");
-        // işletme sahibi: GET kilit formu, POST 403, Ayarlar/Admin'de bölüm yok
+        let denetim = || std::fs::read_to_string(e.root.join("5651/gunluk/2026-09-29/denetim.csv")).unwrap_or_default();
+        // bölüm Ayarlar grup sayfasında (Admin'de değil); sayfalar kilit formu değil
+        let a = e.p.handle(&req("GET", "/ayarlar", &[], Some(&tok))).body;
+        assert!(a.contains("<section class=\"bolum\" id=\"ap-kurulum\"") && a.contains("href=\"#ap-kurulum\"") && a.contains("action=\"/ap-kurulum/gecici-ekle\""));
         for yol in ["/ap-kurulum", "/ap-kurulum/cihazlar"] {
             let r = e.p.handle(&req("GET", yol, &[], Some(&tok)));
-            assert!(r.body.contains("action=\"/admin-kilidi\"") && r.body.contains(&format!("name=\"donus\" value=\"{yol}\"")), "{yol}");
-            assert!(!r.body.contains("70:4f:57"));
+            assert!(r.status == 200 && !r.body.contains("action=\"/admin-kilidi\""), "{yol}");
         }
+        assert!(denetim().lines().any(|l| l.contains("PANEL_AP_CIHAZLAR") && l.contains("rol=sahip")), "{}", denetim());
+        // CSRF'siz POST: 403, hiçbir şey değişmez
         for yol in ["/ap-kurulum/gecici-ekle", "/ap-kurulum/gecici-kaldir", "/ap-kurulum/adresler"] {
-            let r = e.p.handle(&req("POST", yol, &[("csrf", &csrf), ("adres", "192.168.0.250/24"), ("adresler", "10.50.0.2")], Some(&tok)));
+            let r = e.p.handle(&req("POST", yol, &[("adres", "192.168.0.250/24"), ("adresler", "10.50.0.2")], Some(&tok)));
             assert_eq!(r.status, 403, "{yol}");
         }
         assert!(Config::load(&e.p.cfg_path).unwrap().ap.adresler.is_empty());
-        assert!(!e.p.handle(&req("GET", "/ayarlar", &[], Some(&tok))).body.contains("ap-kurulum"));
         assert!(e.calls.lock().unwrap().iter().all(|c| c[0] != "ip" && c[0] != "systemd-run"));
-        assert!(!std::fs::read_to_string(e.root.join("5651/gunluk/2026-09-29/denetim.csv")).unwrap().contains("PANEL_AP_CIHAZLAR"));
+        // çakışma denetimi sahipte de: WAN ağı reddedilir
+        let r = e.p.handle(&req("POST", "/ap-kurulum/gecici-ekle", &[("csrf", &csrf), ("adres", "192.168.1.250/24")], Some(&tok)));
+        assert!(loc(&r).starts_with("/ayarlar?m=") && loc(&r).contains("e=1") && loc(&r).ends_with("#ap-kurulum"), "{}", loc(&r));
+        assert!(e.calls.lock().unwrap().iter().all(|c| c[0] != "ip" && c[0] != "systemd-run"));
+        // geçerli ekleme ve kayıt: denetimde kim + rol
+        let r = e.p.handle(&req("POST", "/ap-kurulum/gecici-ekle", &[("csrf", &csrf), ("adres", "192.168.0.250/24")], Some(&tok)));
+        assert!(!loc(&r).contains("e=1"), "{}", loc(&r));
+        assert!(denetim().lines().any(|l| l.contains("AP_KURULUM_ADRES") && l.contains("rol=sahip") && l.contains("eklendi adres=192.168.0.250/24")));
+        let r = e.p.handle(&req("POST", "/ap-kurulum/adresler", &[("csrf", &csrf), ("adresler", "10.50.0.30")], Some(&tok)));
+        assert!(loc(&r).contains("e=1"), "havuz reddedilir");
+        let r = e.p.handle(&req("POST", "/ap-kurulum/adresler", &[("csrf", &csrf), ("adresler", "10.50.0.2")], Some(&tok)));
+        assert!(!loc(&r).contains("e=1"), "{}", loc(&r));
+        assert_eq!(Config::load(&e.p.cfg_path).unwrap().ap.adresler, ["10.50.0.2"]);
+        assert!(denetim().lines().any(|l| l.contains("PANEL_AP_ADRES") && l.contains("rol=sahip")));
+        // Admin sayfası hâlâ kilitli ve AP bölümünü içermez
+        let a = e.p.handle(&req("GET", "/admin", &[], Some(&tok))).body;
+        assert!(a.contains("action=\"/admin-kilidi\"") && !a.contains("id=\"ap-kurulum\""));
+    }
+
+    #[test]
+    fn ap_kurulum_bozuk_durum_dosyasi_kaldirilabilir() {
+        let e = env();
+        let (tok, csrf) = setup_and_login(&e, "admin", "hizmet-parola-1");
+        std::fs::write(&e.p.ap_yollar.gecici, "bozuk").unwrap();
+        let a = e.p.handle(&req("GET", "/ayarlar", &[], Some(&tok))).body;
+        assert!(a.contains("okunamadı") && a.contains("action=\"/ap-kurulum/gecici-kaldir\"") && !a.contains("action=\"/ap-kurulum/gecici-ekle\""));
+        e.p.handle(&req("POST", "/ap-kurulum/gecici-kaldir", &[("csrf", &csrf)], Some(&tok)));
+        assert!(!e.p.ap_yollar.gecici.exists());
+        assert!(e.p.handle(&req("GET", "/ayarlar", &[], Some(&tok))).body.contains("action=\"/ap-kurulum/gecici-ekle\""));
     }
 
     #[test]
@@ -4173,8 +4205,8 @@ mod tests {
         std::fs::write(e.p.sys.join("br-hotspot/address"), "00:0e:c4:ce:a0:9a\n").unwrap();
         let (tok, csrf) = setup_and_login(&e, "admin", "hizmet-parola-1");
         let denetim = || std::fs::read_to_string(e.root.join("5651/gunluk/2026-09-29/denetim.csv")).unwrap_or_default();
-        // Admin grup sayfasında bölüm: misafir portu adresi + köprü MAC'i, form
-        let a = e.p.handle(&req("GET", "/admin", &[], Some(&tok))).body;
+        // Ayarlar grup sayfasında bölüm: misafir portu adresi + köprü MAC'i, form
+        let a = e.p.handle(&req("GET", "/ayarlar", &[], Some(&tok))).body;
         assert!(a.contains("<section class=\"bolum\" id=\"ap-kurulum\"") && a.contains("href=\"#ap-kurulum\""));
         assert!(a.contains("10.50.0.1") && a.contains("00:0e:c4:ce:a0:9a") && a.contains("action=\"/ap-kurulum/gecici-ekle\""));
         assert_eq!(e.p.handle(&req("GET", "/ap-kurulum", &[], Some(&tok))).status, 200);
@@ -4182,12 +4214,12 @@ mod tests {
         assert_eq!(e.p.handle(&req("POST", "/ap-kurulum/gecici-ekle", &[("adres", "192.168.0.250/24")], Some(&tok))).status, 403);
         // çakışan adres (WAN ağı): mesaj, ip addr add yok, denetim yok
         let r = e.p.handle(&req("POST", "/ap-kurulum/gecici-ekle", &[("csrf", &csrf), ("adres", "192.168.1.250/24")], Some(&tok)));
-        assert!(loc(&r).starts_with("/admin?m=") && loc(&r).contains("e=1") && loc(&r).ends_with("#ap-kurulum"), "{}", loc(&r));
+        assert!(loc(&r).starts_with("/ayarlar?m=") && loc(&r).contains("e=1") && loc(&r).ends_with("#ap-kurulum"), "{}", loc(&r));
         assert!(e.calls.lock().unwrap().iter().all(|c| c[0] != "ip" && c[0] != "systemd-run"));
         assert!(!denetim().contains("AP_KURULUM_ADRES"));
         // ekleme: önce zamanlayıcı, sonra adres; denetim; yönlendirme
         let r = e.p.handle(&req("POST", "/ap-kurulum/gecici-ekle", &[("csrf", &csrf), ("adres", "192.168.0.250/24")], Some(&tok)));
-        assert!(loc(&r).starts_with("/admin?m=") && !loc(&r).contains("e=1") && loc(&r).ends_with("#ap-kurulum"), "{}", loc(&r));
+        assert!(loc(&r).starts_with("/ayarlar?m=") && !loc(&r).contains("e=1") && loc(&r).ends_with("#ap-kurulum"), "{}", loc(&r));
         {
             let v = e.calls.lock().unwrap();
             let i = v.iter().position(|c| c[0] == "systemd-run" && c.iter().any(|x| x == "ap-adres-kaldir")).expect("zamanlayıcı");
@@ -4197,14 +4229,14 @@ mod tests {
         assert!(denetim().contains("AP_KURULUM_ADRES") && denetim().contains("eklendi adres=192.168.0.250/24 sure=1800"));
         // açık geçici adres: kalan süre + Şimdi kaldır
         *e.ip_ek.lock().unwrap() = "4: br-hotspot    inet 192.168.0.250/24 scope global br-hotspot:ap\\       valid_lft 1800sec preferred_lft 1800sec\n".into();
-        let a = e.p.handle(&req("GET", "/admin", &[], Some(&tok))).body;
+        let a = e.p.handle(&req("GET", "/ayarlar", &[], Some(&tok))).body;
         assert!(a.contains("192.168.0.250/24") && a.contains("(30 dk)") && a.contains("action=\"/ap-kurulum/gecici-kaldir\"") && !a.contains("action=\"/ap-kurulum/gecici-ekle\""));
         // ikinci ekleme reddedilir
         let r = e.p.handle(&req("POST", "/ap-kurulum/gecici-ekle", &[("csrf", &csrf), ("adres", "172.16.5.1/24")], Some(&tok)));
         assert!(loc(&r).contains("e=1"));
         // canlıda artık yok (ağ yeniden kuruldu)
         e.ip_ek.lock().unwrap().clear();
-        assert!(e.p.handle(&req("GET", "/admin", &[], Some(&tok))).body.contains("artık yok"));
+        assert!(e.p.handle(&req("GET", "/ayarlar", &[], Some(&tok))).body.contains("artık yok"));
         *e.ip_ek.lock().unwrap() = "4: br-hotspot    inet 192.168.0.250/24 scope global br-hotspot:ap\\       valid_lft 1800sec preferred_lft 1800sec\n".into();
         // kaldırma: ip addr del + zamanlayıcı durdurma + denetim
         e.calls.lock().unwrap().clear();
@@ -4233,7 +4265,7 @@ mod tests {
         let (tok, csrf) = setup_and_login(&e, "admin", "hizmet-parola-1");
         let denetim = || std::fs::read_to_string(e.root.join("5651/gunluk/2026-09-29/denetim.csv")).unwrap_or_default();
         let kayitli = || Config::load(&e.p.cfg_path).unwrap().ap.adresler;
-        let a = e.p.handle(&req("GET", "/admin", &[], Some(&tok))).body;
+        let a = e.p.handle(&req("GET", "/ayarlar", &[], Some(&tok))).body;
         assert!(a.contains("action=\"/ap-kurulum/adresler\"") && a.contains("Kayıtlı AP adresi yok"));
         // CSRF'siz: 403, ayar değişmez
         assert_eq!(e.p.handle(&req("POST", "/ap-kurulum/adresler", &[("adresler", "10.50.0.2")], Some(&tok))).status, 403);
@@ -4248,7 +4280,7 @@ mod tests {
         assert_eq!(kayitli(), ["10.50.0.2", "10.50.0.3"]);
         assert!(denetim().contains("PANEL_AP_ADRES") && denetim().contains("adresler=10.50.0.2,10.50.0.3 eski=-"));
         assert!(e.calls.lock().unwrap().is_empty());
-        let a = e.p.handle(&req("GET", "/admin", &[], Some(&tok))).body;
+        let a = e.p.handle(&req("GET", "/ayarlar", &[], Some(&tok))).body;
         assert!(a.contains("<code>10.50.0.2</code>, <code>10.50.0.3</code>"));
         // ağdaki cihazlar listesinde işaretlenir
         std::fs::write(e.root.join("leases"), "1790712334 70:4f:57:dd:7a:e8 10.50.0.2 * *\n").unwrap();

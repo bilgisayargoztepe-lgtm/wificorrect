@@ -1,4 +1,4 @@
-//! Panel → Admin → AP kurulumu (yalnızca hizmet sağlayıcı; spec 2026-10-15-ap-kurulum): cihazın misafir portu bilgisi,
+//! Panel → Ayarlar → AP kurulumu (hizmet sağlayıcı ve işletme sahibi; spec 2026-10-15-ap-kurulum): cihazın misafir portu bilgisi,
 //! ağdaki cihazlar (ayrı sayfa, denetlenir) ve fabrika adresli AP'ye ulaşmak için 30 dk'lık geçici adres.
 
 use super::*;
@@ -28,6 +28,11 @@ impl Panel {
                 h(&g.adres),
                 post_button(o, "/ap-kurulum/gecici-kaldir", "Kaldır", &[], "ikincil")
             ),
+            // durum dosyası var ama okunamıyor (bozuk): ekleme reddedilir, kaldırma dosyayı temizler
+            None if self.ap_yollar.gecici.exists() => format!(
+                "<p>Geçici adres durumu okunamadı.</p>{}",
+                post_button(o, "/ap-kurulum/gecici-kaldir", "Kaldır", &[], "ikincil")
+            ),
             None => format!(
                 "<form class=\"satir\" method=\"post\" action=\"/ap-kurulum/gecici-ekle\">{}\
                  <div><label for=\"apg\">Geçici adres</label><input type=\"text\" id=\"apg\" name=\"adres\" placeholder=\"192.168.0.250/24\" required></div>\
@@ -41,7 +46,8 @@ impl Panel {
         };
         let body = format!(
             "<section class=\"kart grup\"><h2>Cihazın misafir portu</h2><div>{port}<p class=\"not\">AP'de \"yönetime yalnızca şu IP/MAC \
-             izin ver\" seçeneği varsa bu adres ve MAC yazılır.</p></div></section>\
+             izin ver\" seçeneği varsa bu adres ve MAC yazılır — en son, AP kalıcı adresine (ör. 10.50.0.2) taşınıp o adresten \
+             yeniden girildikten sonra (geçici adresten bağlıyken IP kısıtı oturumu keser, AP'ye ulaşılamaz).</p></div></section>\
              <section class=\"kart grup\"><h2>Ağdaki cihazlar</h2><div><p>Misafir portunda son görülen cihazlar (DHCP kiraları ve ARP \
              tablosu); müşterinin verdiği MAC'le eşleştirin.</p><p><a class=\"dugme ikincil\" href=\"/ap-kurulum/cihazlar\">Ağdaki cihazları göster</a></p>\
              <p class=\"not\">Fabrika adresli AP, cihaz ona hiç paket göndermediyse listede görünmez; önce geçici adres ekleyin.</p></div></section>\
@@ -128,7 +134,7 @@ impl Panel {
             })
             .collect();
         let body = format!(
-            "<p><a href=\"/admin#ap-kurulum\">← AP kurulumu</a></p>{}\
+            "<p><a href=\"/ayarlar#ap-kurulum\">← AP kurulumu</a></p>{}\
              <p class=\"not\">Fabrika adresli AP, cihaz ona hiç paket göndermediyse listede görünmez; önce geçici adres ekleyin.</p>",
             table(&["MAC", "IP", "Ad", "Kaynak", "Not"], &rows, "Cihaz görülmedi")
         );
@@ -149,9 +155,9 @@ impl Panel {
 
     pub(super) fn ap_gecici_kaldir(&self, cfg: &Config, req: &Req, o: &Oturum) -> Resp {
         match ap::kaldir(cfg, &self.ap_yollar, "elle", None, &*self.ip_oku, &*self.runner) {
-            Ok(Some(a)) => {
-                self.audit(cfg, req, Some(o), "AP_KURULUM_ADRES", &format!("kaldirildi adres={a} neden=elle"));
-                redirect("/ap-kurulum", Some((&format!("Geçici adres {a} kaldırıldı."), false)))
+            Ok(Some(k)) => {
+                self.audit(cfg, req, Some(o), "AP_KURULUM_ADRES", &format!("kaldirildi adres={} neden=elle", k.adres));
+                redirect("/ap-kurulum", Some((&format!("Geçici adres {} kaldırıldı.", k.adres), false)))
             }
             Ok(None) => redirect("/ap-kurulum", Some(("Açık geçici adres yok.", false))),
             Err(e) => redirect("/ap-kurulum", Some((&e, true))),

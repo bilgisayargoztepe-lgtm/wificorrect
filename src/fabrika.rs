@@ -90,7 +90,7 @@ pub fn fabrika(
     // 1b) AP kurulumunun geçici adresi kalkar (denetim satırı teslim edilecek kayda girer; port varsayılanı da siler,
     //     durum dosyası bayat kalmasın)
     match crate::ap::kaldir(cfg, ap, "fabrika", None, ip_oku, runner) {
-        Ok(Some(a)) => audit(&m.log_root, "AP_KURULUM_ADRES", now, &format!("kaldirildi adres={a} neden=fabrika")),
+        Ok(Some(k)) => audit(&m.log_root, "AP_KURULUM_ADRES", now, &format!("kaldirildi adres={} neden=fabrika", k.adres)),
         Ok(None) => {}
         Err(e) => eprintln!("AP geçici adresi kaldırılamadı: {e}"),
     }
@@ -239,7 +239,14 @@ mod tests {
         // AP kurulumunun geçici adresi açık (canlıda)
         let apy = crate::ap::Yollar { gecici: root.join("ap-gecici.json") };
         std::fs::write(&apy.gecici, r#"{"adres":"192.168.0.250/24","kimlik":"0a1b2c3d","bitis":1791001000.0}"#).unwrap();
-        let ip_ap = |a: &[&str]| if a.len() == 7 { "4: br-hotspot    inet 192.168.0.250/24 scope global br-hotspot:ap\n".to_string() } else { String::new() };
+        // köprünün kendi adresi de görünür (yoksa `ip` okunamadı sayılır ve fabrika kaldırması reddedilir)
+        let ip_ap = |a: &[&str]| {
+            if a.len() == 7 {
+                "4: br-hotspot    inet 10.50.0.1/24 scope global br-hotspot\n4: br-hotspot    inet 192.168.0.250/24 scope global br-hotspot:ap\n".to_string()
+            } else {
+                String::new()
+            }
+        };
         let r = fabrika(&cfg, &cfg_path.to_string_lossy(), &root.join("hesaplar.json").to_string_lossy(), &mp, &bildir, &root.join("yasak.conf"), &hl, &y, &apy, &ip_ap, 1_791_000_000.0, &fail);
         assert!(r.unwrap_err().contains("gönderilemedi"));
         assert!(root.join("5651/gunluk/2026-10-01").exists() && h.load().unwrap().len() == 1 && mp.exists() && bildirimler.lock().unwrap().is_empty());

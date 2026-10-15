@@ -25,6 +25,7 @@ mod sms;
 mod trafik;
 mod ulkeler;
 mod uzak;
+mod yan_oda;
 
 use std::process::ExitCode;
 

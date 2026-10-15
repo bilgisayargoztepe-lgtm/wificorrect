@@ -404,9 +404,9 @@ pub struct Panel {
     pub rapor_http: Box<crate::merkez::Http>,
     /// Merkezden alınan rapor cevapları: anahtar → (geçerlilik sonu, cevap)
     rapor_onbellek: std::sync::Mutex<HashMap<String, (f64, rapor_sayfalari::Sonuc)>>,
-    /// AP kurulumu geçici adres durum dosyası (testte geçici)
+    /// AP kurulumu yan oda durum dosyası (testte geçici)
     ap_yollar: crate::ap::Yollar,
-    /// Canlı `ip` çıktısı (adres, rota, komşu tablosu; testte sahte)
+    /// Canlı komut çıktısı (komşu tablosu, aracı birimi durumu, DHCP denetimi; testte sahte)
     ip_oku: Box<dyn Fn(&[&str]) -> String + Send + Sync>,
 }
 
@@ -876,6 +876,7 @@ impl Panel {
             ("POST", "/ap-kurulum/gecici-ekle") => self.ap_gecici_ekle(&cfg, req, &o, now),
             ("POST", "/ap-kurulum/gecici-kaldir") => self.ap_gecici_kaldir(&cfg, req, &o),
             ("POST", "/ap-kurulum/adresler") => self.ap_adres_kaydet(&cfg, req, &o),
+            ("POST", "/ap-kurulum/dhcp-denetle") => self.ap_dhcp_denetle(&cfg, req, &o),
             ("POST", "/admin-kilidi") => self.admin_kilidi(&cfg, req, &o, now),
             ("POST", "/admin-kilidi/kapat") => {
                 if let Some(t) = &req.token {
@@ -1846,25 +1847,21 @@ mod tests {
         p: Panel,
         calls: Arc<Mutex<Vec<Vec<String>>>>,
         root: std::path::PathBuf,
-        /// Sahte `ip`: köprüdeki ek adres satırları (geçici adres canlıda gibi)
+        /// Sahte komut çıktısı: "araci" satırı → aracı birimi çalışıyor; `TEKLIF`/`TAMAM` satırları → DHCP denetimi çıktısı
         ip_ek: Arc<Mutex<String>>,
     }
 
     const IP: &str = "192.168.1.50";
 
-    const IP_ADDR: &str = "2: enp3s0    inet 192.168.1.110/24 brd 192.168.1.255 scope global dynamic enp3s0\\       valid_lft 3221sec preferred_lft 3221sec
-4: br-hotspot    inet 10.50.0.1/24 brd 10.50.0.255 scope global br-hotspot\\       valid_lft forever preferred_lft forever
-";
-    const IP_ROUTE: &str = "default via 192.168.1.1 dev enp3s0\n10.50.0.0/24 dev br-hotspot proto kernel scope link src 10.50.0.1\n192.168.1.0/24 dev enp3s0 proto dhcp scope link src 192.168.1.110\n";
     const NEIGH: &str = "10.50.0.2 lladdr 70:4f:57:dd:7a:e8 REACHABLE\n10.50.0.44 lladdr da:11:22:33:44:55 STALE\n10.50.0.45 FAILED\n";
 
     fn sahte_ip(a: &[&str], ek: &str) -> String {
         match a {
-            ["ip", "-o", "-4", "addr", "show"] => format!("{IP_ADDR}{ek}"),
-            ["ip", "-o", "-4", "addr", "show", "dev", "br-hotspot"] => format!("{}\n{ek}", IP_ADDR.lines().nth(1).unwrap()),
-            ["ip", "-o", "-4", "addr", "show", "dev", "br-hotspot", "label", "br-hotspot:ap"] => ek.into(),
-            ["ip", "-4", "route", "show"] => IP_ROUTE.into(),
             ["ip", "-4", "neigh", "show", "dev", "br-hotspot"] => NEIGH.into(),
+            ["systemctl", "is-active", "wfc-ap-araci.service"] => if ek.lines().any(|l| l == "araci") { "active\n" } else { "inactive\n" }.into(),
+            ["/usr/local/bin/wificorrect", "ctl", "ap-dhcp-denetle"] => {
+                ek.lines().filter(|l| l.starts_with("TEKLIF") || l.starts_with("TAMAM")).map(|l| format!("{l}\n")).collect()
+            }
             _ => String::new(),
         }
     }
@@ -4161,26 +4158,30 @@ mod tests {
         }
         assert!(denetim().lines().any(|l| l.contains("PANEL_AP_CIHAZLAR") && l.contains("rol=sahip")), "{}", denetim());
         // CSRF'siz POST: 403, hiçbir şey değişmez
-        for yol in ["/ap-kurulum/gecici-ekle", "/ap-kurulum/gecici-kaldir", "/ap-kurulum/adresler"] {
+        for yol in ["/ap-kurulum/gecici-ekle", "/ap-kurulum/gecici-kaldir", "/ap-kurulum/adresler", "/ap-kurulum/dhcp-denetle"] {
             let r = e.p.handle(&req("POST", yol, &[("adres", "192.168.0.250/24"), ("adresler", "10.50.0.2")], Some(&tok)));
             assert_eq!(r.status, 403, "{yol}");
         }
         assert!(Config::load(&e.p.cfg_path).unwrap().ap.adresler.is_empty());
         assert!(e.calls.lock().unwrap().iter().all(|c| c[0] != "ip" && c[0] != "systemd-run"));
-        // çakışma denetimi sahipte de: WAN ağı reddedilir
-        let r = e.p.handle(&req("POST", "/ap-kurulum/gecici-ekle", &[("csrf", &csrf), ("adres", "192.168.1.250/24")], Some(&tok)));
+        // doğrulama sahipte de: misafir ağı reddedilir
+        let r = e.p.handle(&req("POST", "/ap-kurulum/gecici-ekle", &[("csrf", &csrf), ("adres", "10.50.0.250/24")], Some(&tok)));
         assert!(loc(&r).starts_with("/ayarlar?m=") && loc(&r).contains("e=1") && loc(&r).ends_with("#ap-kurulum"), "{}", loc(&r));
         assert!(e.calls.lock().unwrap().iter().all(|c| c[0] != "ip" && c[0] != "systemd-run"));
-        // geçerli ekleme ve kayıt: denetimde kim + rol
-        let r = e.p.handle(&req("POST", "/ap-kurulum/gecici-ekle", &[("csrf", &csrf), ("adres", "192.168.0.250/24")], Some(&tok)));
+        // geçerli açma (modemin ağıyla aynı alt ağ) ve kayıt: denetimde kim + rol
+        let r = e.p.handle(&req("POST", "/ap-kurulum/gecici-ekle", &[("csrf", &csrf), ("adres", "192.168.1.250/24")], Some(&tok)));
         assert!(!loc(&r).contains("e=1"), "{}", loc(&r));
-        assert!(denetim().lines().any(|l| l.contains("AP_KURULUM_ADRES") && l.contains("rol=sahip") && l.contains("eklendi adres=192.168.0.250/24")));
+        assert!(denetim().lines().any(|l| l.contains("AP_YAN_ODA") && l.contains("rol=sahip") && l.contains("acildi adres=192.168.1.250/24")));
         let r = e.p.handle(&req("POST", "/ap-kurulum/adresler", &[("csrf", &csrf), ("adresler", "10.50.0.30")], Some(&tok)));
         assert!(loc(&r).contains("e=1"), "havuz reddedilir");
         let r = e.p.handle(&req("POST", "/ap-kurulum/adresler", &[("csrf", &csrf), ("adresler", "10.50.0.2")], Some(&tok)));
         assert!(!loc(&r).contains("e=1"), "{}", loc(&r));
         assert_eq!(Config::load(&e.p.cfg_path).unwrap().ap.adresler, ["10.50.0.2"]);
         assert!(denetim().lines().any(|l| l.contains("PANEL_AP_ADRES") && l.contains("rol=sahip")));
+        // DHCP denetimi sahipte de
+        let r = e.p.handle(&req("POST", "/ap-kurulum/dhcp-denetle", &[("csrf", &csrf)], Some(&tok)));
+        assert_eq!(r.status, 200);
+        assert!(denetim().lines().any(|l| l.contains("AP_DHCP_DENETIM") && l.contains("rol=sahip")));
         // Admin sayfası hâlâ kilitli ve AP bölümünü içermez
         let a = e.p.handle(&req("GET", "/admin", &[], Some(&tok))).body;
         assert!(a.contains("action=\"/admin-kilidi\"") && !a.contains("id=\"ap-kurulum\""));
@@ -4199,56 +4200,60 @@ mod tests {
     }
 
     #[test]
-    fn ap_kurulum_gecici_adres_ve_cihazlar() {
+    fn ap_kurulum_yan_oda_ve_cihazlar() {
         let e = env();
         std::fs::create_dir_all(e.p.sys.join("br-hotspot")).unwrap();
         std::fs::write(e.p.sys.join("br-hotspot/address"), "00:0e:c4:ce:a0:9a\n").unwrap();
         let (tok, csrf) = setup_and_login(&e, "admin", "hizmet-parola-1");
         let denetim = || std::fs::read_to_string(e.root.join("5651/gunluk/2026-09-29/denetim.csv")).unwrap_or_default();
-        // Ayarlar grup sayfasında bölüm: misafir portu adresi + köprü MAC'i, form
+        // Ayarlar grup sayfasında bölüm: misafir portu adresi + köprü MAC'i, form, DHCP denetimi düğmesi
         let a = e.p.handle(&req("GET", "/ayarlar", &[], Some(&tok))).body;
         assert!(a.contains("<section class=\"bolum\" id=\"ap-kurulum\"") && a.contains("href=\"#ap-kurulum\""));
         assert!(a.contains("10.50.0.1") && a.contains("00:0e:c4:ce:a0:9a") && a.contains("action=\"/ap-kurulum/gecici-ekle\""));
+        assert!(a.contains("action=\"/ap-kurulum/dhcp-denetle\""));
         assert_eq!(e.p.handle(&req("GET", "/ap-kurulum", &[], Some(&tok))).status, 200);
         // CSRF'siz POST reddedilir
-        assert_eq!(e.p.handle(&req("POST", "/ap-kurulum/gecici-ekle", &[("adres", "192.168.0.250/24")], Some(&tok))).status, 403);
-        // çakışan adres (WAN ağı): mesaj, ip addr add yok, denetim yok
-        let r = e.p.handle(&req("POST", "/ap-kurulum/gecici-ekle", &[("csrf", &csrf), ("adres", "192.168.1.250/24")], Some(&tok)));
+        assert_eq!(e.p.handle(&req("POST", "/ap-kurulum/gecici-ekle", &[("adres", "192.168.1.250/24")], Some(&tok))).status, 403);
+        // geçersiz adres (genel IP): mesaj, komut yok, denetim yok
+        let r = e.p.handle(&req("POST", "/ap-kurulum/gecici-ekle", &[("csrf", &csrf), ("adres", "8.8.8.1/24")], Some(&tok)));
         assert!(loc(&r).starts_with("/ayarlar?m=") && loc(&r).contains("e=1") && loc(&r).ends_with("#ap-kurulum"), "{}", loc(&r));
         assert!(e.calls.lock().unwrap().iter().all(|c| c[0] != "ip" && c[0] != "systemd-run"));
-        assert!(!denetim().contains("AP_KURULUM_ADRES"));
-        // ekleme: önce zamanlayıcı, sonra adres; denetim; yönlendirme
-        let r = e.p.handle(&req("POST", "/ap-kurulum/gecici-ekle", &[("csrf", &csrf), ("adres", "192.168.0.250/24")], Some(&tok)));
+        assert!(!denetim().contains("AP_YAN_ODA"));
+        // açma: önce kapatma zamanlayıcısı, sonra aracı; ana ad alanına ip komutu yok; denetim; yönlendirme
+        let r = e.p.handle(&req("POST", "/ap-kurulum/gecici-ekle", &[("csrf", &csrf), ("adres", "192.168.1.250/24")], Some(&tok)));
         assert!(loc(&r).starts_with("/ayarlar?m=") && !loc(&r).contains("e=1") && loc(&r).ends_with("#ap-kurulum"), "{}", loc(&r));
         {
             let v = e.calls.lock().unwrap();
             let i = v.iter().position(|c| c[0] == "systemd-run" && c.iter().any(|x| x == "ap-adres-kaldir")).expect("zamanlayıcı");
-            let j = v.iter().position(|c| c.len() > 3 && c[..3] == ["ip", "addr", "add"]).expect("ip addr add");
-            assert!(i < j && v[j].contains(&"br-hotspot:ap".to_string()) && v[j].contains(&"192.168.0.250/24".to_string()));
+            let j = v.iter().position(|c| c[0] == "systemd-run" && c.iter().any(|x| x == "ap-araci")).expect("aracı");
+            assert!(i < j && v[j].contains(&"192.168.1.250/24".to_string()) && v[j].contains(&"--service-type=notify".to_string()));
+            assert!(!v.iter().any(|c| c[0] == "ip"));
         }
-        assert!(denetim().contains("AP_KURULUM_ADRES") && denetim().contains("eklendi adres=192.168.0.250/24 sure=1800"));
-        // açık geçici adres: kalan süre + Şimdi kaldır
-        *e.ip_ek.lock().unwrap() = "4: br-hotspot    inet 192.168.0.250/24 scope global br-hotspot:ap\\       valid_lft 1800sec preferred_lft 1800sec\n".into();
+        assert!(denetim().contains("AP_YAN_ODA") && denetim().contains("acildi adres=192.168.1.250/24 sure=1800"));
+        // açık yan oda: kalan süre, aracı bilgisi + Şimdi kapat
+        *e.ip_ek.lock().unwrap() = "araci\n".into();
         let a = e.p.handle(&req("GET", "/ayarlar", &[], Some(&tok))).body;
-        assert!(a.contains("192.168.0.250/24") && a.contains("(30 dk)") && a.contains("action=\"/ap-kurulum/gecici-kaldir\"") && !a.contains("action=\"/ap-kurulum/gecici-ekle\""));
-        // ikinci ekleme reddedilir
+        assert!(a.contains("192.168.1.250/24") && a.contains("(30 dk)") && a.contains("127.0.0.1:1085") && a.contains("192.168.1.0/24"));
+        assert!(a.contains("action=\"/ap-kurulum/gecici-kaldir\"") && !a.contains("action=\"/ap-kurulum/gecici-ekle\""));
+        // ikinci açma reddedilir
         let r = e.p.handle(&req("POST", "/ap-kurulum/gecici-ekle", &[("csrf", &csrf), ("adres", "172.16.5.1/24")], Some(&tok)));
         assert!(loc(&r).contains("e=1"));
-        // canlıda artık yok (ağ yeniden kuruldu)
+        // aracı durmuş
         e.ip_ek.lock().unwrap().clear();
         assert!(e.p.handle(&req("GET", "/ayarlar", &[], Some(&tok))).body.contains("artık yok"));
-        *e.ip_ek.lock().unwrap() = "4: br-hotspot    inet 192.168.0.250/24 scope global br-hotspot:ap\\       valid_lft 1800sec preferred_lft 1800sec\n".into();
-        // kaldırma: ip addr del + zamanlayıcı durdurma + denetim
+        *e.ip_ek.lock().unwrap() = "araci\n".into();
+        // kapatma: aracı + zamanlayıcı durdurulur, denetim
         e.calls.lock().unwrap().clear();
         let r = e.p.handle(&req("POST", "/ap-kurulum/gecici-kaldir", &[("csrf", &csrf)], Some(&tok)));
         assert!(!loc(&r).contains("e=1"));
         {
             let v = e.calls.lock().unwrap();
-            assert!(v.iter().any(|c| *c == cmd(&["ip", "addr", "del", "192.168.0.250/24", "dev", "br-hotspot"])));
+            assert!(v.iter().any(|c| *c == cmd(&["systemctl", "stop", "wfc-ap-araci.service"])));
             assert!(v.iter().any(|c| c.len() > 2 && c[..2] == ["systemctl", "stop"] && c[2].starts_with("wfc-ap-gecici-")));
         }
-        assert!(denetim().contains("kaldirildi adres=192.168.0.250/24 neden=elle"));
+        assert!(denetim().contains("kapandi adres=192.168.1.250/24 neden=elle"));
         assert!(!e.p.ap_yollar.gecici.exists());
+        e.ip_ek.lock().unwrap().clear();
         // ağdaki cihazlar: kira + komşu tablosu, adlar kaçışlı, her açılış denetimde
         std::fs::write(e.root.join("leases"), "1790712334 70:4f:57:dd:7a:e8 10.50.0.2 <b>AP</b> *\n").unwrap();
         let c = e.p.handle(&req("GET", "/ap-kurulum/cihazlar", &[], Some(&tok))).body;
@@ -4256,7 +4261,30 @@ mod tests {
         assert!(c.contains("ARP REACHABLE") && c.contains("rastgele MAC") && !c.contains("10.50.0.45"));
         assert!(denetim().contains("PANEL_AP_CIHAZLAR") && denetim().contains("sayi=2"));
         std::fs::remove_file(e.root.join("leases")).unwrap();
-        *e.ip_ek.lock().unwrap() = String::new();
+    }
+
+    #[test]
+    fn ap_yabanci_dhcp_denetimi() {
+        let e = env();
+        std::fs::create_dir_all(e.p.sys.join("br-hotspot")).unwrap();
+        std::fs::write(e.p.sys.join("br-hotspot/address"), "00:0e:c4:ce:a0:9a\n").unwrap();
+        let (tok, csrf) = setup_and_login(&e, "admin", "hizmet-parola-1");
+        let denetim = || std::fs::read_to_string(e.root.join("5651/gunluk/2026-09-29/denetim.csv")).unwrap_or_default();
+        let denetle = || e.p.handle(&req("POST", "/ap-kurulum/dhcp-denetle", &[("csrf", &csrf)], Some(&tok)));
+        // denetim çalışmadı (çıktı yok)
+        let r = denetle();
+        assert!(r.status == 200 && r.body.contains("Denetim yapılamadı") && denetim().contains("sonuc=hata"), "{}", r.body);
+        // yalnızca cihazın kendi sunucusu
+        *e.ip_ek.lock().unwrap() = "TEKLIF 10.50.0.1 00:0e:c4:ce:a0:9a 10.50.0.77\nTAMAM 1\n".into();
+        let r = denetle();
+        assert!(r.body.contains("bulunmadı") && !r.body.contains("kapatılmalı") && denetim().contains("sonuc=yok"));
+        // yabancı sunucu: kırmızı uyarı + adres ve MAC; denetimde sunucular
+        *e.ip_ek.lock().unwrap() = "TEKLIF 192.168.1.1 aa:bb:cc:dd:ee:ff 192.168.1.33\nTEKLIF 10.50.0.1 00:0e:c4:ce:a0:9a 10.50.0.77\nTAMAM 2\n".into();
+        let r = denetle();
+        assert!(r.body.contains("mesaj hata") && r.body.contains("DHCP sunucusu kapatılmalı"));
+        assert!(r.body.contains("192.168.1.1") && r.body.contains("aa:bb:cc:dd:ee:ff") && r.body.contains("192.168.1.33"));
+        assert!(denetim().contains("AP_DHCP_DENETIM") && denetim().contains("sonuc=var sunucular=192.168.1.1/aa:bb:cc:dd:ee:ff"));
+        e.ip_ek.lock().unwrap().clear();
     }
 
     #[test]

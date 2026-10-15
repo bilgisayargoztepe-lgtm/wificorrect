@@ -176,7 +176,7 @@ mod tests {
         // eskimiş cihaz: işletme ayarlı, SMS bilgisi girilmiş, sahip hesabı ve açık oturum var, portlar değişmiş
         let cfg_path = root.join("ayarlar.toml");
         let text = format!(
-            "[main]\nsite_name = 'Bocafe'\nunvan = 'Boca Gıda Ltd.'\nlog_root = '{0}/5651'\nstate_root = '{0}/state'\n[netgsm]\npassword = 'gizli'\n[backup]\nenabled = true\ntarget = 'kafe-x@sunucu:'\n[filtre]\nkelimeler = ['bet']\nistisnalar = ['bets10']\n",
+            "[main]\nsite_name = 'Bocafe'\nunvan = 'Boca Gıda Ltd.'\nlog_root = '{0}/5651'\nstate_root = '{0}/state'\n[netgsm]\npassword = 'gizli'\n[backup]\nenabled = true\ntarget = 'kafe-x@sunucu:'\n[filtre]\nkelimeler = ['bet']\nistisnalar = ['bets10']\n[ap]\nadresler = ['10.50.0.2']\n",
             root.display()
         );
         std::fs::write(&cfg_path, &text).unwrap();
@@ -267,6 +267,7 @@ mod tests {
         let c = Config::load(&cfg_path.to_string_lossy()).unwrap();
         assert_eq!((c.main.site_name.as_str(), c.main.unvan.as_str(), c.backup.enabled, c.filtre.kelimeler.len()), ("İşletme", "", false, 0));
         assert!(!std::fs::read_to_string(&cfg_path).unwrap().contains("password =")); // eski NetGSM sırrı da gitti
+        assert!(c.ap.adresler.is_empty()); // AP adresi kaydı boşaldı (yeni işletme yeni AP)
         // yalnızca admin kaldı
         let m = h.load().unwrap();
         assert_eq!((m.len(), m.get(ADMIN).map(|x| x.rol)), (1, Some(Rol::Hizmet)));

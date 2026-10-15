@@ -5,7 +5,10 @@
 //! - geçici adres: fabrika adresli AP'ye ulaşmak için misafir köprüsüne 30 dk'lık ikinci adres. Önce `systemd-run`
 //!   zamanlayıcısı kurulur (kurulamazsa hiçbir şey değişmez), sonra adres; çekirdek ömrü (`valid_lft`) yedek emniyettir.
 //!   Durum `/var/lib/wificorrect/ap-gecici.json`: açılışta dosya kalmışsa adresin yeniden başlatmayla gittiği anlaşılır
-//!   (`neden=acilis`); adres hiçbir ağ dosyasına yazılmaz.
+//!   (`neden=acilis`); adres hiçbir ağ dosyasına yazılmaz,
+//! - AP adresi kaydı (`[ap] adresler`): yalnızca kayıt ve gösterim, güvenlik duvarı kuralı yok. Köprü portları arası
+//!   iletim `kapi.nft`'teki yalıtımla zaten düşer; AP'ye kablosuz bağlı misafirin trafiği cihazdan hiç geçmez (asıl
+//!   koruma AP'nin kendi ayarı, docs/AP_KURULUM.md).
 
 use crate::ayar::Config;
 use crate::ortak::{self, Runner};
@@ -19,10 +22,8 @@ pub const ETIKET: &str = "br-hotspot:ap";
 /// Geçici adres süresi (sn)
 pub const SURE_SN: u64 = 1800;
 /// DHCP havuzu (son bayt; dnsmasq `dhcp-range` ile aynı)
-#[allow(dead_code)] // AP adresi kaydı (plan Task 2) kullanır
 pub const HAVUZ: (u8, u8) = (20, 249);
 /// Kayıtlı AP adresi sınırı
-#[allow(dead_code)] // AP adresi kaydı (plan Task 2) kullanır
 pub const EN_COK: usize = 8;
 
 const BIRIM_ONEK: &str = "wfc-ap-gecici-";
@@ -152,6 +153,45 @@ pub fn gecici_dogrula(girdi: &str, cfg: &Config, ip_addr: &str, ip_route: &str) 
         ));
     }
     Ok(c)
+}
+
+// ---------------------------------------------------------------- AP adresi kaydı
+/// Kayıtlı AP adresleri girdisi (satır, virgül ya da boşlukla ayrılmış). Her biri IPv4, misafir alt ağında, köprü
+/// adresi / ağ / yayın adresi değil, DHCP havuzu dışında (ağ adresinden uzaklık `HAVUZ` aralığında değil); tekrarlar
+/// atılır; en çok `EN_COK`. Boş girdi = liste boşaltılır.
+pub fn kayit_dogrula(girdi: &str, cfg: &Config) -> Result<Vec<String>, String> {
+    let ag = Cidr::parse(&cfg.main.subnet).ok_or("Misafir ağı ayarı (main.subnet) okunamadı.")?;
+    let kopru: Option<Ipv4Addr> = cfg.main.router_ip.parse().ok();
+    let mut v: Vec<String> = vec![];
+    for p in girdi.split(|c: char| c == ',' || c.is_whitespace()).filter(|p| !p.is_empty()) {
+        let ip: Ipv4Addr = p.parse().map_err(|_| format!("\"{p}\" geçerli bir IPv4 adresi değil."))?;
+        let c = Cidr { ip, onek: ag.onek };
+        if !ag.cakisir(&c) {
+            return Err(format!("{ip} misafir ağının ({ag}) dışında; AP'nin yönetim adresi misafir ağında olmalı."));
+        }
+        if Some(ip) == kopru {
+            return Err(format!("{ip} cihazın kendi adresi; AP'ye başka bir adres verin."));
+        }
+        if ip == c.ag() || ip == c.yayin() {
+            return Err(format!("{ip} misafir ağının ağ ya da yayın adresi."));
+        }
+        let uzaklik = u32::from(ip) - u32::from(c.ag());
+        if (u32::from(HAVUZ.0)..=u32::from(HAVUZ.1)).contains(&uzaklik) {
+            let o = c.ag().octets();
+            return Err(format!(
+                "{ip} DHCP havuzunda ({}.{}.{}.{}–{}); AP'ye havuz dışında bir adres verin.",
+                o[0], o[1], o[2], u32::from(o[3]) + u32::from(HAVUZ.0), u32::from(o[3]) + u32::from(HAVUZ.1)
+            ));
+        }
+        let s = ip.to_string();
+        if !v.contains(&s) {
+            v.push(s);
+        }
+    }
+    if v.len() > EN_COK {
+        return Err(format!("En çok {EN_COK} AP adresi kaydedilebilir."));
+    }
+    Ok(v)
 }
 
 // ---------------------------------------------------------------- geçici adres
@@ -418,6 +458,27 @@ unreachable 192.168.77.0/24
         assert!(d("192.168.77.5/24").unwrap_err().contains("çakışıyor"));
         assert_eq!(d(" 192.168.0.250/24 ").unwrap(), Cidr::parse("192.168.0.250/24").unwrap());
         assert!(d("172.16.5.1/24").is_ok());
+    }
+
+    #[test]
+    fn kayit_dogrula_kurallar() {
+        let (cfg, _, _) = cfg_ve_yol();
+        let d = |g: &str| kayit_dogrula(g, &cfg);
+        assert_eq!(d("10.50.0.2").unwrap(), ["10.50.0.2"]);
+        assert_eq!(d("10.50.0.2, 10.50.0.3\n10.50.0.2 10.50.0.250").unwrap(), ["10.50.0.2", "10.50.0.3", "10.50.0.250"]);
+        assert!(d("").unwrap().is_empty() && d(" \n ").unwrap().is_empty());
+        assert!(d("10.50.0.1").unwrap_err().contains("kendi adresi"));
+        assert!(d("10.50.0.0").unwrap_err().contains("ağ ya da yayın"));
+        assert!(d("10.50.0.255").unwrap_err().contains("ağ ya da yayın"));
+        let havuz = d("10.50.0.30").unwrap_err();
+        assert!(havuz.contains("10.50.0.30 DHCP havuzunda (10.50.0.20–249)"), "{havuz}");
+        assert!(d("10.50.0.20").is_err() && d("10.50.0.249").is_err() && d("10.50.0.19").is_ok());
+        assert!(d("192.168.0.2").unwrap_err().contains("dışında"));
+        assert!(d("abc").unwrap_err().contains("\"abc\""));
+        assert!(d("10.50.0.2/24").is_err() && d("10.50.0.2;rm").is_err());
+        let dokuz: Vec<String> = (2..=10).map(|i| format!("10.50.0.{i}")).collect();
+        assert!(d(&dokuz.join(" ")).unwrap_err().contains("En çok 8"));
+        assert_eq!(d(&dokuz[..8].join(",")).unwrap().len(), 8);
     }
 
     #[test]

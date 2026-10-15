@@ -38,6 +38,12 @@ modunda böyle; o zaman cihazımızın DHCP'sinden 10.50.0.x alır ve görünür
    kalır (yoksa AP ağda kaybolur), IP trafiğinin tamamı (TCP/UDP/ICMP) düşer (benim kararım). Cihazın kendisi (10.50.0.1)
    erişmeye devam eder, dolayısıyla tünelden SOCKS ile biz de. Birden çok AP için liste (benim kararım: en çok 8 adres). Denetim `PANEL_AP_ADRES`.
    Güvenlik duvarı değişikliği mevcut kural dosyası düzeniyle, açılışta da uygulanır (kapalıyken güvenli ilkesi bozulmaz).
+   **Karar (2026-10-15, uygulama sırasında): ayrı güvenlik duvarı kuralı YAPILMADI.** `kapi.nft`'teki köprü yalıtımı
+   (`table bridge hotspot` → `isolate`) köprü portları arası bütün iletimi zaten düşürüyor (başka porttaki misafir →
+   AP adresi bugün de geçmiyor); AP'ye kablosuz bağlı misafirin AP'ye giden trafiği ise cihazdan hiç geçmez. İkinci kat
+   kural (ayrı tablo, `ap.nft`, postinst/servis değişikliği) canlı güvenlik duvarına risk ekleyip koruma eklemediği için
+   bırakıldı. AP adresi kaydı yalnızca kayıttır (`[ap] adresler`, en çok 8, aynı doğrulama; panelde gösterilir, ağdaki
+   cihazlar listesinde işaretlenir; denetim `PANEL_AP_ADRES`). Yalıtım ileride gevşetilirse bu kural yeniden ele alınmalı.
 3. **SOCKS kısayolu (bizim Windows bilgisayarımız için, repoda `scripts/ap-ac.ps1` ya da `.cmd`):** tek komutla
    - cihaza SSH ile SOCKS tüneli açar (`ssh -N -D <port>`; hedef: dükkân ağındaysa `wificorrect`, dışarıdan tünel adresi —
      cihaz parametre olarak verilir, ör. `10.99.0.11`),
@@ -61,7 +67,8 @@ modunda böyle; o zaman cihazımızın DHCP'sinden 10.50.0.x alır ve görünür
      isterse ve küçükse): ayrı bir ağ ad alanında (netns) köprüye bağlı geçici arayüz. Yoksa müşteriden AP'yi DHCP'ye
      alması / sıfırlaması istenir (çoğu yeni AP AP modunda zaten DHCP istemcisidir).
    - Geçici adres durumu `/run` altında (açılışta kendiliğinden yok), süre `systemd-run --on-active` zamanlayıcısıyla;
-     kayıtlı AP adresleri kuralı panel kaydında hemen ve açılışta/güvenlik duvarı yeniden yüklenince yeniden uygulanır.
+     kayıtlı AP adresleri kuralı panel kaydında hemen ve açılışta/güvenlik duvarı yeniden yüklenince yeniden uygulanır
+     (uygulamada: durum `/var/lib/wificorrect/ap-gecici.json`, açılışta temizlenir; AP adresi kuralı yok — yukarıdaki karar).
 5. **Kabul:** cihazda sahte istemciyle (`scripts/sahte-istemci.sh`, ayrı köprü portu) köprüden AP adresine erişimin
    kapandığı, 10.50.0.1'den açık olduğu ve geçici adresin 30 dk sonra kalktığı doğrulanır; canlıda Göztepe AP'si
    (10.50.0.2) kaydedilir ve AP'deki kablosuz yönetim ayarı elle kontrol edilir.

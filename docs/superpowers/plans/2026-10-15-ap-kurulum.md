@@ -146,6 +146,15 @@ geçici adresin gerçekten eklenip çekirdek ömrü ve zamanlayıcıyla kalkmas�
 
 ### Task 2: Cihaz — AP adresi kaydı ve köprü kuralı
 
+> **Değişiklik (2026-10-15, uygulama sırasında karar):** köprü kuralı **yapılmadı** — `ap.nft` yok, nft/postinst/
+> `wificorrect-guvenlik.service`/`paket-test.sh` değişmedi, `ctl ap-uygula` ve `kume_dosyasi`/`kume_uygula` yok.
+> Gerekçe: `kapi.nft`'teki köprü yalıtımı port→port trafiği zaten düşürüyor; AP'ye kablosuz bağlı misafirin trafiği
+> cihazdan hiç geçmez. Task 2 = yalnızca AP adresi kaydı: `[ap] adresler` (`ayar::Ap`), `ap::kayit_dogrula` (aşağıdaki
+> kurallar, en çok 8), panel "AP adresleri" kartı + `POST /ap-kurulum/adresler` (yalnızca admin, CSRF; denetim
+> `PANEL_AP_ADRES adresler=… eski=…`; başarı "Kaydedildi."), ağdaki cihazlar tablosunda "kayıtlı AP adresi" notu, fabrika
+> dönüşünde liste boşalır (varsayılan ayar). Canlı kabul 1–3'teki nft adımları düşer; köprü yalıtımının AP adresini
+> kapattığı (sahte istemci → 10.50.0.2 kapalı, cihazdan açık) yine denenebilir.
+
 **Files:**
 - Create: `deploy/debian/etc/wificorrect/ap.nft`
 - Modify: `src/ayar.rs` (`[ap]`), `src/ap.rs` (kayıt doğrulama + küme uygulama), `src/panel/ap_sayfasi.rs` (AP adresleri

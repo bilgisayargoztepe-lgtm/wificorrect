@@ -45,9 +45,54 @@ impl Panel {
              <section class=\"kart grup\"><h2>Ağdaki cihazlar</h2><div><p>Misafir portunda son görülen cihazlar (DHCP kiraları ve ARP \
              tablosu); müşterinin verdiği MAC'le eşleştirin.</p><p><a class=\"dugme ikincil\" href=\"/ap-kurulum/cihazlar\">Ağdaki cihazları göster</a></p>\
              <p class=\"not\">Fabrika adresli AP, cihaz ona hiç paket göndermediyse listede görünmez; önce geçici adres ekleyin.</p></div></section>\
-             <section class=\"kart grup\"><h2>Geçici adres</h2><div>{gecici}</div></section>"
+             <section class=\"kart grup\"><h2>Geçici adres</h2><div>{gecici}</div></section>\
+             <section class=\"kart grup\"><h2>AP adresleri</h2><div>{kayit}</div></section>",
+            kayit = self.ap_adres_karti(cfg, o)
         );
         self.page(cfg, req, Some(o), "AP kurulumu", &body)
+    }
+
+    fn ap_adres_karti(&self, cfg: &Config, o: &Oturum) -> String {
+        let liste = &cfg.ap.adresler;
+        let mevcut = if liste.is_empty() {
+            "<p>Kayıtlı AP adresi yok.</p>".to_string()
+        } else {
+            format!("<p>Kayıtlı: {}</p>", liste.iter().map(|a| format!("<code>{}</code>", h(a))).collect::<Vec<_>>().join(", "))
+        };
+        format!(
+            "{mevcut}<form method=\"post\" action=\"/ap-kurulum/adresler\">{}\
+             <label for=\"apa\">AP yönetim adresleri (satır başına bir adres, en çok {})</label>\
+             <textarea id=\"apa\" name=\"adresler\" rows=\"3\" maxlength=\"200\">{}</textarea>\
+             <p><button>Kaydet</button></p></form>\
+             <p class=\"not\">AP ayarlandıktan sonra kalıcı yönetim adresini yazın (ör. 10.50.0.2; misafir ağında, DHCP havuzu dışında). \
+             Kayıt bilgi içindir; ağdaki cihazlar listesinde işaretlenir. Başka porttaki misafirlerden AP'ye giden trafik cihazın \
+             köprü yalıtımıyla zaten düşer; AP'ye kablosuz bağlı misafirleri yalnızca AP'nin kendi ayarı korur (kablosuzdan \
+             yönetim kapalı ya da yönetim yalnızca {}).</p>",
+            csrf_input(o),
+            ap::EN_COK,
+            h(&liste.join("\n")),
+            h(&cfg.main.router_ip)
+        )
+    }
+
+    /// AP adresleri kaydı (`[ap] adresler`); güvenlik duvarına dokunmaz. Denetim `PANEL_AP_ADRES adresler=… eski=…`.
+    pub(super) fn ap_adres_kaydet(&self, cfg: &Config, req: &Req, o: &Oturum) -> Resp {
+        let girdi = req.form.get("adresler").map_or("", String::as_str);
+        let yeni = match ap::kayit_dogrula(girdi, cfg) {
+            Ok(v) => v,
+            Err(e) => return redirect("/ap-kurulum", Some((&e, true))),
+        };
+        if yeni == cfg.ap.adresler {
+            return redirect("/ap-kurulum", Some(("Değişiklik yok.", false)));
+        }
+        let mut c = cfg.clone();
+        let eski = std::mem::replace(&mut c.ap.adresler, yeni);
+        if let Err(e) = c.save(&self.cfg_path) {
+            return redirect("/ap-kurulum", Some((&e, true)));
+        }
+        let yaz = |v: &[String]| if v.is_empty() { "-".to_string() } else { v.join(",") };
+        self.audit(&c, req, Some(o), "PANEL_AP_ADRES", &format!("adresler={} eski={}", yaz(&c.ap.adresler), yaz(&eski)));
+        redirect("/ap-kurulum", Some(("Kaydedildi.", false)))
     }
 
     /// Ağdaki cihazlar: cihaz adları kişisel veri olabilir → her açılış denetime (`PANEL_AP_CIHAZLAR`).
@@ -70,6 +115,9 @@ impl Panel {
                     kaynak.push(if a.is_empty() { "ARP".into() } else { format!("ARP {a}") });
                 }
                 let mut not = vec![];
+                if ipler.iter().any(|ip| cfg.ap.adresler.contains(ip)) {
+                    not.push("kayıtlı AP adresi".to_string());
+                }
                 if let Some(ad) = izinli.get(&k.mac) {
                     not.push(if ad.is_empty() { "izinli cihaz".to_string() } else { format!("izinli cihaz: {ad}") });
                 }

@@ -874,7 +874,8 @@ impl Panel {
             ("GET", "/admin" | "/admin-ayarlari" | "/panel-hareketleri" | "/ap-kurulum" | "/ap-kurulum/cihazlar") => self.admin_kilidi_formu(&cfg, req, &o, ""),
             ("POST", "/ap-kurulum/gecici-ekle") if hizmet => self.ap_gecici_ekle(&cfg, req, &o, now),
             ("POST", "/ap-kurulum/gecici-kaldir") if hizmet => self.ap_gecici_kaldir(&cfg, req, &o),
-            ("POST", "/ap-kurulum/gecici-ekle" | "/ap-kurulum/gecici-kaldir") => text(403, "Admin kilidi kapalı."),
+            ("POST", "/ap-kurulum/adresler") if hizmet => self.ap_adres_kaydet(&cfg, req, &o),
+            ("POST", "/ap-kurulum/gecici-ekle" | "/ap-kurulum/gecici-kaldir" | "/ap-kurulum/adresler") => text(403, "Admin kilidi kapalı."),
             ("POST", "/admin-kilidi") => self.admin_kilidi(&cfg, req, &o, now),
             ("POST", "/admin-kilidi/kapat") => {
                 if let Some(t) = &req.token {
@@ -4155,9 +4156,11 @@ mod tests {
             assert!(r.body.contains("action=\"/admin-kilidi\"") && r.body.contains(&format!("name=\"donus\" value=\"{yol}\"")), "{yol}");
             assert!(!r.body.contains("70:4f:57"));
         }
-        for yol in ["/ap-kurulum/gecici-ekle", "/ap-kurulum/gecici-kaldir"] {
-            assert_eq!(e.p.handle(&req("POST", yol, &[("csrf", &csrf), ("adres", "192.168.0.250/24")], Some(&tok))).status, 403);
+        for yol in ["/ap-kurulum/gecici-ekle", "/ap-kurulum/gecici-kaldir", "/ap-kurulum/adresler"] {
+            let r = e.p.handle(&req("POST", yol, &[("csrf", &csrf), ("adres", "192.168.0.250/24"), ("adresler", "10.50.0.2")], Some(&tok)));
+            assert_eq!(r.status, 403, "{yol}");
         }
+        assert!(Config::load(&e.p.cfg_path).unwrap().ap.adresler.is_empty());
         assert!(!e.p.handle(&req("GET", "/ayarlar", &[], Some(&tok))).body.contains("ap-kurulum"));
         assert!(e.calls.lock().unwrap().iter().all(|c| c[0] != "ip" && c[0] != "systemd-run"));
         assert!(!std::fs::read_to_string(e.root.join("5651/gunluk/2026-09-29/denetim.csv")).unwrap().contains("PANEL_AP_CIHAZLAR"));
@@ -4222,5 +4225,38 @@ mod tests {
         assert!(denetim().contains("PANEL_AP_CIHAZLAR") && denetim().contains("sayi=2"));
         std::fs::remove_file(e.root.join("leases")).unwrap();
         *e.ip_ek.lock().unwrap() = String::new();
+    }
+
+    #[test]
+    fn ap_adresleri_kaydi() {
+        let e = env();
+        let (tok, csrf) = setup_and_login(&e, "admin", "hizmet-parola-1");
+        let denetim = || std::fs::read_to_string(e.root.join("5651/gunluk/2026-09-29/denetim.csv")).unwrap_or_default();
+        let kayitli = || Config::load(&e.p.cfg_path).unwrap().ap.adresler;
+        let a = e.p.handle(&req("GET", "/admin", &[], Some(&tok))).body;
+        assert!(a.contains("action=\"/ap-kurulum/adresler\"") && a.contains("Kayıtlı AP adresi yok"));
+        // CSRF'siz: 403, ayar değişmez
+        assert_eq!(e.p.handle(&req("POST", "/ap-kurulum/adresler", &[("adresler", "10.50.0.2")], Some(&tok))).status, 403);
+        // geçersiz (havuz): mesaj, ayar ve denetim değişmez
+        let r = e.p.handle(&req("POST", "/ap-kurulum/adresler", &[("csrf", &csrf), ("adresler", "10.50.0.2\n10.50.0.30")], Some(&tok)));
+        assert!(loc(&r).contains("e=1") && loc(&r).ends_with("#ap-kurulum"), "{}", loc(&r));
+        assert!(kayitli().is_empty() && !denetim().contains("PANEL_AP_ADRES"));
+        // geçerli: ayar dosyası + denetim; güvenlik duvarına komut gitmez
+        e.calls.lock().unwrap().clear();
+        let r = e.p.handle(&req("POST", "/ap-kurulum/adresler", &[("csrf", &csrf), ("adresler", "10.50.0.2, 10.50.0.3 10.50.0.2")], Some(&tok)));
+        assert!(!loc(&r).contains("e=1"), "{}", loc(&r));
+        assert_eq!(kayitli(), ["10.50.0.2", "10.50.0.3"]);
+        assert!(denetim().contains("PANEL_AP_ADRES") && denetim().contains("adresler=10.50.0.2,10.50.0.3 eski=-"));
+        assert!(e.calls.lock().unwrap().is_empty());
+        let a = e.p.handle(&req("GET", "/admin", &[], Some(&tok))).body;
+        assert!(a.contains("<code>10.50.0.2</code>, <code>10.50.0.3</code>"));
+        // ağdaki cihazlar listesinde işaretlenir
+        std::fs::write(e.root.join("leases"), "1790712334 70:4f:57:dd:7a:e8 10.50.0.2 * *\n").unwrap();
+        assert!(e.p.handle(&req("GET", "/ap-kurulum/cihazlar", &[], Some(&tok))).body.contains("kayıtlı AP adresi"));
+        std::fs::remove_file(e.root.join("leases")).unwrap();
+        // boşaltma
+        let r = e.p.handle(&req("POST", "/ap-kurulum/adresler", &[("csrf", &csrf), ("adresler", "")], Some(&tok)));
+        assert!(!loc(&r).contains("e=1"));
+        assert!(kayitli().is_empty() && denetim().contains("adresler=- eski=10.50.0.2,10.50.0.3"));
     }
 }

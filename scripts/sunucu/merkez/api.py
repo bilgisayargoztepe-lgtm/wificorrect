@@ -56,10 +56,12 @@ def _lisans(veri, m):
     return {"lisans": durum, "lisans_bitis": bitis}
 
 
-def _cihaz_ekleri(veri):
+def _cihaz_ekleri(veri, eski=True):
     """Belirlenmişse tek admin parolasının özeti (açık parola gitmez) ve SMS eki. `mock` + `netgsm` yalnızca eski (0.4.7)
     cihazlar için, bugünkü gibi (ayar kayıtlıysa); yeni cihazlar `etkin_mock`u okur: deneme modu açık ya da seçili
-    sağlayıcının ayarı eksik (ayar hiç yoksa yalnızca bu alan gider; eski cihaz `netgsm` olmadan eki yok sayar)."""
+    sağlayıcının ayarı eksik (ayar hiç yoksa yalnızca bu alan gider; eski cihaz `netgsm` olmadan eki yok sayar).
+    eski=False: kolay bağlamayla (/api/bagla, hesapsız) bağlanan cihaz — yalnızca 0.4.13+ olabilir; bütün cihazlarda
+    ortak NetGSM bilgisi ona hiç gitmez (aynı IP'den sahte cihaz bağlatan biri ortak sırrı alamasın)."""
     ek = {}
     a = veri.admin_parolasi()
     if a is not None:
@@ -68,8 +70,9 @@ def _cihaz_ekleri(veri):
     if s is None:
         ek["sms"] = {"etkin_mock": True}
     else:
-        ek["sms"] = {"mock": s["mock"], "provider": "netgsm", "netgsm": {k: s[k] for k in veri_modulu.SMS_ALANLARI},
-                     "etkin_mock": bool(s["mock"]) or not veri_modulu.sms_hazir(s)}
+        ek["sms"] = {"etkin_mock": bool(s["mock"]) or not veri_modulu.sms_hazir(s)}
+        if eski:
+            ek["sms"].update(mock=s["mock"], provider="netgsm", netgsm={k: s[k] for k in veri_modulu.SMS_ALANLARI})
     return ek
 
 
@@ -154,6 +157,8 @@ class Api:
         self.rapor_hiz = guvenlik.HizSiniri(60, 60)
         # bekleme bildirimi (2 dk'da bir): kimlik başına dakikada 3; bir IP'den saatte en çok 10 yeni kimlik (tablo şişmesin)
         self.bekleme_hiz, self.yeni_kimlik_hiz = guvenlik.HizSiniri(3, 60), guvenlik.HizSiniri(10, 3600)
+        # reddedilen bildirim/bağlama hareket satırı: kimlik başına saatte bir (kapma girişimi görünsün, tablo şişmesin)
+        self.red_hiz = guvenlik.HizSiniri(1, 3600)
 
     def istek(self, yontem, yol, basliklar, govde, sorgu="", ip=""):
         uclar = {"/api/giris": self.giris, "/api/eslesme": self.eslesme, "/api/parola": self.parola,
@@ -206,6 +211,11 @@ class Api:
         except veri_modulu.BaskaCihaz:
             self.veri.hareket(numara, ip, "CIHAZ_REDDEDILDI", m["numara"], "numara başka cihazda")
             return _hata(409, "baska_cihaz", "Bu numara başka bir cihazda kullanılıyor.")
+        if otomatik:
+            # kuyruktan ÖNCE: kayıt başarısız olsa da bekleme kaydı bu bağa işaret eder, cihaz sonraki bildiriminde
+            # (aynı wg anahtarıyla) yeni belirteç alıp yeniden dener; işaret eşitlemede ortak SMS sırrını keser
+            self.veri.cihaz_otomatik_isaretle(cid)
+            self.veri.bekleyen_baglandi(otomatik, cid)
         s = self.kuyruk_bekle(self.kuyruk_ekle("cihaz-ekle", {"numara": numara, "wg_pub": wg, "ssh_pub": ssh}))
         if not s or s.get("durum") != "tamam":
             self.veri.hareket(numara, ip, "CIHAZ_KAYIT_HATA", m["numara"], (s or {}).get("hata", "zaman aşımı"))
@@ -213,10 +223,10 @@ class Api:
         self.veri.cihaz_guncelle(cid, tunel_ip=s["tunel_ip"])
         ek = ""
         if otomatik:
-            self.veri.bekleyen_baglandi(otomatik, cid)
+            self.veri.bekleyen_baglandi(otomatik, cid)  # "hazırlanıyor" süresi başarılı bağdan sayılır
             ek = f" otomatik kimlik={otomatik[:8]}"
         self.veri.hareket(numara, ip, "CIHAZ_BAGLANDI", m["numara"], f"cihaz={cid} tunel={s['tunel_ip']}{ek}")
-        y = dict(_parola_alanlari(m), **_lisans(self.veri, m), **_cihaz_ekleri(self.veri),
+        y = dict(_parola_alanlari(m), **_lisans(self.veri, m), **_cihaz_ekleri(self.veri, eski=not otomatik),
                  cihaz_anahtari=anahtar, tunel_ip=s["tunel_ip"],
                  sunucu_pub=s["sunucu_pub"], uc_nokta=s["uc_nokta"],
                  yedek_hedefi=f"wfc-{numara}@{YEDEK_SUNUCU}:")
@@ -240,6 +250,7 @@ class Api:
         surum = _metin(b.get("surum"))[:40]
         durum, yeni, belirtec = self.veri.bekleyen_bildir(kimlik, sir, ip, surum, mac, wg, ssh)
         if durum == "taninmadi":
+            self._red(kimlik, ip, "CIHAZ_BEKLIYOR_RED")
             return _hata(401, "taninmadi", "Cihaz tanınmadı.")
         if durum == "dolu":
             return _hata(503, "dolu", "Şu an kayıt alınamıyor, biraz sonra tekrar deneyin.")
@@ -250,6 +261,11 @@ class Api:
             return _json(200, {"durum": "baglan", "belirtec": belirtec})
         return _json(200, {"durum": "bekle"})
 
+    def _red(self, kimlik, ip, olay):
+        """Sırrı ya da belirteci tutmayan deneme (sır/belirteç yazılmaz); kimlik + olay başına saatte bir satır."""
+        if self.red_hiz.izin(f"{olay}:{kimlik}", self.saat()):
+            self.veri.hareket(f"bekleyen:{kimlik[:8]}", ip, olay, None, f"kimlik={kimlik[:8]}")
+
     def bagla(self, b, ip):
         """Ayrılmış bekleyen cihaz, bekliyor cevabındaki tek kullanımlık belirteçle parolasız bağlanır (/api/giris gibi)."""
         kimlik, sir, belirtec, wg, ssh = b.get("kimlik"), b.get("sir"), b.get("belirtec"), b.get("wg_pub"), b.get("ssh_pub")
@@ -257,6 +273,7 @@ class Api:
             return _hata(400, "gecersiz", "Geçersiz istek.")
         r = self.veri.bekleyen_belirtec_tuket(kimlik, sir, belirtec)
         if r is None:
+            self._red(kimlik, ip, "CIHAZ_BAGLA_RED")
             return _hata(401, "taninmadi", "Bağlama belirteci geçersiz.")
         m = self.veri.musteri(r["musteri"])
         if m is None or m["uyelik"] != "aktif":
@@ -276,8 +293,8 @@ class Api:
         self.veri.eslesme_kaydet(c["id"], _metin(b.get("isletme_adi")), _metin(b.get("unvan")), _metin(b.get("surum")),
                                 b.get("isletme_turu"), _metin(b["adres"]) if "adres" in b else None)
         m = self.veri.musteri(c["musteri"])
-        return _json(200, dict(_parola_alanlari(m), **_lisans(self.veri, m), **_cihaz_ekleri(self.veri),
-                               durum="bagli", uyelik=m["uyelik"]))
+        ekler = _cihaz_ekleri(self.veri, eski=not c["otomatik"])
+        return _json(200, dict(_parola_alanlari(m), **_lisans(self.veri, m), **ekler, durum="bagli", uyelik=m["uyelik"]))
 
     def parola(self, b, ip):
         c = self.veri.cihaz_anahtarla(b.get("cihaz_anahtari"))

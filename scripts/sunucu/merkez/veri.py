@@ -29,7 +29,8 @@ CREATE TABLE IF NOT EXISTS cihaz (
   surum TEXT NOT NULL DEFAULT '', son_eslesme TEXT NOT NULL DEFAULT '', baglanma TEXT NOT NULL,
   admin_parola TEXT NOT NULL DEFAULT '', admin_tuz TEXT NOT NULL DEFAULT '',
   admin_ozet TEXT NOT NULL DEFAULT '', admin_yineleme INTEGER NOT NULL DEFAULT 0,
-  ayrilma TEXT NOT NULL DEFAULT '', isletme_turu TEXT NOT NULL DEFAULT '', adres TEXT NOT NULL DEFAULT '');
+  ayrilma TEXT NOT NULL DEFAULT '', isletme_turu TEXT NOT NULL DEFAULT '', adres TEXT NOT NULL DEFAULT '',
+  otomatik INTEGER NOT NULL DEFAULT 0);
 CREATE UNIQUE INDEX IF NOT EXISTS cihaz_tek ON cihaz(musteri) WHERE durum != 'serbest';
 CREATE TABLE IF NOT EXISTS hareket (
   id INTEGER PRIMARY KEY AUTOINCREMENT, zaman TEXT NOT NULL, kim TEXT NOT NULL, ip TEXT NOT NULL,
@@ -73,7 +74,8 @@ YENI_SUTUNLAR = (("parola_acik", "TEXT NOT NULL DEFAULT ''"), ("lisans_bitis", "
 GUNCELLEME_KANALLARI = ("kararli", "test", "kapali")
 YENI_CIHAZ_SUTUNLARI = (("admin_parola", "TEXT NOT NULL DEFAULT ''"), ("admin_tuz", "TEXT NOT NULL DEFAULT ''"),
                         ("admin_ozet", "TEXT NOT NULL DEFAULT ''"), ("admin_yineleme", "INTEGER NOT NULL DEFAULT 0"),
-                        ("isletme_turu", "TEXT NOT NULL DEFAULT ''"), ("adres", "TEXT NOT NULL DEFAULT ''"))
+                        ("isletme_turu", "TEXT NOT NULL DEFAULT ''"), ("adres", "TEXT NOT NULL DEFAULT ''"),
+                        ("otomatik", "INTEGER NOT NULL DEFAULT 0"))  # kolay bağlamayla bağlandı: eski SMS eki gitmez
 UYARI_VARSAYILAN = {"telefonlar": [], "acik": False, "gunluk_sinir": 20}
 UYARI_TELEFON_EN_COK = 3
 UYARI_SINIR_ARALIK = (2, 100)  # günlük uyarı SMS sınırı (yönetim formu da bunu kullanır)
@@ -272,6 +274,10 @@ class Veri:
                 (numara, wg_pub, ssh_pub, anahtar_ozeti(anahtar), isletme_adi, unvan, surum, self._simdi()))
             return cur.lastrowid, anahtar
 
+    def cihaz_otomatik_isaretle(self, cid):
+        with self._islem() as db:
+            db.execute("UPDATE cihaz SET otomatik = 1 WHERE id = ?", (cid,))
+
     def cihaz_anahtarla(self, anahtar):
         if not isinstance(anahtar, str) or not anahtar:
             return None
@@ -351,7 +357,13 @@ class Veri:
             r = db.execute("SELECT * FROM bekleyen WHERE kimlik = ?", (kimlik,)).fetchone()
             if r is None:
                 if db.execute("SELECT COUNT(*) FROM bekleyen").fetchone()[0] >= BEKLEYEN_EN_COK:
-                    return "dolu", False, None
+                    # tavan doluysa aday olmayan (BEKLEYEN_ADAY_SN'dir bildirmeyen), kimseye ayrılmamış en eski kayıt
+                    # yer açar: bir kez doldurulan tablo yeni cihazları 7 gün kapatmasın
+                    sil = db.execute("SELECT kimlik FROM bekleyen WHERE musteri IS NULL AND cihaz IS NULL AND son < ? "
+                                     "ORDER BY son, kimlik LIMIT 1", (simdi - BEKLEYEN_ADAY_SN,)).fetchone()
+                    if sil is None:
+                        return "dolu", False, None
+                    db.execute("DELETE FROM bekleyen WHERE kimlik = ?", (sil["kimlik"],))
                 db.execute("INSERT INTO bekleyen (kimlik, sir_ozet, ilk, son, ip, surum, wan_mac, wg_pub, ssh_pub) "
                            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", (kimlik, oz, simdi, simdi, ip, surum, wan_mac, wg_pub, ssh_pub))
                 return "bekle", True, None

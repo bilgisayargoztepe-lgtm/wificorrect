@@ -7,6 +7,7 @@ import urllib.parse
 import common
 import guvenlik
 import raporlar as raporlar_modulu
+import veri as veri_modulu
 import web
 from web import e, kart, yanit_html, yonlendir
 
@@ -14,6 +15,7 @@ HAZIRLIK_SN = 30  # cihaz bağlandıktan sonra tünel kalkana dek "panel hazırl
 YENILE_SN = 5
 BULUNAMADI = ("Cihazınız bulunamadı. Cihazın modeme takılı ve açık olduğundan, bu sayfayı cihazla aynı internetten "
               "(işletmenin Wi-Fi'ı ya da kablosu; mobil veri değil) açtığınızdan emin olun.")
+BAGLANIYOR = "Cihazınız bulundu ve hesabınıza bağlanıyor. Bu birkaç dakika sürebilir; bu sayfa kendini yeniler."
 
 
 def parola_html(ot, hata="", tamam=""):
@@ -64,13 +66,18 @@ class Musteri(web.Taban):
     def baglan(self, ot, n, yontem, form, ip):
         """Müşterinin bağlı cihazı yoksa aynı internet adresinden bekleyen cihazı bulur: tek → kendiliğinden ayırır,
         çok → liste (müşteri seçer), hiç → nasıl yapılacağı. Ayrılan cihaz sonraki bildiriminde bağlanır."""
-        if self.veri.bagli_cihaz(n) is not None:
+        c = self.veri.bagli_cihaz(n)
+        if c is not None:
             r = self.veri.bekleyen_musterinin(n)
-            if r and r["atama"] == "bagli" and self.saat() - r["baglandi"] < HAZIRLIK_SN:
-                return self._bekle_sayfasi(ot, "Cihazınız bağlandı", "Cihaz paneliniz hazırlanıyor, bu sayfa kendini yeniler.")
+            if r and r["atama"] == "bagli":
+                gecen = self.saat() - r["baglandi"]
+                if not c["tunel_ip"] and gecen < veri_modulu.AYRILMA_SN:  # tünel kaydı başarısız: cihaz yeniden deniyor
+                    return self._bekle_sayfasi(ot, "Cihazınız bağlanıyor", BAGLANIYOR)
+                if c["tunel_ip"] and gecen < HAZIRLIK_SN:
+                    return self._bekle_sayfasi(ot, "Cihazınız bağlandı", "Cihaz paneliniz hazırlanıyor, bu sayfa kendini yeniler.")
             return yonlendir("/cihaz")
         m = self.veri.musteri(n)
-        if m["uyelik"] != "aktif":
+        if m is None or m["uyelik"] != "aktif":
             return yanit_html(self.mesaj(ot, "Cihaz bağlanamıyor", "Üyeliğiniz sona ermiş. Hizmet sağlayıcınıza başvurun."))
         adaylar = self.veri.bekleyen_adaylar(ip) if ip and ip != "yerel" else []
         if yontem == "POST":
@@ -80,12 +87,10 @@ class Musteri(web.Taban):
             self.veri.hareket(str(n), ip, "CIHAZ_OTOMATIK_AYRILDI", n, f"kimlik={k[:8]} secim=liste")
             return yonlendir("/baglan")
         if self.veri.bekleyen_musterinin(n):
-            return self._bekle_sayfasi(ot, "Cihazınız bağlanıyor",
-                                       "Cihazınız bulundu ve hesabınıza bağlanıyor. Bu birkaç dakika sürebilir; bu sayfa kendini yeniler.")
+            return self._bekle_sayfasi(ot, "Cihazınız bağlanıyor", BAGLANIYOR)
         if len(adaylar) == 1 and self.veri.bekleyen_ayir(adaylar[0]["kimlik"], n, ip):
             self.veri.hareket(str(n), ip, "CIHAZ_OTOMATIK_AYRILDI", n, f"kimlik={adaylar[0]['kimlik'][:8]} secim=tek")
-            return self._bekle_sayfasi(ot, "Cihazınız bağlanıyor",
-                                       "Cihazınız bulundu ve hesabınıza bağlanıyor. Bu birkaç dakika sürebilir; bu sayfa kendini yeniler.")
+            return self._bekle_sayfasi(ot, "Cihazınız bağlanıyor", BAGLANIYOR)
         if not adaylar:
             return yanit_html(self.sayfa("Cihaz bağlama", kart(
                 f'<h1>Cihazınız bulunamadı</h1><p>{e(BULUNAMADI)}</p><p><a href="/baglan">Yeniden dene</a></p>'), ot))
@@ -135,7 +140,8 @@ class Musteri(web.Taban):
         if yol == "/baglan" and yontem in ("GET", "POST"):
             return self.baglan(ot, n, yontem, form, ip)
         if yol == "/cihaz" and yontem == "GET":
-            if self.veri.bagli_cihaz(n) is None and self.veri.musteri(n)["uyelik"] == "aktif":
+            m = self.veri.musteri(n)
+            if self.veri.bagli_cihaz(n) is None and m is not None and m["uyelik"] == "aktif":
                 return yonlendir("/baglan")
             if self.cihaz_adresi(n) and "yok" not in urllib.parse.parse_qs(sorgu):  # yok=1: Caddy cihaza ulaşamadı → döngü olmasın
                 ozet = self.veri.musteri(n)["ozet"]

@@ -305,6 +305,108 @@ def test_yonetim_bekleyen_listesi():
         assert "Bekleyen cihazlar" in Y.al(y, "/", cz)[2].decode()  # menüde
 
 
+def test_kuyruk_hatasinda_cihaz_takilmaz():
+    """Tünel/yedek kaydı (kuyruk) bir kez başarısız olsa da cihaz sonraki bildirimde yeniden bağlan alır; müşteri
+    "ulaşılamıyor"a düşmez, "bağlanıyor" görür."""
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        api, m, v, q, saat = kur(tmp, sonuc={"durum": "hata", "hata": "wg"})
+        n, pw = v.musteri_ekle(parola="musteri-parola-1")
+        bildir(api)
+        c = musteri_gir(m, n, pw)[1]
+        Y.al(m, "/baglan", c)
+        saat.t += 120
+        d, j = bagla(api, bildir(api)[1]["belirtec"])
+        assert d == 503 and j["kod"] == "kayit"
+        assert "CIHAZ_KAYIT_HATA" in [h["olay"] for h in v.hareketler(n)]
+        saat.t += 31
+        s = Y.al(m, "/baglan", c)
+        assert s[0] == 200 and "bağlanıyor" in s[2].decode()  # tünel yok: cihaz paneline gönderilmez
+        q.sonuc = None  # kuyruk zaman aşımı: yine kurtulur
+        saat.t += 120
+        d, j = bildir(api)
+        assert d == 200 and j["durum"] == "baglan"
+        assert bagla(api, j["belirtec"])[0] == 503
+        q.sonuc = TAMAM
+        saat.t += 120
+        d, j = bildir(api)
+        assert d == 200 and j["durum"] == "baglan"
+        d, g = bagla(api, j["belirtec"])
+        assert d == 200 and g["numara"] == str(n) and v.bagli_cihaz(n)["tunel_ip"] == "10.99.0.10"
+        saat.t += 31
+        assert Y.al(m, "/baglan", c)[1]["Location"] == "/cihaz"
+
+
+def test_bagla_cevabi_ortak_sms_sirlarini_tasimaz():
+    """Kolay bağlamada (hesapsız, aynı IP) cevap yalnızca 0.4.13+ cihazın ihtiyacı olanı taşır: ortak NetGSM bilgisi
+    ne bağlamada ne sonraki eşitlemede gider; parolalı /api/giris (eski cihazlar) aynen kalır."""
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        api, m, v, q, saat = kur(tmp)
+        v.sms_ayari_koy({"mock": False, "usercode": "8500000000", "password": "netgsm-gizli", "msgheader": "BASLIK"})
+        v.admin_parolasi_koy("admin-parola-123")
+        n, pw = v.musteri_ekle(parola="musteri-parola-1")
+        bildir(api)
+        Y.al(m, "/baglan", musteri_gir(m, n, pw)[1])
+        d, g = bagla(api, bildir(api)[1]["belirtec"])
+        assert d == 200 and "netgsm-gizli" not in json.dumps(g) and "8500000000" not in json.dumps(g)
+        assert g["sms"] == {"etkin_mock": False} and set(g["admin"]) == {"tuz", "ozet", "yineleme"}
+        d, e = post(api, "/api/eslesme", {"cihaz_anahtari": g["cihaz_anahtari"], "surum": "0.4.7"})
+        assert d == 200 and "netgsm-gizli" not in json.dumps(e) and e["sms"] == {"etkin_mock": False}
+        # parolalı giriş (eski cihazlar) değişmedi
+        n2, pw2 = v.musteri_ekle(parola="musteri-parola-2")
+        d, g2 = post(api, "/api/giris", {"numara": str(n2), "parola": pw2, "wg_pub": WG2, "ssh_pub": SSH})
+        assert d == 200 and g2["sms"]["netgsm"]["password"] == "netgsm-gizli"
+        d, e2 = post(api, "/api/eslesme", {"cihaz_anahtari": g2["cihaz_anahtari"]})
+        assert e2["sms"]["netgsm"]["password"] == "netgsm-gizli"
+
+
+def test_reddedilen_bildirim_ve_baglama_iz_birakir():
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        api, m, v, q, saat = kur(tmp)
+        bildir(api)
+        assert bildir(api, s="c" * 64)[0] == 401
+        assert bildir(api, s="d" * 64)[0] == 401  # aynı kimlikte saatte bir satır
+        assert bagla(api, "x" * 43)[0] == 401
+        assert bagla(api, "y" * 43)[0] == 401
+        h = sorted((x["olay"], x["ayrinti"]) for x in v.hareketler() if x["olay"].endswith("_RED"))
+        assert h == [("CIHAZ_BAGLA_RED", f"kimlik={K1[:8]}"), ("CIHAZ_BEKLIYOR_RED", f"kimlik={K1[:8]}")], h
+        assert all(S1 not in x["ayrinti"] and "c" * 64 not in x["ayrinti"] for x in v.hareketler())
+        saat.t += 3601
+        bildir(api, s="c" * 64)
+        assert len([x for x in v.hareketler() if x["olay"] == "CIHAZ_BEKLIYOR_RED"]) == 2
+
+
+def test_tavan_doluysa_bayat_kayit_yer_acar():
+    import veri as V
+    eski = V.BEKLEYEN_EN_COK
+    V.BEKLEYEN_EN_COK = 3
+    try:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+            api, m, v, q, saat = kur(tmp)
+            n, pw = v.musteri_ekle(parola="musteri-parola-1")
+            bildir(api, k="3" * 32)  # en eski; müşteriye ayrılacak, silinmemeli
+            Y.al(m, "/baglan", musteri_gir(m, n, pw)[1])
+            saat.t += 1
+            bildir(api, k="4" * 32, ip=IP2)
+            saat.t += 1
+            bildir(api, k="5" * 32, ip=IP2)
+            assert bildir(api, k="6" * 32, ip=IP2)[1]["kod"] == "dolu"  # hepsi taze: yer yok
+            saat.t += 601  # 10 dk'dır bildirmeyen, kimseye ayrılmamış en eski kayıt yer açar
+            assert bildir(api, k="6" * 32, ip=IP2) == (200, {"durum": "bekle"})
+            assert sorted(r["kimlik"] for r in v.bekleyenler()) == ["3" * 32, "5" * 32, "6" * 32]
+    finally:
+        V.BEKLEYEN_EN_COK = eski
+
+
+def test_silinmis_musteri_baglan_ve_cihaz_hata_vermez():
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        api, m, v, q, saat = kur(tmp)
+        n, pw = v.musteri_ekle(parola="musteri-parola-1")
+        ot = {"user": str(n), "csrf": "x"}
+        v.db.execute("DELETE FROM musteri WHERE numara = ?", (n,))
+        for yol in ("/baglan", "/cihaz"):
+            assert m.sayfalar(ot, "t", "GET", yol, "", {}, IP)[0] in (200, 303), yol
+
+
 if __name__ == "__main__":
     for _name, _fn in sorted(globals().items()):
         if _name.startswith("test_") and callable(_fn):

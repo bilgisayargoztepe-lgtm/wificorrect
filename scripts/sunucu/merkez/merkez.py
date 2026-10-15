@@ -98,7 +98,7 @@ def main():
     gecis, rp = guvenlik.GecisBelirtecleri(), raporlar.Raporlar()
     m = musteri.Musteri(v, k, gecis=gecis, raporlar=rp)
     Isleyici.app = Merkez({"yonetim": yonetim.Yonetim(v, k, gecis=gecis, musteri_app=m, rapor_gruplari=veri.RAPOR_GRUPLARI,
-                                                      raporlar=rp), "musteri": m, "api": api.Api(v),
+                                                      raporlar=rp), "musteri": m, "api": api.Api(v, raporlar=rp),
                            "cihaz": cihaz.Cihaz(v, gecis, m)})
     srv = ThreadingHTTPServer(("127.0.0.1", 8081), Isleyici)
     srv.daemon_threads = True

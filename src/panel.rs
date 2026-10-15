@@ -24,6 +24,7 @@ mod kayit_sayfalari;
 mod metinler;
 mod misafir_sayfasi;
 mod portlar;
+mod rapor_sayfalari;
 
 pub type Clock = dyn Fn() -> f64 + Send + Sync;
 const TPL: &str = include_str!("sablon/panel.html");
@@ -398,6 +399,10 @@ pub struct Panel {
     pub http: Box<crate::merkez::Http>,
     /// İlk bağlanma tek seferde (iki eşzamanlı giriş iki ayrı cihaz anahtarı almasın)
     baglan_kilit: std::sync::Mutex<()>,
+    /// Raporlar için merkez istemcisi (kısa süreli; testte sahte)
+    pub rapor_http: Box<crate::merkez::Http>,
+    /// Merkezden alınan rapor cevapları: anahtar → (geçerlilik sonu, cevap)
+    rapor_onbellek: std::sync::Mutex<HashMap<String, (f64, rapor_sayfalari::Sonuc)>>,
 }
 
 const MENU: &[(&str, &str)] = &[("/", "Özet"), ("/cihazlar", "Kullanıcılar"), ("/misafir-kodlari", "Misafir kodları"), ("/kayitlar", "Kayıtlar"), ("/ayarlar", "Ayarlar")];
@@ -431,6 +436,8 @@ fn menu_grubu(path: &str) -> &'static str {
     match path {
         "/kullanici" => return "/kayitlar",
         "/admin-kilidi" => return "/admin",
+        "/raporlar" => return "/ayarlar",
+        p if p.starts_with("/rapor/") => return "/ayarlar",
         p if p == "/misafir-kodlari" || p.starts_with("/misafir-kodlari/") => return "/misafir-kodlari",
         _ => {}
     }
@@ -477,6 +484,7 @@ const SIMGE_SUNUCU: &str = "M3 4h18v7H3zM3 13h18v7H3zM7 7.5h.01M7 16.5h.01";
 const SIMGE_ANAHTAR: &str = "M8 11a4 4 0 1 0 0 8 4 4 0 0 0 0-8zM11 13l9-9M16 8l3 3M18 6l2 2";
 const SIMGE_GOZ: &str = "M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12zM12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z";
 const SIMGE_HIZ: &str = "M4 15a8 8 0 0 1 16 0M12 15l4-5";
+const SIMGE_RAPOR: &str = "M4 20h16M7 16v-5M12 16V6M17 16v-8";
 
 /// Grup sayfasının üstündeki bölüm kutucuklarının simgesi (bölüm id'sine göre)
 fn bolum_simgesi(id: &str) -> &'static str {
@@ -553,6 +561,8 @@ impl Panel {
             trafik_path: crate::trafik::DURUM_YOLU.into(),
             http: Box::new(crate::merkez::curl),
             baglan_kilit: std::sync::Mutex::new(()),
+            rapor_http: Box::new(|yol: &str, govde: &str| crate::merkez::curl_sure(yol, govde, rapor_sayfalari::MERKEZ_SURE)),
+            rapor_onbellek: std::sync::Mutex::new(HashMap::new()),
         }
     }
 
@@ -664,6 +674,7 @@ impl Panel {
         drop(parca);
         let mut atla: String = bolumler.iter().map(|(_, _, id, baslik, _)| format!("<a href=\"#{id}\">{}{}</a>", simge(bolum_simgesi(id)), h(baslik))).collect();
         if req.path == "/ayarlar" {
+            atla.push_str(&format!("<a href=\"/raporlar\">{}Raporlar</a>", simge(SIMGE_RAPOR)));
             atla.push_str(&format!("<a href=\"{ADMIN_YOLU}\">{}Admin</a>", simge(SIMGE_KILIT)));
         }
         let mut body = format!("<nav class=\"kisayol\" aria-label=\"Bu sayfadaki bölümler\">{atla}</nav>");
@@ -900,6 +911,8 @@ impl Panel {
             }
             (_, p) if p == "/misafir-kodlari" || p.starts_with("/misafir-kodlari/") => self.misafir_kodlari(&cfg, req, &o, now),
             ("GET", "/sifre") => self.sifre(&cfg, req, &o, ""),
+            ("GET", "/raporlar") => self.raporlar(&cfg, req, &o, now),
+            ("GET", p) if p.starts_with("/rapor/") => self.rapor(&cfg, req, &o, now),
             ("POST", "/sifre") => self.sifre_post(&cfg, req, &o),
             _ => text(404, "Sayfa bulunamadı"),
         }
@@ -1847,6 +1860,7 @@ mod tests {
         p.merkez_path = root.join("merkez.json");
         p.trafik_path = root.join("trafik.json");
         p.http = merkez_yok();
+        p.rapor_http = merkez_yok();
         p.sys = root.join("sys"); // testler gerçek arayüzlere bakmasın; "wfc" = tünel arayüzü var
         std::fs::create_dir_all(p.sys.join("wfc")).unwrap();
         Env { p, calls, root }
@@ -4002,5 +4016,93 @@ mod tests {
         assert_eq!(e.p.handle(&get("/kayitlar/dosya", &[("gun", "2026-09-29"), ("dosya", "kullanicilar/0123456789abcdef.csv")], &tok)).status, 404);
         let audit = std::fs::read_to_string(e.root.join("5651/gunluk/2026-09-29/denetim.csv")).unwrap();
         assert!(audit.contains("dosya=kullanicilar/100******46.csv") && !audit.contains("10000000146"), "{audit}");
+    }
+
+    /// Sahte merkez (raporlar): çağrı sayısı ve gövde denetimi; dönem 2026-09 var, başkası 404.
+    fn rapor_merkezi(e: &mut Env, durum: u16) -> Arc<AtomicUsize> {
+        let n = Arc::new(AtomicUsize::new(0));
+        let n2 = n.clone();
+        e.p.rapor_http = Box::new(move |yol: &str, govde: &str| {
+            n2.fetch_add(1, Ordering::SeqCst);
+            let v: serde_json::Value = serde_json::from_str(govde).unwrap();
+            assert_eq!(v["cihaz_anahtari"], "k");
+            if durum != 200 {
+                return Ok((durum, "{\"hata\":\"x\",\"kod\":\"yetki\"}".into()));
+            }
+            let liste = serde_json::json!({"raporlar": [
+                {"tur": "hafta", "donem": "2026-W40", "baslangic": "2026-09-28", "bitis": "2026-10-04", "kesin": false, "farkli": 3, "kayit_gun": 1, "kayit_tam": 1},
+                {"tur": "ay", "donem": "2026-09", "baslangic": "2026-09-01", "bitis": "2026-09-30", "kesin": false, "farkli": 4, "kayit_gun": 20, "kayit_tam": 16}],
+                "bugun": "2026-09-29"});
+            let rapor = serde_json::json!({"rapor": {"bicim": 2, "tur": "ay", "donem": "2026-09", "baslangic": "2026-09-01", "bitis": "2026-09-30",
+                "uretim": "2026-09-29T12:31:00+03:00", "kesin": false, "misafir": {"farkli": 4}, "saat": [], "hafta_gunu": [],
+                "gunler": [{"gun": "2026-09-01", "durum": "tam", "neden": "", "farkli": 2}], "kayit": {"gun": 20, "tam": 16},
+                "kullanim": {"gonderilen": 0, "alinan": 0, "sms": 3}, "surum": "0.4.10", "surum_sonra_degisti": false},
+                "isletme": {"numara": MUSTERI, "ad": "Bocafe <i>", "unvan": ""},
+                "cihaz": {"surum": "0.4.10", "cevrimdisi_sn": 0, "sorunlar": []}, "bugun": "2026-09-29"});
+            match (yol, v["donem"].as_str()) {
+                ("/api/raporlar", _) => Ok((200, liste.to_string())),
+                ("/api/rapor", Some("2026-09")) => Ok((200, rapor.to_string())),
+                ("/api/rapor", _) => Ok((404, "{\"hata\":\"yok\",\"kod\":\"yok\"}".into())),
+                _ => Err("?".into()),
+            }
+        });
+        n
+    }
+
+    #[test]
+    fn raporlar_ayarlarda_merkezden_onbellekli_denetimsiz() {
+        let mut e = env();
+        let (tok, _) = setup_and_login(&e, "mudur", "sahip-parola-12");
+        let n = rapor_merkezi(&mut e, 200);
+        let ay = e.p.handle(&req("GET", "/ayarlar", &[], Some(&tok))).body;
+        let kutular = ay.split("aria-label=\"Bu sayfadaki bölümler\">").nth(1).unwrap().split("</nav>").next().unwrap().to_string();
+        assert!(kutular.contains("href=\"/raporlar\"") && kutular.ends_with("Admin</a>"), "{kutular}");
+        let denetim = e.root.join("5651/gunluk/2026-09-29/denetim.csv");
+        let once = std::fs::read_to_string(&denetim).unwrap_or_default();
+        let l = e.p.handle(&req("GET", "/raporlar", &[], Some(&tok)));
+        assert_eq!(l.status, 200);
+        assert!(l.body.contains("<a href=\"/rapor/ay/2026-09\">Eylül 2026</a> <b class=\"uyarisi\">sürüyor</b>"), "{}", l.body);
+        assert!(l.body.contains("href=\"/ayarlar\" class=\"aktif\""), "menüde Ayarlar seçili");
+        e.p.handle(&req("GET", "/raporlar", &[], Some(&tok)));
+        assert_eq!(n.load(Ordering::SeqCst), 1, "liste önbellekten");
+        let r = e.p.handle(&req("GET", "/rapor/ay/2026-09", &[], Some(&tok)));
+        assert_eq!(r.status, 200);
+        assert!(r.body.contains("Aylık rapor · Eylül 2026") && r.body.contains("Bocafe &lt;i&gt;") && r.body.contains("20 günün 16'sı tam"));
+        assert!(r.body.contains("href=\"/ayarlar\" class=\"aktif\""));
+        e.p.handle(&req("GET", "/rapor/ay/2026-09", &[], Some(&tok)));
+        assert_eq!(n.load(Ordering::SeqCst), 2, "rapor önbellekten");
+        let r = e.p.handle(&req("GET", "/rapor/ay/2026-08", &[], Some(&tok)));
+        assert!(r.status == 404 && r.body.contains("Bu dönem için rapor yok."));
+        for yol in ["/rapor/ay/..%2Fx", "/rapor/ay/2026-13", "/rapor/hafta/2026-w40", "/rapor/yil/2026", "/rapor/ay/2026-09/x"] {
+            let r = e.p.handle(&req("GET", yol, &[], Some(&tok)));
+            assert_eq!(r.status, 404, "{yol}");
+        }
+        assert_eq!(n.load(Ordering::SeqCst), 3, "geçersiz dönem merkeze sorulmaz");
+        assert_eq!(std::fs::read_to_string(&denetim).unwrap_or_default(), once, "görüntüleme denetime yazılmaz");
+    }
+
+    #[test]
+    fn raporlar_alinamiyor_ve_lisans_kapali() {
+        // merkeze ulaşılamıyor (varsayılan sahte merkez); bir kez sorulur, kısa süre önbellekte
+        let e = env();
+        let (tok, _) = setup_and_login(&e, "mudur", "sahip-parola-12");
+        let r = e.p.handle(&req("GET", "/raporlar", &[], Some(&tok)));
+        assert!(r.status == 200 && r.body.contains("Raporlar şu an alınamıyor"), "{}", r.body);
+        assert!(e.p.handle(&req("GET", "/rapor/hafta/2026-W40", &[], Some(&tok))).body.contains("Raporlar şu an alınamıyor"));
+        // merkez 403 (üyelik/lisans kapalı); admin kilidi açıkken de aynı sayfa
+        let mut e = env();
+        let (tok, _) = setup_and_login(&e, "admin", "hizmet-parola-1");
+        rapor_merkezi(&mut e, 403);
+        assert!(e.p.handle(&req("GET", "/raporlar", &[], Some(&tok))).body.contains("lisans kapalı"));
+        // yerelde lisans askıda: merkeze hiç sorulmaz
+        let mut e = env();
+        let (tok, _) = setup_and_login(&e, "mudur", "sahip-parola-12");
+        let n = rapor_merkezi(&mut e, 200);
+        let mut m = crate::merkez::oku(&e.p.merkez_path).unwrap();
+        m.lisans = "askida".into();
+        crate::merkez::kaydet(&e.p.merkez_path, &m).unwrap();
+        assert!(e.p.handle(&req("GET", "/raporlar", &[], Some(&tok))).body.contains("lisans kapalı"));
+        assert!(e.p.handle(&req("GET", "/rapor/ay/2026-09", &[], Some(&tok))).body.contains("lisans kapalı"));
+        assert_eq!(n.load(Ordering::SeqCst), 0);
     }
 }

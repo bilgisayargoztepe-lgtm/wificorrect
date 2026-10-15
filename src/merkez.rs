@@ -45,10 +45,10 @@ pub fn curl_args(url: &str) -> Vec<String> {
     curl_args_sure(url, 25)
 }
 
-/// `curl_args`, toplam süre `max_sn` (bağlanma en çok 10 sn ya da `max_sn`).
+/// `curl_args`, toplam süre `max_sn` (bağlanma en çok 10 sn ya da `max_sn`). Cevap en çok 2 MB (JSON; rapor ≤ 1 MB).
 pub fn curl_args_sure(url: &str, max_sn: u32) -> Vec<String> {
     let (bag, max) = (max_sn.min(10).to_string(), max_sn.to_string());
-    ["-s", "--connect-timeout", &bag, "--max-time", &max, "-X", "POST", "-H", "Content-Type: application/json", "--data-binary", "@-", "-w", "\n%{http_code}", url]
+    ["-s", "--connect-timeout", &bag, "--max-time", &max, "--max-filesize", "2M", "-X", "POST", "-H", "Content-Type: application/json", "--data-binary", "@-", "-w", "\n%{http_code}", url]
         .iter()
         .map(|s| s.to_string())
         .collect()
@@ -683,6 +683,8 @@ mod tests {
         let a = curl_args("https://api.wificorrect.com/api/giris");
         assert!(a.iter().any(|x| x == "@-") && a.windows(2).any(|w| w[0] == "--connect-timeout" && w[1] == "10"));
         assert!(a.windows(2).any(|w| w[0] == "--max-time" && w[1] == "25") && !a.iter().any(|x| x.contains("parola")));
+        // JSON cevapları küçük (rapor dosyası en çok 1 MB); bellekte tutulan gövde sınırsız büyümesin
+        assert!(a.windows(2).any(|w| w[0] == "--max-filesize" && w[1] == "2M"));
     }
 
     #[test]

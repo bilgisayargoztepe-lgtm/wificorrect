@@ -153,7 +153,7 @@ if ($Kuru) {
 $ssh = $null
 try {
     Write-Host "SSH tüneli açılıyor: $Cihaz -> 127.0.0.1:$Port ..."
-    $ssh = Start-Process -FilePath $sshYolu -ArgumentList $sshArg -WindowStyle Hidden -PassThru
+    $ssh = Start-Process -FilePath $sshYolu -ArgumentList $sshArg -WindowStyle Minimized -PassThru  # gizli değil: konsol X ile kapanırsa elle kapatılabilsin
     $hazir = $false
     for ($i = 0; $i -lt 30; $i++) {
         if ($ssh.HasExited) {

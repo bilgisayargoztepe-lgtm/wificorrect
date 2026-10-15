@@ -16,6 +16,7 @@ use std::io::Read;
 use std::process::ExitCode;
 use std::sync::Arc;
 
+mod ap_sayfasi;
 mod filtre_sayfasi;
 mod gerekce;
 mod hareketler;
@@ -403,6 +404,10 @@ pub struct Panel {
     pub rapor_http: Box<crate::merkez::Http>,
     /// Merkezden alınan rapor cevapları: anahtar → (geçerlilik sonu, cevap)
     rapor_onbellek: std::sync::Mutex<HashMap<String, (f64, rapor_sayfalari::Sonuc)>>,
+    /// AP kurulumu geçici adres durum dosyası (testte geçici)
+    ap_yollar: crate::ap::Yollar,
+    /// Canlı `ip` çıktısı (adres, rota, komşu tablosu; testte sahte)
+    ip_oku: Box<dyn Fn(&[&str]) -> String + Send + Sync>,
 }
 
 const MENU: &[(&str, &str)] = &[("/", "Özet"), ("/cihazlar", "Kullanıcılar"), ("/misafir-kodlari", "Misafir kodları"), ("/kayitlar", "Kayıtlar"), ("/ayarlar", "Ayarlar")];
@@ -428,6 +433,7 @@ const BOLUMLER: &[(&str, &str, &str, &str, bool)] = &[
     ("/ayarlar", "/sistem", "sistem", "Sistem", false),
     ("/ayarlar", "/sifre", "sifre-degistir", "Şifremi değiştir", false),
     ("/admin", "/admin-ayarlari", "admin-ayarlari", "Admin ayarları", true),
+    ("/admin", "/ap-kurulum", "ap-kurulum", "AP kurulumu", true),
     ("/admin", "/panel-hareketleri", "panel-hareketleri", "Panel hareketleri", true),
 ];
 
@@ -504,6 +510,7 @@ fn bolum_simgesi(id: &str) -> &'static str {
         "sistem" => SIMGE_SUNUCU,
         "sifre-degistir" => SIMGE_ANAHTAR,
         "admin-ayarlari" => SIMGE_AYAR,
+        "ap-kurulum" => SIMGE_WIFI,
         "panel-hareketleri" => SIMGE_GOZ,
         _ => SIMGE_KAYIT,
     }
@@ -563,6 +570,8 @@ impl Panel {
             baglan_kilit: std::sync::Mutex::new(()),
             rapor_http: Box::new(|yol: &str, govde: &str| crate::merkez::curl_sure(yol, govde, rapor_sayfalari::MERKEZ_SURE)),
             rapor_onbellek: std::sync::Mutex::new(HashMap::new()),
+            ap_yollar: crate::ap::Yollar::sistem(),
+            ip_oku: Box::new(|c: &[&str]| ortak::capture(c)),
         }
     }
 
@@ -668,6 +677,7 @@ impl Panel {
                 "/portlar" => self.portlar(cfg, req, o, now).body,
                 "/sistem" => self.sistem(cfg, req, o, "").body,
                 "/admin-ayarlari" => self.ayarlar(cfg, req, o, &HashMap::new(), true).body,
+                "/ap-kurulum" => self.ap_kurulum(cfg, req, o, now).body,
                 _ => self.sifre(cfg, req, o, "").body,
             })
             .collect();
@@ -859,7 +869,12 @@ impl Panel {
             ("GET", "/admin") if hizmet => self.grup_sayfasi(&cfg, req, &o, now),
             ("GET", "/panel-hareketleri") if hizmet => self.hareketler(&cfg, req, &o, now),
             ("GET", "/admin-ayarlari") if hizmet => self.ayarlar(&cfg, req, &o, &HashMap::new(), true),
-            ("GET", "/admin" | "/admin-ayarlari" | "/panel-hareketleri") => self.admin_kilidi_formu(&cfg, req, &o, ""),
+            ("GET", "/ap-kurulum") if hizmet => self.ap_kurulum(&cfg, req, &o, now),
+            ("GET", "/ap-kurulum/cihazlar") if hizmet => self.ap_cihazlar(&cfg, req, &o),
+            ("GET", "/admin" | "/admin-ayarlari" | "/panel-hareketleri" | "/ap-kurulum" | "/ap-kurulum/cihazlar") => self.admin_kilidi_formu(&cfg, req, &o, ""),
+            ("POST", "/ap-kurulum/gecici-ekle") if hizmet => self.ap_gecici_ekle(&cfg, req, &o, now),
+            ("POST", "/ap-kurulum/gecici-kaldir") if hizmet => self.ap_gecici_kaldir(&cfg, req, &o),
+            ("POST", "/ap-kurulum/gecici-ekle" | "/ap-kurulum/gecici-kaldir") => text(403, "Admin kilidi kapalı."),
             ("POST", "/admin-kilidi") => self.admin_kilidi(&cfg, req, &o, now),
             ("POST", "/admin-kilidi/kapat") => {
                 if let Some(t) = &req.token {
@@ -1684,7 +1699,7 @@ const ADMIN_SURE: f64 = 1800.0;
 /// Admin kilidi açılınca dönülecek yer: yalnızca kilitli sayfalar (başka siteye yönlendirme yok).
 fn admin_donus(yol: &str) -> &str {
     match yol {
-        "/admin-ayarlari" | "/panel-hareketleri" => yol,
+        "/admin-ayarlari" | "/panel-hareketleri" | "/ap-kurulum" | "/ap-kurulum/cihazlar" => yol,
         _ => "/admin",
     }
 }
@@ -1830,9 +1845,28 @@ mod tests {
         p: Panel,
         calls: Arc<Mutex<Vec<Vec<String>>>>,
         root: std::path::PathBuf,
+        /// Sahte `ip`: köprüdeki ek adres satırları (geçici adres canlıda gibi)
+        ip_ek: Arc<Mutex<String>>,
     }
 
     const IP: &str = "192.168.1.50";
+
+    const IP_ADDR: &str = "2: enp3s0    inet 192.168.1.110/24 brd 192.168.1.255 scope global dynamic enp3s0\\       valid_lft 3221sec preferred_lft 3221sec
+4: br-hotspot    inet 10.50.0.1/24 brd 10.50.0.255 scope global br-hotspot\\       valid_lft forever preferred_lft forever
+";
+    const IP_ROUTE: &str = "default via 192.168.1.1 dev enp3s0\n10.50.0.0/24 dev br-hotspot proto kernel scope link src 10.50.0.1\n192.168.1.0/24 dev enp3s0 proto dhcp scope link src 192.168.1.110\n";
+    const NEIGH: &str = "10.50.0.2 lladdr 70:4f:57:dd:7a:e8 REACHABLE\n10.50.0.44 lladdr da:11:22:33:44:55 STALE\n10.50.0.45 FAILED\n";
+
+    fn sahte_ip(a: &[&str], ek: &str) -> String {
+        match a {
+            ["ip", "-o", "-4", "addr", "show"] => format!("{IP_ADDR}{ek}"),
+            ["ip", "-o", "-4", "addr", "show", "dev", "br-hotspot"] => format!("{}\n{ek}", IP_ADDR.lines().nth(1).unwrap()),
+            ["ip", "-o", "-4", "addr", "show", "dev", "br-hotspot", "label", "br-hotspot:ap"] => ek.into(),
+            ["ip", "-4", "route", "show"] => IP_ROUTE.into(),
+            ["ip", "-4", "neigh", "show", "dev", "br-hotspot"] => NEIGH.into(),
+            _ => String::new(),
+        }
+    }
 
     fn env() -> Env {
         static N: AtomicUsize = AtomicUsize::new(0);
@@ -1863,7 +1897,12 @@ mod tests {
         p.rapor_http = merkez_yok();
         p.sys = root.join("sys"); // testler gerçek arayüzlere bakmasın; "wfc" = tünel arayüzü var
         std::fs::create_dir_all(p.sys.join("wfc")).unwrap();
-        Env { p, calls, root }
+        // AP kurulumu: durum dosyası geçici klasörde, `ip` çıktısı sahte (testler gerçek ip çalıştırmaz)
+        p.ap_yollar = crate::ap::Yollar { gecici: root.join("ap-gecici.json") };
+        let ip_ek: Arc<Mutex<String>> = Arc::default();
+        let ek2 = ip_ek.clone();
+        p.ip_oku = Box::new(move |a: &[&str]| sahte_ip(a, &ek2.lock().unwrap()));
+        Env { p, calls, root, ip_ek }
     }
 
     fn req(method: &str, path: &str, form: &[(&str, &str)], token: Option<&str>) -> Req {
@@ -4104,5 +4143,84 @@ mod tests {
         assert!(e.p.handle(&req("GET", "/raporlar", &[], Some(&tok))).body.contains("lisans kapalı"));
         assert!(e.p.handle(&req("GET", "/rapor/ay/2026-09", &[], Some(&tok))).body.contains("lisans kapalı"));
         assert_eq!(n.load(Ordering::SeqCst), 0);
+    }
+
+    #[test]
+    fn ap_kurulum_yalniz_admin() {
+        let e = env();
+        let (tok, csrf) = setup_and_login(&e, "mudur", "sahip-parola-12");
+        // işletme sahibi: GET kilit formu, POST 403, Ayarlar/Admin'de bölüm yok
+        for yol in ["/ap-kurulum", "/ap-kurulum/cihazlar"] {
+            let r = e.p.handle(&req("GET", yol, &[], Some(&tok)));
+            assert!(r.body.contains("action=\"/admin-kilidi\"") && r.body.contains(&format!("name=\"donus\" value=\"{yol}\"")), "{yol}");
+            assert!(!r.body.contains("70:4f:57"));
+        }
+        for yol in ["/ap-kurulum/gecici-ekle", "/ap-kurulum/gecici-kaldir"] {
+            assert_eq!(e.p.handle(&req("POST", yol, &[("csrf", &csrf), ("adres", "192.168.0.250/24")], Some(&tok))).status, 403);
+        }
+        assert!(!e.p.handle(&req("GET", "/ayarlar", &[], Some(&tok))).body.contains("ap-kurulum"));
+        assert!(e.calls.lock().unwrap().iter().all(|c| c[0] != "ip" && c[0] != "systemd-run"));
+        assert!(!std::fs::read_to_string(e.root.join("5651/gunluk/2026-09-29/denetim.csv")).unwrap().contains("PANEL_AP_CIHAZLAR"));
+    }
+
+    #[test]
+    fn ap_kurulum_gecici_adres_ve_cihazlar() {
+        let e = env();
+        std::fs::create_dir_all(e.p.sys.join("br-hotspot")).unwrap();
+        std::fs::write(e.p.sys.join("br-hotspot/address"), "00:0e:c4:ce:a0:9a\n").unwrap();
+        let (tok, csrf) = setup_and_login(&e, "admin", "hizmet-parola-1");
+        let denetim = || std::fs::read_to_string(e.root.join("5651/gunluk/2026-09-29/denetim.csv")).unwrap_or_default();
+        // Admin grup sayfasında bölüm: misafir portu adresi + köprü MAC'i, form
+        let a = e.p.handle(&req("GET", "/admin", &[], Some(&tok))).body;
+        assert!(a.contains("<section class=\"bolum\" id=\"ap-kurulum\"") && a.contains("href=\"#ap-kurulum\""));
+        assert!(a.contains("10.50.0.1") && a.contains("00:0e:c4:ce:a0:9a") && a.contains("action=\"/ap-kurulum/gecici-ekle\""));
+        assert_eq!(e.p.handle(&req("GET", "/ap-kurulum", &[], Some(&tok))).status, 200);
+        // CSRF'siz POST reddedilir
+        assert_eq!(e.p.handle(&req("POST", "/ap-kurulum/gecici-ekle", &[("adres", "192.168.0.250/24")], Some(&tok))).status, 403);
+        // çakışan adres (WAN ağı): mesaj, ip addr add yok, denetim yok
+        let r = e.p.handle(&req("POST", "/ap-kurulum/gecici-ekle", &[("csrf", &csrf), ("adres", "192.168.1.250/24")], Some(&tok)));
+        assert!(loc(&r).starts_with("/admin?m=") && loc(&r).contains("e=1") && loc(&r).ends_with("#ap-kurulum"), "{}", loc(&r));
+        assert!(e.calls.lock().unwrap().iter().all(|c| c[0] != "ip" && c[0] != "systemd-run"));
+        assert!(!denetim().contains("AP_KURULUM_ADRES"));
+        // ekleme: önce zamanlayıcı, sonra adres; denetim; yönlendirme
+        let r = e.p.handle(&req("POST", "/ap-kurulum/gecici-ekle", &[("csrf", &csrf), ("adres", "192.168.0.250/24")], Some(&tok)));
+        assert!(loc(&r).starts_with("/admin?m=") && !loc(&r).contains("e=1") && loc(&r).ends_with("#ap-kurulum"), "{}", loc(&r));
+        {
+            let v = e.calls.lock().unwrap();
+            let i = v.iter().position(|c| c[0] == "systemd-run" && c.iter().any(|x| x == "ap-adres-kaldir")).expect("zamanlayıcı");
+            let j = v.iter().position(|c| c.len() > 3 && c[..3] == ["ip", "addr", "add"]).expect("ip addr add");
+            assert!(i < j && v[j].contains(&"br-hotspot:ap".to_string()) && v[j].contains(&"192.168.0.250/24".to_string()));
+        }
+        assert!(denetim().contains("AP_KURULUM_ADRES") && denetim().contains("eklendi adres=192.168.0.250/24 sure=1800"));
+        // açık geçici adres: kalan süre + Şimdi kaldır
+        *e.ip_ek.lock().unwrap() = "4: br-hotspot    inet 192.168.0.250/24 scope global br-hotspot:ap\\       valid_lft 1800sec preferred_lft 1800sec\n".into();
+        let a = e.p.handle(&req("GET", "/admin", &[], Some(&tok))).body;
+        assert!(a.contains("192.168.0.250/24") && a.contains("(30 dk)") && a.contains("action=\"/ap-kurulum/gecici-kaldir\"") && !a.contains("action=\"/ap-kurulum/gecici-ekle\""));
+        // ikinci ekleme reddedilir
+        let r = e.p.handle(&req("POST", "/ap-kurulum/gecici-ekle", &[("csrf", &csrf), ("adres", "172.16.5.1/24")], Some(&tok)));
+        assert!(loc(&r).contains("e=1"));
+        // canlıda artık yok (ağ yeniden kuruldu)
+        e.ip_ek.lock().unwrap().clear();
+        assert!(e.p.handle(&req("GET", "/admin", &[], Some(&tok))).body.contains("artık yok"));
+        *e.ip_ek.lock().unwrap() = "4: br-hotspot    inet 192.168.0.250/24 scope global br-hotspot:ap\\       valid_lft 1800sec preferred_lft 1800sec\n".into();
+        // kaldırma: ip addr del + zamanlayıcı durdurma + denetim
+        e.calls.lock().unwrap().clear();
+        let r = e.p.handle(&req("POST", "/ap-kurulum/gecici-kaldir", &[("csrf", &csrf)], Some(&tok)));
+        assert!(!loc(&r).contains("e=1"));
+        {
+            let v = e.calls.lock().unwrap();
+            assert!(v.iter().any(|c| *c == cmd(&["ip", "addr", "del", "192.168.0.250/24", "dev", "br-hotspot"])));
+            assert!(v.iter().any(|c| c.len() > 2 && c[..2] == ["systemctl", "stop"] && c[2].starts_with("wfc-ap-gecici-")));
+        }
+        assert!(denetim().contains("kaldirildi adres=192.168.0.250/24 neden=elle"));
+        assert!(!e.p.ap_yollar.gecici.exists());
+        // ağdaki cihazlar: kira + komşu tablosu, adlar kaçışlı, her açılış denetimde
+        std::fs::write(e.root.join("leases"), "1790712334 70:4f:57:dd:7a:e8 10.50.0.2 <b>AP</b> *\n").unwrap();
+        let c = e.p.handle(&req("GET", "/ap-kurulum/cihazlar", &[], Some(&tok))).body;
+        assert!(c.contains("70:4f:57:dd:7a:e8") && c.contains("&lt;b&gt;AP&lt;/b&gt;") && !c.contains("<b>AP</b>"));
+        assert!(c.contains("ARP REACHABLE") && c.contains("rastgele MAC") && !c.contains("10.50.0.45"));
+        assert!(denetim().contains("PANEL_AP_CIHAZLAR") && denetim().contains("sayi=2"));
+        std::fs::remove_file(e.root.join("leases")).unwrap();
+        *e.ip_ek.lock().unwrap() = String::new();
     }
 }

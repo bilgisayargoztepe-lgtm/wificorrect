@@ -145,6 +145,34 @@ fn unvan_ok(s: &str) -> bool {
     (2..=200).contains(&n) && s.chars().all(|c| c.is_alphanumeric() || " .,-'&()/\"".contains(c))
 }
 
+/// Veri sorumlusu adresi (KVKK aydınlatma metni): boş (Özet uyarır) ya da 5-200 karakter; denetim karakteri ve köşeli
+/// parantez yok (yer tutucu sanılmasın).
+fn adres_ok(s: &str) -> bool {
+    let n = s.trim().chars().count();
+    n == 0 || ((5..=200).contains(&n) && s.chars().all(|c| !c.is_control() && !"[]<>".contains(c)))
+}
+
+/// İrtibat telefonu (isteğe bağlı): boş ya da rakam, boşluk, + ( ) - ; 7-15 rakam.
+fn irtibat_tel_ok(s: &str) -> bool {
+    let rakam = s.chars().filter(char::is_ascii_digit).count();
+    s.is_empty() || (s.chars().count() <= 25 && (7..=15).contains(&rakam) && s.chars().all(|c| c.is_ascii_digit() || " +()-".contains(c)))
+}
+
+/// E-posta ya da KEP adresi (isteğe bağlı): boş ya da tek @, iki yanı dolu, alan adında nokta; boşluk ve köşeli parantez yok.
+fn eposta_ok(s: &str) -> bool {
+    if s.is_empty() {
+        return true;
+    }
+    let Some((ad, alan)) = s.split_once('@') else { return false };
+    s.len() <= 100
+        && !ad.is_empty()
+        && alan.contains('.')
+        && !alan.starts_with('.')
+        && !alan.ends_with('.')
+        && !alan.contains('@')
+        && s.chars().all(|c| c.is_ascii_graphic() && !"[]<>\"\\,;".contains(c))
+}
+
 fn backup_target_ok(s: &str) -> bool {
     if s.is_empty() {
         return true;
@@ -162,6 +190,10 @@ fn backup_target_ok(s: &str) -> bool {
 
 const ALANLAR: &[Alan] = &[
     Alan { key: "main.unvan", label: "İşletme unvanı (vergi levhasındaki unvan yazılmalıdır)", tur: Tur::Metin(unvan_ok), grup: "İşletme", admin: false },
+    Alan { key: "main.adres", label: "Veri sorumlusunun adresi (KVKK aydınlatma metninde başvuru adresi)", tur: Tur::Metin(adres_ok), grup: "İşletme", admin: false },
+    Alan { key: "main.telefon", label: "İrtibat telefonu (isteğe bağlı; aydınlatma metninde)", tur: Tur::Metin(irtibat_tel_ok), grup: "İşletme", admin: false },
+    Alan { key: "main.eposta", label: "E-posta (isteğe bağlı; aydınlatma metninde)", tur: Tur::Metin(eposta_ok), grup: "İşletme", admin: false },
+    Alan { key: "main.kep", label: "KEP adresi (isteğe bağlı; aydınlatma metninde)", tur: Tur::Metin(eposta_ok), grup: "İşletme", admin: false },
     Alan { key: "main.site_name", label: "İşletme adı", tur: Tur::Metin(|s| !s.trim().is_empty() && chars_ok(s, 40, |c| c.is_alphanumeric() || " .-'&".contains(c))), grup: "İşletme", admin: false },
     Alan { key: "main.isletme_turu", label: "İşletme türü", tur: Tur::Secim(crate::ayar::ISLETME_TURLERI), grup: "İşletme", admin: false },
     Alan { key: "main.session_minutes", label: "Oturum süresi (dakika; 43200 = 30 gün)", tur: Tur::Sayi(30, 64800), grup: "İşletme", admin: false },
@@ -252,6 +284,10 @@ fn get_field(c: &Config, key: &str) -> String {
     match key {
         "main.site_name" => c.main.site_name.clone(),
         "main.unvan" => c.main.unvan.clone(),
+        "main.adres" => c.main.adres.clone(),
+        "main.telefon" => c.main.telefon.clone(),
+        "main.eposta" => c.main.eposta.clone(),
+        "main.kep" => c.main.kep.clone(),
         // seçilmemiş (yok ya da tanınmayan) tür boş döner: formda "Seçin" görünür, kaydetmek türü kendiliğinden yazmaz
         "main.isletme_turu" => crate::ayar::isletme_turu_secili(c).unwrap_or_default().to_string(),
         "giris.misafir_kodu" => b(c.giris.misafir_kodu),
@@ -278,6 +314,10 @@ fn set_field(c: &mut Config, key: &str, v: &str) {
     match key {
         "main.site_name" => c.main.site_name = v.trim().into(),
         "main.unvan" => c.main.unvan = v.split_whitespace().collect::<Vec<_>>().join(" "),
+        "main.adres" => c.main.adres = v.split_whitespace().collect::<Vec<_>>().join(" "),
+        "main.telefon" => c.main.telefon = v.trim().into(),
+        "main.eposta" => c.main.eposta = v.trim().into(),
+        "main.kep" => c.main.kep = v.trim().into(),
         "main.isletme_turu" => c.main.isletme_turu = Some(v.into()),
         "giris.misafir_kodu" => c.giris.misafir_kodu = v == "1",
         "uzak.enabled" => c.uzak.enabled = v == "1",
@@ -408,6 +448,8 @@ pub struct Panel {
     ap_yollar: crate::ap::Yollar,
     /// Canlı komut çıktısı (komşu tablosu, aracı birimi durumu, DHCP denetimi; testte sahte)
     ip_oku: Box<dyn Fn(&[&str]) -> String + Send + Sync>,
+    /// Yabancı DHCP denetimi sürüyor: aynı anda tek denetim (panelin iş parçacıkları bağlanmasın)
+    dhcp_denetim: std::sync::atomic::AtomicBool,
 }
 
 const MENU: &[(&str, &str)] = &[("/", "Özet"), ("/cihazlar", "Kullanıcılar"), ("/misafir-kodlari", "Misafir kodları"), ("/kayitlar", "Kayıtlar"), ("/ayarlar", "Ayarlar")];
@@ -572,6 +614,7 @@ impl Panel {
             rapor_onbellek: std::sync::Mutex::new(HashMap::new()),
             ap_yollar: crate::ap::Yollar::sistem(),
             ip_oku: Box::new(|c: &[&str]| ortak::capture(c)),
+            dhcp_denetim: std::sync::atomic::AtomicBool::new(false),
         }
     }
 
@@ -640,8 +683,12 @@ impl Panel {
                 )),
                 Some(_) => {}
             }
-            if cfg.main.unvan.trim().is_empty() && crate::merkez::oku(&self.merkez_path).is_some() {
-                uyari.push_str("<div class=\"mesaj hata\">Unvan girilmemiş: misafirlerin gördüğü açık rıza metninde yer tutucu görünüyor. Ayarlar'dan işletme unvanını girin.</div>");
+            let eksik: Vec<&str> = [("unvan", &cfg.main.unvan), ("adres", &cfg.main.adres)].iter().filter(|(_, v)| v.trim().is_empty()).map(|(k, _)| *k).collect();
+            if !eksik.is_empty() && crate::merkez::oku(&self.merkez_path).is_some() {
+                uyari.push_str(&format!(
+                    "<div class=\"mesaj hata\">KVKK metninde veri sorumlusu bilgileri eksik ({}): misafirlerin gördüğü aydınlatma ve açık rıza metinlerinde yer tutucu görünüyor. Ayarlar → İşletme'den girin.</div>",
+                    eksik.join(", ")
+                ));
             }
         }
         v.insert("mesaj_html", uyari + &msg.unwrap_or_default());
@@ -1859,7 +1906,7 @@ mod tests {
         match a {
             ["ip", "-4", "neigh", "show", "dev", "br-hotspot"] => NEIGH.into(),
             ["systemctl", "is-active", "wfc-ap-araci.service"] => if ek.lines().any(|l| l == "araci") { "active\n" } else { "inactive\n" }.into(),
-            ["/usr/local/bin/wificorrect", "ctl", "ap-dhcp-denetle"] => {
+            ["timeout", "25", "/usr/local/bin/wificorrect", "ctl", "ap-dhcp-denetle"] => {
                 ek.lines().filter(|l| l.starts_with("TEKLIF") || l.starts_with("TAMAM")).map(|l| format!("{l}\n")).collect()
             }
             _ => String::new(),
@@ -1963,6 +2010,7 @@ mod tests {
             crate::merkez::kaydet(&e.p.merkez_path, &m).unwrap();
             let mut c = Config::load(&e.p.cfg_path).unwrap();
             (c.main.site_name, c.main.unvan) = ("Bocafe Göztepe".into(), "Boca Gıda Tic. Ltd. Şti.".into());
+            c.main.adres = "Moda Cad. No 1 Kadıköy/İstanbul".into();
             c.save(&e.p.cfg_path).unwrap();
         }
         uzak_adresli(e);
@@ -2623,6 +2671,38 @@ mod tests {
     }
 
     #[test]
+    fn veri_sorumlusu_iletisim_alanlari() {
+        let e = env();
+        let (tok, csrf) = setup_and_login(&e, "mudur", "sahip-parola-12");
+        let page = e.p.handle(&req("GET", "/ayarlar", &[], Some(&tok))).body;
+        for k in ["main.adres", "main.telefon", "main.eposta", "main.kep"] {
+            assert!(page.contains(&format!("name=\"{k}\"")), "{k}");
+        }
+        let kaydet = |alanlar: &[(&str, &str)]| {
+            let mut f = vec![("csrf", csrf.as_str())];
+            f.extend_from_slice(alanlar);
+            e.p.handle(&req("POST", "/ayarlar", &f, Some(&tok)))
+        };
+        let r = kaydet(&[("main.adres", "  Moda   Cad. No 2  Kadıköy "), ("main.telefon", "+90 (216) 000 00 00"), ("main.eposta", "kvkk@boca.example"), ("main.kep", "boca@hs01.kep.tr")]);
+        assert_eq!(r.status, 303);
+        let c = Config::load(&e.p.cfg_path).unwrap();
+        assert_eq!((c.main.adres.as_str(), c.main.telefon.as_str(), c.main.eposta.as_str(), c.main.kep.as_str()),
+                   ("Moda Cad. No 2 Kadıköy", "+90 (216) 000 00 00", "kvkk@boca.example", "boca@hs01.kep.tr"));
+        // isteğe bağlılar boşaltılabilir; adres de boş kaydedilebilir (Özet uyarır)
+        assert_eq!(kaydet(&[("main.telefon", ""), ("main.kep", ""), ("main.adres", "")]).status, 303);
+        let c = Config::load(&e.p.cfg_path).unwrap();
+        assert!(c.main.telefon.is_empty() && c.main.kep.is_empty() && c.main.adres.is_empty() && c.main.eposta == "kvkk@boca.example");
+        // geçersizler kaydedilmez (yer tutucu gibi köşeli parantez, bozuk e-posta, harfli telefon)
+        for (k, v) in [("main.adres", "[KEP adresi]"), ("main.adres", "kısa"), ("main.eposta", "a@b"), ("main.eposta", "a b@c.d"), ("main.kep", "x@@y.z"), ("main.telefon", "0216 ABC")] {
+            let r = kaydet(&[(k, v)]);
+            assert_eq!(r.status, 200, "{k}={v}");
+            assert!(r.body.contains("Geçersiz değer."), "{k}={v}");
+        }
+        assert!(Config::load(&e.p.cfg_path).unwrap().main.adres.is_empty());
+        assert!(eposta_ok("") && irtibat_tel_ok("") && adres_ok(""));
+    }
+
+    #[test]
     fn tur_secilmemisse_ozet_uyarisi() {
         let e = env();
         let (tok, csrf) = setup_and_login(&e, "mudur", "sahip-parola-12");
@@ -2895,9 +2975,16 @@ mod tests {
         assert!(loc(&post(&[("rol_enp3s0", "alir"), ("rol_enp1s0", "alir"), ("wifi", "kapali")])).contains("e=1"));
         assert!(loc(&post(&[("rol_enp3s0", "alir"), ("rol_enp1s0", "kapali"), ("wifi", "kapali")])).contains("e=1"));
         assert!(loc(&post(&[("rol_enp3s0", "alir"), ("rol_enp1s0", "verir"), ("wifi", "kapali"), ("kanal", "6")])).contains("%20yok."));
+        // açık yan oda varken: port değişikliği önce yan odayı kapatır (köprü yeniden kurulunca macvlan gider)
+        std::fs::write(&e.p.ap_yollar.gecici, r#"{"adres":"192.168.1.250/24","kimlik":"0a1b2c3d","bitis":1790706934.0}"#).unwrap();
+        *e.ip_ek.lock().unwrap() = "araci\n".into();
         // portları değiştir + Wi-Fi aç
         let r = post(&[("rol_enp3s0", "verir"), ("rol_enp1s0", "alir"), ("wifi", "verir"), ("ssid", "Bocafe Misafir"), ("sifre", ""), ("kanal", "11")]);
         assert!(!loc(&r).contains("e=1"), "{}", loc(&r));
+        assert!(!e.p.ap_yollar.gecici.exists() && e.calls.lock().unwrap().iter().any(|c| c.join(" ") == "systemctl stop wfc-ap-araci.service"));
+        let dn = std::fs::read_to_string(e.root.join("5651/gunluk/2026-09-29/denetim.csv")).unwrap_or_default();
+        assert!(dn.contains("kapandi adres=192.168.1.250/24 neden=port"));
+        e.ip_ek.lock().unwrap().clear();
         let staged = crate::ag::load(&e.p.ag_yollar.yeni());
         assert_eq!((staged.wan.as_str(), staged.wan_mac.as_str(), staged.wifi.ssid.as_str()), ("enp1s0", "00:0e:c4:ce:a0:9b", "Bocafe Misafir")); // MAC korunur
         assert!(e.calls.lock().unwrap().iter().any(|c| c.join(" ").contains("ctl ag-gecis")));
@@ -3259,7 +3346,7 @@ mod tests {
         let e = env();
         let (tok, _) = setup_and_login(&e, "mudur", "sahip-parola-12");
         let page = e.p.handle(&req("GET", "/", &[], Some(&tok))).body;
-        assert!(!page.contains("Lisans askıya") && !page.contains("Unvan girilmemiş"));
+        assert!(!page.contains("Lisans askıya") && !page.contains("veri sorumlusu bilgileri eksik"));
         let mut m = crate::merkez::oku(&e.p.merkez_path).unwrap();
         m.lisans = "askida".into();
         crate::merkez::kaydet(&e.p.merkez_path, &m).unwrap();
@@ -3268,7 +3355,14 @@ mod tests {
         let mut c = Config::load(&e.p.cfg_path).unwrap();
         c.main.unvan = String::new();
         c.save(&e.p.cfg_path).unwrap();
-        assert!(e.p.handle(&req("GET", "/", &[], Some(&tok))).body.contains("Unvan girilmemiş"));
+        assert!(e.p.handle(&req("GET", "/", &[], Some(&tok))).body.contains("KVKK metninde veri sorumlusu bilgileri eksik (unvan)"));
+        // adres de boş: ikisi birden; isteğe bağlı alanlar (telefon, e-posta, KEP) uyarı vermez
+        c.main.adres = String::new();
+        c.save(&e.p.cfg_path).unwrap();
+        assert!(e.p.handle(&req("GET", "/", &[], Some(&tok))).body.contains("veri sorumlusu bilgileri eksik (unvan, adres)"));
+        c.main.unvan = "Boca Ltd.".into();
+        c.save(&e.p.cfg_path).unwrap();
+        assert!(e.p.handle(&req("GET", "/", &[], Some(&tok))).body.contains("veri sorumlusu bilgileri eksik (adres)"));
     }
 
     // --- yavaşlatma
@@ -4253,6 +4347,13 @@ mod tests {
         }
         assert!(denetim().contains("kapandi adres=192.168.1.250/24 neden=elle"));
         assert!(!e.p.ap_yollar.gecici.exists());
+        // durum kaydı olmadan çalışan aracı: Aç formu yerine Kapat; kapatma aracıyı durdurur
+        e.calls.lock().unwrap().clear();
+        let a = e.p.handle(&req("GET", "/ayarlar", &[], Some(&tok))).body;
+        assert!(a.contains("durum kaydı yok") && a.contains("action=\"/ap-kurulum/gecici-kaldir\"") && !a.contains("action=\"/ap-kurulum/gecici-ekle\""));
+        let r = e.p.handle(&req("POST", "/ap-kurulum/gecici-kaldir", &[("csrf", &csrf)], Some(&tok)));
+        assert!(!loc(&r).contains("e=1"));
+        assert!(e.calls.lock().unwrap().iter().any(|c| *c == cmd(&["systemctl", "stop", "wfc-ap-araci.service"])));
         e.ip_ek.lock().unwrap().clear();
         // ağdaki cihazlar: kira + komşu tablosu, adlar kaçışlı, her açılış denetimde
         std::fs::write(e.root.join("leases"), "1790712334 70:4f:57:dd:7a:e8 10.50.0.2 <b>AP</b> *\n").unwrap();
@@ -4284,6 +4385,13 @@ mod tests {
         assert!(r.body.contains("mesaj hata") && r.body.contains("DHCP sunucusu kapatılmalı"));
         assert!(r.body.contains("192.168.1.1") && r.body.contains("aa:bb:cc:dd:ee:ff") && r.body.contains("192.168.1.33"));
         assert!(denetim().contains("AP_DHCP_DENETIM") && denetim().contains("sonuc=var sunucular=192.168.1.1/aa:bb:cc:dd:ee:ff"));
+        // aynı anda ikinci denetim başlamaz (komut çalışmaz, denetime yazılmaz); bitince yeniden açılır
+        let satir = denetim().lines().count();
+        e.p.dhcp_denetim.store(true, std::sync::atomic::Ordering::SeqCst);
+        let r = denetle();
+        assert!(r.status == 200 && r.body.contains("zaten sürüyor") && denetim().lines().count() == satir);
+        e.p.dhcp_denetim.store(false, std::sync::atomic::Ordering::SeqCst);
+        assert!(denetle().body.contains("kapatılmalı") && !e.p.dhcp_denetim.load(std::sync::atomic::Ordering::SeqCst));
         e.ip_ek.lock().unwrap().clear();
     }
 

@@ -253,7 +253,10 @@ impl Drop for Sayac {
 pub fn sun(dinle: TcpListener, ag: Cidr, baglan: Arc<Baglan>) {
     let acik = Arc::new(AtomicUsize::new(0));
     for s in dinle.incoming() {
-        let Ok(s) = s else { continue };
+        let Ok(s) = s else {
+            std::thread::sleep(Duration::from_millis(100)); // kalıcı hata (EMFILE vb.): işlemciyi döndürmesin
+            continue;
+        };
         if acik.fetch_add(1, Ordering::SeqCst) >= EN_COK_BAGLANTI {
             acik.fetch_sub(1, Ordering::SeqCst);
             continue; // s düşer → kapanır

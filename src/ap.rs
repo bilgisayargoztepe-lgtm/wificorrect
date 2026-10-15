@@ -170,6 +170,22 @@ fn s(parts: &[&str]) -> Vec<String> {
 /// (kapatma zamanlayıcısı, aracı) komutları. Aracı `Type=notify`: `systemd-run` yan oda kurulana kadar bekler, kurulamazsa
 /// başarısız döner (`TimeoutStartSec` `ortak::run`'ın 15 sn'sinden kısa). `RuntimeMaxSec` süreden 10 sn uzun: zamanlayıcı
 /// önce çalışıp denetimi yazar, çalışmasa da aracı (ve yan oda) durur.
+/// Aracı kısıtlı çalışır (`ARACI_KISIT`): yalnızca CAP_NET_ADMIN (macvlan, yan oda sysctl) ve CAP_SYS_ADMIN (unshare,
+/// setns); dosya sistemi salt okunur. `PrivateNetwork`, `RestrictNamespaces` ve `ProtectKernelTunables` bilerek yok
+/// (aracı ad alanı açıp girer ve yan odanın /proc/sys/net değerlerini yazar).
+pub const ARACI_KISIT: [&str; 10] = [
+    "--property=NoNewPrivileges=yes",
+    "--property=ProtectSystem=strict",
+    "--property=ProtectHome=yes",
+    "--property=PrivateTmp=yes",
+    "--property=CapabilityBoundingSet=CAP_NET_ADMIN CAP_SYS_ADMIN",
+    "--property=RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK",
+    "--property=TasksMax=128",
+    "--property=MemoryMax=64M",
+    "--property=ProtectControlGroups=yes",
+    "--property=LockPersonality=yes",
+];
+
 pub fn ekle_komutlari(c: &Cidr, kimlik: &str, sure: u64) -> (Vec<String>, Vec<String>) {
     let birim = format!("{BIRIM_ONEK}{kimlik}");
     let zaman = format!("{sure}s");
@@ -178,9 +194,19 @@ pub fn ekle_komutlari(c: &Cidr, kimlik: &str, sure: u64) -> (Vec<String>, Vec<St
     (
         s(&["systemd-run", "--collect", "--unit", &birim, "--on-active", &zaman, "--timer-property=AccuracySec=1s",
             "/usr/local/bin/wificorrect", "ctl", "ap-adres-kaldir", "sure", kimlik]),
-        s(&["systemd-run", "--collect", "--unit", ARACI_BIRIM, "--service-type=notify", "--property=TimeoutStartSec=12", &omur,
-            "/usr/local/bin/wificorrect", "ctl", "ap-araci", &adres]),
+        ["systemd-run", "--collect", "--unit", ARACI_BIRIM, "--service-type=notify", "--property=TimeoutStartSec=12", &omur]
+            .into_iter()
+            .chain(ARACI_KISIT)
+            .chain(["/usr/local/bin/wificorrect", "ctl", "ap-araci", &adres])
+            .map(String::from)
+            .collect(),
     )
+}
+
+/// 0.4.11'in geçici adresi ana ad alanında köprüdeydi (etiket `<köprü>:ap`); o sürümün zamanlayıcısı güncellemeden sonra
+/// çalışırsa adres de kalkar. Yalnızca bu etiketli adresleri siler; yoksa bir şey yapmaz.
+pub fn eski_adres_temizle(kopru: &str) -> Vec<String> {
+    s(&["ip", "addr", "flush", "dev", kopru, "label", &format!("{kopru}:ap")])
 }
 
 fn zamanlayici_durdur(kimlik: &str) -> Vec<String> {
@@ -267,8 +293,17 @@ pub struct Kaldirilan {
 pub fn kaldir(y: &Yollar, neden: &str, kimlik: Option<&str>, ip_oku: &IpOku, runner: &Runner) -> Result<Option<Kaldirilan>, String> {
     let _kilit = kilit(y)?;
     let Some(g) = oku(y) else {
-        if y.gecici.exists() && kimlik.is_none() {
-            let _ = std::fs::remove_file(&y.gecici); // bozuk dosya: elle kapatmada temizlenir
+        if kimlik.is_none() {
+            if y.gecici.exists() {
+                let _ = std::fs::remove_file(&y.gecici); // bozuk dosya: elle kapatmada temizlenir
+            }
+            // durum dosyası olmadan kalmış aracı (yarıda kalmış işlem): elle kapatmada durdurulur
+            if araci_canli(ip_oku) {
+                if !runner(&araci_durdur()) {
+                    return Err("Yan oda kapatılamadı (aracı durdurulamadı).".into());
+                }
+                return Ok(Some(Kaldirilan { adres: "-".into(), hata: None }));
+            }
         }
         return Ok(None);
     };
@@ -477,8 +512,13 @@ mod tests {
         let (z, a) = ekle_komutlari(&Cidr::parse("192.168.1.250/24").unwrap(), "0a1b2c3d", 1800);
         assert_eq!(z, s(&["systemd-run", "--collect", "--unit", "wfc-ap-gecici-0a1b2c3d", "--on-active", "1800s", "--timer-property=AccuracySec=1s",
                           "/usr/local/bin/wificorrect", "ctl", "ap-adres-kaldir", "sure", "0a1b2c3d"]));
-        assert_eq!(a, s(&["systemd-run", "--collect", "--unit", "wfc-ap-araci", "--service-type=notify", "--property=TimeoutStartSec=12",
-                          "--property=RuntimeMaxSec=1810", "/usr/local/bin/wificorrect", "ctl", "ap-araci", "192.168.1.250/24"]));
+        assert_eq!(a[..7], s(&["systemd-run", "--collect", "--unit", "wfc-ap-araci", "--service-type=notify", "--property=TimeoutStartSec=12",
+                               "--property=RuntimeMaxSec=1810"])[..]);
+        assert_eq!(a[7..17], ARACI_KISIT.map(String::from)[..]);
+        assert_eq!(a[17..], s(&["/usr/local/bin/wificorrect", "ctl", "ap-araci", "192.168.1.250/24"])[..]);
+        // kısıt: yetkiler yalnızca ağ ve ad alanı; ad alanı/sysctl engelleyen ayarlar yok
+        assert!(a.iter().any(|x| x == "--property=CapabilityBoundingSet=CAP_NET_ADMIN CAP_SYS_ADMIN") && a.iter().any(|x| x == "--property=NoNewPrivileges=yes"));
+        assert!(!a.iter().any(|x| x.contains("PrivateNetwork") || x.contains("RestrictNamespaces") || x.contains("ProtectKernelTunables")));
     }
 
     #[test]
@@ -548,10 +588,18 @@ mod tests {
     fn kaldir_kimlik_ve_neden() {
         let (_, y, _) = cfg_ve_yol();
         let acik = canli(true);
-        // dosya yoksa hiçbir şey
+        // dosya ve aracı yoksa hiçbir şey
         let (calls, r) = kayitci(|_| true);
-        assert_eq!(kaldir(&y, "elle", None, &acik, &*r).unwrap(), None);
+        assert_eq!(kaldir(&y, "elle", None, &canli(false), &*r).unwrap(), None);
         assert!(calls.lock().unwrap().is_empty());
+        // dosyasız kalmış aracı: elle kapatma durdurur; zamanlayıcı (kimlikli) dokunmaz; durdurulamazsa hata
+        let (calls, r) = kayitci(|_| true);
+        assert_eq!(kaldir(&y, "sure", Some("0a1b2c3d"), &acik, &*r).unwrap(), None);
+        assert!(calls.lock().unwrap().is_empty());
+        assert_eq!(kaldir(&y, "elle", None, &acik, &*r).unwrap(), Some(Kaldirilan { adres: "-".into(), hata: None }));
+        assert_eq!(*calls.lock().unwrap(), vec![s(&["systemctl", "stop", "wfc-ap-araci.service"])]);
+        let (_, r) = kayitci(|_| false);
+        assert!(kaldir(&y, "elle", None, &acik, &*r).is_err());
         // eski zamanlayıcı (başka kimlik) yeni yan odayı kapatamaz
         yaz(&y, "0a1b2c3d");
         let (calls, r) = kayitci(|_| true);
@@ -581,7 +629,7 @@ mod tests {
         // bozuk dosya: elle kapatma temizler
         std::fs::write(&y.gecici, "bozuk").unwrap();
         let (_, r) = kayitci(|_| true);
-        assert_eq!(kaldir(&y, "elle", None, &acik, &*r).unwrap(), None);
+        assert_eq!(kaldir(&y, "elle", None, &canli(false), &*r).unwrap(), None);
         assert!(!y.gecici.exists());
     }
 

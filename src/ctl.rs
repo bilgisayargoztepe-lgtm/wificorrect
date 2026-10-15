@@ -160,6 +160,7 @@ fn ap_adres_kaldir(cfg: &Config, y: &crate::ap::Yollar, args: &[String], ip_oku:
         eprintln!("Kullanım: wificorrect ctl ap-adres-kaldir <elle|sure> [KIMLIK]");
         return ExitCode::from(2);
     };
+    runner(&crate::ap::eski_adres_temizle(&cfg.main.iface)); // 0.4.11'den kalan zamanlayıcı (ana ad alanındaki adres)
     match crate::ap::kaldir(y, neden, kimlik, ip_oku, runner) {
         Ok(Some(k)) => {
             let hata = k.hata.map_or(String::new(), |h| format!(" hata={h}"));
@@ -465,7 +466,7 @@ pub fn run(cfg: Config, args: &[String]) -> ExitCode {
             m.deneme = now;
             let _ = crate::merkez::kaydet(p, &m);
             let denetim = |olay: &str, ek: String| ortak::audit(&cfg.main.log_root, Row::new(olay, &ortak::now_iso(now)).set("ek", ek));
-            match crate::merkez::eslesme(&mut m, &cfg.main.site_name, &cfg.main.unvan, crate::ayar::isletme_turu_secili(&cfg).unwrap_or(""), false, &crate::merkez::curl, now) {
+            match crate::merkez::eslesme(&mut m, &cfg.main.site_name, &cfg.main.unvan, &cfg.main.adres, crate::ayar::isletme_turu_secili(&cfg).unwrap_or(""), false, &crate::merkez::curl, now) {
                 Ok(crate::merkez::Eslesme::Bagli { uyelik, ek }) => {
                     if let Err(e) = crate::merkez::kaydet(p, &m) {
                         eprintln!("{e}");
@@ -965,6 +966,8 @@ mod tests {
         // zamanlayıcı kendi kimliğiyle: kapatır, neden=sure
         assert_eq!(kod(ap_adres_kaldir(&c, &y, &a(&["ap-adres-kaldir", "sure", &g.kimlik]), &ip_var, &runner, NOW)), kod(ExitCode::SUCCESS));
         assert!(!y.gecici.exists() && denetim().contains("kapandi adres=192.168.1.250/24 neden=sure"));
+        let eski = a(&["ip", "addr", "flush", "dev", "br-hotspot", "label", "br-hotspot:ap"]);
+        assert!(calls.lock().unwrap().iter().any(|x| *x == eski)); // 0.4.11'in köprüdeki adresi de kalkar
         assert_eq!(kod(ap_adres_kaldir(&c, &y, &a(&["ap-adres-kaldir", "fabrika"]), &ip_var, &runner, NOW)), kod(ExitCode::from(2)));
         // yeniden başlatma: dosya kaldı, aracı yok → yukle temizler, neden=acilis
         assert_eq!(kod(ap_adres_ekle(&c, &y, &a(&["ap-adres-ekle", "192.168.1.250/24"]), &ip_yok, &runner, NOW)), kod(ExitCode::SUCCESS));

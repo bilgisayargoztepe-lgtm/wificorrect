@@ -99,6 +99,12 @@ impl Panel {
         if new == cur {
             return redirect("/portlar", Some(("Değişiklik yok.", false)));
         }
+        // AP yan odası köprüdeki macvlan'a bağlı: köprü yeniden kurulunca arayüzsüz "açık" kalmasın, önce kapanır
+        match crate::ap::kaldir(&self.ap_yollar, "port", None, &*self.ip_oku, &*self.runner) {
+            Ok(Some(k)) => self.audit(cfg, req, Some(o), "AP_YAN_ODA", &format!("kapandi adres={} neden=port", k.adres)),
+            Ok(None) => {}
+            Err(e) => return redirect("/portlar", Some((&format!("{e} Port değişikliği yapılmadı."), true))),
+        }
         let staged = y.yeni();
         if let Err(e) = ortak::mkdirs(&y.durum).map_err(|e| e.to_string()).and_then(|_| ag::save(&staged, &new)) {
             return redirect("/portlar", Some((&e, true)));

@@ -54,12 +54,15 @@ Verileriniz; aramızdaki hukuki ilişkinin tesis edilmesi aşamasında ve bu ili
 5. KANUNİ HAKLARIN KULLANIMI VE İRTİBAT KANALLARI
 Kanun’un 11. maddesi kapsamındaki taleplerinizi; Veri Sorumlusuna Başvuru Usul ve Esasları Hakkında Tebliğ standartlarına uygun biçimde ve kimliğinizi tevsik edici belgelerle birlikte:
 
-* Şahsen merkezimize gelerek ıslak imzalı dilekçeyle, noter marifetiyle veya iadeli taahhütlü posta yoluyla,
-* Güvenli elektronik imza, mobil imza yahut sistemlerimizde kayıtlı bulunan KEP (Kayıtlı Elektronik Posta) adresiniz kanalıyla
+* Şahsen merkezimize ([başvuru adresi]) gelerek ıslak imzalı dilekçeyle, noter marifetiyle veya iadeli taahhütlü posta yoluyla,
+* Güvenli elektronik imza, mobil imza yahut sistemlerimizde kayıtlı bulunan KEP (Kayıtlı Elektronik Posta) adresiniz kanalıyla [KEP adresi] KEP adresimize
 
 tarafımıza iletebilirsiniz. Başvurularınız kimlik tespit sürecinin tamamlanmasını müteakip işleme alınacak ve en geç 30 gün zarfında neticelendirilecektir. Yazılı geri dönüşlerde 10 sayfaya kadar harç alınmayacak; 10 sayfanın aşılması halinde ise sayfa başına 1 TL işlem bedeli yansıtılabilecektir. Yanıtın taşınabilir bellek veya optik disk (CD/DVD) benzeri bir veri kayıt ortamında teslimi durumunda ise ortamın fiziki maliyeti talep edilebilecektir.
 
 İLETİŞİM VE MÜRACAAT ADRESLERİ
 [vergi levhası unvanı]
 
-Başvurularınızı işletmeye yazılı olarak iletebilirsiniz.
+* Müracaat Adresi: [başvuru adresi]
+* İrtibat Numarası: [irtibat numarası]
+* KEP Adresi: [KEP adresi]
+* E-Posta: [e-posta adresi]

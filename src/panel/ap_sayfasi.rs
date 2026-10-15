@@ -45,12 +45,17 @@ impl Panel {
                 "<p>Yan oda durumu okunamadı.</p>{}",
                 post_button(o, "/ap-kurulum/gecici-kaldir", "Kapat", &[], "ikincil")
             ),
+            // durum dosyası yok ama aracı çalışıyor (yarıda kalmış işlem): 127.0.0.1:1085 açık kalmasın
+            None if ap::araci_canli(&*self.ip_oku) => format!(
+                "<p>Yan oda aracısı çalışıyor ama durum kaydı yok.</p>{}",
+                post_button(o, "/ap-kurulum/gecici-kaldir", "Kapat", &[], "ikincil")
+            ),
             None => format!(
                 "<form class=\"satir\" method=\"post\" action=\"/ap-kurulum/gecici-ekle\">{}\
                  <div><label for=\"apg\">Yan oda adresi</label><input type=\"text\" id=\"apg\" name=\"adres\" placeholder=\"192.168.1.250/24\" required></div>\
                  <button>Aç ({} dk)</button></form>\
                  <p class=\"not\">AP'nin fabrika adresiyle aynı alt ağdan, AP'nin kullanmadığı bir adres yazın (ör. AP 192.168.1.1 ise \
-                 192.168.1.250/24). Adres cihazın kendi ağına değil, misafir portuna bağlı ayrı bir \"yan oda\"ya verilir: modemin \
+                 192.168.1.250/24; AP'nin DHCP sunucusu açıksa dağıttığı havuzun dışında bir adres seçin). Adres cihazın kendi ağına değil, misafir portuna bağlı ayrı bir \"yan oda\"ya verilir: modemin \
                  ağıyla aynı olsa da cihazın interneti ve misafirler etkilenmez. Yan oda {} dk sonra (ve cihaz yeniden başlayınca) \
                  kendiliğinden kapanır.</p>",
                 csrf_input(o),
@@ -164,9 +169,24 @@ impl Panel {
     }
 
     /// Yabancı DHCP denetimi (`ctl ap-dhcp-denetle`, kısa ömürlü yan odadan). Denetim `AP_DHCP_DENETIM sonuc=yok|var|hata`.
+    /// Aynı anda tek denetim; komut 25 sn'de bitmezse öldürülür (yan oda süreçle gider): panelin iş parçacıkları bağlanmaz.
     pub(super) fn ap_dhcp_denetle(&self, cfg: &Config, req: &Req, o: &Oturum) -> Resp {
-        let cikti = (self.ip_oku)(&["/usr/local/bin/wificorrect", "ctl", "ap-dhcp-denetle"]);
+        use std::sync::atomic::{AtomicBool, Ordering};
         let geri = "<p><a href=\"/ayarlar#ap-kurulum\">← AP kurulumu</a></p>";
+        if self.dhcp_denetim.swap(true, Ordering::SeqCst) {
+            let govde = "<div class=\"mesaj hata\">Bir denetim zaten sürüyor; birkaç saniye sonra yeniden deneyin.</div>";
+            return self.page(cfg, req, Some(o), "Yabancı DHCP denetimi", &format!("{geri}{govde}"));
+        }
+        struct Birak<'a>(&'a AtomicBool);
+        impl Drop for Birak<'_> {
+            fn drop(&mut self) {
+                self.0.store(false, Ordering::SeqCst);
+            }
+        }
+        let cikti = {
+            let _birak = Birak(&self.dhcp_denetim);
+            (self.ip_oku)(&["timeout", "25", "/usr/local/bin/wificorrect", "ctl", "ap-dhcp-denetle"])
+        };
         let govde = match ap::dhcp_cikti_coz(&cikti, &cfg.main.router_ip, &self.kopru_mac(cfg)) {
             None => {
                 self.audit(cfg, req, Some(o), "AP_DHCP_DENETIM", "sonuc=hata");
@@ -213,7 +233,8 @@ impl Panel {
         match ap::kaldir(&self.ap_yollar, "elle", None, &*self.ip_oku, &*self.runner) {
             Ok(Some(k)) => {
                 self.audit(cfg, req, Some(o), "AP_YAN_ODA", &format!("kapandi adres={} neden=elle", k.adres));
-                redirect("/ap-kurulum", Some((&format!("Yan oda {} kapatıldı.", k.adres), false)))
+                let msg = if k.adres == "-" { "Yan oda aracısı durduruldu.".to_string() } else { format!("Yan oda {} kapatıldı.", k.adres) };
+                redirect("/ap-kurulum", Some((&msg, false)))
             }
             Ok(None) => redirect("/ap-kurulum", Some(("Açık yan oda yok.", false))),
             Err(e) => redirect("/ap-kurulum", Some((&e, true))),

@@ -531,7 +531,7 @@ class Yonetim(web.Taban):
             metin, son, _ = self._ozet(m, c, d)
             cihaz = bilgi_tablosu([
                 ("Durum", e(metin)), ("İşletme adı", e(c["isletme_adi"] or "—")), ("İşletme türü", e(isletme_turu(c))),
-                ("Unvan", e(c["unvan"] or "—")),
+                ("Unvan", e(c["unvan"] or "—")), ("Adres", e(c["adres"] or "—")),
                 ("Tünel adresi", e(c["tunel_ip"] or "—")), ("Sürüm", e(c["surum"] or "—")),
                 ("Bağlanma", e(common.tarih_goster(c["baglanma"]))), ("Son eşitleme", e(common.tarih_goster(c["son_eslesme"]) or "—")),
                 ("Son gelen gün", son), ("Arşiv", e(detay.boyut(d.get("boyut", 0)))),

@@ -205,7 +205,7 @@ class Api:
                 self.veri.hareket(f"cihaz:{c['id']}", ip, "CIHAZ_SERBEST", c["musteri"])
             return _json(200, {"durum": "serbest"})
         self.veri.eslesme_kaydet(c["id"], _metin(b.get("isletme_adi")), _metin(b.get("unvan")), _metin(b.get("surum")),
-                                b.get("isletme_turu"))
+                                b.get("isletme_turu"), _metin(b["adres"]) if "adres" in b else None)
         m = self.veri.musteri(c["musteri"])
         return _json(200, dict(_parola_alanlari(m), **_lisans(self.veri, m), **_cihaz_ekleri(self.veri),
                                durum="bagli", uyelik=m["uyelik"]))

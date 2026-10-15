@@ -12,6 +12,12 @@ pub struct Main {
     pub site_name: String,
     /// Vergi levhasındaki unvan (açık rıza metnindeki [vergi levhası unvanı]); işletme sahibi Ayarlar'da girer
     pub unvan: String,
+    /// Veri sorumlusunun başvuru adresi (KVKK aydınlatma metnindeki [başvuru adresi]); metnin tam olması için gerekli
+    pub adres: String,
+    /// İsteğe bağlı iletişim bilgileri ([irtibat numarası], [e-posta adresi], [KEP adresi]); boşsa metindeki satırı çıkar
+    pub telefon: String,
+    pub eposta: String,
+    pub kep: String,
     pub iface: String,
     pub router_ip: String,
     pub subnet: String,
@@ -34,6 +40,10 @@ impl Default for Main {
         Main {
             site_name: "İşletme".into(),
             unvan: String::new(),
+            adres: String::new(),
+            telefon: String::new(),
+            eposta: String::new(),
+            kep: String::new(),
             iface: "br-hotspot".into(),
             router_ip: "10.50.0.1".into(),
             subnet: "10.50.0.0/24".into(),
@@ -397,7 +407,16 @@ mod tests {
             assert!(!m.contains("Göztepe") && !m.contains("goztepe"), "{m}");
         }
         assert!(d.aydinlatma.contains("[vergi levhası unvanı] (“İşletme”), veri sorumlusu"));
-        assert!(d.aydinlatma.ends_with("[vergi levhası unvanı]\n\nBaşvurularınızı işletmeye yazılı olarak iletebilirsiniz."));
+        // iletişim bilgileri işletmeden gelir (yer tutucular); eski Göztepe bilgileri yok
+        assert!(d.aydinlatma.ends_with(
+            "[vergi levhası unvanı]\n\n* Müracaat Adresi: [başvuru adresi]\n* İrtibat Numarası: [irtibat numarası]\n* KEP Adresi: [KEP adresi]\n* E-Posta: [e-posta adresi]"
+        ));
+        assert!(d.aydinlatma.contains("* Şahsen merkezimize ([başvuru adresi]) gelerek ıslak imzalı dilekçeyle"));
+        assert!(d.aydinlatma.contains("adresiniz kanalıyla [KEP adresi] KEP adresimize\n"));
+        assert!(!d.aydinlatma.contains("Sahrayıcedit") && !d.aydinlatma.contains("0216") && !d.aydinlatma.contains("kep.tr"));
+        // iletişim alanları boş başlar (kodda işletmeye özel varsayılan yok)
+        let m = Main::default();
+        assert!(m.adres.is_empty() && m.telefon.is_empty() && m.eposta.is_empty() && m.kep.is_empty());
         // eski varsayılan kayıtlıysa yenisiyle değişir (kaydedilen dosyada da)
         let eski = include_str!("../tests/fixtures/aydinlatma-0.4.11.txt").trim();
         let mut c = Config::default();

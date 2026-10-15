@@ -209,8 +209,10 @@ if ($Kuru) {
 # bağlantı kurulur ama cevap gelmez.
 function SocksCevapVerir([int]$P) {
     $istemci = New-Object System.Net.Sockets.TcpClient
+    $baglandi = $false
     try {
         $istemci.Connect('127.0.0.1', $P)
+        $baglandi = $true
         $akis = $istemci.GetStream()
         $akis.ReadTimeout = 3000
         $akis.Write([byte[]](5, 1, 0), 0, 3)
@@ -220,9 +222,12 @@ function SocksCevapVerir([int]$P) {
             return 'tamam'
         }
         return 'cevapsiz'
-    } catch [System.Net.Sockets.SocketException] {
-        return 'baglanamadi'
     } catch {
+        # PowerShell .NET istisnasini sarmalayabilir (MethodInvocationException); turune degil asamaya bakilir:
+        # baglanti kurulamadiysa ssh henuz dinlemiyor, kurulduysa SOCKS cevap vermedi
+        if (-not $baglandi) {
+            return 'baglanamadi'
+        }
         return 'cevapsiz'
     } finally {
         $istemci.Close()

@@ -12,6 +12,12 @@ pub struct Main {
     pub site_name: String,
     /// Vergi levhasındaki unvan (açık rıza metnindeki [vergi levhası unvanı]); işletme sahibi Ayarlar'da girer
     pub unvan: String,
+    /// Veri sorumlusunun başvuru adresi (KVKK aydınlatma metnindeki [başvuru adresi]); metnin tam olması için gerekli
+    pub adres: String,
+    /// İsteğe bağlı iletişim bilgileri ([irtibat numarası], [e-posta adresi], [KEP adresi]); boşsa metindeki satırı çıkar
+    pub telefon: String,
+    pub eposta: String,
+    pub kep: String,
     pub iface: String,
     pub router_ip: String,
     pub subnet: String,
@@ -34,6 +40,10 @@ impl Default for Main {
         Main {
             site_name: "İşletme".into(),
             unvan: String::new(),
+            adres: String::new(),
+            telefon: String::new(),
+            eposta: String::new(),
+            kep: String::new(),
             iface: "br-hotspot".into(),
             router_ip: "10.50.0.1".into(),
             subnet: "10.50.0.0/24".into(),
@@ -123,6 +133,22 @@ pub struct PortalMetin {
     pub aydinlatma_en: String,
     pub acik_riza_en: String,
     pub sozlesme_en: String,
+}
+
+/// 0.4.11 ve öncesinin varsayılan aydınlatma metninin (veri sorumlusu sabit "Göztepe Bilgisayar") sha256'sı (kırpılmış).
+/// Panel her kayıtta bütün ayarları yazdığı için eski varsayılan çoğu cihazın ayar dosyasında durur.
+const ESKI_AYDINLATMA_SHA: &str = "4b2efded1040a72a2f9e39b28e1406bf70ef76356876736abd6f09e2f1dec7c1";
+
+impl PortalMetin {
+    /// Kayıtlı aydınlatma metni eski ürün varsayılanının aynısıysa yeni (işletmeden bağımsız) varsayılanla değişir;
+    /// işletmenin düzenlediği metne dokunulmaz.
+    fn eski_varsayilani_guncelle(&mut self) {
+        use sha2::{Digest, Sha256};
+        let ozet: String = Sha256::digest(self.aydinlatma.trim().as_bytes()).iter().map(|x| format!("{x:02x}")).collect();
+        if ozet == ESKI_AYDINLATMA_SHA {
+            self.aydinlatma = PortalMetin::default().aydinlatma;
+        }
+    }
 }
 
 impl Default for PortalMetin {
@@ -272,7 +298,9 @@ pub struct Config {
 
 impl Config {
     pub fn parse(text: &str) -> Result<Config, String> {
-        toml::from_str(text).map_err(|e| format!("ayar dosyası okunamadı: {e}"))
+        let mut c: Config = toml::from_str(text).map_err(|e| format!("ayar dosyası okunamadı: {e}"))?;
+        c.portal.eski_varsayilani_guncelle();
+        Ok(c)
     }
 
     /// Panelden kayıt: atomik, izin 600. ponytail: dosyadaki yorumlar korunmaz (örnek dosyada duruyor).
@@ -369,6 +397,40 @@ mod tests {
         assert_eq!(std::fs::read_to_string(&p).unwrap(), "[main\n[netgsm]\n");
         assert!(Config::eski_sirlari_temizle(d.join("yok.toml").to_str().unwrap()).is_err());
         let _ = std::fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn aydinlatma_isletmeden_bagimsiz() {
+        // ürünle gelen metinlerde belirli bir işletme yok; veri sorumlusu unvan yer tutucusu
+        let d = PortalMetin::default();
+        for m in [&d.aydinlatma, &d.acik_riza, &d.sozlesme] {
+            assert!(!m.contains("Göztepe") && !m.contains("goztepe"), "{m}");
+        }
+        assert!(d.aydinlatma.contains("[vergi levhası unvanı] (“İşletme”), veri sorumlusu"));
+        // iletişim bilgileri işletmeden gelir (yer tutucular); eski Göztepe bilgileri yok
+        assert!(d.aydinlatma.ends_with(
+            "[vergi levhası unvanı]\n\n* Müracaat Adresi: [başvuru adresi]\n* İrtibat Numarası: [irtibat numarası]\n* KEP Adresi: [KEP adresi]\n* E-Posta: [e-posta adresi]"
+        ));
+        assert!(d.aydinlatma.contains("* Şahsen merkezimize ([başvuru adresi]) gelerek ıslak imzalı dilekçeyle"));
+        assert!(d.aydinlatma.contains("adresiniz kanalıyla [KEP adresi] KEP adresimize\n"));
+        assert!(!d.aydinlatma.contains("Sahrayıcedit") && !d.aydinlatma.contains("0216") && !d.aydinlatma.contains("kep.tr"));
+        // iletişim alanları boş başlar (kodda işletmeye özel varsayılan yok)
+        let m = Main::default();
+        assert!(m.adres.is_empty() && m.telefon.is_empty() && m.eposta.is_empty() && m.kep.is_empty());
+        // eski varsayılan kayıtlıysa yenisiyle değişir (kaydedilen dosyada da)
+        let eski = include_str!("../tests/fixtures/aydinlatma-0.4.11.txt").trim();
+        let mut c = Config::default();
+        c.portal.aydinlatma = eski.into();
+        let yazi = toml::to_string_pretty(&c).unwrap();
+        assert!(yazi.contains("info@goztepebilgisayar.com"));
+        let c = Config::parse(&yazi).unwrap();
+        assert_eq!(c.portal.aydinlatma, d.aydinlatma);
+        // anahtar yoksa varsayılan; işletmenin düzenlediği metin (eskinin değiştirilmişi dahil) aynen kalır
+        assert_eq!(Config::parse("[main]\nsite_name = 'X'\n").unwrap().portal.aydinlatma, d.aydinlatma);
+        let mut c = Config::default();
+        c.portal.aydinlatma = format!("{eski}\n* Ek satır");
+        let c = Config::parse(&toml::to_string_pretty(&c).unwrap()).unwrap();
+        assert!(c.portal.aydinlatma.contains("info@goztepebilgisayar.com") && c.portal.aydinlatma.ends_with("* Ek satır"));
     }
 
     #[test]

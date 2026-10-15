@@ -106,3 +106,35 @@ modunda böyle; o zaman cihazımızın DHCP'sinden 10.50.0.x alır ve görünür
 
 Sayfa yerleşimi, geçici adresin zamanlayıcı biçimi (`systemd-run --on-active` gibi), güvenlik duvarı kuralının nereye
 konacağı, üretici adı için küçük OUI tablosu olup olmayacağı, kısayol betiğinin biçimi.
+
+## Ek: yan oda (2026-10-15, kullanıcı isteği: "önce eki yap")
+
+Sorun: Türkiye'deki modem/AP'lerin çoğu fabrikada 192.168.1.1'dir (ör. ZyXEL P-660HN-T1H) ve müşterinin ana modemi de
+çoğunlukla 192.168.1.0/24'tedir. Geçici adres cihazın kendi ağına eklenince WAN'la çakışır ve reddedilir; böyle bir
+AP'ye uzaktan ulaşılamıyordu. Ayrıca bu tür cihazlar fabrikada **DHCP sunucusu açık** gelir; misafir portuna takılınca
+misafirlere adres dağıtır (portalsız, 5651 kaydı dışı, internetsiz misafir).
+
+1. **Geçici adres artık "yan oda"da (benim kararım: tek yöntem, eskisinin yerine):** cihaz, misafir köprüsüne bağlı ayrı
+   bir ağ ad alanı (netns, ör. `wfc-ap`) açar ve geçici adresi oraya verir (köprü yalıtımına takılmayan bir bağ — ör.
+   köprü üzerinde macvlan; uygulayıcı doğrular). Ana ağ ad alanına hiçbir adres/rota eklenmez → WAN'la, tünelle, misafir
+   ağıyla çakışma olmaz; 192.168.1.250/24 gibi adresler de kabul edilir (yalnızca özel aralık, /16'dan dar, ağ/yayın
+   adresi değil). Yan oda 30 dk sonra, açılışta ve fabrika dönüşünde kendiliğinden silinir. Yan odada misafir trafiği
+   yönlendirilmez (ip_forward kapalı, rota yok); misafirlerin interneti etkilenmez.
+2. **Yan odaya erişim:** cihazın SSH'ı ana ağ ad alanında olduğu için `ssh -D` yan odaya ulaşamaz. Cihaz, yan oda
+   açıkken yalnızca `127.0.0.1` üzerinde dinleyen küçük bir SOCKS5 aracı çalıştırır; bağlantıları yan odadan kurar
+   (yalnızca yan odanın alt ağına; başka hedef reddedilir). Kısayol (`ap-ac`) AP adresi misafir ağındaysa bugünkü gibi
+   `ssh -D`, değilse `ssh -L <yerel>:127.0.0.1:<aracı>` ile bu aracıya bağlanır; Chrome yine SOCKS ile AP'nin kendi
+   adresini açar (Referer/Host bozulmaz). Aracı yan odayla birlikte kapanır.
+3. **Yabancı DHCP uyarısı:** AP kurulumu sayfasında "Yabancı DHCP sunucusu var mı?" denetimi (yan odadan ya da misafir
+   köprüsünden DHCP keşfi): 10.50.0.1 dışında teklif veren sunucu varsa adresi ve MAC'iyle kırmızı uyarı ("Bu cihazın
+   DHCP sunucusu kapatılmalı; açık kaldıkça bazı misafirler internete çıkamaz"). Ayrıca cihaz bunu kendiliğinden fark
+   edebiliyorsa (ör. kaydedici, misafir köprüsünde başka sunucudan DHCPOFFER/ACK) Özet'te ve merkezin sağlık
+   raporunda uyarı (benim kararım; uygulayıcı maliyeti küçükse yapar, değilse yalnızca sayfadaki denetim).
+4. Denetim: `AP_YAN_ODA acildi|kapandi adres=… neden=…`, `AP_DHCP_DENETIM sonuc=…`.
+
+**Uygulama (2026-10-15, 0.4.12):** yan oda adsız ağ ad alanı; onu `wfc-ap-araci` geçici birimi (SOCKS5 aracı,
+127.0.0.1:1085) tutar, birim durunca (zamanlayıcı, elle, `RuntimeMaxSec`, yeniden başlatma, fabrika) çekirdek siler.
+Bağ: köprü üzerinde macvlan (veth köprü portu yalıtıma takılıyor; cihazda geçici ad alanlarında denendi). Aracı ad
+çözmez (AP'ye IP ile girilir). Yabancı DHCP denetimi kısa ömürlü ayrı bir yan odadan (AF_PACKET, ~3 sn). Kendiliğinden
+fark etme (kaydedici/Özet/merkez sağlık) yapılmadı: 5651 kaydedicisine sürekli ham paket dinleyicisi ve merkez kural
+değişikliği gerektiriyor. Ayrıntı: KURULUM_GUNLUGU "AP yan odası…".

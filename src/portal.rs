@@ -291,6 +291,28 @@ fn ek(name: &str, kind: char) -> String {
     }
 }
 
+/// Veri sorumlusu yer tutucuları (KVKK aydınlatma ve açık rıza metinleri; panel Ayarlar → İşletme):
+/// zorunlu olanlar (unvan, adres) girilmemişse yer tutucu görünür kalır (Özet uyarır); isteğe bağlı olanlar boşsa
+/// yer tutucunun geçtiği satır bütünüyle çıkar (boş etiket görünmesin).
+pub const YER_UNVAN: &str = "[vergi levhası unvanı]";
+pub const YER_ADRES: &str = "[başvuru adresi]";
+const YER_ISTEGE_BAGLI: [&str; 3] = ["[irtibat numarası]", "[e-posta adresi]", "[KEP adresi]"];
+
+pub fn veri_sorumlusu_yerlestir(text: &str, m: &crate::ayar::Main) -> String {
+    let istege_bagli = [m.telefon.trim(), m.eposta.trim(), m.kep.trim()];
+    let mut t: String = text
+        .split('\n')
+        .filter(|satir| !YER_ISTEGE_BAGLI.iter().zip(istege_bagli).any(|(y, v)| v.is_empty() && satir.contains(y)))
+        .collect::<Vec<_>>()
+        .join("\n");
+    for (y, v) in [(YER_UNVAN, m.unvan.trim()), (YER_ADRES, m.adres.trim())].into_iter().chain(YER_ISTEGE_BAGLI.into_iter().zip(istege_bagli)) {
+        if !v.is_empty() {
+            t = t.replace(y, v);
+        }
+    }
+    t
+}
+
 /// Metindeki "İŞLETMECİ" → kafe adı; kesme işaretinden sonraki ek ada göre yeniden kurulur, büyük harfli yerde ad da büyük.
 pub fn isletme_yerlestir(text: &str, name: &str) -> String {
     const KELIME: &str = "İŞLETMECİ";
@@ -439,14 +461,14 @@ impl Portal {
         Page::new("giris", ctx, d)
     }
 
-    /// Metinlerdeki İŞLETMECİ → işletme adı, [vergi levhası unvanı] → unvan (girilmemişse yer tutucu kalır).
+    /// Metinlerdeki İŞLETMECİ → işletme adı, veri sorumlusu yer tutucuları → Ayarlar'daki bilgiler
+    /// (`veri_sorumlusu_yerlestir`).
     fn yerlestir(&self, text: &str) -> String {
         self.unvan_yerlestir(isletme_yerlestir(text, &self.cfg.main.site_name))
     }
 
     fn unvan_yerlestir(&self, t: String) -> String {
-        let unvan = self.cfg.main.unvan.trim();
-        if unvan.is_empty() { t } else { t.replace("[vergi levhası unvanı]", unvan) }
+        veri_sorumlusu_yerlestir(&t, &self.cfg.main)
     }
 
     /// Hukuki metin sayfa dilinde: İngilizcesi yazılmamışsa Türkçesi. İngilizcede İŞLETMECİ yalnızca adla değişir (ek yok).
@@ -1601,9 +1623,34 @@ mod tests {
         assert!(page.contains("<summary>KVKK Aydınlatma Metni</summary>") && page.contains("<li>Haberleşme ve İletişim Bilgileri: Telefon numarası</li>"));
         assert!(page.contains("<strong>SON KULLANICI LİSANS SÖZLEŞMESİ</strong>") && page.contains("Bocafe’nin uhdesindeki") && !page.contains("İŞLETMECİ"));
         assert!(page.contains("<strong>9. BOCAFE’NİN YETKİ VE İMKÂNLARI</strong>"));
+        // aydınlatma metninde veri sorumlusu ve başvuru yeri işletmenin unvanı; başka işletme adı yok
+        assert!(page.contains("Boca Gıda Tic. Ltd. Şti. (“İşletme”), veri sorumlusu sıfatıyla"));
+        // adres girilmemiş: yer tutucu görünür; isteğe bağlı (telefon, KEP, e-posta) boş: satırları hiç yok
+        assert!(page.contains("ADRESLERİ</strong><br>Boca Gıda Tic. Ltd. Şti.</p><ul><li>Müracaat Adresi: [başvuru adresi]</li></ul>"));
+        assert!(page.contains("<li>Şahsen merkezimize ([başvuru adresi]) gelerek"));
+        assert!(!page.contains("İrtibat Numarası") && !page.contains("E-Posta:") && !page.contains("KEP Adresi") && !page.contains("KEP adresimize"));
+        assert!(!page.contains("kayıtlı bulunan KEP (Kayıtlı Elektronik Posta)")); // KEP'siz işletmede KEP ile başvuru satırı yok
+        assert!(!page.contains("goztepebilgisayar") && !page.contains("Göztepe Bilgisayar ("));
+        // bütün iletişim bilgileri girilmiş: hepsi yerinde
+        let tt = setup(|c| {
+            c.main.unvan = "Boca Gıda Tic. Ltd. Şti.".into();
+            c.main.adres = "Moda Cad. No 1 Kadıköy/İstanbul".into();
+            c.main.telefon = "0216 000 00 00".into();
+            c.main.eposta = "info@boca.example".into();
+            c.main.kep = "boca@hs01.kep.tr".into();
+        });
+        let pt = tt.p.render(&tt.p.form_page(&Form::new(), vec![], ""));
+        assert!(pt.contains(
+            "ADRESLERİ</strong><br>Boca Gıda Tic. Ltd. Şti.</p><ul><li>Müracaat Adresi: Moda Cad. No 1 Kadıköy/İstanbul</li>\
+             <li>İrtibat Numarası: 0216 000 00 00</li><li>KEP Adresi: boca@hs01.kep.tr</li><li>E-Posta: info@boca.example</li></ul>"
+        ));
+        assert!(pt.contains("<li>Şahsen merkezimize (Moda Cad. No 1 Kadıköy/İstanbul) gelerek"));
+        assert!(pt.contains("adresiniz kanalıyla boca@hs01.kep.tr KEP adresimize</li></ul>"));
+        assert!(!pt.contains("[başvuru adresi]") && !pt.contains("[KEP adresi]") && !pt.contains("[irtibat numarası]") && !pt.contains("[e-posta adresi]"));
         // unvan girilmemişse yer tutucu görünür (kurulum yapılmamış)
         let t0 = setup(|_| {});
-        assert!(t0.p.render(&t0.p.form_page(&Form::new(), vec![], "")).contains("[vergi levhası unvanı]"));
+        let p0 = t0.p.render(&t0.p.form_page(&Form::new(), vec![], ""));
+        assert!(p0.contains("[vergi levhası unvanı] (“İşletme”), veri sorumlusu") && p0.contains("ADRESLERİ</strong><br>[vergi levhası unvanı]</p>"));
         // rıza ya da sözleşme işaretlenmeden kod gönderilmez
         let pg = t.p.send_code(IP, Some(MAC), &form(&[("ad", "Ayşe"), ("soyad", "Yılmaz"), ("telefon", "05334553132"), ("sozlesme", "1")]));
         assert!(!pg.get("hata_riza").is_empty() && t.sms_count() == 0);

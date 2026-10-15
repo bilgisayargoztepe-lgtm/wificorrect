@@ -140,6 +140,7 @@ Son ürün, aynı donanımlı boş bir cihaza yüklenen bir ISO olacak; ilk aç�
 - Tasarım: açık zemin, üstte gökyüzü bandı, üstüne binen beyaz kart, yeşil düğme, mavi metin bağlantıları.
 - **Sözleşme metni** (2026-10-03, kullanıcı metni): "Son Kullanıcı Lisans Sözleşmesi" ürünle gelir (`src/sablon/sozlesme.txt`, `[portal] sozlesme` boşsa değil, anahtar yoksa varsayılan); panelden değiştirilebilir. Metindeki **İŞLETMECİ** giriş sayfasında kafe adıyla değişir; kesme işaretinden sonraki ek ünlü uyumuna göre yeniden kurulur (Bocafe’nin, Starbucks’un, Kahvecim’den), büyük harfli başlıkta ad da büyük (BOCAFE’NİN). İyelik ekli adlarda (Kahve Dünyası’ya) genel kural uygulanır. Köşeli parantezli bağlantılar düz `www.wificorrect.com` yazıldı (müşteri giriş yapmadan internete çıkamaz). Tamamı büyük harfli satırlar kalın gösterilir.
 - **KVKK Aydınlatma Metni** (2026-10-03, kullanıcı metni; veri sorumlusu Göztepe Bilgisayar): ürünle gelir (`src/sablon/aydinlatma.txt`), giriş sayfasındaki başlık "KVKK Aydınlatma Metni". Metinlerde `* ` / `• ` / `- ` ile başlayan satırlar madde listesi olarak gösterilir.
+  - **İşletmeden bağımsız (2026-10-15, 0.4.12):** veri sorumlusu ve iletişim bölümü işletmenin bilgileriyle dolar (aşağıda "KVKK veri sorumlusu bilgileri"); Göztepe adresi/telefonu/KEP/e-posta metinden ve koddan kaldırıldı. Ayar dosyasında eski varsayılan (sha256 ile tanınır) kayıtlıysa okunurken yenisiyle değişir; işletmenin düzenlediği metne dokunulmaz.
 
 ## Her işletme için (2026-10-03, kullanıcı kararı)
 - Ürün yalnızca kafelere değil otel ve internet veren her işletmeye: arayüzde "kafe" → "işletme" (kurulum: **İşletme adı**, rol: **İşletme sahibi**, Ayarlar: İşletme adı).
@@ -359,3 +360,92 @@ Sürüm **0.4.11**. Hizmet sağlayıcı müşterinin taktığı AP'yi cihaz üze
   çekirdek ömrü adresi düşürür); bozuk durum dosyası panelde "Kaldır" ile temizlenir; `PANEL_AP_CIHAZLAR` panel
   hareketlerinde kişisel veri sayılır. AP rehberinde yönetim IP kısıtı en sona alındı (önce 10.50.0.2'ye taşı, yeni
   adresten gir, sonra kısıtla) — önce kısıtlanırsa geçici adresten bağlı oturum kesilir ve AP'ye ulaşılamaz.
+
+## AP yan odası, SOCKS aracı, yabancı DHCP denetimi (2026-10-15)
+Dal `ap-yan-oda`; spec `docs/superpowers/specs/2026-10-15-ap-kurulum-design.md` → "Ek: yan oda". Sürüm **0.4.12**.
+Türkiye'deki modem/AP'lerin çoğu fabrikada 192.168.1.1 (ör. ZyXEL P-660HN-T1H) ve müşterinin modemi de çoğunlukla
+192.168.1.0/24'te: 0.4.11'in "köprüye ikinci adres" yöntemi WAN'la çakıştığı için reddediyordu.
+- **Yan oda** (eski geçici adresin yerine, tek yöntem): misafir köprüsüne **macvlan** (`mode private`) ile bağlı, adsız
+  ayrı bir ağ ad alanı; adres (ör. `192.168.1.250/24`) orada. Ana ağ ad alanına adres/rota eklenmez → WAN, tünel ve
+  rota çakışması denetimi kalktı; kalan kurallar: önek 16–30, özel aralık, ağ/yayın adresi değil, misafir ağıyla
+  çakışmıyor. Yan odada `ip_forward=0` (yeni ad alanı ana ad alanının 1 değerini miras alıyor — cihazda görüldü), IPv6
+  kapalı, tek rota kendi alt ağı.
+- **Neden macvlan:** veth'i köprü portu yapmak `kapi.nft`'teki köprü yalıtımına (`table bridge hotspot` → `isolate`,
+  forward kancası) takılır; macvlan'ın paketleri köprüden "yerel çıkış" olarak geçer, yalıtıma takılmaz. Cihazda yalnızca
+  geçici ad alanlarında (kopya köprü + aynı yalıtım kuralı) denendi: veth → AP'ye ulaşamadı, macvlan → ulaştı. Yan oda
+  açıkken köprü `promiscuity 1` olur (macvlan'ın MAC'i için), kapanınca 0'a döner.
+- **Ömür:** ad alanını `wfc-ap-araci` geçici birimi (`systemd-run --service-type=notify`, `TimeoutStartSec=12`,
+  `RuntimeMaxSec=süre+10`) tutar: bir iş parçacığı `unshare(CLONE_NEWNET)` yapar, ana ad alanından
+  `ip link add link <köprü> name wfcap0 address <rastgele yerel MAC> netns <tid> type macvlan mode private` ile arayüz
+  doğrudan yan odada doğar (ana ad alanında hiç görünmez; `ip netns add`/mount yok — panelin `PrivateTmp`'li mount ad
+  alanı sorun olmaz). Süreç bitince (zamanlayıcı, "Şimdi kapat", `RuntimeMaxSec`, çökme, yeniden başlatma, fabrika)
+  ad alanı ve macvlan çekirdekçe silinir. Sıra: kapatma zamanlayıcısı → durum dosyası → aracı; aracı açılamazsa üçü
+  geri alınır. flock, durum dosyası (`/var/lib/wificorrect/ap-gecici.json`), açılış temizliği (aracı yoksa
+  `neden=acilis`), fabrika kapanışı aynen.
+- **SOCKS5 aracı** (`ctl ap-araci ADRES`, yalnızca birim çalıştırır; `src/yan_oda.rs`): yalnızca `127.0.0.1:1085`,
+  kimliksiz, yalnızca CONNECT, IPv4 ya da IPv4 yazılmış alan adı (Chrome IP'yi de alan adı biçiminde gönderir); hedef
+  yalnızca yan odanın alt ağı (ağ/yayın adresi, port 0 hayır), ad çözümü yok (AP'ye IP ile girilir). Her bağlantının
+  iş parçacığı `setns` ile yan odaya girip bağlanır; en çok 32 bağlantı, el sıkışma 10 sn, bağlanma 5 sn, boşta 300 sn.
+- **Yabancı DHCP denetimi** (panel → AP kurulumu → "Yabancı DHCP sunucusu var mı?" → `ctl ap-dhcp-denetle`, panel
+  doğrudan çalıştırır): kısa ömürlü adressiz yan oda (`wfcdhcp0`), AF_PACKET ile iki DHCPDISCOVER (yayın bayrağı),
+  ~3 sn teklif toplanır; çıktı `TEKLIF <sunucu> <mac> <adres>` + `TAMAM <n>`. Cihazın kendi dnsmasq'ı bu yayını almıyor
+  (köprüden yerel çıkış); yine de köprü adresi + köprü MAC'inden gelen teklif atılır. Yabancı varsa kırmızı uyarı
+  ("Bu cihazın DHCP sunucusu kapatılmalı; açık kaldıkça bazı misafirler internete çıkamaz") + sunucu IP, MAC, teklif.
+  **Kendiliğinden fark etme (kaydedici + Özet + merkez sağlık raporu) yapılmadı:** 5651 kaydedicisine sürekli açık bir
+  ham paket dinleyicisi (BPF süzgeçli) eklemek gerekir, yalnızca yayınla gönderilen teklifleri görür ve merkezdeki
+  sağlık kurallarının da değişmesi gerekir; maliyet/risk küçük değil.
+- **Denetim:** `AP_YAN_ODA acildi adres=… sure=…` | `kapandi adres=… neden=elle|sure|acilis|fabrika [hata=araci_durmadi]`
+  (eski `AP_KURULUM_ADRES` yerine), `AP_DHCP_DENETIM sonuc=yok|var sunucular=<ip/mac,…>|hata`. Panelden yapılanlarda
+  kim + rol.
+- **Windows betiği:** `-Adres` misafir ağında (`-MisafirAg`, varsayılan 10.50.0.0/24) ya da alan adıysa eskisi gibi
+  `ssh -D`; misafir ağı dışında bir IPv4 ise `ssh -L 127.0.0.1:<port>:127.0.0.1:1085` (`-AraciPort`) + Chrome yine
+  `socks5://127.0.0.1:<port>` ile AP'nin kendi adresini açar (Referer/Host bozulmaz). Hazırlık denetimi artık SOCKS5 el
+  sıkışması (`05 01 00 → 05 00`); yan oda kapalıysa "Cihazda yan oda açık değil" der.
+- **Cihazda doğrulama (yalnızca geçici ad alanları, canlı ağa dokunulmadı; önce/sonra `ip addr`, `ip route`, `ip link`,
+  `nft -s list ruleset` aynı):** gerçek ikiliyle sahte "AP" (192.168.1.1, dnsmasq DHCP + web) ve kopya köprü
+  (10.50.0.1/24 + yalıtım kuralı + kendi dnsmasq'ı): DHCP denetimi yalnızca AP'nin teklifini buldu (3,1 sn); yan oda
+  `192.168.1.250/24`, `ip_forward=0`, IPv6 kapalı; SOCKS ile `http://192.168.1.1/` açıldı (IP ve alan adı biçimli IP),
+  `10.50.0.1`, `tplinkap.net`, kapalı port reddedildi; aracı durunca macvlan gitti, köprü promiscuity 0; `systemd-run
+  --service-type=notify` hazır olunca döndü, port doluyken başarısız döndü, `RuntimeMaxSec` aracıyı durdurdu; DHCP
+  denetimi panelin korumalarıyla (`ProtectSystem=full`, `PrivateTmp`, `NoNewPrivileges`, `ProtectHome`) da çalıştı.
+- **Port değişikliği:** panel → Portlar → Uygula önce açık yan odayı kapatır (`kapandi … neden=port`; aracı
+  durdurulamazsa port değişikliği yapılmaz): köprü yeniden kurulunca arayüzsüz "açık" yan oda kalmaz.
+- **İnceleme düzeltmeleri (final review, 2026-10-15):**
+  - Aracı birimi kısıtlı: `NoNewPrivileges`, `ProtectSystem=strict`, `ProtectHome`, `PrivateTmp`,
+    `CapabilityBoundingSet=CAP_NET_ADMIN CAP_SYS_ADMIN`, `RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK`,
+    `TasksMax=128`, `MemoryMax=64M`, `ProtectControlGroups`, `LockPersonality` (`ap::ARACI_KISIT`). `PrivateNetwork`,
+    `RestrictNamespaces`, `ProtectKernelTunables` bilerek yok (unshare/setns ve yan odanın `/proc/sys/net` yazımı).
+    **Cihazda bu kısıtlarla henüz çalıştırılmadı** — canlı kabulde ilk iş.
+  - DHCP denetimi `timeout 25` ile çalışır (süre dolunca süreç ve yan odası gider) ve aynı anda tek denetim (ikinci
+    istek "Bir denetim zaten sürüyor"): panelin 4 iş parçacığı bağlanmaz.
+  - Kabul döngüsü kalıcı hatada (EMFILE vb.) 100 ms bekler; durum dosyası olmadan çalışan aracı panelde "durum kaydı
+    yok — Kapat" olarak görünür, elle kapatma (panel/`ctl ap-adres-kaldir elle`/fabrika) onu da durdurur
+    (`kapandi adres=-`).
+  - `ctl ap-adres-kaldir` 0.4.11'in köprüdeki geçici adresini de siler (`ip addr flush dev <köprü> label <köprü>:ap`;
+    o sürümün zamanlayıcısı güncellemeden sonra çalışırsa).
+  - `ap-ac.ps1` hazırlık denetimi istisna türüne değil aşamaya bakar (bağlanamadı / bağlandı ama SOCKS cevabı yok);
+    Windows PowerShell 5.1'de kapalı port ve sessiz dinleyiciyle denendi. Gerçek ssh ile (-D ve -L) canlı kabulde.
+  - Yan oda formunda not: AP'nin DHCP havuzu dışında bir adres seçin (IPv4'te çakışma denetimi yok).
+- **Canlı kabul listesi** (gerçek ZyXEL/TP-Link, uzaktan güncellemeyle 0.4.12; henüz yapılmadı): kısıtlı aracı açılıyor
+  ve AP'nin sayfası geliyor (-D ve -L); yan oda aç/kapat ve DHCP denetiminden sonra ana ad alanında
+  `sysctl net.ipv4.ip_forward` hâlâ 1; köprü promiscuous iken misafir trafiği ve işlemci normal; yan oda açıkken gerçek
+  bir misafir girişi çalışıyor; kapanınca köprü promiscuity 0.
+
+## KVKK veri sorumlusu bilgileri (2026-10-15, 0.4.12)
+- Ayarlar → İşletme'de unvanın yanında: **Veri sorumlusunun adresi** (`main.adres`; boş ya da 5–200 karakter, köşeli
+  parantez yok), isteğe bağlı **İrtibat telefonu** (`main.telefon`), **E-posta** (`main.eposta`), **KEP adresi**
+  (`main.kep`). Kodda işletmeye özel varsayılan yok (boş başlar; fabrika dönüşünde boşalır).
+- Aydınlatma metninde yer tutucular: `[vergi levhası unvanı]`, `[başvuru adresi]` (5. maddede "Şahsen merkezimize
+  ([başvuru adresi]) gelerek" ve iletişim listesinde "Müracaat Adresi"), `[irtibat numarası]`, `[e-posta adresi]`,
+  `[KEP adresi]` (5. maddede "… adresiniz kanalıyla [KEP adresi] KEP adresimize" ve listede). Portal unvan gibi
+  yerleştirir (TR ve EN metinler, açık rıza dahil): unvan/adres boşsa yer tutucu görünür; isteğe bağlı bilgi boşsa
+  geçtiği **satır gösterilmez** (KEP'siz işletmede KEP ile başvuru satırı da çıkar). Hukuki metnin geri kalanı aynı;
+  yeni kalıp hukukçu onayı bekliyor.
+- Unvan ya da adres boşsa (cihaz bağlıyken) her sayfada uyarı: "KVKK metninde veri sorumlusu bilgileri eksik (unvan,
+  adres) …".
+- Merkeze: adres günlük eşitlemede (`/api/eslesme`, unvan gibi) gider; merkezde `cihaz.adres` sütunu (eski veritabanına
+  ALTER), yönetimde müşteri sayfasında "Adres". Adres göndermeyen eski cihaz kayıtlı adresi silmez. İlk bağlanmada
+  (`/api/giris`) gönderilmez (o anda girilmemiş olur).
+- Canlı Göztepe cihazı: 0.4.12'ye geçince eski metin yenisiyle değişir ve adres boş olduğu için yer tutucu görünür;
+  güncellemeden sonra panelden unvan + adres (+ telefon, KEP, e-posta) girilmeli.
+

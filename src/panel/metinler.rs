@@ -5,7 +5,7 @@ use super::*;
 
 const EN_FAZLA: usize = 20_000;
 const METINLER: &[(&str, &str, &str)] = &[
-    ("aydinlatma", "KVKK Aydınlatma Metni", "Giriş sayfasında \"KVKK Aydınlatma Metni\" bağlantısıyla açılır; onay kutusu yoktur. \"* \" ile başlayan satırlar madde listesi olur."),
+    ("aydinlatma", "KVKK Aydınlatma Metni", "Giriş sayfasında \"KVKK Aydınlatma Metni\" bağlantısıyla açılır; onay kutusu yoktur. \"* \" ile başlayan satırlar madde listesi olur. Veri sorumlusu bilgileri Ayarlar → İşletme'den gelir: [vergi levhası unvanı], [başvuru adresi], [irtibat numarası], [e-posta adresi], [KEP adresi]; isteğe bağlı bilgi boşsa geçtiği satır gösterilmez."),
     ("acik_riza", "Açık Rıza Metni", "Giriş sayfasında onay kutusunun yanında yazar; işaretlemek zorunludur. [vergi levhası unvanı] yerine Ayarlar'daki işletme unvanı yazılır."),
     ("sozlesme", "İnternet Kullanıcı Sözleşmesi", "Müşteri \"okudum, kabul ediyorum\" kutusunu işaretlemeden devam edemez."),
     ("aydinlatma_en", "KVKK Aydınlatma Metni (İngilizce)", EN_NOT),

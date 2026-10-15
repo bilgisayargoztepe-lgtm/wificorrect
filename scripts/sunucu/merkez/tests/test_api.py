@@ -111,10 +111,17 @@ def test_eslesme_parola_ve_serbest_birakma():
         api, v, q, _ = kur(tmp)
         n, pw = v.musteri_ekle()
         a = giris(api, n, pw)[1]["cihaz_anahtari"]
-        d, j = post(api, "/api/eslesme", {"cihaz_anahtari": a, "isletme_adi": "Bocafe Göztepe", "unvan": "<b>", "surum": "1.1"})
+        d, j = post(api, "/api/eslesme", {"cihaz_anahtari": a, "isletme_adi": "Bocafe Göztepe", "unvan": "<b>", "surum": "1.1",
+                                          "adres": "Moda Cad. 1 Kadıköy"})
         assert d == 200 and j["durum"] == "bagli" and j["uyelik"] == "aktif"
         c = v.bagli_cihaz(n)
         assert c["isletme_adi"] == "Bocafe Göztepe" and c["surum"] == "1.1" and c["son_eslesme"]
+        assert c["adres"] == "Moda Cad. 1 Kadıköy"
+        # adres göndermeyen (eski) cihaz kayıtlı adresi silmez; gönderilen bozuk adres boşalır
+        post(api, "/api/eslesme", {"cihaz_anahtari": a, "isletme_adi": "Bocafe Göztepe", "unvan": "<b>", "surum": "1.0"})
+        assert v.bagli_cihaz(n)["adres"] == "Moda Cad. 1 Kadıköy"
+        post(api, "/api/eslesme", {"cihaz_anahtari": a, "adres": "a\x00b"})
+        assert v.bagli_cihaz(n)["adres"] == ""
         assert post(api, "/api/parola", {"cihaz_anahtari": a, "eski": "yanlis-1234", "yeni": "yeni-parola-1"})[1]["kod"] == "hatali"
         assert post(api, "/api/parola", {"cihaz_anahtari": a, "eski": pw, "yeni": "kisa"})[0] == 400
         d, j = post(api, "/api/parola", {"cihaz_anahtari": a, "eski": pw, "yeni": "yeni-parola-1"})

@@ -1,57 +1,84 @@
 //! Panel → Ayarlar → AP kurulumu (hizmet sağlayıcı ve işletme sahibi; spec 2026-10-15-ap-kurulum): cihazın misafir portu bilgisi,
-//! ağdaki cihazlar (ayrı sayfa, denetlenir) ve fabrika adresli AP'ye ulaşmak için 30 dk'lık geçici adres.
+//! ağdaki cihazlar (ayrı sayfa, denetlenir), fabrika adresli AP'ye ulaşmak için 30 dk'lık yan oda (ayrı ağ ad alanı +
+//! SOCKS5 aracı; ana ağ ad alanına dokunmaz) ve yabancı DHCP denetimi.
 
 use super::*;
 use crate::ap;
+use crate::yan_oda::ARACI_PORT;
 
 impl Panel {
+    fn kopru_mac(&self, cfg: &Config) -> String {
+        std::fs::read_to_string(self.sys.join(&cfg.main.iface).join("address")).unwrap_or_default().trim().to_string()
+    }
+
     pub(super) fn ap_kurulum(&self, cfg: &Config, req: &Req, o: &Oturum, now: f64) -> Resp {
         let m = &cfg.main;
-        let mac = std::fs::read_to_string(self.sys.join(&m.iface).join("address")).unwrap_or_default().trim().to_string();
+        let mac = self.kopru_mac(cfg);
         let port = facts(&[
             ("Adres", format!("<code>{}</code>", h(&m.router_ip))),
             ("MAC", if mac.is_empty() { "bilinmiyor".into() } else { format!("<code>{}</code>", h(&mac)) }),
         ]);
-        let gecici = match ap::durum(&self.ap_yollar, cfg, &*self.ip_oku) {
+        let gecici = match ap::durum(&self.ap_yollar, &*self.ip_oku) {
             Some((g, true)) => {
                 let kalan = ((g.bitis - now).max(0.0) / 60.0).ceil() as u64;
                 let saat = ortak::now_iso(g.bitis).get(11..16).unwrap_or("").to_string();
+                let ag = ap::Cidr::parse(&g.adres).map(|c| format!("{}/{}", c.ag(), c.onek)).unwrap_or_default();
                 format!(
-                    "<p><code>{}</code> açık — {} kendiliğinden kalkar ({kalan} dk).</p>{}",
+                    "<p>Yan oda <code>{}</code> açık — {} kendiliğinden kapanır ({kalan} dk).</p>\
+                     <p class=\"not\">AP'ye bilgisayardan: <code>scripts\\ap-ac.cmd -Adres &lt;AP'nin adresi&gt;</code> (ör. {} ağındaki \
+                     fabrika adresi). Betik bu ağdaki adres için cihazdaki aracıya (127.0.0.1:{ARACI_PORT}) bağlanır; yalnızca \
+                     <code>{}</code> ağındaki adreslere izin verilir, alan adı çözülmez (AP'ye IP adresiyle girin).</p>{}",
                     h(&g.adres),
                     h(&saat),
-                    post_button(o, "/ap-kurulum/gecici-kaldir", "Şimdi kaldır", &[], "ikincil")
+                    h(&ag),
+                    h(&ag),
+                    post_button(o, "/ap-kurulum/gecici-kaldir", "Şimdi kapat", &[], "ikincil")
                 )
             }
             Some((g, false)) => format!(
-                "<p>Geçici adres <code>{}</code> artık yok (ağ yeniden kuruldu).</p>{}",
+                "<p>Yan oda <code>{}</code> artık yok (aracı durdu ya da cihaz yeniden başladı).</p>{}",
                 h(&g.adres),
-                post_button(o, "/ap-kurulum/gecici-kaldir", "Kaldır", &[], "ikincil")
+                post_button(o, "/ap-kurulum/gecici-kaldir", "Kapat", &[], "ikincil")
             ),
-            // durum dosyası var ama okunamıyor (bozuk): ekleme reddedilir, kaldırma dosyayı temizler
+            // durum dosyası var ama okunamıyor (bozuk): açma reddedilir, kapatma dosyayı temizler
             None if self.ap_yollar.gecici.exists() => format!(
-                "<p>Geçici adres durumu okunamadı.</p>{}",
-                post_button(o, "/ap-kurulum/gecici-kaldir", "Kaldır", &[], "ikincil")
+                "<p>Yan oda durumu okunamadı.</p>{}",
+                post_button(o, "/ap-kurulum/gecici-kaldir", "Kapat", &[], "ikincil")
+            ),
+            // durum dosyası yok ama aracı çalışıyor (yarıda kalmış işlem): 127.0.0.1:1085 açık kalmasın
+            None if ap::araci_canli(&*self.ip_oku) => format!(
+                "<p>Yan oda aracısı çalışıyor ama durum kaydı yok.</p>{}",
+                post_button(o, "/ap-kurulum/gecici-kaldir", "Kapat", &[], "ikincil")
             ),
             None => format!(
                 "<form class=\"satir\" method=\"post\" action=\"/ap-kurulum/gecici-ekle\">{}\
-                 <div><label for=\"apg\">Geçici adres</label><input type=\"text\" id=\"apg\" name=\"adres\" placeholder=\"192.168.0.250/24\" required></div>\
-                 <button>Ekle ({} dk)</button></form>\
-                 <p class=\"not\">AP'nin fabrika adresiyle aynı alt ağdan, AP'nin kullanmadığı bir adres yazın. Misafirler etkilenmez; \
-                 misafirden bu alt ağa erişim kapalıdır. Adres {} dk sonra (ve cihaz yeniden başlayınca) kendiliğinden kalkar.</p>",
+                 <div><label for=\"apg\">Yan oda adresi</label><input type=\"text\" id=\"apg\" name=\"adres\" placeholder=\"192.168.1.250/24\" required></div>\
+                 <button>Aç ({} dk)</button></form>\
+                 <p class=\"not\">AP'nin fabrika adresiyle aynı alt ağdan, AP'nin kullanmadığı bir adres yazın (ör. AP 192.168.1.1 ise \
+                 192.168.1.250/24; AP'nin DHCP sunucusu açıksa dağıttığı havuzun dışında bir adres seçin). Adres cihazın kendi ağına değil, misafir portuna bağlı ayrı bir \"yan oda\"ya verilir: modemin \
+                 ağıyla aynı olsa da cihazın interneti ve misafirler etkilenmez. Yan oda {} dk sonra (ve cihaz yeniden başlayınca) \
+                 kendiliğinden kapanır.</p>",
                 csrf_input(o),
                 ap::SURE_SN / 60,
                 ap::SURE_SN / 60
             ),
         };
+        let dhcp = format!(
+            "<p>Kutudan yeni çıkmış AP'nin (ör. ZyXEL, 192.168.1.1) DHCP sunucusu çoğu zaman açık gelir: misafirlere kendi adresini dağıtır, \
+             o misafirler giriş sayfasını göremez ve internete çıkamaz. Denetim misafir portunda ~3 sn DHCP teklifi dinler; \
+             cihazın kendi sunucusu (<code>{}</code>) sayılmaz.</p>{}",
+            h(&m.router_ip),
+            post_button(o, "/ap-kurulum/dhcp-denetle", "Yabancı DHCP sunucusu var mı?", &[], "ikincil")
+        );
         let body = format!(
             "<section class=\"kart grup\"><h2>Cihazın misafir portu</h2><div>{port}<p class=\"not\">AP'de \"yönetime yalnızca şu IP/MAC \
              izin ver\" seçeneği varsa bu adres ve MAC yazılır — en son, AP kalıcı adresine (ör. 10.50.0.2) taşınıp o adresten \
-             yeniden girildikten sonra (geçici adresten bağlıyken IP kısıtı oturumu keser, AP'ye ulaşılamaz).</p></div></section>\
+             yeniden girildikten sonra (yan odadan bağlıyken IP kısıtı oturumu keser, AP'ye ulaşılamaz).</p></div></section>\
              <section class=\"kart grup\"><h2>Ağdaki cihazlar</h2><div><p>Misafir portunda son görülen cihazlar (DHCP kiraları ve ARP \
              tablosu); müşterinin verdiği MAC'le eşleştirin.</p><p><a class=\"dugme ikincil\" href=\"/ap-kurulum/cihazlar\">Ağdaki cihazları göster</a></p>\
-             <p class=\"not\">Fabrika adresli AP, cihaz ona hiç paket göndermediyse listede görünmez; önce geçici adres ekleyin.</p></div></section>\
-             <section class=\"kart grup\"><h2>Geçici adres</h2><div>{gecici}</div></section>\
+             <p class=\"not\">Fabrika adresli AP, cihaz ona hiç paket göndermediyse listede görünmez; yan oda açıp AP'ye bağlanın.</p></div></section>\
+             <section class=\"kart grup\"><h2>Yabancı DHCP sunucusu</h2><div>{dhcp}</div></section>\
+             <section class=\"kart grup\"><h2>Yan oda (fabrika adresli AP)</h2><div>{gecici}</div></section>\
              <section class=\"kart grup\"><h2>AP adresleri</h2><div>{kayit}</div></section>",
             kayit = self.ap_adres_karti(cfg, o)
         );
@@ -135,18 +162,67 @@ impl Panel {
             .collect();
         let body = format!(
             "<p><a href=\"/ayarlar#ap-kurulum\">← AP kurulumu</a></p>{}\
-             <p class=\"not\">Fabrika adresli AP, cihaz ona hiç paket göndermediyse listede görünmez; önce geçici adres ekleyin.</p>",
+             <p class=\"not\">Fabrika adresli AP, cihaz ona hiç paket göndermediyse listede görünmez; yan oda açıp AP'ye bağlanın.</p>",
             table(&["MAC", "IP", "Ad", "Kaynak", "Not"], &rows, "Cihaz görülmedi")
         );
         self.page(cfg, req, Some(o), "Ağdaki cihazlar", &body)
+    }
+
+    /// Yabancı DHCP denetimi (`ctl ap-dhcp-denetle`, kısa ömürlü yan odadan). Denetim `AP_DHCP_DENETIM sonuc=yok|var|hata`.
+    /// Aynı anda tek denetim; komut 25 sn'de bitmezse öldürülür (yan oda süreçle gider): panelin iş parçacıkları bağlanmaz.
+    pub(super) fn ap_dhcp_denetle(&self, cfg: &Config, req: &Req, o: &Oturum) -> Resp {
+        use std::sync::atomic::{AtomicBool, Ordering};
+        let geri = "<p><a href=\"/ayarlar#ap-kurulum\">← AP kurulumu</a></p>";
+        if self.dhcp_denetim.swap(true, Ordering::SeqCst) {
+            let govde = "<div class=\"mesaj hata\">Bir denetim zaten sürüyor; birkaç saniye sonra yeniden deneyin.</div>";
+            return self.page(cfg, req, Some(o), "Yabancı DHCP denetimi", &format!("{geri}{govde}"));
+        }
+        struct Birak<'a>(&'a AtomicBool);
+        impl Drop for Birak<'_> {
+            fn drop(&mut self) {
+                self.0.store(false, Ordering::SeqCst);
+            }
+        }
+        let cikti = {
+            let _birak = Birak(&self.dhcp_denetim);
+            (self.ip_oku)(&["timeout", "25", "/usr/local/bin/wificorrect", "ctl", "ap-dhcp-denetle"])
+        };
+        let govde = match ap::dhcp_cikti_coz(&cikti, &cfg.main.router_ip, &self.kopru_mac(cfg)) {
+            None => {
+                self.audit(cfg, req, Some(o), "AP_DHCP_DENETIM", "sonuc=hata");
+                "<div class=\"mesaj hata\">Denetim yapılamadı (cihazda yan oda açılamadı). Biraz sonra yeniden deneyin.</div>".to_string()
+            }
+            Some(v) if v.is_empty() => {
+                self.audit(cfg, req, Some(o), "AP_DHCP_DENETIM", "sonuc=yok");
+                "<div class=\"mesaj\">Yabancı DHCP sunucusu bulunmadı.</div><p class=\"not\">Yalnızca denetim anında açık ve misafir \
+                 portuna bağlı cihazlar görünür; AP yeni takıldıysa açılmasını (1–2 dk) bekleyip yeniden deneyin.</p>"
+                    .to_string()
+            }
+            Some(v) => {
+                let ozet: Vec<String> = v.iter().map(|t| format!("{}/{}", t.sunucu, t.mac)).collect();
+                self.audit(cfg, req, Some(o), "AP_DHCP_DENETIM", &format!("sonuc=var sunucular={}", ozet.join(",")));
+                let rows: Vec<Vec<String>> = v
+                    .iter()
+                    .map(|t| vec![format!("<code>{}</code>", h(&t.sunucu.to_string())), format!("<code>{}</code>", h(&t.mac)), h(&t.adres.to_string())])
+                    .collect();
+                format!(
+                    "<div class=\"mesaj hata\">Misafir ağında başka bir DHCP sunucusu var. Bu cihazın DHCP sunucusu kapatılmalı; \
+                     açık kaldıkça bazı misafirler internete çıkamaz.</div>{}\
+                     <p class=\"not\">MAC'i ağdaki cihazlar listesiyle ve müşterinin verdiği MAC'le karşılaştırın. AP fabrika \
+                     adresindeyse yan oda açıp AP'nin arayüzünden DHCP'yi kapatın (docs/AP_KURULUM.md).</p>",
+                    table(&["Sunucu", "MAC", "Teklif ettiği adres"], &rows, "")
+                )
+            }
+        };
+        self.page(cfg, req, Some(o), "Yabancı DHCP denetimi", &format!("{geri}{govde}"))
     }
 
     pub(super) fn ap_gecici_ekle(&self, cfg: &Config, req: &Req, o: &Oturum, now: f64) -> Resp {
         let girdi = req.form.get("adres").map_or("", String::as_str);
         match ap::ekle(cfg, &self.ap_yollar, girdi, ap::SURE_SN, &*self.ip_oku, &*self.runner, now) {
             Ok(g) => {
-                self.audit(cfg, req, Some(o), "AP_KURULUM_ADRES", &format!("eklendi adres={} sure={}", g.adres, ap::SURE_SN));
-                let msg = format!("Geçici adres {} eklendi; {} dk sonra kendiliğinden kalkar.", g.adres, ap::SURE_SN / 60);
+                self.audit(cfg, req, Some(o), "AP_YAN_ODA", &format!("acildi adres={} sure={}", g.adres, ap::SURE_SN));
+                let msg = format!("Yan oda {} açıldı; {} dk sonra kendiliğinden kapanır.", g.adres, ap::SURE_SN / 60);
                 redirect("/ap-kurulum", Some((&msg, false)))
             }
             Err(e) => redirect("/ap-kurulum", Some((&e, true))),
@@ -154,12 +230,13 @@ impl Panel {
     }
 
     pub(super) fn ap_gecici_kaldir(&self, cfg: &Config, req: &Req, o: &Oturum) -> Resp {
-        match ap::kaldir(cfg, &self.ap_yollar, "elle", None, &*self.ip_oku, &*self.runner) {
+        match ap::kaldir(&self.ap_yollar, "elle", None, &*self.ip_oku, &*self.runner) {
             Ok(Some(k)) => {
-                self.audit(cfg, req, Some(o), "AP_KURULUM_ADRES", &format!("kaldirildi adres={} neden=elle", k.adres));
-                redirect("/ap-kurulum", Some((&format!("Geçici adres {} kaldırıldı.", k.adres), false)))
+                self.audit(cfg, req, Some(o), "AP_YAN_ODA", &format!("kapandi adres={} neden=elle", k.adres));
+                let msg = if k.adres == "-" { "Yan oda aracısı durduruldu.".to_string() } else { format!("Yan oda {} kapatıldı.", k.adres) };
+                redirect("/ap-kurulum", Some((&msg, false)))
             }
-            Ok(None) => redirect("/ap-kurulum", Some(("Açık geçici adres yok.", false))),
+            Ok(None) => redirect("/ap-kurulum", Some(("Açık yan oda yok.", false))),
             Err(e) => redirect("/ap-kurulum", Some((&e, true))),
         }
     }

@@ -19,6 +19,11 @@ Windows tarafı `scripts/ap-ac.ps1` (+ `ap-ac.cmd`), belge `docs/AP_KURULUM.md`.
 > "yalnızca admin / `if hizmet` / kilit formu / sahip 403" maddeleri bu kararla geçersizdir. (2) AP rehberinde yönetim
 > erişimi IP kısıtı en sona alındı: önce AP 10.50.0.2'ye taşınır ve yeni adresten girilir, sonra kısıt (geçici adresten
 > bağlıyken `10.50.0.1` kısıtı oturumu keser, AP'ye ulaşılamaz). (3) `ap.nft` kuralı yapılmadı (spec'teki karar).
+> (4) **0.4.12 (spec "Ek: yan oda"):** köprüye ikinci adres (Task 1'deki `ip addr add … label br-hotspot:ap`, WAN/tünel/
+> rota çakışma retleri) kaldırıldı; yerine misafir köprüsüne macvlan ile bağlı ayrı ağ ad alanı ("yan oda") + cihazda
+> 127.0.0.1:1085'te SOCKS5 aracı (`wfc-ap-araci` geçici birimi, `src/yan_oda.rs`), panelde yabancı DHCP denetimi;
+> `ap-ac.ps1` misafir ağı dışındaki IPv4 için `ssh -L` ile aracıya bağlanır. Denetim olayı `AP_YAN_ODA`
+> (eski `AP_KURULUM_ADRES`), `AP_DHCP_DENETIM`. Ayrıntı: KURULUM_GUNLUGU "AP yan odası…".
 
 ## Önemli bulgu (plan yazılırken)
 

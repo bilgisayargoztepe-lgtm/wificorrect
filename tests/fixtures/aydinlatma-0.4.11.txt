@@ -1,0 +1,68 @@
+6698 SAYILI KİŞİSEL VERİLERİN KORUNMASI KANUNU KAPSAMINDA KİŞİSEL VERİLERİN İŞLENMESİNE İLİŞKİN BİLGİLENDİRME METNİ
+
+Kişisel verilerin işleme süreçlerinde öncelikli olarak özel yaşamın gizliliği dahil olmak üzere bireylerin temel hak ve hürriyetlerini güvence altına almayı hedefleyen 6698 sayılı Kişisel Verilerin Korunması Kanunu’nun (“Kanun”) “Veri Sorumlusunun Aydınlatma Yükümlülüğü” başlıklı 10. maddesi ile “Aydınlatma Yükümlülüğünün Yerine Getirilmesinde Uyulacak Usul ve Esaslar Hakkında Tebliğ” doğrultusunda bu Bilgilendirme Metni tanzim edilmiştir. Göztepe Bilgisayar (“Göztepe Bilgisayar”), veri sorumlusu sıfatıyla Kanun ve sair mevzuat hükümleri çerçevesinde kişisel verilerin emniyetli biçimde muhafazasını ve hukuka uygun işlenmesini temin etmek gayesiyle teknolojik ve sistemsel olanaklarından yararlanarak gerekli teknik ve idari tedbirleri tesis etmektedir.
+
+Kişisel verileriniz, Göztepe Bilgisayar tarafından bu metin sınırları dahilinde Kanun’a ve yürürlükteki mevzuata tam uyum gözetilerek işlenmektedir. Kanun uyarınca verileri işlenen gerçek kişiler, metni tetkik ederek Göztepe Bilgisayar vasıtasıyla işlenebilecek verileri, işleme gayelerini, aktarım yapılabilecek tarafları, verilerin elde edilme yöntemleri ile hukuki dayanaklarını ve Kanun tahtındaki yasal haklarını öğrenebilirler.
+
+1. İŞLENEN KİŞİSEL VERİ KATEGORİLERİ
+Kişisel veri; kimliği belirli veya tespit edilebilir gerçek kişiye bağlanan her türlü kaydı ve malumatı kapsar. İşleme faaliyetine tabi tutulan kişisel veri gruplarınız aşağıda sıralanmıştır:
+
+* Süreç Güvenliği Verileri: Kullanıcı adı, şifre detayları, IP adres bilgisi
+* Özlük ve Kimlik Bilgileri: İsim, soyisim ve unvan bilgisi
+* Tanıtım ve Pazarlama Verileri: İnternet çerez (cookie) kayıtları
+* Haberleşme ve İletişim Bilgileri: Telefon numarası
+* Diğer Hizmet Verileri: Abonelik durumu ve detayları
+
+2. KİŞİSEL VERİLERİN İŞLENME GAYELERİ
+Toplanan kişisel verileriniz, Kanun’un 5. ve 6. maddelerinde belirtilen şartlar ve ilgili alt düzenlemeler doğrultusunda şu amaçlarla işlenebilecektir:
+
+* Bilgi sistemleri emniyet süreçlerinin planlanması ve icrası
+* Hizmet ve sözleşme bağıtlanması/yürütülmesi süreçlerinin temini
+* Yasal merci ve kamu kuruluşlarına kanuni bildirimlerin gerçekleştirilmesi
+* Reklam, promosyon ve tanıtım operasyonlarının yönetimi
+* Veri depolama, arşivleme ve saklama hizmetlerinin temini
+* Ticari faaliyetlerin sevk, idare ve teftişi
+* Müşteri memnuniyet düzeyinin ölçümlenmesi, talep/eğilim araştırmaları ile servis kalitesini yükseltmeye dönük analiz ve anket faaliyetlerinin yürütülmesi
+* İşletme içi soruşturma, teftiş ve denetim mekanizmalarının işletilmesi
+* Hukuki süreçlerin, uyuşmazlıkların ve dava takiplerinin yürütülmesi
+* Tesis/lokasyon ziyaretçi giriş-çıkış kayıtlarının takibi
+* Müşteri ilişkileri idaresi süreçlerinin icrası
+* Olağanüstü durum ve acil vaka yönetimi operasyonları
+* Kullanıcı yetki ve erişim süreçlerinin organize edilmesi
+* Yürürlükteki yasal mevzuata tam uyumun temini
+* Ürün ve hizmet imalatı ile operasyonel adımların sürdürülmesi
+
+3. KİŞİSEL VERİLERİN NAKLİ VE AKTARILDIĞI ALICILAR
+Kişisel verileriniz, yalnızca taahhüt edilen hizmetin ifası gayesiyle sınırlı kalınarak ve mevzuatın çizdiği çerçevede Kanun’un yurt içi aktarım esasları uyarınca yetkili iş ortakları ve telekomünikasyon altyapı sağlayıcıları ile paylaşılabilecektir. Açık onayınız bulunmaksızın verileriniz yurt içindeki veya yurt dışındaki üçüncü şahıslarla asla paylaşılmamaktadır.
+
+* İlgili kanunlar gereği şahsınıza ait verileri yasal olarak talep etmeye yetkili kılınmış adli/idari merciler ile düzenleyici kamu otoriteleri,
+* Şirketimiz adına ve hesabına çalışan temsilcilikler, bayiler, anlaşmalı iş ortakları, alt yükleniciler ve ikmal sağlayıcı kuruluşlar,
+* Tarafınızca tayin edilmiş kanuni temsilciler, vasiler veya vekiller,
+* Şirketimizce destek alınan danışmanlık firmaları, denetçiler, müşavirler ve avukatlar.
+
+4. KİŞİSEL VERİLERİ TEMİN YÖNTEMLERİ VE İŞLEMENİN HUKUKİ DAYANAKLARI
+Verileriniz; aramızdaki hukuki ilişkinin tesis edilmesi aşamasında ve bu ilişkinin devam ettiği müddetçe internet sitemiz, bayiliklerimiz, çağrı merkezimiz, temsilcilerimiz ve mobil yazılımlarımız vasıtasıyla tam veya kısmen otomatik yollarla elde edilerek işlenmektedir.
+
+* İlgili mevzuat uyarınca ve resmi kurumlarca öngörülen bildirim, kayıt tutma ve raporlama mükellefiyetlerinin karşılanması,
+* 6502 sayılı Tüketicinin Korunması Hakkında Kanun hükümlerinde açıkça yer alması,
+* Bir akdin kurulması ya da ifasıyla doğrudan doğruya bağlantılı bulunması kaydıyla, taraflara ait verilerin işlenmesinin zaruri olması ve talep edilen servislerin sunulabilmesi,
+* 6563 sayılı Elektronik Ticaretin Düzenlenmesi Hakkında Kanun kapsamında açıkça tanzim edilmiş olması,
+* Yürürlükteki kanun maddelerinde açık hüküm bulunması,
+* 5809 sayılı Elektronik Haberleşme Kanunu ve 6098 sayılı Türk Borçlar Kanunu hükümlerinde sarih olarak düzenlenmesi,
+* Açık onayınızın ve rızanızın temin edilmiş olması.
+
+5. KANUNİ HAKLARIN KULLANIMI VE İRTİBAT KANALLARI
+Kanun’un 11. maddesi kapsamındaki taleplerinizi; Veri Sorumlusuna Başvuru Usul ve Esasları Hakkında Tebliğ standartlarına uygun biçimde ve kimliğinizi tevsik edici belgelerle birlikte:
+
+* Şahsen merkezimize gelerek ıslak imzalı dilekçeyle, noter marifetiyle veya iadeli taahhütlü posta yoluyla,
+* Güvenli elektronik imza, mobil imza yahut sistemlerimizde kayıtlı bulunan KEP (Kayıtlı Elektronik Posta) adresiniz kanalıyla
+
+tarafımıza iletebilirsiniz. Başvurularınız kimlik tespit sürecinin tamamlanmasını müteakip işleme alınacak ve en geç 30 gün zarfında neticelendirilecektir. Yazılı geri dönüşlerde 10 sayfaya kadar harç alınmayacak; 10 sayfanın aşılması halinde ise sayfa başına 1 TL işlem bedeli yansıtılabilecektir. Yanıtın taşınabilir bellek veya optik disk (CD/DVD) benzeri bir veri kayıt ortamında teslimi durumunda ise ortamın fiziki maliyeti talep edilebilecektir.
+
+İLETİŞİM VE MÜRACAAT ADRESLERİ
+Göztepe Bilgisayar
+
+* Müracaat Adresi: Sahrayıcedit Mahallesi Atatürk Caddesi no 61/a Kadıköy/İstanbul
+* İrtibat Numarası: 0216 565 39 86
+* KEP Adresi: riza.taskapi@hs01.kep.tr
+* E-Posta: info@goztepebilgisayar.com

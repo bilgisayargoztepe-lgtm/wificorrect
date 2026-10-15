@@ -144,31 +144,32 @@ pub fn yukle(cfg: &Config, now: f64, runner: &Runner) -> usize {
 }
 
 fn ap_denetim(cfg: &Config, now: f64, ek: String) {
-    ortak::audit(&cfg.main.log_root, Row::new("AP_KURULUM_ADRES", &ortak::now_iso(now)).set("ek", ek));
+    ortak::audit(&cfg.main.log_root, Row::new("AP_YAN_ODA", &ortak::now_iso(now)).set("ek", ek));
 }
 
-/// Açılışta (`yukle`): yeniden başlatmayla giden AP geçici adresinin durum dosyası temizlenir (`neden=acilis`).
+/// Açılışta (`yukle`): yeniden başlatmayla kapanan AP yan odasının durum dosyası temizlenir (`neden=acilis`).
 fn ap_acilis(cfg: &Config, y: &crate::ap::Yollar, ip_oku: &crate::ap::IpOku, now: f64) -> Option<String> {
-    let a = crate::ap::acilis_temizle(cfg, y, ip_oku)?;
-    ap_denetim(cfg, now, format!("kaldirildi adres={a} neden=acilis"));
+    let a = crate::ap::acilis_temizle(y, ip_oku)?;
+    ap_denetim(cfg, now, format!("kapandi adres={a} neden=acilis"));
     Some(a)
 }
 
-/// `ctl ap-adres-kaldir <elle|sure> [KIMLIK]` (zamanlayıcı `sure KIMLIK` ile çağırır).
+/// `ctl ap-adres-kaldir <elle|sure> [KIMLIK]` (zamanlayıcı `sure KIMLIK` ile çağırır): yan odayı kapatır.
 fn ap_adres_kaldir(cfg: &Config, y: &crate::ap::Yollar, args: &[String], ip_oku: &crate::ap::IpOku, runner: &Runner, now: f64) -> ExitCode {
     let (Some(neden @ ("elle" | "sure")), kimlik) = (args.get(1).map(String::as_str), args.get(2).map(String::as_str)) else {
         eprintln!("Kullanım: wificorrect ctl ap-adres-kaldir <elle|sure> [KIMLIK]");
         return ExitCode::from(2);
     };
-    match crate::ap::kaldir(cfg, y, neden, kimlik, ip_oku, runner) {
+    runner(&crate::ap::eski_adres_temizle(&cfg.main.iface)); // 0.4.11'den kalan zamanlayıcı (ana ad alanındaki adres)
+    match crate::ap::kaldir(y, neden, kimlik, ip_oku, runner) {
         Ok(Some(k)) => {
             let hata = k.hata.map_or(String::new(), |h| format!(" hata={h}"));
-            ap_denetim(cfg, now, format!("kaldirildi adres={} neden={neden}{hata}", k.adres));
-            println!("{} kaldırıldı{hata}", k.adres);
+            ap_denetim(cfg, now, format!("kapandi adres={} neden={neden}{hata}", k.adres));
+            println!("yan oda {} kapandı{hata}", k.adres);
             ExitCode::SUCCESS
         }
         Ok(None) => {
-            println!("açık geçici adres yok");
+            println!("açık yan oda yok");
             ExitCode::SUCCESS
         }
         Err(e) => {
@@ -190,8 +191,40 @@ fn ap_adres_ekle(cfg: &Config, y: &crate::ap::Yollar, args: &[String], ip_oku: &
     };
     match crate::ap::ekle(cfg, y, adres, sure, ip_oku, runner, now) {
         Ok(g) => {
-            ap_denetim(cfg, now, format!("eklendi adres={} sure={sure} kullanici=konsol", g.adres));
-            println!("{} eklendi, {sure} sn sonra kalkar", g.adres);
+            ap_denetim(cfg, now, format!("acildi adres={} sure={sure} kullanici=konsol", g.adres));
+            println!("yan oda {} açıldı ({sure} sn); aracı 127.0.0.1:{}", g.adres, crate::yan_oda::ARACI_PORT);
+            ExitCode::SUCCESS
+        }
+        Err(e) => {
+            eprintln!("{e}");
+            ExitCode::from(1)
+        }
+    }
+}
+
+/// `ctl ap-araci ADRES`: yalnızca `ap::ekle`'nin geçici systemd birimi çalıştırır (yan oda + SOCKS5 aracı).
+fn ap_araci(cfg: &Config, args: &[String]) -> ExitCode {
+    let Some(adres) = args.get(1) else {
+        eprintln!("Kullanım: wificorrect ctl ap-araci a.b.c.d/önek  (yalnızca wfc-ap-araci birimi)");
+        return ExitCode::from(2);
+    };
+    let sonuc = crate::ap::gecici_dogrula(adres, cfg).and_then(|c| crate::yan_oda::araci_calistir(&cfg.main.iface, c));
+    if let Err(e) = sonuc {
+        eprintln!("{e}");
+        return ExitCode::from(1);
+    }
+    ExitCode::SUCCESS
+}
+
+/// `ctl ap-dhcp-denetle`: misafir köprüsünde (kısa ömürlü yan odadan) DHCP teklifleri. Çıktı panel için:
+/// `TEKLIF <sunucu> <mac> <adres>` satırları, sonda `TAMAM <n>`.
+fn ap_dhcp_denetle(cfg: &Config) -> ExitCode {
+    match crate::yan_oda::dhcp_denetle(&cfg.main.iface) {
+        Ok(v) => {
+            for t in &v {
+                println!("TEKLIF {} {} {}", t.sunucu, t.mac, t.adres);
+            }
+            println!("TAMAM {}", v.len());
             ExitCode::SUCCESS
         }
         Err(e) => {
@@ -372,13 +405,15 @@ pub fn run(cfg: Config, args: &[String]) -> ExitCode {
             eski_sirlari_temizle(); // paket kurulumunda yapılamadıysa açılışta
             println!("{} oturum geri yüklendi", yukle(&cfg, now, &runner));
             if let Some(a) = ap_acilis(&cfg, &crate::ap::Yollar::sistem(), &|c: &[&str]| ortak::capture(c), now) {
-                println!("AP geçici adresi {a} artık yok; durum temizlendi");
+                println!("AP yan odası {a} artık yok; durum temizlendi");
             }
             ExitCode::SUCCESS
         }
-        // Panel → Ayarlar → AP kurulumu eşdeğeri (konsol) ve kaldırma zamanlayıcısı
+        // Panel → Ayarlar → AP kurulumu eşdeğeri (konsol), kapatma zamanlayıcısı, aracı birimi, DHCP denetimi
         Some("ap-adres-ekle") => ap_adres_ekle(&cfg, &crate::ap::Yollar::sistem(), args, &|c: &[&str]| ortak::capture(c), &runner, now),
         Some("ap-adres-kaldir") => ap_adres_kaldir(&cfg, &crate::ap::Yollar::sistem(), args, &|c: &[&str]| ortak::capture(c), &runner, now),
+        Some("ap-araci") => ap_araci(&cfg, args),
+        Some("ap-dhcp-denetle") => ap_dhcp_denetle(&cfg),
         // Paket kurulumu (postinst): 0.4.8 öncesinden ayar dosyasında kalan SMS sırları
         Some("ayar-temizle") => {
             eski_sirlari_temizle();
@@ -431,7 +466,7 @@ pub fn run(cfg: Config, args: &[String]) -> ExitCode {
             m.deneme = now;
             let _ = crate::merkez::kaydet(p, &m);
             let denetim = |olay: &str, ek: String| ortak::audit(&cfg.main.log_root, Row::new(olay, &ortak::now_iso(now)).set("ek", ek));
-            match crate::merkez::eslesme(&mut m, &cfg.main.site_name, &cfg.main.unvan, crate::ayar::isletme_turu_secili(&cfg).unwrap_or(""), false, &crate::merkez::curl, now) {
+            match crate::merkez::eslesme(&mut m, &cfg.main.site_name, &cfg.main.unvan, &cfg.main.adres, crate::ayar::isletme_turu_secili(&cfg).unwrap_or(""), false, &crate::merkez::curl, now) {
                 Ok(crate::merkez::Eslesme::Bagli { uyelik, ek }) => {
                     if let Err(e) = crate::merkez::kaydet(p, &m) {
                         eprintln!("{e}");
@@ -694,7 +729,7 @@ pub fn run(cfg: Config, args: &[String]) -> ExitCode {
         _ => {
             eprintln!(
                 "Kullanım: wificorrect ctl <komut>\n  dhcp-olay <add|old|del> <mac> <ip> [ad]\n  yukle\n  oturumlar\n  \
-                 gun-kapat [YYYY-AA-GG] [--zorla]\n  dogrula [--son N]\n  temizle [--kuru]\n  yedekle\n  ara ...  (ayrıntı: ctl ara)\n  disa-aktar --baslangic G --bitis G --cikti DOSYA\n  ag-uygula | ag-gecis DOSYA | ag-onayla | ag-geri-al | ag-ilk\n  ayar-temizle\n  filtre-uygula\n  liste-uygula | liste-guncelle\n  hiz-uygula\n  admin-parola\n  merkez-eslesme\n  saglik\n  guncelle\n  ap-adres-ekle a.b.c.d/önek [--sure SN]\n  ap-adres-kaldir <elle|sure> [KIMLIK]"
+                 gun-kapat [YYYY-AA-GG] [--zorla]\n  dogrula [--son N]\n  temizle [--kuru]\n  yedekle\n  ara ...  (ayrıntı: ctl ara)\n  disa-aktar --baslangic G --bitis G --cikti DOSYA\n  ag-uygula | ag-gecis DOSYA | ag-onayla | ag-geri-al | ag-ilk\n  ayar-temizle\n  filtre-uygula\n  liste-uygula | liste-guncelle\n  hiz-uygula\n  admin-parola\n  merkez-eslesme\n  saglik\n  guncelle\n  ap-adres-ekle a.b.c.d/önek [--sure SN]  (AP yan odası)\n  ap-adres-kaldir <elle|sure> [KIMLIK]\n  ap-dhcp-denetle"
             );
             ExitCode::from(2)
         }
@@ -896,23 +931,13 @@ mod tests {
     }
 
     #[test]
-    fn ap_gecici_adres_acilis_ve_komutlar() {
+    fn ap_yan_oda_acilis_ve_komutlar() {
         let (c, root) = cfg();
         let y = crate::ap::Yollar { gecici: root.join("ap-gecici.json") };
         let denetim = || std::fs::read_to_string(root.join("5651/gunluk/2026-09-29/denetim.csv")).unwrap_or_default();
-        let canli = "4: br-hotspot    inet 192.168.0.250/24 scope global br-hotspot:ap\\       valid_lft 100sec preferred_lft 100sec\n";
-        // köprünün kendi adresi her zaman görünür (yoksa `ip` okunamadı sayılır); `label` sorgusu yalnızca geçici adresi döner
-        let kopru = "4: br-hotspot    inet 10.50.0.1/24 brd 10.50.0.255 scope global br-hotspot\\       valid_lft forever preferred_lft forever\n";
-        let ip_var = move |a: &[&str]| match a {
-            [.., "label", _] => canli.to_string(),
-            ["ip", "-o", "-4", "addr", ..] => format!("{kopru}{canli}"),
-            _ => String::new(),
-        };
-        let ip_yok = move |a: &[&str]| match a {
-            [.., "label", _] => String::new(),
-            ["ip", "-o", "-4", "addr", ..] => kopru.to_string(),
-            _ => String::new(),
-        };
+        // sahte `systemctl is-active wfc-ap-araci.service`
+        let ip_var = |a: &[&str]| if a.first() == Some(&"systemctl") { "active\n".to_string() } else { String::new() };
+        let ip_yok = |a: &[&str]| if a.first() == Some(&"systemctl") { "inactive\n".to_string() } else { String::new() };
         let calls = Arc::new(Mutex::new(Vec::<Vec<String>>::new()));
         let c2 = calls.clone();
         let runner = move |x: &[String]| {
@@ -921,28 +946,35 @@ mod tests {
         };
         let kod = |k: ExitCode| format!("{k:?}");
         let a = |v: &[&str]| v.iter().map(|s| s.to_string()).collect::<Vec<_>>();
-        // konsoldan ekleme: --sure sınırı (60-1800)
-        assert_eq!(kod(ap_adres_ekle(&c, &y, &a(&["ap-adres-ekle", "192.168.0.250/24", "--sure", "30"]), &ip_yok, &runner, NOW)), kod(ExitCode::from(2)));
-        assert_eq!(kod(ap_adres_ekle(&c, &y, &a(&["ap-adres-ekle", "192.168.0.250/24", "--sure", "1801"]), &ip_yok, &runner, NOW)), kod(ExitCode::from(2)));
+        // konsoldan açma: --sure sınırı (60-1800)
+        assert_eq!(kod(ap_adres_ekle(&c, &y, &a(&["ap-adres-ekle", "192.168.1.250/24", "--sure", "30"]), &ip_yok, &runner, NOW)), kod(ExitCode::from(2)));
+        assert_eq!(kod(ap_adres_ekle(&c, &y, &a(&["ap-adres-ekle", "192.168.1.250/24", "--sure", "1801"]), &ip_yok, &runner, NOW)), kod(ExitCode::from(2)));
         assert_eq!(kod(ap_adres_ekle(&c, &y, &a(&["ap-adres-ekle", "--sure", "120"]), &ip_yok, &runner, NOW)), kod(ExitCode::from(2)));
         assert!(calls.lock().unwrap().is_empty());
-        assert_eq!(kod(ap_adres_ekle(&c, &y, &a(&["ap-adres-ekle", "192.168.0.250/24", "--sure", "120"]), &ip_yok, &runner, NOW)), kod(ExitCode::SUCCESS));
-        assert!(denetim().contains("eklendi adres=192.168.0.250/24 sure=120 kullanici=konsol"));
-        assert!(calls.lock().unwrap().iter().any(|x| x.contains(&"130".to_string()) && x[0] == "ip")); // valid_lft = süre + 10
+        // modemin ağıyla aynı alt ağ (yan oda ana ad alanına dokunmaz)
+        assert_eq!(kod(ap_adres_ekle(&c, &y, &a(&["ap-adres-ekle", "192.168.1.250/24", "--sure", "120"]), &ip_yok, &runner, NOW)), kod(ExitCode::SUCCESS));
+        assert!(denetim().contains("AP_YAN_ODA") && denetim().contains("acildi adres=192.168.1.250/24 sure=120 kullanici=konsol"));
+        assert!(calls.lock().unwrap().iter().any(|x| x.contains(&"--property=RuntimeMaxSec=130".to_string()))); // süre + 10
+        assert!(!calls.lock().unwrap().iter().any(|x| x[0] == "ip"));
         let g: crate::ap::Gecici = serde_json::from_slice(&std::fs::read(&y.gecici).unwrap()).unwrap();
-        // servis yeniden başladı (adres canlıda): açılış temizliği dokunmaz
+        // güvenlik duvarı servisi yeniden başladı (aracı çalışıyor): açılış temizliği dokunmaz
         assert_eq!(ap_acilis(&c, &y, &ip_var, NOW), None);
         assert!(y.gecici.exists() && !denetim().contains("neden=acilis"));
-        // eski zamanlayıcı (başka kimlik) silemez
+        // eski zamanlayıcı (başka kimlik) kapatamaz
         assert_eq!(kod(ap_adres_kaldir(&c, &y, &a(&["ap-adres-kaldir", "sure", "ffffffff"]), &ip_var, &runner, NOW)), kod(ExitCode::SUCCESS));
         assert!(y.gecici.exists());
-        // zamanlayıcı kendi kimliğiyle: kaldırır, neden=sure
+        // zamanlayıcı kendi kimliğiyle: kapatır, neden=sure
         assert_eq!(kod(ap_adres_kaldir(&c, &y, &a(&["ap-adres-kaldir", "sure", &g.kimlik]), &ip_var, &runner, NOW)), kod(ExitCode::SUCCESS));
-        assert!(!y.gecici.exists() && denetim().contains("kaldirildi adres=192.168.0.250/24 neden=sure"));
+        assert!(!y.gecici.exists() && denetim().contains("kapandi adres=192.168.1.250/24 neden=sure"));
+        let eski = a(&["ip", "addr", "flush", "dev", "br-hotspot", "label", "br-hotspot:ap"]);
+        assert!(calls.lock().unwrap().iter().any(|x| *x == eski)); // 0.4.11'in köprüdeki adresi de kalkar
         assert_eq!(kod(ap_adres_kaldir(&c, &y, &a(&["ap-adres-kaldir", "fabrika"]), &ip_var, &runner, NOW)), kod(ExitCode::from(2)));
-        // yeniden başlatma: dosya kaldı, adres yok → yukle temizler, neden=acilis
-        assert_eq!(kod(ap_adres_ekle(&c, &y, &a(&["ap-adres-ekle", "192.168.0.250/24"]), &ip_yok, &runner, NOW)), kod(ExitCode::SUCCESS));
-        assert_eq!(ap_acilis(&c, &y, &ip_yok, NOW).as_deref(), Some("192.168.0.250/24"));
-        assert!(!y.gecici.exists() && denetim().contains("kaldirildi adres=192.168.0.250/24 neden=acilis"));
+        // yeniden başlatma: dosya kaldı, aracı yok → yukle temizler, neden=acilis
+        assert_eq!(kod(ap_adres_ekle(&c, &y, &a(&["ap-adres-ekle", "192.168.1.250/24"]), &ip_yok, &runner, NOW)), kod(ExitCode::SUCCESS));
+        assert_eq!(ap_acilis(&c, &y, &ip_yok, NOW).as_deref(), Some("192.168.1.250/24"));
+        assert!(!y.gecici.exists() && denetim().contains("kapandi adres=192.168.1.250/24 neden=acilis"));
+        // aracı birimi geçersiz adresi reddeder (yan oda açılmaz)
+        assert_eq!(kod(ap_araci(&c, &a(&["ap-araci", "10.50.0.9/24"]))), kod(ExitCode::from(1)));
+        assert_eq!(kod(ap_araci(&c, &a(&["ap-araci"]))), kod(ExitCode::from(2)));
     }
 }

@@ -30,10 +30,13 @@ modunda böyle; o zaman cihazımızın DHCP'sinden 10.50.0.x alır ve görünür
    - Denetim: `AP_KURULUM_ADRES eklendi|kaldirildi adres=… neden=elle|sure|acilis`.
 2. **AP adresi kaydı (aynı sayfa):** AP ayarlandıktan sonra admin AP'nin kalıcı yönetim adresini yazar (ör. 10.50.0.2;
    yalnızca misafir alt ağı içinde ve DHCP havuzu dışında kabul edilir). Ayar `ayarlar.toml`'da.
-   Cihaz bu adresin **yönetim arayüzüne misafirlerin erişimini kapatır**: misafir ağından (10.50.0.0/24, AP'nin kendisi
-   hariç) AP adresine giden bütün TCP/UDP trafiği güvenlik duvarında düşürülür (benim kararım: yalnızca 80/443 değil,
-   tamamı — telnet/ssh/SNMP gibi yönetim kapıları da kapansın). Cihazın kendisi (10.50.0.1) erişmeye devam eder, dolayısıyla
-   tünelden SOCKS ile biz de. Birden çok AP için liste (benim kararım: en çok 8 adres). Denetim `PANEL_AP_ADRES`.
+   **Önemli sınır:** AP'ye kablosuz bağlı bir misafirin AP'nin kendi adresine giden paketi cihazımızdan **hiç geçmez**
+   (AP onu kendi içinde alır); cihazın güvenlik duvarı bunu göremez. Bu yüzden asıl koruma **AP'nin kendi ayarıdır**
+   (aşağıda 4: kablosuzdan yönetimi kapatma / yönetimi yalnızca 10.50.0.1'e izin verme + güçlü parola). Cihazın kuralı
+   yalnızca **köprüden geçen** trafiği kapatır: başka bir porttaki (kablolu ya da ikinci AP'deki) misafirden AP adresine
+   giden bütün trafik, köprü katmanında (bridge ailesi, `kapi.nft`'teki köprü yalıtımıyla aynı yer) düşürülür; ARP serbest
+   kalır (yoksa AP ağda kaybolur), IP trafiğinin tamamı (TCP/UDP/ICMP) düşer (benim kararım). Cihazın kendisi (10.50.0.1)
+   erişmeye devam eder, dolayısıyla tünelden SOCKS ile biz de. Birden çok AP için liste (benim kararım: en çok 8 adres). Denetim `PANEL_AP_ADRES`.
    Güvenlik duvarı değişikliği mevcut kural dosyası düzeniyle, açılışta da uygulanır (kapalıyken güvenli ilkesi bozulmaz).
 3. **SOCKS kısayolu (bizim Windows bilgisayarımız için, repoda `scripts/ap-ac.ps1` ya da `.cmd`):** tek komutla
    - cihaza SSH ile SOCKS tüneli açar (`ssh -N -D <port>`; hedef: dükkân ağındaysa `wificorrect`, dışarıdan tünel adresi —
@@ -46,10 +49,22 @@ modunda böyle; o zaman cihazımızın DHCP'sinden 10.50.0.x alır ve görünür
    çalışma modu Access Point · DHCP sunucusu ve "Smart IP" benzeri otomatik modlar kapalı · ağ adı (SSID) işletmenin adı,
    şifresiz · istemci yalıtımı (AP isolation) açık · kanal 1/6/11, 20 MHz, iletim gücü yüksek · **yönetim parolası =
    işletme sahibinin panel parolası** (merkezde müşteri sayfasında yöneticiye zaten görünür) · en son yönetim adresi sabit
-   10.50.0.2/24, ağ geçidi ve DNS 10.50.0.1 (adres değişince bağlantı kopar; yeni adresten yeniden girilir) · sonra adım 2.
+   10.50.0.2/24, ağ geçidi ve DNS 10.50.0.1 · **yönetim erişimi kısıtı**: modelde varsa "kablosuzdan yönetimi kapat"
+   ("Wireless management" / "Management via wireless" kapalı) ya da "yönetime yalnızca şu IP/MAC izin ver" = 10.50.0.1 /
+   cihazın misafir portu MAC'i (yoksa yalnızca güçlü parolaya kalır; bu not edilir) (adres değişince bağlantı kopar; yeni adresten yeniden girilir) · sonra adım 2.
    Bilinen tuzaklar: TP-Link'te 127.0.0.1 port yönlendirmesiyle giriş Referer yüzünden reddedilir (SOCKS'ta olmaz); bazı
    modellerde parola en çok 15 karakter — müşteri parolası uzunsa kısaltılır ve kullanılan parola müşteri sayfasına not
    olarak yazılır.
+
+   - **Bilinen sınır:** AP'nin fabrika adresi modemin ağındaysa (ör. modem 192.168.1.1, AP de 192.168.1.1/254) geçici
+     adres eklenemez (cihazın internet yolu bozulur). İlk sürümde panel bunu açıkça söyler; çözüm yolu (uygulayıcı
+     isterse ve küçükse): ayrı bir ağ ad alanında (netns) köprüye bağlı geçici arayüz. Yoksa müşteriden AP'yi DHCP'ye
+     alması / sıfırlaması istenir (çoğu yeni AP AP modunda zaten DHCP istemcisidir).
+   - Geçici adres durumu `/run` altında (açılışta kendiliğinden yok), süre `systemd-run --on-active` zamanlayıcısıyla;
+     kayıtlı AP adresleri kuralı panel kaydında hemen ve açılışta/güvenlik duvarı yeniden yüklenince yeniden uygulanır.
+5. **Kabul:** cihazda sahte istemciyle (`scripts/sahte-istemci.sh`, ayrı köprü portu) köprüden AP adresine erişimin
+   kapandığı, 10.50.0.1'den açık olduğu ve geçici adresin 30 dk sonra kalktığı doğrulanır; canlıda Göztepe AP'si
+   (10.50.0.2) kaydedilir ve AP'deki kablosuz yönetim ayarı elle kontrol edilir.
 
 ## Hedef dışı
 

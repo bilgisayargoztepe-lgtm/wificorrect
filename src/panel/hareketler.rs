@@ -9,7 +9,7 @@ use crate::kayit;
 const KISISEL: &[&str] = &[
     "PANEL_OZET", "PANEL_OTURUMLAR", "PANEL_OTURUMLAR_YENILE", "PANEL_KULLANICILAR", "PANEL_KULLANICI_ARA", "PANEL_KULLANICI", "PANEL_KAYIT_GUN",
     "PANEL_KAYIT_GORUNTULE", "PANEL_KAYIT_INDIR", "PANEL_TALEP_ARA", "PANEL_TALEP_PAKET", "PANEL_GEREKCE", "PANEL_YAVASLATILMIS",
-    "PANEL_MISAFIR_KODLARI",
+    "PANEL_MISAFIR_KODLARI", "PANEL_AP_CIHAZLAR",
 ];
 
 pub(super) fn olay_adi(olay: &str) -> &str {
@@ -36,6 +36,8 @@ pub(super) fn olay_adi(olay: &str) -> &str {
         "PANEL_YAVASLATILMIS" => "Yavaşlatılmış cihazlara baktı",
         "PANEL_MISAFIR_KODU" => "Misafir kodu: üret/iptal/uzat",
         "PANEL_MISAFIR_KODLARI" => "Misafir kodlarına baktı",
+        "PANEL_AP_CIHAZLAR" => "Ağdaki cihazlara baktı (AP kurulumu)",
+        "PANEL_AP_ADRES" => "AP adreslerini değiştirdi",
         "PANEL_AYAR" => "Ayar değiştirdi",
         "PANEL_PORT" => "Port değiştirdi",
         "PANEL_PORTAL_METIN" => "Portal metnini değiştirdi",

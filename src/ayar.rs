@@ -236,6 +236,16 @@ pub fn misafir_kodu_acik(cfg: &Config) -> bool {
     GirisYontemi::MisafirKodu.acik(cfg)
 }
 
+/// AP kurulumu (`[ap]`, src/ap.rs): AP'lerin kalıcı yönetim adresleri (misafir alt ağında, DHCP havuzu dışında; en çok
+/// 8). Yalnızca kayıt: panelde gösterilir, ağdaki cihazlar listesinde işaretlenir. Güvenlik duvarı kuralı yoktur: köprü
+/// portları arası iletim `kapi.nft`'te zaten kapalı. Fabrika dönüşünde boşalır.
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+#[serde(default)]
+pub struct Ap {
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub adresler: Vec<String>,
+}
+
 /// Portalsız geçen (`[[allow]]`, ör. AP, personel; trafiği yine kaydedilir) ya da yasaklı (`[[ban]]`) cihaz.
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct Device {
@@ -255,6 +265,7 @@ pub struct Config {
     pub portal: PortalMetin,
     pub uzak: Uzak,
     pub giris: Giris,
+    pub ap: Ap,
     pub allow: Vec<Device>,
     pub ban: Vec<Device>,
 }
@@ -358,6 +369,18 @@ mod tests {
         assert_eq!(std::fs::read_to_string(&p).unwrap(), "[main\n[netgsm]\n");
         assert!(Config::eski_sirlari_temizle(d.join("yok.toml").to_str().unwrap()).is_err());
         let _ = std::fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn ap_adresleri() {
+        let c = Config::parse("[main]\nsite_name = 'X'\n").unwrap();
+        assert!(c.ap.adresler.is_empty());
+        let yazi = toml::to_string_pretty(&c).unwrap();
+        assert!(!yazi.contains("adresler"), "{yazi}");
+        let c = Config::parse("[ap]\nadresler = ['10.50.0.2', '10.50.0.3']\n[[allow]]\nmac = 'aa:bb:cc:dd:ee:99'\n").unwrap();
+        assert_eq!(c.ap.adresler, ["10.50.0.2", "10.50.0.3"]);
+        let back = Config::parse(&toml::to_string_pretty(&c).unwrap()).unwrap();
+        assert_eq!((back.ap.adresler.len(), back.allow.len()), (2, 1));
     }
 
     #[test]

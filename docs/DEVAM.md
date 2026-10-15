@@ -111,6 +111,11 @@ Müşteri paneli menüsünde "Raporlar" (önce haftalar, sonra aylar), yönetimd
 (kişisel veri yok). Engellenenler bölümü yok (kayıtta engel işareti yok), yazdır düğmesi yok (JS yok; Ctrl+P notu + print CSS).
 Kurulum: `merkez-guncelle.sh` (kullanıcı, sudo), sonra hemen görmek için `sudo systemctl start wc-istatistik` (ilk çalıştırma
 bütün arşiv günlerini bir kez hash'ler).
+**Merkez yedeği YOK (2026-10-15 tespiti):** merkez.db, WireGuard sunucu anahtarı/kayıt listesi ve arşivler yalnızca
+gbservers diskinde; `tasi-paketle` yalnızca sunucu çalışırken işe yarar. Kullanıcı kararı: dışarıdan sunucu kiralayacak
+(daha sonra); o zaman her gece şifreli dışa yedek (sqlite güvenli kopya + anahtarlar + ayarlar + arşiv) ve yeni makinede
+geri yükleme denemesi yapılacak. Merkezin Rust'a taşınması ertelendi (fayda küçük, risk büyük; merkez ~36 MB). Sunucuda
+ayrıca Emek ERP, Kurye API, OSRM/Nominatim, PostgreSQL, Samba, xrdp çalışıyor — müşteri artınca merkezi ayrı sunucuya al.
 **Bulgular 2026-10-13:** cihaz telefon (mobil) hattına alınınca HTTPS/sağlık raporu çalışıyor ama WireGuard 1–2 dk sonra kesiliyor
 (büyük olasılıkla mobil operatör engeli); müşteriler sabit hatlı (TT/Superonline) olacağı için ilk müşteri kurulumundan önce
 gerçek bir dış sabit hatta 15 dk tünel denemesi yapılacak, engel çıkarsa tüneli HTTPS/443 kılıfına almak. NetGSM izinsiz-IP

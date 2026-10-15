@@ -1214,8 +1214,8 @@ impl Panel {
             let hucreler = vec![
                 rozet(mac),
                 h(&format!("{} {}", s.ad, s.soyad)),
-                bugun,
                 h(&son(mac)),
+                bugun,
                 hiz_sayfasi::yavas_hucresi(o, mac, sinirlar.get(mac)),
                 post_button(o, "/oturumlar/at", "Bağlantıyı kes", &[("mac", mac)], "tehlike"),
                 h(&crate::kimlik::goster(&s.phone)),
@@ -1240,7 +1240,7 @@ impl Panel {
             let Some(ip) = ip_of.get(mac).or(c.map(|c| &c.ip)).filter(|ip| !ip.is_empty()) else { continue };
             let ad = if not.trim().is_empty() { "İzinli cihaz".to_string() } else { format!("İzinli cihaz · {}", not.trim()) };
             let bugun = olcum_hucreleri(c);
-            let hucreler = vec![rozet(mac), h(&ad), bugun, h(&son(mac)),
+            let hucreler = vec![rozet(mac), h(&ad), h(&son(mac)), bugun,
                                 hiz_sayfasi::yavas_hucresi(o, mac, sinirlar.get(mac)), String::new(), String::new(), format!("<code>{}</code>", h(mac)), h(ip)];
             satirlar.push(Satir {
                 bagli: bagli.contains(mac),
@@ -1311,10 +1311,14 @@ impl Panel {
              Bugün: gece 00:00'dan beri indirilen + yüklenen (MB).</p>\
              <p class=\"not\">Bu sayfadaki her görüntüleme, arama ve indirme kimin yaptığıyla birlikte kaydedilir ve hizmet sağlayıcı tarafından denetlenir.</p>{arac}{}{sayfalama}\
              <p class=\"not\">{}</p>",
-            table(
-                &["Durum", "Ad soyad", "Bugün MB", "Son görülme", "Yavaşlat", "", "Telefon / Kimlik", "MAC", "IP"],
-                &rows,
-                "Bağlı kullanıcı yok"
+            // mobilde ilk dört sütun (durum, ad, son görülme, MB) ekrana sığsın: CSS .kullanici-tablo
+            format!(
+                "<div class=\"kullanici-tablo\">{}</div>",
+                table(
+                    &["Durum", "Ad soyad", "Son görülme", "Bugün MB", "Yavaşlat", "", "Telefon / Kimlik", "MAC", "IP"],
+                    &rows,
+                    "Bağlı kullanıcı yok"
+                )
             ),
             h(&olcum_notu)
         );
@@ -2259,10 +2263,10 @@ mod tests {
         let s = e.p.handle(&req("GET", "/cihazlar", &[], Some(&tok))).body;
         let r = satir_of(&s, "Ayşe");
         assert!(r.contains("<td>4.820</td>") && !r.contains("38,4") && !r.contains("2,1"), "{r}");
-        let basliklar = ["Durum", "Ad soyad", "Bugün MB", "Son görülme", "Yavaşlat", "", "Telefon / Kimlik", "MAC", "IP"];
-        // hücreler başlıklarla aynı sırada: ad, MB, son görülme, yavaşlat, kes, telefon, MAC, IP
+        let basliklar = ["Durum", "Ad soyad", "Son görülme", "Bugün MB", "Yavaşlat", "", "Telefon / Kimlik", "MAC", "IP"];
+        // hücreler başlıklarla aynı sırada: ad, son görülme, MB, yavaşlat, kes, telefon, MAC, IP
         let ad = r.find("Ayşe Y").unwrap();
-        let sira_ok = [r.find("<td>4.820</td>"), r.find("<td>—</td>"), r.find("Bağlantıyı kes"),
+        let sira_ok = [r.find("<td>—</td>"), r.find("<td>4.820</td>"), r.find("Bağlantıyı kes"),
                        r.find("+90"), r.find("<code>aa:bb:cc:dd:ee:01</code>"), r.find("10.50.0.23")]
             .iter()
             .try_fold(ad, |onceki, x| x.filter(|&x| x > onceki));

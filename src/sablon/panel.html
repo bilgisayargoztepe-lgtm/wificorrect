@@ -116,6 +116,8 @@ th:last-child,td:last-child{padding-right:0}
 th{font-size:.8125rem;font-weight:600;color:var(--soluk);border-bottom:1px solid var(--cizgi2)}
 td{border-bottom:1px solid var(--cizgi);vertical-align:middle}
 tbody tr:last-child td{border-bottom:0}
+/* Bağlı kullanıcılar: telefonda durum, ad, son görülme ve MB yan kaydırmadan görünsün */
+@media (max-width:600px){.kullanici-tablo table{min-width:0;font-size:.75rem}.kullanici-tablo th{font-size:.6875rem}.kullanici-tablo th,.kullanici-tablo td{padding:6px 8px 6px 0}.kullanici-tablo td:nth-child(2){white-space:normal;min-width:5.5rem}.kullanici-tablo .rozet{min-height:20px;padding:0 6px;font-size:.6875rem}.kullanici-tablo .rozet.bagli::before{width:5px;height:5px;margin-right:4px}}
 
 /* formlar */
 label{display:block;margin:16px 0 6px;font-size:.875rem;font-weight:600;color:var(--murekkep)}

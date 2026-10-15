@@ -471,6 +471,17 @@ Dal `kolay-baglama`; tasarım `docs/superpowers/specs/2026-10-16-kolay-baglama-d
   (ilk görülme), `CIHAZ_OTOMATIK_AYRILDI secim=tek|liste`, `CIHAZ_BAGLANDI … otomatik`.
 - **Caddy değişikliği yok:** cihaz.wificorrect.com oturumsuzken zaten panel girişine yönlenir; oturum varken panel `/giris` artık
   giriş sonrası sayfaya (cihaz paneli ya da bağlama) gider. İstemci adresi `X-Forwarded-For`'un son öğesi (api ve panel aynı Caddy).
-- **Bilinen sınır:** müşterinin tarayıcısı IPv6, cihaz IPv4 ile çıkarsa adresler eşleşmez (alan adlarında AAAA kaydı yoksa sorun yok);
+- **Bilinen sınır:** müşterinin tarayıcısı IPv6, cihaz IPv4 ile çıkarsa adresler eşleşmez; ikisi de IPv6 ile çıksa da eşleşmez
+  (gizlilik adresleri aynı /64'te bile farklı) — alan adlarında AAAA kaydı yoksa sorun yok, eklenirse cihaz curl'üne `-4` verilmeli;
   CGNAT'ta aynı dış adresi paylaşan başka bir bekleyen cihaz varsa liste gösterilir (kendiliğinden bağlanmaz).
+- **Kalan risk (kabul edildi, spec "Anti-hedefler"):** aynı dış adresi paylaşan biri (müşterilere açık modem Wi-Fi'ı, CGNAT)
+  hesapsız sahte cihaz bildirip, sahip gerçek cihazdan önce girerse onu müşteriye bağlatabilir. En aza indirme: `/api/bagla` ve bu
+  yolla bağlanmış cihazın (`cihaz.otomatik=1`) eşitlemeleri ortak NetGSM bilgisini taşımaz; parola özeti, admin özeti ve cihaz
+  anahtarı bağlama için gerekli olduğundan kalır (`/api/giris` değişmedi). Görme ve kurtarma: Yönetim → Bekleyen cihazlar ve
+  hareketler (`CIHAZ_BAGLANDI … otomatik kimlik=…`, `CIHAZ_BEKLIYOR_RED` / `CIHAZ_BAGLA_RED` — sırrı ya da belirteci tutmayan
+  deneme, kimlik başına saatte bir satır); yanlış bağ "zorla ayır" ile kalkar.
+- **Kayıt hatasında takılmama:** kuyruk (tünel + yedek hesabı) başarısız ya da zaman aşımı olursa (`CIHAZ_KAYIT_HATA`, 503) bekleme
+  kaydı bağa önceden işaretlendiği için cihaz sonraki bildiriminde yeniden `baglan` alır ve dener; müşteri bu sürede (en çok 15 dk)
+  "bağlanıyor" görür, "ulaşılamıyor"a düşmez. Tablo tavanı (2000) doluysa 10 dk'dır bildirmeyen, kimseye ayrılmamış en eski kayıt
+  yer açar. Hız sınırlayıcılar pencereden eski anahtarları bellekten siler.
 - **Kurulum sırası:** önce merkez (`merkez-guncelle.sh`), sonra cihazlar (0.4.13); ISO yeniden üretilir (yeni cihazlar kutudan çıkınca bildirsin).

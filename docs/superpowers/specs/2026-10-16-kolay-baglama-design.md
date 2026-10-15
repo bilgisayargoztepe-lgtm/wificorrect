@@ -55,6 +55,20 @@ Müşteri cihazın adresini bilmez (monitör yok) ve kendinden imzalı sertifika
   cihazın yerine bağlanamaz). Bekleme bildirimleri hız sınırlı.
 - **Yanlış müşteriye bağlanmak:** birden çok aday varsa kendiliğinden bağlanmaz.
 - **Bağlı cihazı bozmak:** bağlı cihaz bildirim göndermez; merkez bağlı bir cihaz kimliğini yeniden ayırmaz.
+- **Kalan risk (bilerek kabul; ürün kararı: kendiliğinden bağlama kalır):** güven sınırı "aynı internet adresi"dir. Aynı
+  dış adresi paylaşan biri (müşterilere açık modem Wi-Fi'ı, kurulum sırasında; aynı CGNAT çıkışı) hesabı olmadan sahte bir
+  "cihaz" bildirebilir; sahip, gerçek cihaz bildirmeden önce girerse ve tek aday sahteyse sahte cihaz müşterinin hesabına
+  bağlanır. Sahte cihazın alabildikleri en aza indirildi: `/api/bagla` cevabı ve bu yolla bağlanmış cihazın sonraki
+  eşitlemeleri (`/api/eslesme`) bütün cihazlarda ortak NetGSM bilgisini (`mock`/`provider`/`netgsm`) **taşımaz** — 0.4.13+
+  cihaz yalnızca `etkin_mock` okur (cihaz satırında `otomatik=1`). Kalanlar bağlamanın kendisi için gerekir: müşteri parola
+  özeti (cihaz cevabı onsuz kabul etmez, yerel panel girişi bununla doğrulanır; zaten `/api/eslesme` cihaz anahtarıyla aynı
+  özeti döner), ortak admin özeti (bağlanır bağlanmaz admin girişi; eşitlemede de gelir), cihaz anahtarı, tünel ve yedek
+  hesabı (müşterinin `/api/sms` kotası, raporları, `wfc-<numara>` arşivine yazma). Parolalı `/api/giris` (eski cihazlar)
+  değişmedi. **Azaltma:** Yönetim → Bekleyen cihazlar (adres, WAN MAC, sürüm, durum) ve hareketler (`CIHAZ_BEKLIYOR`,
+  `CIHAZ_OTOMATIK_AYRILDI`, `CIHAZ_BAGLANDI … otomatik kimlik=…`, reddedilen denemeler `CIHAZ_BEKLIYOR_RED` /
+  `CIHAZ_BAGLA_RED`) neyin bağlandığını gösterir; gerçek cihaz hep `bekle` alıyorsa yönetimde "zorla ayır" sahte bağı
+  kaldırır, müşteri yeniden girince gerçek cihaz bağlanır. Tek aday için onay düğmesi (sessiz kapmayı önler) ileride ürün
+  kararıyla eklenebilir.
 
 ## Kısıtlar
 

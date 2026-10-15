@@ -26,6 +26,11 @@ TELEFON_RE = re.compile(r"[0-9]{8,15}")  # E.164 rakamları, + olmadan
 SMS_GUNLUK_SINIR = 300  # müşteri (cihaz) başına, TR günü
 SMS_YABANCI_SINIR = 20  # yabancı numaralara (Twilio, pahalı) ayrıca; bunlar 300'e de sayılır
 YABANCI_SAYAC = "/yabanci"  # sms_sayac'ta yabancı numara sayacının gün anahtarı eki
+# Kolay bağlama (spec 2026-10-16): bağlanmamış cihazın kalıcı kimliği (32 hex) ve gizli bekleme anahtarı (64 hex)
+KIMLIK_RE = re.compile(r"[0-9a-f]{32}")
+SIR_RE = re.compile(r"[0-9a-f]{64}")
+MAC_RE = re.compile(r"[0-9a-f]{2}(:[0-9a-f]{2}){5}")
+BELIRTEC_RE = re.compile(r"[A-Za-z0-9_-]{20,64}")
 
 
 def _json(durum, veri):
@@ -128,6 +133,15 @@ def saglik_temizle(r):
 RAPOR_UCLARI = ("/api/raporlar", "/api/rapor")
 
 
+def _anahtarlar_gecerli(wg, ssh):
+    return isinstance(wg, str) and kuyruk.WG_RE.fullmatch(wg) and isinstance(ssh, str) and kuyruk.SSH_RE.fullmatch(ssh)
+
+
+def _kimlik_gecerli(kimlik, sir):
+    return (isinstance(kimlik, str) and KIMLIK_RE.fullmatch(kimlik) is not None
+            and isinstance(sir, str) and SIR_RE.fullmatch(sir) is not None)
+
+
 class Api:
     def __init__(self, veri, saat=time.time, kuyruk_ekle=kuyruk.ekle, kuyruk_bekle=kuyruk.bekle,
                  surum_dizini=surumler.DIZIN, sms_ac=None, liste_dizini=listeler.DIZIN, raporlar=None):
@@ -138,12 +152,15 @@ class Api:
         self.kilit, self.hiz = guvenlik.GirisKilidi(), guvenlik.HizSiniri(20, 60)
         # rapor gezinmek misafir SMS'inin (aynı dış IP) bütçesini tüketmesin: raporlara ayrı, IP başına dakikada 60
         self.rapor_hiz = guvenlik.HizSiniri(60, 60)
+        # bekleme bildirimi (2 dk'da bir): kimlik başına dakikada 3; bir IP'den saatte en çok 10 yeni kimlik (tablo şişmesin)
+        self.bekleme_hiz, self.yeni_kimlik_hiz = guvenlik.HizSiniri(3, 60), guvenlik.HizSiniri(10, 3600)
 
     def istek(self, yontem, yol, basliklar, govde, sorgu="", ip=""):
         uclar = {"/api/giris": self.giris, "/api/eslesme": self.eslesme, "/api/parola": self.parola,
                 "/api/saglik": self.saglik, "/api/paket": self.paket, "/api/sms": self.sms,
                 "/api/sms-dogrula": self.sms_dogrula, "/api/liste": self.liste,
-                "/api/raporlar": self.rapor_listesi, "/api/rapor": self.rapor}
+                "/api/raporlar": self.rapor_listesi, "/api/rapor": self.rapor,
+                "/api/bekliyor": self.bekliyor, "/api/bagla": self.bagla}
         if yontem != "POST" or yol not in uclar:
             return _hata(404, "yok", "Bulunamadı.")
         if len(govde) > GOVDE_SINIRI:
@@ -175,8 +192,14 @@ class Api:
         if m["uyelik"] != "aktif":
             return _hata(403, "uyelik", "Üyeliğiniz sona ermiş. Hizmet sağlayıcınıza başvurun.")
         wg, ssh = b.get("wg_pub"), b.get("ssh_pub")
-        if not (isinstance(wg, str) and kuyruk.WG_RE.fullmatch(wg) and isinstance(ssh, str) and kuyruk.SSH_RE.fullmatch(ssh)):
+        if not _anahtarlar_gecerli(wg, ssh):
             return _hata(400, "gecersiz", "Cihaz anahtarları geçersiz.")
+        return self._bagla(m, wg, ssh, b, ip)
+
+    def _bagla(self, m, wg, ssh, b, ip, otomatik=None):
+        """/api/giris ve /api/bagla ortak: cihazı bağlar, tünel + yedek hesabını kuyrukla açar. otomatik: bekleme kimliği
+        (kolay bağlama; cevaba müşteri numarası da girer, cihaz numarayı bilmez)."""
+        numara = str(m["numara"])
         try:
             cid, anahtar = self.veri.cihaz_bagla(m["numara"], wg, ssh, _metin(b.get("isletme_adi")),
                                                  _metin(b.get("unvan")), _metin(b.get("surum")))
@@ -188,11 +211,57 @@ class Api:
             self.veri.hareket(numara, ip, "CIHAZ_KAYIT_HATA", m["numara"], (s or {}).get("hata", "zaman aşımı"))
             return _hata(503, "kayit", "Cihaz kaydı tamamlanamadı, biraz sonra tekrar deneyin.")
         self.veri.cihaz_guncelle(cid, tunel_ip=s["tunel_ip"])
-        self.veri.hareket(numara, ip, "CIHAZ_BAGLANDI", m["numara"], f"cihaz={cid} tunel={s['tunel_ip']}")
-        return _json(200, dict(_parola_alanlari(m), **_lisans(self.veri, m), **_cihaz_ekleri(self.veri),
-                               cihaz_anahtari=anahtar, tunel_ip=s["tunel_ip"],
-                               sunucu_pub=s["sunucu_pub"], uc_nokta=s["uc_nokta"],
-                               yedek_hedefi=f"wfc-{numara}@{YEDEK_SUNUCU}:"))
+        ek = ""
+        if otomatik:
+            self.veri.bekleyen_baglandi(otomatik, cid)
+            ek = f" otomatik kimlik={otomatik[:8]}"
+        self.veri.hareket(numara, ip, "CIHAZ_BAGLANDI", m["numara"], f"cihaz={cid} tunel={s['tunel_ip']}{ek}")
+        y = dict(_parola_alanlari(m), **_lisans(self.veri, m), **_cihaz_ekleri(self.veri),
+                 cihaz_anahtari=anahtar, tunel_ip=s["tunel_ip"],
+                 sunucu_pub=s["sunucu_pub"], uc_nokta=s["uc_nokta"],
+                 yedek_hedefi=f"wfc-{numara}@{YEDEK_SUNUCU}:")
+        if otomatik:
+            y["numara"] = numara
+        return _json(200, y)
+
+    # --- kolay bağlama (spec 2026-10-16) ---
+    def bekliyor(self, b, ip):
+        """Bağlanmamış cihaz 2 dk'da bir: {durum: bekle} ya da {durum: baglan, belirtec} (müşteri aynı IP'den girip bu
+        cihazı aldıysa). Sır tutmazsa kayıt değişmez."""
+        kimlik, sir, wg, ssh, mac = b.get("kimlik"), b.get("sir"), b.get("wg_pub"), b.get("ssh_pub"), b.get("wan_mac", "")
+        if not (_kimlik_gecerli(kimlik, sir) and _anahtarlar_gecerli(wg, ssh)
+                and isinstance(mac, str) and (mac == "" or MAC_RE.fullmatch(mac))):
+            return _hata(400, "gecersiz", "Geçersiz istek.")
+        simdi = self.saat()
+        if not self.bekleme_hiz.izin(kimlik, simdi):
+            return _hata(429, "hiz", "Çok fazla istek, biraz sonra tekrar deneyin.")
+        if not self.veri.bekleyen_var(kimlik) and not self.yeni_kimlik_hiz.izin(ip, simdi):
+            return _hata(429, "hiz", "Çok fazla istek, biraz sonra tekrar deneyin.")
+        surum = _metin(b.get("surum"))[:40]
+        durum, yeni, belirtec = self.veri.bekleyen_bildir(kimlik, sir, ip, surum, mac, wg, ssh)
+        if durum == "taninmadi":
+            return _hata(401, "taninmadi", "Cihaz tanınmadı.")
+        if durum == "dolu":
+            return _hata(503, "dolu", "Şu an kayıt alınamıyor, biraz sonra tekrar deneyin.")
+        if yeni:
+            self.veri.hareket(f"bekleyen:{kimlik[:8]}", ip, "CIHAZ_BEKLIYOR", None,
+                              f"kimlik={kimlik[:8]} surum={surum} mac={mac or '-'}")
+        if durum == "baglan":
+            return _json(200, {"durum": "baglan", "belirtec": belirtec})
+        return _json(200, {"durum": "bekle"})
+
+    def bagla(self, b, ip):
+        """Ayrılmış bekleyen cihaz, bekliyor cevabındaki tek kullanımlık belirteçle parolasız bağlanır (/api/giris gibi)."""
+        kimlik, sir, belirtec, wg, ssh = b.get("kimlik"), b.get("sir"), b.get("belirtec"), b.get("wg_pub"), b.get("ssh_pub")
+        if not (_kimlik_gecerli(kimlik, sir) and isinstance(belirtec, str) and _anahtarlar_gecerli(wg, ssh)):
+            return _hata(400, "gecersiz", "Geçersiz istek.")
+        r = self.veri.bekleyen_belirtec_tuket(kimlik, sir, belirtec)
+        if r is None:
+            return _hata(401, "taninmadi", "Bağlama belirteci geçersiz.")
+        m = self.veri.musteri(r["musteri"])
+        if m is None or m["uyelik"] != "aktif":
+            return _hata(403, "uyelik", "Üyelik sona ermiş.")
+        return self._bagla(m, wg, ssh, b, ip, otomatik=kimlik)
 
     def eslesme(self, b, ip):
         c = self.veri.cihaz_anahtarla(b.get("cihaz_anahtari"))

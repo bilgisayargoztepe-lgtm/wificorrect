@@ -140,7 +140,7 @@ Son ürün, aynı donanımlı boş bir cihaza yüklenen bir ISO olacak; ilk aç�
 - Tasarım: açık zemin, üstte gökyüzü bandı, üstüne binen beyaz kart, yeşil düğme, mavi metin bağlantıları.
 - **Sözleşme metni** (2026-10-03, kullanıcı metni): "Son Kullanıcı Lisans Sözleşmesi" ürünle gelir (`src/sablon/sozlesme.txt`, `[portal] sozlesme` boşsa değil, anahtar yoksa varsayılan); panelden değiştirilebilir. Metindeki **İŞLETMECİ** giriş sayfasında kafe adıyla değişir; kesme işaretinden sonraki ek ünlü uyumuna göre yeniden kurulur (Bocafe’nin, Starbucks’un, Kahvecim’den), büyük harfli başlıkta ad da büyük (BOCAFE’NİN). İyelik ekli adlarda (Kahve Dünyası’ya) genel kural uygulanır. Köşeli parantezli bağlantılar düz `www.wificorrect.com` yazıldı (müşteri giriş yapmadan internete çıkamaz). Tamamı büyük harfli satırlar kalın gösterilir.
 - **KVKK Aydınlatma Metni** (2026-10-03, kullanıcı metni; veri sorumlusu Göztepe Bilgisayar): ürünle gelir (`src/sablon/aydinlatma.txt`), giriş sayfasındaki başlık "KVKK Aydınlatma Metni". Metinlerde `* ` / `• ` / `- ` ile başlayan satırlar madde listesi olarak gösterilir.
-  - **İşletmeden bağımsız (2026-10-15, 0.4.12):** veri sorumlusu ve iletişim bölümü artık `[vergi levhası unvanı]` (Ayarlar'daki unvan; girilmemişse yer tutucu görünür) + "Başvurularınızı işletmeye yazılı olarak iletebilirsiniz."; Göztepe adresi/telefonu/KEP/e-posta kaldırıldı. Ayar dosyasında eski varsayılan (sha256 ile tanınır) kayıtlıysa okunurken yenisiyle değişir; işletmenin düzenlediği metne dokunulmaz.
+  - **İşletmeden bağımsız (2026-10-15, 0.4.12):** veri sorumlusu ve iletişim bölümü işletmenin bilgileriyle dolar (aşağıda "KVKK veri sorumlusu bilgileri"); Göztepe adresi/telefonu/KEP/e-posta metinden ve koddan kaldırıldı. Ayar dosyasında eski varsayılan (sha256 ile tanınır) kayıtlıysa okunurken yenisiyle değişir; işletmenin düzenlediği metne dokunulmaz.
 
 ## Her işletme için (2026-10-03, kullanıcı kararı)
 - Ürün yalnızca kafelere değil otel ve internet veren her işletmeye: arayüzde "kafe" → "işletme" (kurulum: **İşletme adı**, rol: **İşletme sahibi**, Ayarlar: İşletme adı).
@@ -408,5 +408,44 @@ Türkiye'deki modem/AP'lerin çoğu fabrikada 192.168.1.1 (ör. ZyXEL P-660HN-T1
   `10.50.0.1`, `tplinkap.net`, kapalı port reddedildi; aracı durunca macvlan gitti, köprü promiscuity 0; `systemd-run
   --service-type=notify` hazır olunca döndü, port doluyken başarısız döndü, `RuntimeMaxSec` aracıyı durdurdu; DHCP
   denetimi panelin korumalarıyla (`ProtectSystem=full`, `PrivateTmp`, `NoNewPrivileges`, `ProtectHome`) da çalıştı.
-- **Bilinen:** port değişikliği (panel → Portlar) köprüyü yeniden kurarsa macvlan gider ama aracı çalışmaya devam eder:
-  yan odayı kapatıp yeniden açın. Canlı kabul (gerçek ZyXEL/TP-Link, uzaktan güncellemeyle 0.4.12) yapılmadı.
+- **Port değişikliği:** panel → Portlar → Uygula önce açık yan odayı kapatır (`kapandi … neden=port`; aracı
+  durdurulamazsa port değişikliği yapılmaz): köprü yeniden kurulunca arayüzsüz "açık" yan oda kalmaz.
+- **İnceleme düzeltmeleri (final review, 2026-10-15):**
+  - Aracı birimi kısıtlı: `NoNewPrivileges`, `ProtectSystem=strict`, `ProtectHome`, `PrivateTmp`,
+    `CapabilityBoundingSet=CAP_NET_ADMIN CAP_SYS_ADMIN`, `RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK`,
+    `TasksMax=128`, `MemoryMax=64M`, `ProtectControlGroups`, `LockPersonality` (`ap::ARACI_KISIT`). `PrivateNetwork`,
+    `RestrictNamespaces`, `ProtectKernelTunables` bilerek yok (unshare/setns ve yan odanın `/proc/sys/net` yazımı).
+    **Cihazda bu kısıtlarla henüz çalıştırılmadı** — canlı kabulde ilk iş.
+  - DHCP denetimi `timeout 25` ile çalışır (süre dolunca süreç ve yan odası gider) ve aynı anda tek denetim (ikinci
+    istek "Bir denetim zaten sürüyor"): panelin 4 iş parçacığı bağlanmaz.
+  - Kabul döngüsü kalıcı hatada (EMFILE vb.) 100 ms bekler; durum dosyası olmadan çalışan aracı panelde "durum kaydı
+    yok — Kapat" olarak görünür, elle kapatma (panel/`ctl ap-adres-kaldir elle`/fabrika) onu da durdurur
+    (`kapandi adres=-`).
+  - `ctl ap-adres-kaldir` 0.4.11'in köprüdeki geçici adresini de siler (`ip addr flush dev <köprü> label <köprü>:ap`;
+    o sürümün zamanlayıcısı güncellemeden sonra çalışırsa).
+  - `ap-ac.ps1` hazırlık denetimi istisna türüne değil aşamaya bakar (bağlanamadı / bağlandı ama SOCKS cevabı yok);
+    Windows PowerShell 5.1'de kapalı port ve sessiz dinleyiciyle denendi. Gerçek ssh ile (-D ve -L) canlı kabulde.
+  - Yan oda formunda not: AP'nin DHCP havuzu dışında bir adres seçin (IPv4'te çakışma denetimi yok).
+- **Canlı kabul listesi** (gerçek ZyXEL/TP-Link, uzaktan güncellemeyle 0.4.12; henüz yapılmadı): kısıtlı aracı açılıyor
+  ve AP'nin sayfası geliyor (-D ve -L); yan oda aç/kapat ve DHCP denetiminden sonra ana ad alanında
+  `sysctl net.ipv4.ip_forward` hâlâ 1; köprü promiscuous iken misafir trafiği ve işlemci normal; yan oda açıkken gerçek
+  bir misafir girişi çalışıyor; kapanınca köprü promiscuity 0.
+
+## KVKK veri sorumlusu bilgileri (2026-10-15, 0.4.12)
+- Ayarlar → İşletme'de unvanın yanında: **Veri sorumlusunun adresi** (`main.adres`; boş ya da 5–200 karakter, köşeli
+  parantez yok), isteğe bağlı **İrtibat telefonu** (`main.telefon`), **E-posta** (`main.eposta`), **KEP adresi**
+  (`main.kep`). Kodda işletmeye özel varsayılan yok (boş başlar; fabrika dönüşünde boşalır).
+- Aydınlatma metninde yer tutucular: `[vergi levhası unvanı]`, `[başvuru adresi]` (5. maddede "Şahsen merkezimize
+  ([başvuru adresi]) gelerek" ve iletişim listesinde "Müracaat Adresi"), `[irtibat numarası]`, `[e-posta adresi]`,
+  `[KEP adresi]` (5. maddede "… adresiniz kanalıyla [KEP adresi] KEP adresimize" ve listede). Portal unvan gibi
+  yerleştirir (TR ve EN metinler, açık rıza dahil): unvan/adres boşsa yer tutucu görünür; isteğe bağlı bilgi boşsa
+  geçtiği **satır gösterilmez** (KEP'siz işletmede KEP ile başvuru satırı da çıkar). Hukuki metnin geri kalanı aynı;
+  yeni kalıp hukukçu onayı bekliyor.
+- Unvan ya da adres boşsa (cihaz bağlıyken) her sayfada uyarı: "KVKK metninde veri sorumlusu bilgileri eksik (unvan,
+  adres) …".
+- Merkeze: adres günlük eşitlemede (`/api/eslesme`, unvan gibi) gider; merkezde `cihaz.adres` sütunu (eski veritabanına
+  ALTER), yönetimde müşteri sayfasında "Adres". Adres göndermeyen eski cihaz kayıtlı adresi silmez. İlk bağlanmada
+  (`/api/giris`) gönderilmez (o anda girilmemiş olur).
+- Canlı Göztepe cihazı: 0.4.12'ye geçince eski metin yenisiyle değişir ve adres boş olduğu için yer tutucu görünür;
+  güncellemeden sonra panelden unvan + adres (+ telefon, KEP, e-posta) girilmeli.
+

@@ -320,3 +320,34 @@ Dal `rapor-cihaz`; spec "Ek (2026-10-15)", plan `docs/superpowers/plans/2026-10-
   curl cevabı en çok 2 MB okunur.
 - Merkeze ulaşılamazsa "Raporlar şu an alınamıyor…"; lisans/üyelik kapalıysa (yerelde ya da merkez 403) uygun not, yerelde
   kapalıyken merkeze sorulmaz; dosya yoksa "Bu dönem için rapor yok." Görüntüleme denetime yazılmaz (kişisel veri yok).
+
+## AP kurulumu (2026-10-15)
+Dal `ap-kurulum`; tasarım `docs/superpowers/specs/2026-10-15-ap-kurulum-design.md`, teknisyen rehberi `docs/AP_KURULUM.md`.
+Sürüm **0.4.11**. Hizmet sağlayıcı müşterinin taktığı AP'yi cihaz üzerinden uzaktan kurar; merkezde değişiklik yok.
+- **Panel → Admin → AP kurulumu** (yalnızca admin / admin kilidi; sahipte GET kilit formu, POST 403): cihazın misafir
+  portu (köprü adresi + MAC; AP'de "yönetime yalnızca şu IP/MAC" için), **Ağdaki cihazlar** (`/ap-kurulum/cihazlar`:
+  dnsmasq kiraları + `ip -4 neigh show dev <köprü>`; rastgele MAC = telefon; her açılış `PANEL_AP_CIHAZLAR sayi=…`),
+  **Geçici adres**, **AP adresleri**. Kod `src/ap.rs`, `src/panel/ap_sayfasi.rs`.
+- **Geçici adres** (fabrika adresli AP'ye ulaşmak için köprüye ikinci adres): önce zamanlayıcı
+  `systemd-run --unit wfc-ap-gecici-<kimlik> --on-active 1800s … ctl ap-adres-kaldir sure <kimlik>` (kurulamazsa hiçbir şey
+  değişmez), sonra durum `/var/lib/wificorrect/ap-gecici.json` (600), sonra `ip addr add … dev <köprü> label <köprü>:ap
+  valid_lft 1810 preferred_lft 1810` (çekirdek ömrü yedek emniyet). Eski zamanlayıcı başka kimlikli yeni adresi silemez.
+  Ret: önek 16–30 dışı, RFC 1918 dışı, ağ/yayın adresi, misafir ağı, tünel ağı 10.99.0.0/24 (tünel kapalıyken de),
+  cihazın canlı adres/rotalarıyla (WAN dahil) çakışma, zaten açık adres. Açılışta (`ctl yukle`) dosya kalmış ama adres
+  canlıda yoksa temizlenir (`neden=acilis`); servis yeniden başlayınca açık adrese dokunulmaz. Fabrika dönüşünde kalkar
+  (`neden=fabrika`). Konsol: `wificorrect ctl ap-adres-ekle ADRES [--sure 60-1800]`, `ctl ap-adres-kaldir elle`.
+- **AP adresleri** (`ayarlar.toml` `[ap] adresler`, en çok 8; misafir ağında, köprü/ağ/yayın adresi değil, DHCP havuzu
+  .20–.249 dışında): yalnızca kayıt — panelde ve ağdaki cihazlar listesinde "kayıtlı AP adresi". Fabrika dönüşünde boşalır.
+- **Güvenlik duvarı kuralı yok (karar):** `kapi.nft`'teki köprü yalıtımı (`table bridge hotspot` → `isolate`) port→port
+  iletimi zaten düşürüyor; AP'ye kablosuz bağlı misafirin AP'ye giden trafiği cihazdan hiç geçmez — onu yalnızca AP'nin
+  kendi ayarı korur (kablosuzdan yönetim kapalı / yönetim yalnızca 10.50.0.1, parola = işletme sahibinin panel parolası).
+  Yalıtım ileride gevşetilirse AP adresine köprü kuralı yeniden düşünülmeli.
+- **Denetim:** `AP_KURULUM_ADRES eklendi adres=… sure=…` | `kaldirildi adres=… neden=elle|sure|acilis|fabrika`,
+  `PANEL_AP_ADRES adresler=<a,b|-> eski=<…|->`, `PANEL_AP_CIHAZLAR sayi=…`.
+- **Bilinen sınır:** AP'nin fabrika adresi modem ağındaysa geçici adres eklenemez (panel reddeder; müşteriden sıfırlama /
+  DHCP istenir). Ayrı ağ ad alanı (netns) çözümü yapılmadı.
+- **Windows betiği** `scripts/ap-ac.ps1` (+ `ap-ac.cmd`; PowerShell 5.1): `ssh -N -D 127.0.0.1:<port>` (BatchMode, 1080,
+  doluysa 1081–1099) + geçici profilli Chrome (yoksa Edge) `--proxy-server=socks5://…`; pencere kapanınca ssh durur, profil
+  silinir. `-Adres` yalnızca adres/ad + isteğe bağlı port/yol kabul eder; `-Kuru` yalnızca komutları yazar. Adres
+  doğrulaması büyük/küçük harf duyarlı (`-cnotmatch`): duyarsız eşleşme Türkçe yerel ayarda `I` yüzünden şaşıyor.
+  `.ps1`/`.cmd` depoda CRLF (`.gitattributes`), `.ps1` UTF-8 BOM'lu (5.1 BOM'suz dosyayı ANSI okur).

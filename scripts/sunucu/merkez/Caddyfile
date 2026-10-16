@@ -9,10 +9,12 @@ yonetim.wificorrect.com, panel.wificorrect.com, api.wificorrect.com {
 # Uzak panel (spec 2026-10-09): müşteri cihaz panelini tünel (wfc) üstünden buradan açar.
 # Caddy 2.6.2: üst akış adresinde yer tutucu varsa şema (https://) yazılamaz → "tls" taşıma ayarıyla.
 cihaz.wificorrect.com {
-	# istemcinin kendi gönderdiği kimlik başlıkları asla geçmez
+	# istemcinin kendi gönderdiği kimlik başlıkları asla geçmez (X-WFC-AP: AP kipi yalnızca ap.wificorrect.com'dan gelir)
 	request_header -X-WFC-Kullanici
 	request_header -X-WFC-Cihaz
-	@merkez path /_giris /_cikis
+	request_header -X-WFC-AP
+	# /_ap-gecis: cihaz paneli oturumundan (wcc) AP arayüzüne geçiş belirteci (spec 2026-10-16)
+	@merkez path /_giris /_cikis /_ap-gecis
 	handle @merkez {
 		reverse_proxy 127.0.0.1:8081
 	}
@@ -33,8 +35,9 @@ cihaz.wificorrect.com {
 			header_up Cookie "\bwcc=[^;]*" "_"
 			# ortak kökende cihazın CSP'si yerine sabit, sıkı CSP (panelde JavaScript yok); Set-Cookie (wfc) geçer
 			# form-action yönlendirmeye de uygulanır: çıkış (/cikis → /_cikis) panel ya da yönetime döner; ikisi listede olmazsa
-			# tarayıcı gezinmeyi sessizce iptal eder (oturum kapanır ama sayfa yerinde kalır — 2026-10-11)
-			header_down Content-Security-Policy "default-src 'none'; style-src 'unsafe-inline'; img-src data:; form-action 'self' https://panel.wificorrect.com https://yonetim.wificorrect.com; frame-ancestors 'none'"
+			# tarayıcı gezinmeyi sessizce iptal eder (oturum kapanır ama sayfa yerinde kalır — 2026-10-11).
+			# "AP arayüzüne git" formu da /_ap-gecis üzerinden ap.wificorrect.com'a yönlenir.
+			header_down Content-Security-Policy "default-src 'none'; style-src 'unsafe-inline'; img-src data:; form-action 'self' https://panel.wificorrect.com https://yonetim.wificorrect.com https://ap.wificorrect.com; frame-ancestors 'none'"
 		}
 	}
 	# cihaz kapalı/ulaşılamaz: 502 yerine "ulaşılamıyor" sayfası (panel /cihaz?yok=1 döngüsüz gösterir)
@@ -42,6 +45,49 @@ cihaz.wificorrect.com {
 		@cihazyok expression {http.error.status_code} in [502, 503, 504]
 		redir @cihazyok https://panel.wificorrect.com/cihaz?yok=1 302
 	}
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		-Server
+	}
+}
+
+# AP arayüzü (spec 2026-10-16): müşterinin AP'sinin/modeminin kendi web arayüzü cihaz üzerinden (tünel) KÖKTE açılır
+# (AP'nin mutlak yolları /userRpm/…, /cgi-bin/… değişmeden çalışsın). Giriş yalnızca cihaz panelinden:
+# cihaz.wificorrect.com/_ap-gecis → /_ap-giris?t=… → wca çerezi (30 dk) → her istekte forward_auth /ap-yetki.
+# DNS: ap.wificorrect.com A → merkezin dış IP'si (sertifikayı Caddy alır). Cihaz bloğuyla aynı kalıp (Caddy 2.6.2 notları yukarıda).
+ap.wificorrect.com {
+	# istemcinin kendi gönderdiği kimlik ve AP kipi başlıkları asla geçmez
+	request_header -X-WFC-Kullanici
+	request_header -X-WFC-Cihaz
+	request_header -X-WFC-AP
+	@merkez path /_ap-giris /_ap-cikis
+	handle @merkez {
+		reverse_proxy 127.0.0.1:8081
+	}
+	handle {
+		forward_auth 127.0.0.1:8081 {
+			uri /ap-yetki
+			copy_headers X-WFC-Kullanici X-WFC-Cihaz X-WFC-AP
+		}
+		reverse_proxy {http.request.header.X-WFC-Cihaz}:8443 {
+			transport http {
+				tls
+				tls_insecure_skip_verify
+			}
+			header_up -X-WFC-Cihaz
+			# merkez çerezleri cihaza ve AP'ye gitmesin: wca (bu alanın) ve ortak alana atılmış olabilecek wcc → "_"
+			# (cihaz bloğundaki düzeltmeyle aynı; boş değiştirme yazılamaz). AP'nin kendi çerezleri olduğu gibi geçer.
+			header_up Cookie "\b(?:wca|wcc)=[^;]*" "_"
+		}
+	}
+	handle_errors {
+		@cihazyok expression {http.error.status_code} in [502, 503, 504]
+		redir @cihazyok https://panel.wificorrect.com/cihaz?yok=1 302
+	}
+	# CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy bilerek YOK: içerik AP'nin kendi arayüzüdür (satır içi
+	# betik/eval, frameset, betiği yanlış MIME türüyle sunan gömülü sunucular, Referer denetleyen TP-Link); herhangi biri
+	# arayüzü bozar. AP içeriği yalnızca kendi kökeninde çalışır: merkez çerezleri host-only + HttpOnly (buradan okunamaz),
+	# panel/yönetim formları CSRF belirteçli, wca SameSite=Lax (başka sitenin çerçevesinde gönderilmez).
 	header {
 		Strict-Transport-Security "max-age=31536000"
 		-Server

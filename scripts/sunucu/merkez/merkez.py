@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 """WifiCorrect yönetim merkezi (spec 2026-10-04): tek süreç, Caddy arkasında 127.0.0.1:8081. Alan adına göre:
-yonetim.wificorrect.com (hizmet sağlayıcı), panel.wificorrect.com (müşteri), api.wificorrect.com (cihazlar)."""
+yonetim.wificorrect.com (hizmet sağlayıcı), panel.wificorrect.com (müşteri), api.wificorrect.com (cihazlar),
+cihaz.wificorrect.com (cihaz paneline geçit), ap.wificorrect.com (AP arayüzüne geçit)."""
 import os
 import sys
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+import ap  # noqa: E402
 import api  # noqa: E402
 import cihaz  # noqa: E402
 import guvenlik  # noqa: E402
@@ -19,7 +21,7 @@ import yonetim  # noqa: E402
 
 DB = "/var/lib/wificorrect/merkez/merkez.db"
 ALANLAR = {"yonetim.wificorrect.com": "yonetim", "panel.wificorrect.com": "musteri", "api.wificorrect.com": "api",
-           "cihaz.wificorrect.com": "cihaz"}
+           "cihaz.wificorrect.com": "cihaz", "ap.wificorrect.com": "ap"}
 GOVDE_SINIRI = 10_000
 PARCA = 65536
 GUVENLIK_BASLIKLARI = (("X-Content-Type-Options", "nosniff"), ("Referrer-Policy", "no-referrer"), ("X-Frame-Options", "DENY"),
@@ -97,9 +99,10 @@ def main():
         web.log(f"rapor-gruplari yazilamadi: {ex!r}")
     gecis, rp = guvenlik.GecisBelirtecleri(), raporlar.Raporlar()
     m = musteri.Musteri(v, k, gecis=gecis, raporlar=rp)
+    c = cihaz.Cihaz(v, gecis, m)
     Isleyici.app = Merkez({"yonetim": yonetim.Yonetim(v, k, gecis=gecis, musteri_app=m, rapor_gruplari=veri.RAPOR_GRUPLARI,
                                                       raporlar=rp), "musteri": m, "api": api.Api(v, raporlar=rp),
-                           "cihaz": cihaz.Cihaz(v, gecis, m)})
+                           "cihaz": c, "ap": ap.Ap(c)})
     srv = ThreadingHTTPServer(("127.0.0.1", 8081), Isleyici)
     srv.daemon_threads = True
     srv.serve_forever()

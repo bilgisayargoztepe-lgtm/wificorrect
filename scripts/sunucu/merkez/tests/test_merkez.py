@@ -92,6 +92,35 @@ def test_liste_degerli_baslik_ayri_satirlar():
         MZ.Isleyici.app = eski
 
 
+def test_uygulamanin_verdigi_guvenlik_basligi_varsayilanin_yerine():
+    """Bir cevap güvenlik başlığını kendisi verirse (ap.sayfa: aynı kökenden çerçevelenebilir) o kullanılır, varsayılan
+    ikinci satır olarak eklenmez (iki farklı X-Frame-Options değeri tarayıcıda belirsiz); vermediği varsayılanlar eklenir."""
+    import http.client
+    import threading
+    from http.server import ThreadingHTTPServer
+
+    class Cerceveli:
+        def istek(self, yontem, yol, basliklar, govde, sorgu, ip):
+            return 403, {"Content-Type": "text/html; charset=utf-8", "x-frame-options": "SAMEORIGIN",
+                         "Content-Security-Policy": "default-src 'self'; frame-ancestors 'self'"}, b"x"
+    eski = MZ.Isleyici.app
+    MZ.Isleyici.app = Cerceveli()
+    srv = ThreadingHTTPServer(("127.0.0.1", 0), MZ.Isleyici)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    try:
+        c = http.client.HTTPConnection("127.0.0.1", srv.server_address[1], timeout=5)
+        c.request("GET", "/ap-yetki", headers={"Host": "ap.wificorrect.com"})
+        r = c.getresponse()
+        assert r.status == 403 and r.headers.get_all("X-Frame-Options") == ["SAMEORIGIN"]
+        assert r.headers.get_all("Content-Security-Policy") == ["default-src 'self'; frame-ancestors 'self'"]
+        assert r.headers.get_all("Referrer-Policy") == ["no-referrer"] and r.headers.get_all("X-Content-Type-Options") == ["nosniff"]
+        c.close()
+    finally:
+        srv.shutdown()
+        srv.server_close()
+        MZ.Isleyici.app = eski
+
+
 def test_buyuk_govde_parca_parca_yazilir():
     """Paket (MB'larca) tek sendall ile yazılırsa 20 sn'lik zaman aşımı bütün gönderime uygulanır: 64 KB'lık parçalar."""
     class Yazici:

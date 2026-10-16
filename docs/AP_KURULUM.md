@@ -44,8 +44,9 @@ modellerde yedek yol Windows betiğidir (4. bölüm). Tasarım: `docs/superpower
 3. **AP arayüzüne git**: yeni sekmede ap.wificorrect.com açılır, içinde AP'nin kendi giriş ekranı. Etiketteki fabrika
    kullanıcı adı/parolasıyla girin. Erişim **30 dk** sürer (yan odada en çok yan odanın kalan süresi); bölümde
    **Erişimi kapat** ile erken biter. Süre dolunca ap.wificorrect.com "AP erişimi kapalı" der: panelden yeniden açın
-   (aynı sayfadaki "AP oturumunu kapat ve bu tarayıcıdaki AP verisini sil" bağlantısı tarayıcıdaki AP çerezlerini,
-   saklanan AP parolasını ve depolamayı da siler; wificorrect.com'daki panel/yönetim oturumları da kapanır).
+   (aynı sayfadaki "AP oturumunu kapat ve bu tarayıcıdaki AP verisini sil" bağlantısı tarayıcıdaki AP çerezlerini ve
+   depolamayı da siler, saklanan AP parolasını da çoğu tarayıcıda siler — tarayıcıya bağlı; wificorrect.com'daki
+   panel/yönetim oturumları da kapanır).
    Yan oda açıkken o ağdaki başka bir adrese de gidilebilir (Yan oda bölümündeki "AP'nin adresi" formu).
 4. **Yabancı DHCP sunucusu var mı?** düğmesi: misafir portunda ~3 sn DHCP teklifi dinler. Kırmızı uyarı çıkarsa
    listedeki MAC müşterinin AP'sininkiyle aynı mı bakın; o AP'nin DHCP'si 3. bölümde **ilk iş** kapatılır.
@@ -157,6 +158,9 @@ scripts\ap-ac.cmd -Adres 192.168.1.1 -Tunel 10.99.0.11 -Kuru     (yalnızca yön
   Kaydet'e basın; değiştirilmediyse "Ağdaki cihazlar"da o adresi kimin kullandığına bakın.
 - **Aynı sitenin başka sayfasından ya da başka siteden AP'ye istek gitmez** (AP'ye yalnızca cihaz panelinden gelen
   gezinme ve AP'nin kendi sayfaları); Service Worker kullanan AP arayüzleri (çok nadir) panelden çalışmaz → betik.
+- **"Farklı internet adresi":** "AP arayüzüne git" bağlantısı onu isteyen ağdan (aynı /24) açılmalı; iCloud Özel Geçiş
+  (iPhone Safari) ya da VPN her bağlantıyı ayrı adresten çıkarabilir. Özel Geçiş'i/VPN'i kapatıp cihaz panelinden
+  yeniden açın (iPhone: Ayarlar → adınız → iCloud → Özel Geçiş); bilgisayarda betik de olur.
 - **Merkez henüz güncellenmediyse** "AP arayüzüne git" "AP erişimi şu an kullanılamıyor" der → betik.
 - **TP-Link + `ssh -L` doğrudan AP'ye (127.0.0.1 port yönlendirmesi):** giriş Referer/Host yüzünden reddedilir. Betik
   hiçbir yöntemde bunu yapmaz: Chrome her zaman SOCKS ile AP'nin kendi adresini açar (`ssh -L` yalnızca cihazdaki

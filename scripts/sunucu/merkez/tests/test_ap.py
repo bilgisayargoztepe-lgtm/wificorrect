@@ -1,5 +1,8 @@
 """AP arayüzü — merkez (spec 2026-10-16 "Mimari (sözleşme)" 2–3): cihaz.wificorrect.com/_ap-gecis → 60 sn'lik tek
 kullanımlık belirteç → ap.wificorrect.com/_ap-giris → wca çerezi → Caddy forward_auth /ap-yetki → /_ap-cikis."""
+import contextlib
+import html
+import io
 import os
 import re
 import sys
@@ -116,9 +119,11 @@ def test_gecis_belirteci_wca_cerezi_ve_yetki():
         assert parcalar[0].startswith("wca=") and {"HttpOnly", "Secure", "SameSite=Strict", "Path=/", "Max-Age=1800"} <= set(parcalar)
         assert "domain" not in sc.lower()  # yalnızca ap.wificorrect.com (alt/üst alanlara gitmez)
         assert r[1]["Cache-Control"] == "no-store"
-        # yeni AP oturumu (müşteri değişimi): kökün önbelleği ve depolaması — Service Worker kayıtları dahil — silinir
-        # (final review C1). "cookies" yok: kayıtlı alan adının (wificorrect.com) bütün çerezlerini, yeni wca'yı da siler.
-        assert r[1]["Clear-Site-Data"] == '"cache", "storage"'
+        # yeni AP oturumu (müşteri değişimi): kökün depolaması — Service Worker kayıtları dahil — silinir (final review C1).
+        # "cookies" yok: kayıtlı alan adının (wificorrect.com) bütün çerezlerini, yeni wca'yı da siler. "cache" yok
+        # (re-review m4): bu kökteki her cevap no-store, önbellekte bir şey yok; Chromium'da önbellek silme yönlendirmeyi
+        # gözle görülür geciktirir
+        assert r[1]["Clear-Site-Data"] == '"storage"'
         y = yetki(a, z)
         assert y[0] == 200 and y[2] == b""
         # AP kipinde kullanıcı ayrı başlıkta (final review M2): 0.4.15 öncesi cihaz X-WFC-Kullanici'li isteği oturumlu panel
@@ -191,16 +196,52 @@ def test_gecis_yalnizca_cihaz_panelinden_ust_duzey_gezinmeyle():
         wca(giris(a, belirtec(gecis(c, w))))  # Sec-Fetch-* göndermeyen eski tarayıcı geçer (asıl koruma SameSite=Strict + IP)
 
 
-def test_belirtec_veren_tarayicinin_adresine_bagli():
-    """Belirteç /_ap-gecis'teki istemci adresine bağlı (final review C1 "bind the token"): kötü niyetli bir AP betiğinin
-    tarayıcıdan sızdırdığı belirteç başka adresten kullanılamaz; denenen belirteç yanar (meşru istek de "geçersiz" görür)."""
+def test_ayni_ag():
+    """Belirtecin adres bağı: IPv4'te /24, IPv6'da /64 (IPv4'e eşlenmiş IPv6 yazımı IPv4 sayılır); adres olmayan değer
+    yalnızca kendisiyle aynı (eski tam eşitlik)."""
+    for x, y, beklenen in (("203.0.113.5", "203.0.113.5", True), ("203.0.113.5", "203.0.113.254", True),
+                           ("203.0.113.5", "203.0.112.5", False), ("10.0.0.1", "10.0.1.1", False),
+                           ("2001:db8:1:2::5", "2001:db8:1:2:ffff:ffff:ffff:ffff", True),
+                           ("2001:db8:1:2::5", "2001:db8:1:3::5", False), ("::ffff:203.0.113.5", "203.0.113.77", True),
+                           ("203.0.113.5", "2001:db8::5", False), ("203.0.113.5", "::cb00:7105", False),
+                           ("yerel", "yerel", True), ("yerel", "203.0.113.5", False), (None, "203.0.113.5", False)):
+        assert A.ayni_ag(x, y) is beklenen and A.ayni_ag(y, x) is beklenen, (x, y)
+
+
+def _ap_giris(a, t, ip):
+    return a.istek("GET", "/_ap-giris", dict(AP, **_getirme("same-site")), "", "t=" + t, ip)
+
+
+def test_belirtec_veren_tarayicinin_agina_bagli():
+    """Belirteç /_ap-gecis'teki istemci adresinin ağına bağlı (final review C1 "bind the token", re-review I-1): kötü
+    niyetli bir AP betiğinin tarayıcıdan sızdırdığı belirteç başka ağdan kullanılamaz, denenen belirteç yanar. cihaz.* ve
+    ap.* ayrı bağlantılar: aynı ağdan (IPv4 /24, IPv6 /64) başka çıkış adresi (taşıyıcı NAT havuzu, çift hat) geçer. Ağ
+    farklıysa (iCloud Özel Geçiş, VPN) genel "geçersiz" değil, sebebi ve çözümü söyleyen ayrı sayfa (yeniden denemek
+    aynı yerde takılırdı)."""
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
         v, c, a, saat, n = kur(tmp)
         w = wcc_ac(c, v, saat, n)
-        t = belirtec(gecis(c, w))
-        r = a.istek("GET", "/_ap-giris", dict(AP, **_getirme("same-site")), "", "t=" + t, "198.51.100.66")
-        assert r[0] == 403 and "Set-Cookie" not in r[1] and "geçersiz" in r[2].decode()
-        assert giris(a, t)[0] == 403
+        for gecis_ip, giris_ip in (("203.0.113.5", "203.0.113.200"), ("2001:db8:1:2::5", "2001:db8:1:2:aaaa:bbbb:cccc:dddd"),
+                                   ("203.0.113.5", "::ffff:203.0.113.9")):
+            wca(_ap_giris(a, belirtec(gecis(c, w, ip=gecis_ip)), giris_ip))
+        for gecis_ip, giris_ip in (("203.0.113.5", "198.51.100.66"), ("203.0.113.5", "203.0.114.5"),
+                                   ("2001:db8:1:2::5", "2001:db8:1:3::5"), ("203.0.113.5", "2001:db8:1:2::5"),
+                                   ("203.0.113.5", "yerel")):
+            t = belirtec(gecis(c, w, ip=gecis_ip))
+            gunluk = io.StringIO()
+            with contextlib.redirect_stderr(gunluk):
+                r = _ap_giris(a, t, giris_ip)
+            s = html.unescape(r[2].decode())
+            assert r[0] == 403 and "Set-Cookie" not in r[1] and "text/html" in r[1]["Content-Type"], giris_ip
+            assert r[1]["Cache-Control"] == "no-store", giris_ip
+            assert ("Bağlantınız farklı bir internet adresinden geldi (ör. iCloud Özel Geçiş, VPN). Özel Geçiş/VPN'i "
+                    "kapatıp cihaz panelinden yeniden deneyin.") in s and "geçersiz" not in s, giris_ip
+            assert 'href="https://cihaz.wificorrect.com/"' in s, giris_ip
+            # teşhis için iki adres de günlükte (merkez journal)
+            assert f"AP_GIRIS_RED adres_farkli ip={giris_ip} gecis_ip={gecis_ip}" in gunluk.getvalue(), giris_ip
+            # belirteç yandı: aynı ağdan da artık genel "geçersiz" sayfası
+            r = _ap_giris(a, t, gecis_ip)
+            assert r[0] == 403 and "Set-Cookie" not in r[1] and "geçersiz" in r[2].decode(), giris_ip
         wca(giris(a, belirtec(gecis(c, w))))  # aynı tarayıcıdan (adresten) yenisi açılır
 
 
@@ -327,6 +368,14 @@ def test_yetkisiz_sayfa():
         assert "AP erişimi kapalı" in s and "AP kurulumu" in s and "https://cihaz.wificorrect.com/" in s
         # temizleyerek çıkış bağlantısı (aynı kökte; tarayıcıdaki AP verisi silinir)
         assert 'href="/_ap-cikis"' in s
+        # çerçeveli AP arayüzlerinde (TP-Link userRpm frameset) sayfa çerçevenin içinde görünür ve bağlantılar üst pencereyi
+        # açar (re-review m1): çerçevedeki gezinme Sec-Fetch-Dest: frame olur, /_ap-cikis onu reddeder; cihaz paneli
+        # (frame-ancestors 'none') çerçevede boş görünür
+        assert '<a href="/_ap-cikis" target="_top">' in s and '<a href="https://cihaz.wificorrect.com/" target="_top">' in s
+        # yalnızca aynı kökenden çerçevelenebilir (aynı kökendeki AP betiği bu adrese zaten gidebilir; sayfada sır yok);
+        # merkezin diğer cevaplarında DENY kalır (test_merkez)
+        assert y[1]["X-Frame-Options"] == "SAMEORIGIN"
+        assert y[1]["Content-Security-Policy"] == dict(MZ.GUVENLIK_BASLIKLARI)["Content-Security-Policy"] + "; frame-ancestors 'self'"
         y = yetki(a, "uydurma")
         assert y[0] == 403 and "Max-Age=0" in y[1]["Set-Cookie"] and "SameSite=Strict" in y[1]["Set-Cookie"]  # bozuk/eskimiş çerez silinir
         # cihaz paneli çerezi (wcc) AP alanında geçmez

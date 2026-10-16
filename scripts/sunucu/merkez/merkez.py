@@ -81,7 +81,10 @@ class Isleyici(BaseHTTPRequestHandler):
                 web.log(f"HATA {yontem} {parca.path}: {ex!r}")
                 durum, basliklar, icerik = 500, {"Content-Type": "text/plain; charset=utf-8"}, "Bir sorun oluştu".encode()
         self.send_response(durum)
-        for k, v in list(baslik_satirlari(basliklar)) + list(GUVENLIK_BASLIKLARI):
+        # cevabın kendi verdiği güvenlik başlığı (ap.sayfa: aynı kökenden çerçevelenebilir) varsayılanın yerine geçer: iki
+        # farklı X-Frame-Options / CSP satırı tarayıcıda belirsiz ya da en sıkısı olurdu
+        ozel = {k.lower() for k in basliklar}
+        for k, v in list(baslik_satirlari(basliklar)) + [(k, v) for k, v in GUVENLIK_BASLIKLARI if k.lower() not in ozel]:
             self.send_header(k, v)
         self.send_header("Content-Length", str(len(icerik)))
         self.end_headers()

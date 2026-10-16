@@ -46,9 +46,11 @@ değişmeden çalışır; yol önekli (/ap/...) aktarım çoğu AP'yi bozar.
    kullanımlık belirteç üretir → `https://ap.wificorrect.com/_ap-giris?t=…` → merkez belirteci `wca` çerezine çevirir
    (yalnızca ap.wificorrect.com, HttpOnly, Secure, SameSite=Strict, 30 dk; `wcc` oturumu geçersizleşince — parola, lisans,
    bağ — `wca` da geçersiz) → `/`'a yönlendirir. `/_ap-cikis` çerezi siler.
-   *Final review (2026-10-16) eki:* belirteç isteyen istemci adresine bağlı; `/_ap-giris` yalnızca `Sec-Fetch-Site:
-   same-site` (ya da başlıksız eski tarayıcı) ve `Clear-Site-Data: "cache", "storage"` + eski AP çerezlerini siler;
-   `/_ap-cikis` `Clear-Site-Data: "cache", "cookies", "storage"`. Ayrıntı KURULUM_GUNLUGU "AP arayüzü — merkez".
+   *Final review (2026-10-16) eki:* belirteç isteyen istemci adresinin ağına bağlı (IPv4 /24, IPv6 /64; ağ farklıysa —
+   iCloud Özel Geçiş, VPN — belirteç yanar ve ayrı açıklama sayfası çıkar; re-review 2026-10-17 I-1); `/_ap-giris`
+   yalnızca `Sec-Fetch-Site: same-site` (ya da başlıksız eski tarayıcı) ve `Clear-Site-Data: "storage"` + eski AP
+   çerezlerini siler; `/_ap-cikis` `Clear-Site-Data: "cache", "cookies", "storage"`. Ayrıntı KURULUM_GUNLUGU "AP arayüzü —
+   merkez".
 3. **Caddy `ap.wificorrect.com` bloğu:** gelen `X-WFC-*` başlıkları silinir; Service Worker betiği (`Service-Worker:
    script`) 403; `/_ap-giris`, `/_ap-cikis` merkeze;
    diğer her şey `forward_auth` → merkez `/ap-yetki` (`wca` geçerliyse 200 + `X-WFC-Cihaz: <tünel IP>`,

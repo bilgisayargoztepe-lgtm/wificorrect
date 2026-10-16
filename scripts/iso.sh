@@ -1,7 +1,7 @@
 #!/bin/sh
 # Debian 13 netinst (imzası doğrulanır) + preseed + .deb → kurulum ISO'su. Kullanım: scripts/iso.sh <deb> <sürüm> <çıktı>
 # Ortam: WFC_SSH_PUB (opsiyonel) → kurulan sistemde /root/.ssh/authorized_keys.
-# preseed.cfg ve iso/initrd/ betikleri kurucunun initrd'sine eklenir (/preseed.cfg, /lib/wificorrect): yüklenmeleri
+# preseed.cfg ve iso/initrd/ betikleri kurucunun initrd'sine eklenir (/preseed.cfg, /wificorrect): yüklenmeleri
 # hangi diskin /cdrom'a bağlandığına bağlı olmaz. ISO'ya ve initrd'ye aynı, her derlemede yeni kimlik konur
 # (/.wificorrect, /wificorrect-kimlik); kurucu /cdrom'a yalnızca bu kimliği tutan ortamı bağlar.
 set -eu
@@ -21,14 +21,19 @@ if [ -n "${WFC_SSH_PUB:-}" ]; then printf '%s\n' "$WFC_SSH_PUB" > "$d/ek/wificor
 printf 'WifiCorrect %s %s\n' "$surum" "$(cat /proc/sys/kernel/random/uuid)" > "$d/kimlik"
 # initrd: Debian'ınkinin arkasına ikinci bir (gzip'li newc cpio) arşiv eklenir; çekirdek ikisini sırayla açar.
 k=$d/initrd-ek
-mkdir -p "$k/lib/wificorrect"
+mkdir -p "$k/wificorrect"
 cp iso/preseed.cfg "$k/preseed.cfg"
 cp "$d/kimlik" "$k/wificorrect-kimlik"
-cp iso/initrd/* "$k/lib/wificorrect/"
-chmod 644 "$k/preseed.cfg" "$k/wificorrect-kimlik" && chmod 755 "$k/lib/wificorrect"/*
+cp iso/initrd/* "$k/wificorrect/"
+chmod 644 "$k/preseed.cfg" "$k/wificorrect-kimlik" && chmod 755 "$k/wificorrect"/*
 xorriso -osirrox on -indev "$d/$ad" -extract /install.amd/initrd.gz "$d/initrd.gz"
 chmod u+w "$d/initrd.gz"
-(cd "$k" && find . | LC_ALL=C sort | cpio -o -H newc -R 0:0 --quiet | gzip -9) >> "$d/initrd.gz"
+# Eklenen adlar Debian'ın initrd'sinde olmamalı: çekirdek aynı adlı farklı türdeki girdiyi ezer (ör. /lib sembolik bağı
+# bir dizinle ezilince kurucu çekirdek paniğiyle açılmıyordu).
+if gzip -dc "$d/initrd.gz" | cpio -t --quiet 2>/dev/null | grep -Eqx '(\./)?(wificorrect|wificorrect-kimlik|preseed\.cfg)(/.*)?'; then
+  echo "initrd'de eklenecek adlardan biri zaten var" >&2; exit 1
+fi
+(cd "$k" && find . -mindepth 1 | LC_ALL=C sort | cpio -o -H newc -R 0:0 --quiet | gzip -9) >> "$d/initrd.gz"
 rm -f "$cikti/wificorrect-kurulum-$surum.iso"
 xorriso -indev "$d/$ad" -outdev "$cikti/wificorrect-kurulum-$surum.iso" \
   -map "$d/kimlik" /.wificorrect -map "$d/ek/wificorrect" /wificorrect -map "$d/initrd.gz" /install.amd/initrd.gz \

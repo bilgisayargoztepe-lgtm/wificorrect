@@ -1,5 +1,5 @@
 #!/bin/sh
-# partman/early_command (initrd'de /lib/wificorrect/disk.sh). Hiçbir diske dokunmadan önce:
+# partman/early_command (initrd'de /wificorrect/disk.sh). Hiçbir diske dokunmadan önce:
 #  1) /cdrom gerçekten bu ISO mu (kimlik dosyası)? Değilse dur: başka bir kurulum belleğinden paket kurulmasın.
 #  2) İnternet var mı (varsayılan rota)? Yoksa dur: paketler internetten iner, ağsız kurulum yarım kalırdı.
 #  3) Kurulacak disk: kurulum ortamının kendisi (/cdrom'daki aygıt) hiçbir zaman; bağlı (mount) diskler ve 7 GB'tan
@@ -7,7 +7,7 @@
 #     belleği (ISO 9660 içeren) değilse. Hiç aday yoksa dur.
 # Duruşlar KALICIDIR (ortak.sh dur), hiçbir disk silinmez. Seçim seri porta da yazılır (duman testi) ve
 # /tmp/wificorrect-hedef'e (ic|usb; son.sh) yazılır.
-. /lib/wificorrect/ortak.sh
+. /wificorrect/ortak.sh
 
 if ! bizim_ortam /cdrom; then
   seri "KURULUM ORTAMI YANLIS: /cdrom = $(awk '$2=="/cdrom"{print $1}' /proc/mounts)"

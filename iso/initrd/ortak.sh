@@ -1,4 +1,4 @@
-# Kurucu betiklerinin ortak işlevleri (initrd'de /lib/wificorrect/ortak.sh; ". " ile okunur).
+# Kurucu betiklerinin ortak işlevleri (initrd'de /wificorrect/ortak.sh; ". " ile okunur).
 # seri <metin>: sistem günlüğüne ve seri porta (QEMU duman testi). Arka planda, tanımlayıcılar kapalı: seri port
 # taşıyıcı beklerse yalnızca bu süreç bekler.
 seri() {

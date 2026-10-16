@@ -3,7 +3,7 @@
 # kurulum ortamı adayı olarak yalnızca BU ISO'yu (kimlik dosyası tutan ISO 9660) verir. cdrom-detect yalnızca
 # .disk/info'ya bakar; başka bir Debian/Ubuntu belleği ya da diski takılıysa onu /cdrom'a bağlayabiliyordu.
 # Diğer bütün çağıranlar (partman, disk.sh, hw-detect) gerçek listeyi görür.
-G=/lib/wificorrect/list-devices.gercek
+G=/wificorrect/list-devices.gercek
 cdrom_detect_mi() {
   p=$PPID i=0
   while [ -n "$p" ] && [ "$p" -gt 1 ] && [ $i -lt 10 ]; do
@@ -14,7 +14,7 @@ cdrom_detect_mi() {
   return 1
 }
 cdrom_detect_mi || exec "$G" "$@"
-. /lib/wificorrect/ortak.sh
+. /wificorrect/ortak.sh
 modprobe isofs 2>/dev/null || true
 m=/tmp/wificorrect-ortam-dene
 mkdir -p "$m"

@@ -497,7 +497,7 @@ Dal `iso-donanim`. İlk gerçek kurulum (v0.4.13 ISO, J1900, 2× Realtek r8169, 
 
 Düzeltmeler:
 - **preseed initrd'de:** `scripts/iso.sh` Debian'ın `install.amd/initrd.gz`'sinin arkasına ikinci bir cpio ekler:
-  `/preseed.cfg`, `/wificorrect-kimlik` ve `iso/initrd/*` → `/lib/wificorrect/` (`ortak.sh`, `basla.sh`, `list-devices`,
+  `/preseed.cfg`, `/wificorrect-kimlik` ve `iso/initrd/*` → `/wificorrect/` (`/lib` değil: initrd'de `/lib` sembolik bağdır, ikinci arşivdeki aynı adlı dizin onu ezer ve kurucu çekirdek paniğiyle açılmaz) (`ortak.sh`, `basla.sh`, `list-devices`,
   `disk.sh`). Menüde `preseed/file` yok; preseed hangi disk bağlanırsa bağlansın yüklenir (UEFI ve BIOS aynı initrd).
 - **Kimlik:** her ISO derlemesinde yeni `WifiCorrect <sürüm> <uuid>`; ISO'da `/.wificorrect`, initrd'de `/wificorrect-kimlik`.
   `preseed/early_command` (`basla.sh`, cdrom-detect'ten önce) `list-devices`'ı sarmalayıcıyla değiştirir: çağıran

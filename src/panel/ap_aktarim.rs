@@ -1,6 +1,8 @@
 //! AP arayüzü aktarımı (spec 2026-10-16-ap-arayuz): merkezden (açık tünel + merkezin tünel adresi; `X-WFC-Kullanici`
 //! ile aynı güven kuralı) `X-WFC-AP: 1` başlığıyla gelen istek panel sayfası değil, açık AP hedefine **aktarım**dır
 //! (src/ap_arayuz.rs). Başlık başka kaynaktan gelirse yok sayılır: istek panele düşer (bağlı cihazda yerel istek 404).
+//! AP kipinde müşteri numarası `X-WFC-AP-Kullanici` başlığındadır, `X-WFC-Kullanici` hiç gelmez (final review M2): AP
+//! isteği panele düşse de oturum açtırmaz; 0.4.15 öncesi cihaz da AP isteğini oturumlu panel isteği saymaz.
 //! Aktarımlar panelin 4 iş parçacığını tutmaz: ayrı `AP_ISCI` iş parçacığı + `AP_KUYRUK` sıralık kuyruk (dolarsa 503).
 //! AP kipindeki cevaplara panelin sıkı başlıkları (CSP, X-Frame-Options: DENY …) eklenmez: AP arayüzlerini bozar.
 
@@ -18,6 +20,11 @@ pub(super) enum ApKarar {
     Cevap(Resp),
     Aktar(Hedef),
 }
+
+/// AP kipinde (ap.wificorrect.com kökünde) merkezin temizleyerek çıkış adresi: AP'lerin çerezleri, tarayıcının sakladığı
+/// HTTP kimlik bilgileri ve depolama silinir (Clear-Site-Data; wificorrect.com'daki bütün oturumlar da kapanır)
+const CIKIS: &str = "<p><a href=\"/_ap-cikis\">AP oturumunu kapat ve bu tarayıcıdaki AP verisini sil</a> (WifiCorrect panel ve yönetim \
+                     oturumlarınız da kapanır)</p>";
 
 /// AP kipinde ve geçişte gösterilen sade sayfa (menüsüz, betiksiz)
 pub(super) fn sade_sayfa(durum: u16, baslik: &str, mesaj: &str, baglanti: bool) -> Resp {
@@ -60,7 +67,9 @@ impl Panel {
         }
         let now = (self.clock)();
         let kapali = || {
-            ApKarar::Cevap(sade_sayfa(403, "AP erişimi kapalı", "AP arayüzü erişimi açık değil ya da süresi doldu. Cihaz panelinden yeniden açın.", true))
+            let mut r = sade_sayfa(403, "AP erişimi kapalı", "AP arayüzü erişimi açık değil ya da süresi doldu. Cihaz panelinden yeniden açın.", true);
+            r.body = r.body.replace("</body>", &format!("{CIKIS}</body>"));
+            ApKarar::Cevap(r)
         };
         match ap_arayuz::denetle(&self.ap_yollar, &cfg, now) {
             ap_arayuz::Durum::Gecerli(h) => ApKarar::Aktar(h),
@@ -84,21 +93,21 @@ pub(super) fn ap_cevapla(req: tiny_http::Request, r: Resp) {
     let _ = req.respond(resp);
 }
 
-/// AP iş parçacığında: isteği hedefe aktarır, cevabı (gerekirse yeniden yazılmış) akıtır.
+/// AP iş parçacığında: isteği hedefe aktarır, cevabı (gerekirse yeniden yazılmış) akıtır. Service Worker betiği ve başka
+/// siteden gelen istek AP'ye hiç gitmez (`ap_arayuz::istek_reddi`). Kayıtlı AP adresinde başka MAC çıkarsa erişim kapanır
+/// (`AP_ARAYUZ kapandi … neden=mac`, bir kez).
 pub(super) fn ap_isle(p: &Panel, mut req: tiny_http::Request, h: Hedef) {
     let yontem = req.method().as_str().to_uppercase();
     let yol = req.url().to_string();
     let basliklar: Vec<(String, String)> = req.headers().iter().map(|hd| (hd.field.as_str().as_str().to_string(), hd.value.as_str().to_string())).collect();
+    if let Some(neden) = ap_arayuz::istek_reddi(&yontem, &basliklar) {
+        return ap_cevapla(req, sade_sayfa(403, "AP arayüzü", ap_arayuz::red_mesaji(neden), true));
+    }
     let kamu = ap_arayuz::kamu_adi(basliklar.iter().find(|(a, _)| a.eq_ignore_ascii_case("Host")).map(|(_, d)| d.as_str()));
     let boy = req.body_length().map(|n| n as u64);
     let yollar = &p.ap_yollar;
     // AP aynı adreste başka şemaya/porta yönlendirdi: hedef (hâlâ aynıysa) güncellenir
-    let degisti = |sema: &str, port: u16| {
-        if let Some(mut g) = ap_arayuz::oku(yollar).filter(|g| g.adres == h.adres && g.yol == h.yol && g.bitis == h.bitis) {
-            (g.sema, g.port) = (sema.to_string(), port);
-            let _ = ap_arayuz::yaz(yollar, &g);
-        }
-    };
+    let degisti = |sema: &str, port: u16| ap_arayuz::sema_guncelle(yollar, &h, sema, port);
     let sonuc = ap_arayuz::aktar(&h, &kamu, &yontem, &yol, &basliklar, boy, req.as_reader(), &*p.ap_baglan, &degisti);
     match sonuc {
         Ok(c) => {
@@ -107,6 +116,16 @@ pub(super) fn ap_isle(p: &Panel, mut req: tiny_http::Request, h: Hedef) {
             let boy = c.boy.and_then(|b| usize::try_from(b).ok());
             let _ = req.respond(tiny_http::Response::new(tiny_http::StatusCode(c.durum), basliklar, c.govde, boy, None));
         }
-        Err(e) => ap_cevapla(req, sade_sayfa(e.durum(), "AP arayüzü", &e.mesaj(), true)),
+        Err(e) => {
+            if let ap_arayuz::Hata::MacDegisti(kayitli, simdi) = &e {
+                if ap_arayuz::kapat_eger(yollar, &h) {
+                    if let Ok(cfg) = Config::load(&p.cfg_path) {
+                        let ek = format!("{} mac={kayitli} simdi={}", ap_arayuz::kapandi_ek(&h, "mac"), simdi.as_deref().unwrap_or("-"));
+                        ap_arayuz::denetim(&cfg.main.log_root, (p.clock)(), &h, &ek);
+                    }
+                }
+            }
+            ap_cevapla(req, sade_sayfa(e.durum(), e.baslik(), &e.mesaj(), true))
+        }
     }
 }

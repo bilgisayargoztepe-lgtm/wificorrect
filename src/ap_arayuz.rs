@@ -17,6 +17,9 @@
 //! - AP aynı adreste başka şemaya/porta yönlendirirse (http → https://<hedef>/) hedef güncellenir (döngü olmaz).
 //! - HTTPS AP: TLS 1.2+ (rustls), sertifika doğrulamasız (AP'ler kendinden imzalı; bağlantı yan oda / misafir ağında).
 //!   Yalnızca eski TLS'li AP'de ve arayüzünü JS ile sabit adresten kuran modelde yedek yol `ap-ac` betiği.
+//! - Bütün müşterilerin AP'leri tek kökte (final review 2026-10-16): Service Worker betiği, başka siteden gelen istek ve
+//!   başka alt alandan gezinme dışı istek AP'ye gitmez (`istek_reddi`; merkez/Caddy de reddeder); kayıtlı AP adresine
+//!   (misafir ağı) aktarım yalnızca komşu tablosundaki MAC kayıt anında sabitlenenle aynıysa (`baglan`).
 
 use crate::ap::{self, Yollar};
 use crate::ayar::Config;
@@ -70,6 +73,9 @@ pub struct Hedef {
     /// Yan odanın kimliği: yan oda kapanıp yenisi açılınca eski hedef geçmez
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub yan_oda: Option<String>,
+    /// Misafir ağındaki (kayıtlı) AP'nin sabitlenmiş MAC'i (`[ap] mac`): bağlantıda komşu tablosundaki MAC bu olmalı
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mac: Option<String>,
 }
 
 impl Hedef {
@@ -116,7 +122,8 @@ fn gecersiz_neden(h: &Hedef, y: &Yollar, cfg: &Config, now: f64) -> Option<&'sta
             let ayni = g.as_ref().is_some_and(|g| h.yan_oda.as_deref() == Some(g.kimlik.as_str()) && ap::yan_odada(ip, g));
             (!ayni).then_some("yan_oda")
         }
-        "misafir" => (!ap::kayitli_ap_mi(ip, cfg)).then_some("adres_kaydi"),
+        // kayıtlı adres ve kayıtta sabitlenen MAC aynı (MAC yeniden sabitlenir ya da silinirse açık erişim kapanır)
+        "misafir" => (!ap::kayitli_ap_mi(ip, cfg) || h.mac.is_none() || cfg.ap.mac.get(&h.adres) != h.mac.as_ref()).then_some("adres_kaydi"),
         _ => Some("bozuk"),
     }
 }
@@ -125,13 +132,11 @@ pub fn oku(y: &Yollar) -> Option<Hedef> {
     serde_json::from_slice(&std::fs::read(&y.hedef).ok()?).ok()
 }
 
-/// Her aktarımda ve panel bakışında: hedef hâlâ geçerli mi. Bozuk dosya sessizce silinir.
+/// Her aktarımda ve panel bakışında: hedef hâlâ geçerli mi. Okunamayan dosya `Yok` sayılır ama silinmez (final review
+/// M1: yazılırken okunan dosya geçerli bir hedefi sildirmesin; bozuksa yeni "AP arayüzüne git" ya da "Erişimi kapat" ezer).
 pub fn denetle(y: &Yollar, cfg: &Config, now: f64) -> Durum {
     let Ok(b) = std::fs::read(&y.hedef) else { return Durum::Yok };
-    let Ok(h) = serde_json::from_slice::<Hedef>(&b) else {
-        let _ = std::fs::remove_file(&y.hedef);
-        return Durum::Yok;
-    };
+    let Ok(h) = serde_json::from_slice::<Hedef>(&b) else { return Durum::Yok };
     match gecersiz_neden(&h, y, cfg, now) {
         None => Durum::Gecerli(h),
         Some(n) if std::fs::remove_file(&y.hedef).is_ok() => Durum::Kapandi(h, n),
@@ -139,13 +144,43 @@ pub fn denetle(y: &Yollar, cfg: &Config, now: f64) -> Durum {
     }
 }
 
-pub fn yaz(y: &Yollar, h: &Hedef) -> Result<(), String> {
+/// Hedef dosyasını değiştiren işlemler (panel "AP arayüzüne git", aktarımda şema/port değişimi, MAC değişince kapatma)
+/// bu süreçte sıraya girer (final review M1): aynı geçici dosyaya iki yazıcı birbirinin içeriğini kesmesin,
+/// okuma-değiştirme-yazma araya giren yeni hedefi ezmesin. Hedefi yalnızca panel süreci yazar.
+static HEDEF_KILIDI: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+fn hedef_kilidi() -> std::sync::MutexGuard<'static, ()> {
+    HEDEF_KILIDI.lock().unwrap_or_else(|e| e.into_inner())
+}
+
+fn yaz_(y: &Yollar, h: &Hedef) -> Result<(), String> {
     let v = serde_json::to_vec(h).map_err(|e| e.to_string())?;
     ortak::write_atomic_mode(&y.hedef, &v, 0o600).map_err(|e| format!("AP hedefi yazılamadı: {e}"))
 }
 
+pub fn yaz(y: &Yollar, h: &Hedef) -> Result<(), String> {
+    let _k = hedef_kilidi();
+    yaz_(y, h)
+}
+
+/// AP aynı adreste başka şemaya/porta yönlendirdi: dosyadaki hedef hâlâ bu hedefse (adres, yol, bitiş) güncellenir.
+pub fn sema_guncelle(y: &Yollar, h: &Hedef, sema: &str, port: u16) {
+    let _k = hedef_kilidi();
+    if let Some(mut g) = oku(y).filter(|g| g.adres == h.adres && g.yol == h.yol && g.bitis == h.bitis) {
+        (g.sema, g.port) = (sema.to_string(), port);
+        let _ = yaz_(y, &g);
+    }
+}
+
+/// Dosyadaki hedef tam olarak `h` ise kapatır (aktarımda MAC değişti); arada yenisi yazıldıysa dokunmaz. Kapattıysa true.
+pub fn kapat_eger(y: &Yollar, h: &Hedef) -> bool {
+    let _k = hedef_kilidi();
+    oku(y).is_some_and(|g| g == *h) && std::fs::remove_file(&y.hedef).is_ok()
+}
+
 /// Erişimi kapatır (panel "Kapat", yan oda kapanınca, fabrika). `yalniz_yan_oda`: yalnızca yan odadan giden hedef.
 pub fn kapat(y: &Yollar, yalniz_yan_oda: bool) -> Option<Hedef> {
+    let _k = hedef_kilidi();
     let b = std::fs::read(&y.hedef).ok()?;
     let Ok(h) = serde_json::from_slice::<Hedef>(&b) else {
         let _ = std::fs::remove_file(&y.hedef);
@@ -295,12 +330,13 @@ fn ayrilmis_cerez(set_cookie: &str) -> bool {
     matches!(ad.to_ascii_lowercase().as_str(), "wca" | "wcc" | "wfc")
 }
 
-/// Set-Cookie: Domain özniteliği çıkar (çerez ap.wificorrect.com'a yazılsın)
+/// Set-Cookie: Domain özniteliği çıkar (çerez ap.wificorrect.com'a yazılsın). Tarayıcı öznitelik adının çevresindeki
+/// boşluğu yok sayar (RFC 6265 §5.2): `Domain =x` de Domain'dir (final review M4).
 pub fn domain_sil(deger: &str) -> String {
     deger
         .split(';')
         .enumerate()
-        .filter(|(i, p)| *i == 0 || on_ek_sil(p.trim(), "domain=").is_none())
+        .filter(|(i, p)| *i == 0 || !p.split('=').next().unwrap_or("").trim().eq_ignore_ascii_case("domain"))
         .map(|(_, p)| p)
         .collect::<Vec<_>>()
         .join(";")
@@ -318,6 +354,36 @@ pub fn cerez_suz(deger: &str) -> Option<String> {
 
 fn token(s: &str) -> bool {
     !s.is_empty() && s.len() <= 64 && s.bytes().all(|b| b.is_ascii_alphanumeric() || b"!#$%&'*+-.^_`|~".contains(&b))
+}
+
+/// AP kipinde AP'ye hiç gitmeyecek tarayıcı isteği (final review C1, I2; Caddy ap bloğu ve merkez de reddeder — eski ya
+/// da yanlış kurulmuş merkeze karşı ikinci kat). Dönen: ret nedeni.
+/// - Service Worker betiği (`Service-Worker` başlığı ya da `Sec-Fetch-Dest: serviceworker`): bütün müşterilerin AP'leri
+///   tek kökte; bir AP'nin kaydettiği SW sonraki müşterilerin AP oturumlarını dinlerdi.
+/// - Başka siteden (`Sec-Fetch-Site: cross-site`): GET ile ayar değiştiren AP'lere başka siteden istek.
+/// - Aynı sitenin başka alt alanından (`same-site`) yalnızca üst düzey GET/HEAD gezinme geçer: cihaz panelinden gelen
+///   yönlendirme zinciri (cihaz.wificorrect.com → /_ap-gecis → /_ap-giris → /, AP'nin kendi yönlendirmeleri dahil).
+///   Başka alt alandan form, fetch, çerçeve AP'ye gitmez.
+/// Sec-Fetch-* göndermeyen eski tarayıcı geçer (bu başlıkları sayfa değil tarayıcı yazar).
+pub fn istek_reddi(yontem: &str, gelen: &[(String, String)]) -> Option<&'static str> {
+    let b = |ad: &str| gelen.iter().find(|(a, _)| a.eq_ignore_ascii_case(ad)).map(|(_, d)| d.trim().to_ascii_lowercase());
+    if gelen.iter().any(|(a, _)| a.eq_ignore_ascii_case("Service-Worker")) || b("Sec-Fetch-Dest").as_deref() == Some("serviceworker") {
+        return Some("service_worker");
+    }
+    let gezinme = matches!(yontem, "GET" | "HEAD") && b("Sec-Fetch-Mode").as_deref() == Some("navigate") && b("Sec-Fetch-Dest").as_deref() == Some("document");
+    match b("Sec-Fetch-Site").as_deref() {
+        Some("cross-site") => Some("baska_site"),
+        Some("same-site") if !gezinme => Some("alt_alan"),
+        _ => None,
+    }
+}
+
+/// `istek_reddi` nedeninin sayfadaki açıklaması
+pub fn red_mesaji(neden: &str) -> &'static str {
+    match neden {
+        "service_worker" => "Tarayıcının arka plan betiği (Service Worker) AP arayüzünde kullanılamaz; istek AP'ye iletilmedi.",
+        _ => "Başka bir siteden gelen istek AP arayüzüne iletilmez. AP arayüzünü cihaz panelinden açın.",
+    }
 }
 
 fn deger_ok(s: &str) -> bool {
@@ -403,12 +469,45 @@ fn tls(tcp: TcpStream) -> io::Result<rustls::StreamOwned<rustls::ClientConnectio
     Ok(s)
 }
 
-/// Gerçek bağlantı: yan oda hedefi aracı (127.0.0.1:1085) üzerinden, misafir ağı hedefi ana ad alanından; bağlanılan
-/// adres yalnızca hedefin adresi. HTTPS'te TLS.
+/// Kayıtlı AP adresinde (misafir ağı) başka MAC: aktarım reddedilir (final review I1). `simdi`: komşu tablosundaki MAC.
+#[derive(Debug)]
+pub struct MacFarkli {
+    pub kayitli: String,
+    pub simdi: Option<String>,
+}
+
+impl std::fmt::Display for MacFarkli {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "MAC adresi değişmiş: kayıtlı {}, şu an {}", self.kayitli, self.simdi.as_deref().unwrap_or("okunamadı"))
+    }
+}
+
+impl std::error::Error for MacFarkli {}
+
+/// Misafir ağındaki hedefe bağlandıktan sonra (adres çözülmüş olur): komşu tablosundaki MAC sabitlenen MAC mi. Misafir
+/// ağında AP'nin adresini elle alan bir cihaz AP yerine geçip yazılan AP parolasını toplamasın.
+pub fn mac_denetle(h: &Hedef, ip: Ipv4Addr, arp: &str) -> io::Result<()> {
+    let Some(kayitli) = &h.mac else {
+        return Err(io::Error::other(MacFarkli { kayitli: "yok".into(), simdi: ap::arp_mac(arp, ip) }));
+    };
+    match ap::arp_mac(arp, ip) {
+        Some(m) if m == *kayitli => Ok(()),
+        simdi => Err(io::Error::other(MacFarkli { kayitli: kayitli.clone(), simdi })),
+    }
+}
+
+/// Gerçek bağlantı: yan oda hedefi aracı (127.0.0.1:1085) üzerinden, misafir ağı hedefi ana ad alanından (bağlandıktan
+/// sonra MAC denetimi); bağlanılan adres yalnızca hedefin adresi. HTTPS'te TLS.
 pub fn baglan(h: &Hedef) -> io::Result<Box<dyn Akis>> {
     let ip = h.ip().ok_or_else(|| io::Error::other("hedef adresi bozuk"))?;
     let adres = SocketAddrV4::new(ip, h.port);
-    let tcp = if h.yol == "yan_oda" { crate::yan_oda::socks_baglan(adres, ARACI_BEKLEME)? } else { TcpStream::connect_timeout(&adres.into(), BAGLANMA)? };
+    let tcp = if h.yol == "yan_oda" {
+        crate::yan_oda::socks_baglan(adres, ARACI_BEKLEME)?
+    } else {
+        let t = TcpStream::connect_timeout(&adres.into(), BAGLANMA)?;
+        mac_denetle(h, ip, &std::fs::read_to_string("/proc/net/arp").unwrap_or_default())?;
+        t
+    };
     tcp.set_read_timeout(Some(BEKLEME))?;
     tcp.set_write_timeout(Some(BEKLEME))?;
     if h.sema == "https" {
@@ -437,6 +536,8 @@ pub enum Hata {
     Ulasilamadi(String),
     /// AP geçersiz / yarım cevap verdi (502)
     Bozuk(String),
+    /// Kayıtlı AP adresinde başka MAC (403): (kayıtlı, şu an)
+    MacDegisti(String, Option<String>),
 }
 
 impl Hata {
@@ -444,7 +545,15 @@ impl Hata {
         match self {
             Hata::Gecersiz(_) => 400,
             Hata::Buyuk => 413,
+            Hata::MacDegisti(..) => 403,
             _ => 502,
+        }
+    }
+
+    pub fn baslik(&self) -> &'static str {
+        match self {
+            Hata::MacDegisti(..) => "AP'nin MAC adresi değişmiş",
+            _ => "AP arayüzü",
         }
     }
 
@@ -454,8 +563,19 @@ impl Hata {
             Hata::Buyuk => format!("İstek çok büyük (en çok {} MB); büyük dosya yüklemek için betiği kullanın.", GOVDE_EN_COK / 1024 / 1024),
             Hata::Ulasilamadi(e) => format!("AP'ye ulaşılamadı ({e}). AP açık ve misafir portuna bağlı mı, yan oda hâlâ açık mı?"),
             Hata::Bozuk(e) => format!("AP geçerli bir cevap vermedi ({e})."),
+            Hata::MacDegisti(k, s) => format!("İstek AP'ye iletilmedi, AP arayüzü erişimi kapatıldı. {}", mac_degisti_mesaji(k, s.as_deref())),
         }
     }
+}
+
+/// Panel ("AP arayüzüne git") ve aktarım aynı açıklamayı gösterir
+pub fn mac_degisti_mesaji(kayitli: &str, simdi: Option<&str>) -> String {
+    format!(
+        "Bu adreste kayıtlı AP'den başka bir cihaz cevap veriyor (kayıtlı MAC {kayitli}, şu an {}). AP değiştirildiyse cihaz \
+         panelinde Ayarlar → AP kurulumu → AP adresleri'nde Kaydet'e basarak yeni MAC'i sabitleyin; değiştirilmediyse misafir \
+         ağında bu adresi başka bir cihaz kullanıyor olabilir (Ağdaki cihazlar).",
+        simdi.unwrap_or("okunamadı")
+    )
 }
 
 pub struct Cevap {
@@ -644,7 +764,10 @@ pub fn aktar(
         bas.push_str(&format!("Content-Length: {boy}\r\n"));
     }
     bas.push_str("\r\n");
-    let mut akis = baglanti(h).map_err(|e| Hata::Ulasilamadi(e.to_string()))?;
+    let mut akis = baglanti(h).map_err(|e| match e.get_ref().and_then(|x| x.downcast_ref::<MacFarkli>()) {
+        Some(m) => Hata::MacDegisti(m.kayitli.clone(), m.simdi.clone()),
+        None => Hata::Ulasilamadi(e.to_string()),
+    })?;
     istek_yaz(&mut *akis, bas.as_bytes(), tampon.as_deref(), govde, boy).map_err(|e| Hata::Ulasilamadi(format!("istek gönderilemedi: {e}")))?;
     let mut br = BufReader::with_capacity(16 * 1024, akis);
     let (kod, basliklar) = loop {
@@ -671,8 +794,9 @@ pub fn aktar(
         match k.as_str() {
             "content-length" => uzunluk = deger.trim().parse().ok(),
             "transfer-encoding" => parcali = deger.to_ascii_lowercase().contains("chunked"),
+            // service-worker-allowed: SW kapsamını genişletir (SW zaten aktarılmaz; yine de bu kökte hiç yazılmaz)
             "connection" | "keep-alive" | "trailer" | "upgrade" | "te" | "alt-svc" | "cache-control" | "expires" | "etag"
-            | "last-modified" | "pragma" | "strict-transport-security" => {}
+            | "last-modified" | "pragma" | "strict-transport-security" | "service-worker-allowed" => {}
             "set-cookie" if ayrilmis_cerez(&deger) => {}
             "set-cookie" => cikis.push((ad, domain_sil(&deger))),
             _ => {
@@ -694,12 +818,15 @@ pub fn aktar(
     }
     cikis.push(("Cache-Control".into(), "no-store".into()));
     let bos = yontem == "HEAD" || kod < 200 || kod == 204 || kod == 304;
+    // Akan gövdenin boyu bildirilmez (final review M3): AP bildirdiğinden kısa gövdeyle kapatırsa Content-Length'li cevap
+    // Caddy ile bağlantıyı kaydırır (istek asılı kalır); boysuz cevabı tiny_http parçalı gönderir ve kısa da olsa düzgün
+    // bitirir. Boy yalnızca HEAD'de (gövdesiz) ve yeniden yazılan (bellekteki) gövdede bildirilir.
     let (mut govde, mut boy): (Box<dyn Read + Send>, Option<u64>) = if bos {
         (Box::new(io::empty()), if yontem == "HEAD" { uzunluk } else { Some(0) })
     } else if parcali {
         (Box::new(Parcali::new(br)), None)
     } else if let Some(n) = uzunluk {
-        (Box::new(br.take(n)), Some(n))
+        (Box::new(br.take(n)), None)
     } else {
         (Box::new(SessizSon(br)), None)
     };
@@ -726,7 +853,8 @@ mod tests {
     use std::sync::{Arc, Mutex};
 
     fn hedef(adres: &str, yol: &str) -> Hedef {
-        Hedef { adres: adres.into(), port: 80, sema: "http".into(), yol: yol.into(), bitis: 2000.0, kim: "4511643".into(), rol: "sahip".into(), yan_oda: None }
+        Hedef { adres: adres.into(), port: 80, sema: "http".into(), yol: yol.into(), bitis: 2000.0, kim: "4511643".into(), rol: "sahip".into(),
+                yan_oda: None, mac: None }
     }
 
     fn k(v: &[&str]) -> Vec<String> {
@@ -773,6 +901,10 @@ mod tests {
         }
         assert_eq!(domain_sil("SID=abc; Domain=192.168.1.1; Path=/; HttpOnly"), "SID=abc; Path=/; HttpOnly");
         assert_eq!(domain_sil("domain=x; path=/"), "domain=x; path=/"); // ilk parça çerezin kendisi
+        // tarayıcı öznitelik adının çevresindeki boşluğu yok sayar: "Domain =x" de üst alana yazardı (final review M4)
+        assert_eq!(domain_sil("a=1; Domain =wificorrect.com; Path=/"), "a=1; Path=/");
+        assert_eq!(domain_sil("a=1;DOMAIN= .wificorrect.com ;Secure; domain"), "a=1;Secure");
+        assert_eq!(domain_sil("a=1; Domainx=y"), "a=1; Domainx=y");
         assert_eq!(cerez_suz("wcc=1; SID=abc; _; wca=2; wfc=3; lang=tr"), Some("SID=abc; lang=tr".into()));
         assert_eq!(cerez_suz("wca=2; _"), None);
         let h = hedef("192.168.1.1", "yan_oda");
@@ -930,9 +1062,14 @@ mod tests {
         let (adres, _) = sahte_ap(b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\nContent-Type: text/html\r\n\r\n13\r\nhttp://192.168.1.1/\r\n0\r\n\r\n".to_vec());
         let c = aktar(&h, "ap.wificorrect.com", "GET", "/", &[], None, &mut io::empty(), &*baglanti(adres), &|_: &str, _: u16| {}).unwrap();
         assert_eq!(String::from_utf8(govde(c)).unwrap(), "https://ap.wificorrect.com/");
-        let (adres, _) = sahte_ap(b"HTTP/1.0 200 OK\r\nContent-Type: text/html\r\nContent-Encoding: gzip\r\nContent-Length: 19\r\n\r\nhttp://192.168.1.1/".to_vec());
+        // akan gövdenin boyu bildirilmez (final review M3): AP eksik gönderse de cevap parçalı ve kendi içinde tutarlı
+        let (adres, _) = sahte_ap(b"HTTP/1.0 200 OK\r\nContent-Type: text/html\r\nContent-Encoding: gzip\r\nContent-Length: 19\r\nService-Worker-Allowed: /\r\n\r\nhttp://192.168.1.1/".to_vec());
         let c = aktar(&h, "ap.wificorrect.com", "GET", "/", &[], None, &mut io::empty(), &*baglanti(adres), &|_: &str, _: u16| {}).unwrap();
-        assert_eq!((c.boy, govde(c)), (Some(19), b"http://192.168.1.1/".to_vec()));
+        assert!(deger(&c, "Service-Worker-Allowed").is_empty(), "SW kapsamı genişletilemez");
+        assert_eq!((c.boy, govde(c)), (None, b"http://192.168.1.1/".to_vec()));
+        let (adres, _) = sahte_ap(b"HTTP/1.0 200 OK\r\nContent-Type: image/gif\r\nContent-Length: 50\r\n\r\nkisa".to_vec());
+        let c = aktar(&h, "ap.wificorrect.com", "GET", "/a.gif", &[], None, &mut io::empty(), &*baglanti(adres), &|_: &str, _: u16| {}).unwrap();
+        assert_eq!((c.boy, govde(c)), (None, b"kisa".to_vec()));
         // HEAD: gövde yok, uzunluk korunur
         let (adres, gelen) = sahte_ap(b"HTTP/1.0 200 OK\r\nContent-Type: text/html\r\nContent-Length: 1234\r\n\r\n".to_vec());
         let c = aktar(&h, "ap.wificorrect.com", "HEAD", "/", &[], None, &mut io::empty(), &*baglanti(adres), &|_: &str, _: u16| {}).unwrap();
@@ -956,6 +1093,77 @@ mod tests {
         assert!(matches!(e, Hata::Ulasilamadi(_)) && e.durum() == 502 && e.mesaj().contains("AP'ye ulaşılamadı"));
         let (adres, _) = sahte_ap(b"".to_vec());
         assert!(matches!(aktar(&h, "ap.wificorrect.com", "GET", "/", &[], None, &mut io::empty(), &*baglanti(adres), &yok), Err(Hata::Bozuk(_))));
+    }
+
+    #[test]
+    fn tarayici_istek_reddi() {
+        // final review C1: Service Worker betiği (kayıt ya da güncelleme) hiçbir koşulda AP'ye gitmez
+        assert_eq!(istek_reddi("GET", &basliklar(&[("Service-Worker", "script")])), Some("service_worker"));
+        assert_eq!(istek_reddi("GET", &basliklar(&[("service-worker", "")])), Some("service_worker"));
+        assert_eq!(istek_reddi("GET", &basliklar(&[("Sec-Fetch-Site", "same-origin"), ("Sec-Fetch-Dest", "serviceworker")])), Some("service_worker"));
+        // final review I2: başka siteden hiçbir istek
+        let g = |site: &str, mod_: &str, hedef: &str| basliklar(&[("Sec-Fetch-Site", site), ("Sec-Fetch-Mode", mod_), ("Sec-Fetch-Dest", hedef)]);
+        assert_eq!(istek_reddi("GET", &g("cross-site", "navigate", "document")), Some("baska_site"));
+        assert_eq!(istek_reddi("GET", &g(" Cross-Site ", "navigate", "document")), Some("baska_site"));
+        // aynı sitenin başka alt alanından yalnızca üst düzey GET/HEAD gezinme (cihaz panelinden gelen yönlendirme zinciri)
+        assert_eq!((istek_reddi("GET", &g("same-site", "navigate", "document")), istek_reddi("HEAD", &g("same-site", "navigate", "document"))), (None, None));
+        for (y, m, d) in [("POST", "navigate", "document"), ("GET", "navigate", "iframe"), ("GET", "no-cors", "image"), ("GET", "cors", "empty")] {
+            assert_eq!(istek_reddi(y, &g("same-site", m, d)), Some("alt_alan"), "{y} {m} {d}");
+        }
+        // AP'nin kendi sayfaları (aynı köken), elle yazılan adres ve başlık göndermeyen eski tarayıcı geçer
+        for s in ["same-origin", "none"] {
+            assert_eq!(istek_reddi("POST", &g(s, "cors", "empty")), None, "{s}");
+        }
+        assert_eq!(istek_reddi("POST", &[]), None);
+        assert!(red_mesaji("service_worker").contains("Service Worker") && red_mesaji("baska_site").contains("cihaz panelinden"));
+    }
+
+    #[test]
+    fn kayitli_ap_mac_denetimi() {
+        // final review I1: misafir ağındaki kayıtlı AP adresinde başka MAC (adresi elle alan cihaz) → istek gitmez
+        let arp = "IP address       HW type     Flags       HW address            Mask     Device\n\
+                   10.50.0.2        0x1         0x2         70:4f:57:dd:7a:e8     *        br-hotspot\n";
+        let ip: Ipv4Addr = "10.50.0.2".parse().unwrap();
+        let mac_hatasi = |r: io::Result<()>| r.unwrap_err().get_ref().and_then(|x| x.downcast_ref::<MacFarkli>()).map(|m| (m.kayitli.clone(), m.simdi.clone()));
+        let mut h = hedef("10.50.0.2", "misafir");
+        h.mac = Some("70:4f:57:dd:7a:e8".into());
+        assert!(mac_denetle(&h, ip, arp).is_ok());
+        h.mac = Some("aa:bb:cc:dd:ee:ff".into());
+        assert_eq!(mac_hatasi(mac_denetle(&h, ip, arp)), Some(("aa:bb:cc:dd:ee:ff".into(), Some("70:4f:57:dd:7a:e8".into()))));
+        assert_eq!(mac_hatasi(mac_denetle(&h, ip, "")), Some(("aa:bb:cc:dd:ee:ff".into(), None)), "okunamayan MAC geçmez");
+        h.mac = None;
+        assert!(mac_denetle(&h, ip, arp).is_err(), "MAC'i sabitlenmemiş hedef geçmez");
+        // aktarımda: 403 "AP'nin MAC adresi değişmiş" (bağlantı kurulmuş olsa da istek yazılmadan)
+        let farkli: Box<Baglanti> =
+            Box::new(|_: &Hedef| Err(io::Error::other(MacFarkli { kayitli: "aa:bb:cc:dd:ee:ff".into(), simdi: Some("11:22:33:44:55:66".into()) })));
+        let e = aktar(&h, "ap.wificorrect.com", "GET", "/", &[], None, &mut io::empty(), &*farkli, &|_: &str, _: u16| {}).err().unwrap();
+        assert_eq!(e, Hata::MacDegisti("aa:bb:cc:dd:ee:ff".into(), Some("11:22:33:44:55:66".into())));
+        assert!(e.durum() == 403 && e.baslik() == "AP'nin MAC adresi değişmiş" && e.mesaj().contains("11:22:33:44:55:66") && e.mesaj().contains("Kaydet"));
+        assert_eq!(Hata::Bozuk("x".into()).baslik(), "AP arayüzü");
+    }
+
+    #[test]
+    fn hedef_esanli_yazilirken_gecerli_kalir() {
+        // final review M1: aynı anda yazan iş parçacıkları (aktarımda şema değişimi, yeni hedef) dosyayı yarım bırakmaz;
+        // denetim geçerli hedefi hiçbir an kaybetmez
+        let (mut cfg, y) = cfg_ve_yollar();
+        cfg.ap.mac.insert("10.50.0.2".into(), "70:4f:57:dd:7a:e8".into());
+        let mut m = hedef("10.50.0.2", "misafir");
+        (m.mac, m.bitis) = (Some("70:4f:57:dd:7a:e8".into()), 9e9);
+        yaz(&y, &m).unwrap();
+        std::thread::scope(|t| {
+            for i in 0..4 {
+                let (y, m) = (&y, &m);
+                t.spawn(move || {
+                    for j in 0..50 {
+                        if (i + j) % 2 == 0 { yaz(y, m).unwrap() } else { sema_guncelle(y, m, "http", 80) }
+                    }
+                });
+            }
+            for _ in 0..200 {
+                assert_eq!(denetle(&y, &cfg, 1000.0), Durum::Gecerli(m.clone()));
+            }
+        });
     }
 
     fn cfg_ve_yollar() -> (Config, Yollar) {
@@ -995,19 +1203,42 @@ mod tests {
         assert_eq!(denetle(&y, &cfg, 1000.0), Durum::Yok);
         yaz(&y, &Hedef { yan_oda: Some("ffffffff".into()), ..h.clone() }).unwrap();
         assert!(matches!(denetle(&y, &cfg, 1000.0), Durum::Kapandi(_, "yan_oda")));
-        let m = hedef("10.50.0.2", "misafir");
+        // misafir ağı: kayıtlı adres + kayıtta sabitlenen MAC (final review I1)
+        let mut m = hedef("10.50.0.2", "misafir");
+        m.mac = Some("70:4f:57:dd:7a:e8".into());
+        yaz(&y, &m).unwrap();
+        assert_eq!(denetle(&y, &cfg, 1000.0), Durum::Kapandi(m.clone(), "adres_kaydi"), "MAC'i sabitlenmemiş kayıt geçmez");
+        cfg.ap.mac.insert("10.50.0.2".into(), "70:4f:57:dd:7a:e8".into());
         yaz(&y, &m).unwrap();
         assert_eq!(denetle(&y, &cfg, 1000.0), Durum::Gecerli(m.clone()));
+        cfg.ap.mac.insert("10.50.0.2".into(), "aa:bb:cc:dd:ee:ff".into()); // MAC yeniden sabitlendi: açık erişim kapanır
+        assert_eq!(denetle(&y, &cfg, 1000.0), Durum::Kapandi(m.clone(), "adres_kaydi"));
+        cfg.ap.mac.insert("10.50.0.2".into(), "70:4f:57:dd:7a:e8".into());
+        yaz(&y, &Hedef { mac: None, ..m.clone() }).unwrap(); // MAC'siz misafir hedefi geçmez
+        assert!(matches!(denetle(&y, &cfg, 1000.0), Durum::Kapandi(_, "adres_kaydi")));
+        yaz(&y, &m).unwrap();
         cfg.ap.adresler.clear();
         assert_eq!(denetle(&y, &cfg, 1000.0), Durum::Kapandi(m.clone(), "adres_kaydi"));
+        cfg.ap.adresler = vec!["10.50.0.2".into()];
+        // okunamayan dosya: Yok, ama silinmez (final review M1: yazılırken okunan dosya geçerli hedefi sildirmesin)
         std::fs::write(&y.hedef, "bozuk").unwrap();
         assert_eq!(denetle(&y, &cfg, 1000.0), Durum::Yok);
-        assert!(!y.hedef.exists());
+        assert!(y.hedef.exists());
         // kapatma: yalnızca yan oda hedefi istenirse misafir hedefine dokunulmaz
         yaz(&y, &m).unwrap();
         assert_eq!(kapat(&y, true), None);
-        assert_eq!(kapat(&y, false), Some(m));
+        assert_eq!(kapat(&y, false), Some(m.clone()));
         assert_eq!(kapat(&y, false), None);
+        // şema/port güncellemesi yalnızca aynı hedefe; kapat_eger yalnızca dosyadaki hedef tam olarak buysa
+        yaz(&y, &m).unwrap();
+        sema_guncelle(&y, &Hedef { bitis: 1.0, ..m.clone() }, "https", 443);
+        assert_eq!(oku(&y), Some(m.clone()));
+        sema_guncelle(&y, &m, "https", 443);
+        let g = oku(&y).unwrap();
+        assert_eq!((g.sema.as_str(), g.port), ("https", 443));
+        assert!(!kapat_eger(&y, &m) && y.hedef.exists());
+        assert!(kapat_eger(&y, &g) && !y.hedef.exists());
+        assert!(!kapat_eger(&y, &g));
         assert_eq!(konaklar(&hedef("192.168.0.254", "yan_oda")), k(&["192.168.0.254", "tplinkap.net", "tplinkrepeater.net", "tplinkeap.net"]));
     }
 }

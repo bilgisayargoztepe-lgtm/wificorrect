@@ -266,7 +266,9 @@ pub fn misafir_kodu_acik(cfg: &Config) -> bool {
 /// 8). Yalnızca kayıt: panelde gösterilir, ağdaki cihazlar listesinde işaretlenir; panelden AP arayüzüne gidilebilir
 /// (src/ap_arayuz.rs). Güvenlik duvarı kuralı yoktur: köprü portları arası iletim `kapi.nft`'te zaten kapalı.
 /// `etiket` / `marka`: takılan cihazın etiketindeki adres (IP ya da bilinen ad, "Bağlan") ve marka/model (yalnızca
-/// bilgi; spec 2026-10-16-ap-arayuz). Fabrika dönüşünde hepsi boşalır.
+/// bilgi; spec 2026-10-16-ap-arayuz). `mac`: kayıtlı adresin kaydedildiği andaki MAC'i (adres → MAC; final review I1):
+/// panelden aktarım yalnızca komşu tablosundaki MAC bununla aynıysa — misafir ağında AP'nin adresini elle alan bir cihaz
+/// AP yerine geçip yazılan AP parolasını toplamasın. Fabrika dönüşünde hepsi boşalır.
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
 #[serde(default)]
 pub struct Ap {
@@ -276,6 +278,8 @@ pub struct Ap {
     pub etiket: String,
     #[serde(skip_serializing_if = "String::is_empty")]
     pub marka: String,
+    #[serde(skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub mac: std::collections::BTreeMap<String, String>,
 }
 
 /// Portalsız geçen (`[[allow]]`, ör. AP, personel; trafiği yine kaydedilir) ya da yasaklı (`[[ban]]`) cihaz.
@@ -455,6 +459,14 @@ mod tests {
         let c = Config::parse("[ap]\netiket = 'tplinkap.net'\nmarka = 'TP-Link TL-WA901ND'\n").unwrap();
         let back = Config::parse(&toml::to_string_pretty(&c).unwrap()).unwrap();
         assert_eq!((back.ap.etiket.as_str(), back.ap.marka.as_str(), back.ap.adresler.len()), ("tplinkap.net", "TP-Link TL-WA901ND", 0));
+        assert!(back.ap.mac.is_empty() && !toml::to_string_pretty(&back).unwrap().contains("ap.mac"), "boş MAC tablosu yazılmaz");
+        // kayıtlı adreslerin sabitlenen MAC'leri (adres anahtarında nokta: tırnaklı anahtar) gidip gelir
+        let mut c = Config::parse("[ap]\nadresler = ['10.50.0.2', '10.50.0.3']\n").unwrap();
+        c.ap.mac.insert("10.50.0.2".into(), "70:4f:57:dd:7a:e8".into());
+        let yazi = toml::to_string_pretty(&c).unwrap();
+        let back = Config::parse(&yazi).unwrap();
+        assert_eq!(back.ap.mac.get("10.50.0.2").map(String::as_str), Some("70:4f:57:dd:7a:e8"), "{yazi}");
+        assert_eq!((back.ap.mac.len(), back.ap.adresler.len()), (1, 2));
     }
 
     #[test]

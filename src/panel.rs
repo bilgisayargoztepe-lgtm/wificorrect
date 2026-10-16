@@ -455,6 +455,8 @@ pub struct Panel {
     ip_oku: Box<dyn Fn(&[&str]) -> String + Send + Sync>,
     /// Yabancı DHCP denetimi sürüyor: aynı anda tek denetim (panelin iş parçacıkları bağlanmasın)
     dhcp_denetim: std::sync::atomic::AtomicBool,
+    /// "Bağlan" / "Otomatik bul" başlatma tek seferde (çift tıklamada ikinci istek koşan aramanın durumunu ezmesin)
+    ap_bul_kilit: std::sync::Mutex<()>,
     /// AP arayüzü: hedefte web arayüzü var mı (adres, yan odadan mı) → port (80, yoksa 443); testte sahte
     ap_dene: Box<dyn Fn(std::net::Ipv4Addr, bool) -> Option<u16> + Send + Sync>,
     /// AP arayüzü aktarımında AP'ye bağlantı (yan oda aracısı ya da misafir ağı; testte sahte)
@@ -624,6 +626,7 @@ impl Panel {
             ap_yollar: crate::ap::Yollar::sistem(),
             ip_oku: Box::new(|c: &[&str]| ortak::capture(c)),
             dhcp_denetim: std::sync::atomic::AtomicBool::new(false),
+            ap_bul_kilit: std::sync::Mutex::new(()),
             ap_dene: Box::new(crate::ap_arayuz::web_portu),
             ap_baglan: Box::new(crate::ap_arayuz::baglan),
         }
@@ -838,7 +841,7 @@ impl Panel {
         r
     }
 
-    /// Kimlik başlıkları (X-WFC-Kullanici, X-WFC-AP) yalnızca açık tünelden, merkezin tünel adresinden gelirse geçerli;
+    /// Kimlik başlıkları (X-WFC-Kullanici, X-WFC-AP, X-WFC-AP-Kullanici) yalnızca açık tünelden, merkezin tünel adresinden gelirse geçerli;
     /// başka kaynakta yok sayılır. Tünel kapalıysa (ayar ya da "wfc" arayüzü yok) 10.99.0.1'e yanıt varsayılan yoldan
     /// gider: kaynak taklit edilebilir.
     fn merkezden(&self, cfg: &Config, ip: &str) -> bool {
@@ -1911,10 +1914,11 @@ type ApKuyrugu = std::sync::mpsc::SyncSender<(tiny_http::Request, crate::ap_aray
 
 fn handle(p: &Panel, mut req: tiny_http::Request, ap: &ApKuyrugu) {
     let ip = req.remote_addr().map(|a| a.ip().to_string()).unwrap_or_default();
-    // AP arayüzü aktarımı (spec 2026-10-16-ap-arayuz): başlık yalnızca merkezden geçerli (ap_karar denetler)
+    // AP arayüzü aktarımı (spec 2026-10-16-ap-arayuz): başlık yalnızca merkezden geçerli (ap_karar denetler). AP kipinde
+    // müşteri numarası ayrı başlıkta (X-WFC-AP-Kullanici; final review M2): istek panele düşse de oturum açtırmaz
     let ap_basligi = req.headers().iter().find(|hd| hd.field.equiv("X-WFC-AP")).is_some_and(|hd| hd.value.as_str().trim() == "1");
     if ap_basligi {
-        let kullanici = req.headers().iter().find(|hd| hd.field.equiv("X-WFC-Kullanici")).map(|hd| hd.value.as_str().to_string());
+        let kullanici = req.headers().iter().find(|hd| hd.field.equiv("X-WFC-AP-Kullanici")).map(|hd| hd.value.as_str().to_string());
         match p.ap_karar(&ip, kullanici.as_deref()) {
             ap_aktarim::ApKarar::Panel => {}
             ap_aktarim::ApKarar::Cevap(r) => return ap_aktarim::ap_cevapla(req, r),
@@ -4529,10 +4533,13 @@ mod tests {
 
     #[test]
     fn ap_adresleri_kaydi() {
-        let e = env();
+        let mut e = env();
         let (tok, csrf) = setup_and_login(&e, "admin", "hizmet-parola-1");
-        let denetim = || std::fs::read_to_string(e.root.join("5651/gunluk/2026-09-29/denetim.csv")).unwrap_or_default();
-        let kayitli = || Config::load(&e.p.cfg_path).unwrap().ap.adresler;
+        let (kok, ayar) = (e.root.clone(), e.p.cfg_path.clone());
+        let denetim = move || std::fs::read_to_string(kok.join("5651/gunluk/2026-09-29/denetim.csv")).unwrap_or_default();
+        let ayar2 = ayar.clone();
+        let kayitli = move || Config::load(&ayar2).unwrap().ap.adresler;
+        let mac = move || Config::load(&ayar).unwrap().ap.mac;
         let a = e.p.handle(&req("GET", "/ayarlar", &[], Some(&tok))).body;
         assert!(a.contains("action=\"/ap-kurulum/adresler\"") && a.contains("Kayıtlı AP adresi yok"));
         // CSRF'siz: 403, ayar değişmez
@@ -4541,23 +4548,47 @@ mod tests {
         let r = e.p.handle(&req("POST", "/ap-kurulum/adresler", &[("csrf", &csrf), ("adresler", "10.50.0.2\n10.50.0.30")], Some(&tok)));
         assert!(loc(&r).contains("e=1") && loc(&r).ends_with("#ap-kurulum"), "{}", loc(&r));
         assert!(kayitli().is_empty() && !denetim().contains("PANEL_AP_ADRES"));
-        // geçerli: ayar dosyası + denetim; güvenlik duvarına komut gitmez
+        // geçerli: ayar dosyası + denetim; güvenlik duvarına komut gitmez. Her adresin o anki MAC'i sabitlenir (final review
+        // I1; komşu tablosu: 10.50.0.2 var, 10.50.0.3 yok → bağlantı denemesinden sonra da yok: uyarı)
         e.calls.lock().unwrap().clear();
+        let denenen: Arc<Mutex<Vec<String>>> = Arc::default();
+        let d2 = denenen.clone();
+        e.p.ap_dene = Box::new(move |ip, yan| {
+            d2.lock().unwrap().push(format!("{ip} {yan}"));
+            None
+        });
         let r = e.p.handle(&req("POST", "/ap-kurulum/adresler", &[("csrf", &csrf), ("adresler", "10.50.0.2, 10.50.0.3 10.50.0.2")], Some(&tok)));
-        assert!(!loc(&r).contains("e=1"), "{}", loc(&r));
+        assert!(loc(&r).contains("e=1") && loc(&r).contains(&pct("MAC adresi okunamadı: 10.50.0.3")), "{}", loc(&r));
         assert_eq!(kayitli(), ["10.50.0.2", "10.50.0.3"]);
-        assert!(denetim().contains("PANEL_AP_ADRES") && denetim().contains("adresler=10.50.0.2,10.50.0.3 eski=-"));
+        assert_eq!(mac().into_iter().collect::<Vec<_>>(), vec![("10.50.0.2".to_string(), "70:4f:57:dd:7a:e8".to_string())]);
+        assert_eq!(*denenen.lock().unwrap(), ["10.50.0.3 false"], "yalnızca tabloda olmayan adres denenir");
+        assert!(denetim().contains("PANEL_AP_ADRES") && denetim().contains("adresler=10.50.0.2,10.50.0.3 eski=- mac=10.50.0.2/70:4f:57:dd:7a:e8 eski_mac=-"));
         assert!(e.calls.lock().unwrap().is_empty());
         let a = e.p.handle(&req("GET", "/ayarlar", &[], Some(&tok))).body;
-        assert!(a.contains("<code>10.50.0.2</code>, <code>10.50.0.3</code>"));
+        assert!(a.contains("<code>10.50.0.2</code> (MAC <code>70:4f:57:dd:7a:e8</code>), <code>10.50.0.3</code> (MAC sabitlenmedi)"), "{a}");
+        // yalnızca MAC'i sabitlenmiş adrese "arayüzüne git"
+        assert!(a.contains("10.50.0.2 arayüzüne git") && !a.contains("10.50.0.3 arayüzüne git") && a.contains("MAC'i sabitlenmemiş adrese panelden gidilmez"));
+        // aynı liste yeniden: MAC değişmediyse "Değişiklik yok"; AP değişti (yeni MAC): yeniden sabitlenir. Okunamayan adreste
+        // önceki sabit MAC kalır
+        let r = e.p.handle(&req("POST", "/ap-kurulum/adresler", &[("csrf", &csrf), ("adresler", "10.50.0.2")], Some(&tok)));
+        assert!(!loc(&r).contains("e=1"), "{}", loc(&r));
+        let r = e.p.handle(&req("POST", "/ap-kurulum/adresler", &[("csrf", &csrf), ("adresler", "10.50.0.2")], Some(&tok)));
+        assert!(loc(&r).contains(&pct("Değişiklik yok.")), "{}", loc(&r));
+        e.p.ip_oku = Box::new(|a: &[&str]| if a[0] == "ip" { "10.50.0.2 lladdr aa:bb:cc:dd:ee:01 REACHABLE\n".into() } else { String::new() });
+        let r = e.p.handle(&req("POST", "/ap-kurulum/adresler", &[("csrf", &csrf), ("adresler", "10.50.0.2")], Some(&tok)));
+        assert!(!loc(&r).contains("e=1") && mac()["10.50.0.2"] == "aa:bb:cc:dd:ee:01", "{}", loc(&r));
+        assert!(denetim().contains("adresler=10.50.0.2 eski=10.50.0.2 mac=10.50.0.2/aa:bb:cc:dd:ee:01 eski_mac=10.50.0.2/70:4f:57:dd:7a:e8"));
+        e.p.ip_oku = Box::new(|_: &[&str]| String::new());
+        let r = e.p.handle(&req("POST", "/ap-kurulum/adresler", &[("csrf", &csrf), ("adresler", "10.50.0.2")], Some(&tok)));
+        assert!(loc(&r).contains("e=1") && mac()["10.50.0.2"] == "aa:bb:cc:dd:ee:01", "{}", loc(&r));
         // ağdaki cihazlar listesinde işaretlenir
         std::fs::write(e.root.join("leases"), "1790712334 70:4f:57:dd:7a:e8 10.50.0.2 * *\n").unwrap();
         assert!(e.p.handle(&req("GET", "/ap-kurulum/cihazlar", &[], Some(&tok))).body.contains("kayıtlı AP adresi"));
         std::fs::remove_file(e.root.join("leases")).unwrap();
-        // boşaltma
+        // boşaltma: MAC'ler de gider
         let r = e.p.handle(&req("POST", "/ap-kurulum/adresler", &[("csrf", &csrf), ("adresler", "")], Some(&tok)));
         assert!(!loc(&r).contains("e=1"));
-        assert!(kayitli().is_empty() && denetim().contains("adresler=- eski=10.50.0.2,10.50.0.3"));
+        assert!(kayitli().is_empty() && mac().is_empty() && denetim().contains("adresler=- eski=10.50.0.2 mac=- eski_mac=10.50.0.2/aa:bb:cc:dd:ee:01"));
     }
 
     // ---------------------------------------------------------------- AP arayüzü (spec 2026-10-16-ap-arayuz)
@@ -4641,6 +4672,41 @@ mod tests {
     }
 
     #[test]
+    fn ap_yonetim_parolasi_ve_gizli_pencere_notu() {
+        // final review I1: AP'ye panel parolası değil merkezin ürettiği AP yönetim parolası yazılır; işletme sahibi de görür
+        let e = env();
+        let (tok, _) = setup_and_login(&e, "mudur", "sahip-parola-12");
+        let a = e.p.handle(&req("GET", "/ayarlar", &[], Some(&tok))).body;
+        assert!(a.contains("AP yönetim parolası henüz merkezden gelmedi") && a.contains("gizli (incognito) pencerede açın"), "{a}");
+        let mut m = crate::merkez::oku(&e.p.merkez_path).unwrap();
+        m.ap_parola = "Kp7mQx2Rtz4W".into();
+        crate::merkez::kaydet(&e.p.merkez_path, &m).unwrap();
+        let a = e.p.handle(&req("GET", "/ayarlar", &[], Some(&tok))).body;
+        assert!(a.contains("<b>AP yönetim parolası:</b> <code>Kp7mQx2Rtz4W</code>") && a.contains("panel parolanızı AP'ye yazmayın"), "{a}");
+    }
+
+    #[test]
+    fn ap_bul_baslatilamazsa_kosan_aramaya_dokunmaz() {
+        // final review M6: başlatma kilit altında; systemd-run başarısız ama arama çalışıyorsa (birim başka yerden başladı)
+        // durumu "başlatılamadı" ile ezilmez. Çalışmıyorsa hata yazılır.
+        let mut e = env();
+        let (tok, csrf) = setup_and_login(&e, "mudur", "sahip-parola-12");
+        e.p.runner = Box::new(|_: &[String]| false);
+        let r = e.p.handle(&req("POST", "/ap-kurulum/otomatik", &[("csrf", &csrf)], Some(&tok)));
+        assert!(loc(&r).contains("e=1") && crate::ap_bul::oku(&e.p.ap_yollar).unwrap().durum == "hata", "{}", loc(&r));
+        let sayac = Arc::new(AtomicUsize::new(0));
+        let s2 = sayac.clone();
+        e.p.ip_oku = Box::new(move |a: &[&str]| match a {
+            ["systemctl", "is-active", "wfc-ap-bul.service"] => if s2.fetch_add(1, Ordering::SeqCst) == 0 { "inactive\n" } else { "active\n" }.into(),
+            _ => String::new(),
+        });
+        let r = e.p.handle(&req("POST", "/ap-kurulum/otomatik", &[("csrf", &csrf)], Some(&tok)));
+        assert_eq!(loc(&r), "/ap-kurulum/bul");
+        assert_eq!(crate::ap_bul::oku(&e.p.ap_yollar).unwrap().durum, "suruyor");
+        assert_eq!(sayac.load(Ordering::SeqCst), 2);
+    }
+
+    #[test]
     fn ap_arayuz_git_ve_kapat() {
         let mut e = env();
         let (tok, csrf) = setup_and_login(&e, "admin", "hizmet-parola-1");
@@ -4666,18 +4732,31 @@ mod tests {
         assert!(a.contains("AP arayüzü erişimi açık:</b> <code>192.168.1.1</code>") && a.contains("action=\"/ap-kurulum/arayuz-kapat\""), "{a}");
         // yan odanın kendi adresi ve ağı dışı reddedilir
         assert!(git(&e, &tok, &csrf, "192.168.1.250").body.contains("class=\"hata\"") && git(&e, &tok, &csrf, "192.168.2.1").body.contains("class=\"hata\""));
-        // web arayüzü cevap vermiyor: hedef değişmez
-        e.p.ap_dene = Box::new(|_, _| None);
+        // kayıtlı ama MAC'i sabitlenmemiş adres (final review I1): gidilmez, AP'ye bağlanılmaz
+        e.p.ap_dene = Box::new(|_, _| panic!("MAC'siz kayıtta AP'ye bağlanılmamalı"));
         let mut c = Config::load(&e.p.cfg_path).unwrap();
         c.ap.adresler = vec!["10.50.0.2".into()];
         c.save(&e.p.cfg_path).unwrap();
+        assert!(git(&e, &tok, &csrf, "10.50.0.2").body.contains("MAC&#x27;i sabitlenmemiş"));
+        // web arayüzü cevap vermiyor: hedef değişmez
+        e.p.ap_dene = Box::new(|_, _| None);
+        c.ap.mac.insert("10.50.0.2".into(), "aa:bb:cc:dd:ee:ff".into());
+        c.save(&e.p.cfg_path).unwrap();
         assert!(git(&e, &tok, &csrf, "10.50.0.2").body.contains("cevap vermedi"));
         assert_eq!(crate::ap_arayuz::oku(&e.p.ap_yollar).unwrap().adres, "192.168.1.1");
-        // kayıtlı AP adresi (HTTPS): misafir ağından, 30 dk; önceki hedef kapandı (yeni_hedef)
+        // komşu tablosundaki MAC (70:4f:…) sabitlenenden farklı: hedef yazılmaz, red denetimde
         e.p.ap_dene = Box::new(|ip, yan| (ip.to_string() == "10.50.0.2" && !yan).then_some(443));
+        let r = git(&e, &tok, &csrf, "10.50.0.2");
+        assert!(r.body.contains("kayıtlı MAC aa:bb:cc:dd:ee:ff, şu an 70:4f:57:dd:7a:e8") && !r.body.contains("http-equiv=\"refresh\""), "{}", r.body);
+        assert_eq!(crate::ap_arayuz::oku(&e.p.ap_yollar).unwrap().adres, "192.168.1.1");
+        assert!(denetim_metni(&e).contains("red hedef=10.50.0.2 neden=mac mac=aa:bb:cc:dd:ee:ff simdi=70:4f:57:dd:7a:e8"));
+        // kayıtlı AP adresi (HTTPS, MAC aynı): misafir ağından, 30 dk; hedefte sabit MAC; önceki hedef kapandı (yeni_hedef)
+        c.ap.mac.insert("10.50.0.2".into(), "70:4f:57:dd:7a:e8".into());
+        c.save(&e.p.cfg_path).unwrap();
         assert!(git(&e, &tok, &csrf, "10.50.0.2").body.contains("http-equiv=\"refresh\""));
         let hd = crate::ap_arayuz::oku(&e.p.ap_yollar).unwrap();
         assert_eq!((hd.yol.as_str(), hd.sema.as_str(), hd.port, hd.bitis, hd.yan_oda), ("misafir", "https", 443, now + 1800.0, None));
+        assert_eq!(hd.mac.as_deref(), Some("70:4f:57:dd:7a:e8"));
         let d = denetim_metni(&e);
         assert!(d.contains("kapandi hedef=192.168.1.1:80 yol=yan_oda neden=yeni_hedef") && d.contains("acildi hedef=10.50.0.2:443 yol=misafir sure=1800"), "{d}");
         // AP adresleri kartında da git düğmesi
@@ -4720,13 +4799,19 @@ mod tests {
             ap_aktarim::ApKarar::Cevap(r) => assert!(r.status == 403 && r.body.contains("AP erişimi kapalı") && !r.body.contains("_ap-gecis"), "{}", r.body),
             _ => panic!("kapalı sayfası bekleniyor"),
         }
-        // kayıtlı AP adresine hedef: aktarım
+        // kapalı sayfasında temizleyerek çıkış (merkezin /_ap-cikis'i, aynı kökte)
+        match e.p.ap_karar("10.99.0.1", Some(MUSTERI)) {
+            ap_aktarim::ApKarar::Cevap(r) => assert!(r.body.contains("href=\"/_ap-cikis\"") && r.body.contains("oturumlarınız da kapanır"), "{}", r.body),
+            _ => panic!("kapalı sayfası bekleniyor"),
+        }
+        // kayıtlı AP adresine (MAC'i sabitlenmiş) hedef: aktarım
         let mut c = Config::load(&e.p.cfg_path).unwrap();
         c.ap.adresler = vec!["10.50.0.2".into()];
+        c.ap.mac.insert("10.50.0.2".into(), "70:4f:57:dd:7a:e8".into());
         c.save(&e.p.cfg_path).unwrap();
         let hd = crate::ap_arayuz::Hedef {
             adres: "10.50.0.2".into(), port: 80, sema: "http".into(), yol: "misafir".into(), bitis: 1_790_705_200.0,
-            kim: MUSTERI.into(), rol: "sahip".into(), yan_oda: None,
+            kim: MUSTERI.into(), rol: "sahip".into(), yan_oda: None, mac: Some("70:4f:57:dd:7a:e8".into()),
         };
         crate::ap_arayuz::yaz(&e.p.ap_yollar, &hd).unwrap();
         assert!(matches!(e.p.ap_karar("10.99.0.1", Some(MUSTERI)), ap_aktarim::ApKarar::Aktar(h) if h == hd));
@@ -4775,8 +4860,16 @@ mod tests {
         };
         let hd = crate::ap_arayuz::Hedef {
             adres: "192.168.1.1".into(), port: 80, sema: "http".into(), yol: "yan_oda".into(), bitis: 9e9,
-            kim: MUSTERI.into(), rol: "sahip".into(), yan_oda: Some("0a1b2c3d".into()),
+            kim: MUSTERI.into(), rol: "sahip".into(), yan_oda: Some("0a1b2c3d".into()), mac: None,
         };
+        // Service Worker betiği ve başka siteden istek AP'ye hiç gitmez (final review C1, I2): bağlantı kurulmadan 403
+        for istek in [&b"GET /sw.js HTTP/1.0\r\nHost: ap.wificorrect.com\r\nService-Worker: script\r\n\r\n"[..],
+                      &b"GET /userRpm/WlanSecurityRpm.htm?Save=Save HTTP/1.0\r\nHost: ap.wificorrect.com\r\nSec-Fetch-Site: cross-site\r\nSec-Fetch-Mode: navigate\r\nSec-Fetch-Dest: document\r\n\r\n"[..]] {
+            let t = istemci(istek);
+            ap_aktarim::ap_isle(&e.p, sunucu.recv().unwrap(), hd.clone());
+            let cevap = t.join().unwrap();
+            assert!(cevap.starts_with("HTTP/1.0 403") && cevap.contains("iletil") && !cevap.contains("Content-Security-Policy"), "{cevap}");
+        }
         let t = istemci(b"GET /userRpm/Index.htm HTTP/1.0\r\nHost: ap.wificorrect.com\r\nX-WFC-AP: 1\r\nCookie: _; SID=1\r\n\r\n");
         ap_aktarim::ap_isle(&e.p, sunucu.recv().unwrap(), hd.clone());
         let cevap = t.join().unwrap();
@@ -4787,10 +4880,24 @@ mod tests {
         // AP'ye ulaşılamıyor: sade 502, panel başlıkları yok
         e.p.ap_baglan = Box::new(|_: &crate::ap_arayuz::Hedef| Err(std::io::Error::from(std::io::ErrorKind::ConnectionRefused)));
         let t = istemci(b"GET / HTTP/1.0\r\nHost: ap.wificorrect.com\r\n\r\n");
-        ap_aktarim::ap_isle(&e.p, sunucu.recv().unwrap(), hd);
+        ap_aktarim::ap_isle(&e.p, sunucu.recv().unwrap(), hd.clone());
         let cevap = t.join().unwrap();
         assert!(cevap.starts_with("HTTP/1.0 502") && cevap.contains("AP&#x27;ye ulaşılamadı"), "{cevap}");
         assert!(!cevap.contains("Content-Security-Policy") && !cevap.contains("X-Frame-Options"), "{cevap}");
+        // kayıtlı AP adresinde başka MAC (final review I1): 403, erişim kapanır (bir kez denetim), AP'ye istek yazılmaz
+        crate::ap_arayuz::yaz(&e.p.ap_yollar, &hd).unwrap();
+        e.p.ap_baglan = Box::new(|_: &crate::ap_arayuz::Hedef| {
+            Err(std::io::Error::other(crate::ap_arayuz::MacFarkli { kayitli: "70:4f:57:dd:7a:e8".into(), simdi: Some("de:ad:be:ef:00:01".into()) }))
+        });
+        for _ in 0..2 {
+            let t = istemci(b"GET / HTTP/1.0\r\nHost: ap.wificorrect.com\r\n\r\n");
+            ap_aktarim::ap_isle(&e.p, sunucu.recv().unwrap(), hd.clone());
+            let cevap = t.join().unwrap();
+            assert!(cevap.starts_with("HTTP/1.0 403") && cevap.contains("MAC adresi değişmiş") && cevap.contains("de:ad:be:ef:00:01"), "{cevap}");
+        }
+        assert!(!e.p.ap_yollar.hedef.exists());
+        let satirlar: Vec<String> = denetim_metni(&e).lines().filter(|l| l.contains("neden=mac")).map(String::from).collect();
+        assert!(satirlar.len() == 1 && satirlar[0].contains("kapandi hedef=192.168.1.1:80 yol=yan_oda neden=mac mac=70:4f:57:dd:7a:e8 simdi=de:ad:be:ef:00:01"), "{satirlar:?}");
     }
 
     #[test]

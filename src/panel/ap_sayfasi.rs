@@ -21,6 +21,20 @@ fn rol_adi(o: &Oturum) -> &'static str {
     if o.rol == Rol::Hizmet { "hizmet" } else { "sahip" }
 }
 
+/// Misafir portunun komşu tablosu (`ip -4 neigh show dev <köprü>`): kayıtlı AP'nin MAC'i
+fn komsu_tablosu(p: &Panel, cfg: &Config) -> String {
+    (p.ip_oku)(&["ip", "-4", "neigh", "show", "dev", &cfg.main.iface])
+}
+
+/// MAC'i okunamayan kayıtlı adresler için uyarı
+fn okunamadi_mesaji(adresler: &[String]) -> String {
+    format!(
+        "MAC adresi okunamadı: {} — AP açık ve misafir portuna bağlıyken yeniden Kaydet'e basın (önceden sabitlenmiş MAC varsa o \
+         kaldı; MAC'i sabitlenmemiş adrese panelden gidilmez).",
+        adresler.join(", ")
+    )
+}
+
 /// "AP arayüzüne git": yeni sekmede (form hedefi), oturumun CSRF'iyle
 fn git_formu(o: &Oturum, adres: &str, etiket: &str) -> String {
     format!(
@@ -126,9 +140,29 @@ impl Panel {
         self.page(cfg, req, Some(o), "AP kurulumu", &body)
     }
 
-    /// Takılan cihaz: açık AP arayüzü erişimi, son arama, etiketteki adres + marka formu, "Otomatik bul".
+    /// AP yönetim parolası (merkezden; final review I1): AP'ye panel parolası değil bu yazılır
+    fn ap_parolasi(&self) -> String {
+        match crate::merkez::oku(&self.merkez_path).map(|m| m.ap_parola).filter(|p| !p.is_empty()) {
+            Some(p) => format!(
+                "<p><b>AP yönetim parolası:</b> <code>{}</code></p><p class=\"not\">AP'nin (ya da modemin) yönetim parolası olarak bunu \
+                 yazın; panel parolanızı AP'ye yazmayın (bütün AP'ler aynı adreste açılır, tarayıcının sakladığı AP parolası başka \
+                 AP'lere gidebilir). Hizmet sağlayıcı da yönetimde görür.</p>",
+                h(&p)
+            ),
+            None => "<p class=\"not\">AP yönetim parolası henüz merkezden gelmedi (günlük eşitlemeden sonra burada görünür); hizmet \
+                     sağlayıcınızdan öğrenin. Panel parolanızı AP'ye yazmayın.</p>"
+                .into(),
+        }
+    }
+
+    /// Takılan cihaz: AP yönetim parolası, açık AP arayüzü erişimi, son arama, etiketteki adres + marka formu, "Otomatik bul".
     fn takili_cihaz(&self, cfg: &Config, o: &Oturum, now: f64, yan: Option<&ap::Gecici>) -> String {
-        let mut s = String::new();
+        let mut s = self.ap_parolasi();
+        s.push_str(
+            "<p class=\"not\">AP arayüzünü her müşteri için yeni bir gizli (incognito) pencerede açın; işiniz bitince bütün gizli \
+             pencereleri kapatın (bütün müşterilerin AP'leri aynı adreste açılır; AP'nin çerezleri ve saklanan parolası pencere \
+             kapanınca silinir).</p>",
+        );
         match ap_arayuz::denetle(&self.ap_yollar, cfg, now) {
             ap_arayuz::Durum::Gecerli(hd) => s.push_str(&format!(
                 "<p><b>AP arayüzü erişimi açık:</b> <code>{}</code> ({}), {} kendiliğinden kapanır.</p><div class=\"eylemler\">{}{}</div>",
@@ -176,13 +210,16 @@ impl Panel {
             "suruyor" => "<p class=\"hata\">Son arama yarıda kaldı; yeniden deneyin.</p>".into(),
             "bulundu" => {
                 let ip: Option<Ipv4Addr> = d.adres.parse().ok();
+                let kayitli = ip.is_some_and(|ip| ap::kayitli_ap_mi(ip, cfg));
                 let gidilir = ip.is_some_and(|ip| match d.yol.as_str() {
-                    "misafir" => ap::kayitli_ap_mi(ip, cfg),
+                    "misafir" => kayitli && cfg.ap.mac.contains_key(&d.adres),
                     _ => yan.is_some_and(|g| g.adres == d.yan_oda && ap::yan_odada(ip, g)),
                 });
                 let yer = if d.yol == "misafir" { "misafir ağında".to_string() } else { format!("yan oda <code>{}</code>", h(&d.yan_oda)) };
                 let alt = if gidilir {
                     format!("<div class=\"eylemler\">{}</div>", git_formu(o, &d.adres, "AP arayüzüne git"))
+                } else if d.yol == "misafir" && kayitli {
+                    "<p class=\"not\">Bu kayıtlı AP adresinin MAC'i sabitlenmemiş: AP açıkken aşağıdaki AP adresleri'nde Kaydet'e basın.</p>".into()
                 } else if d.yol == "misafir" {
                     "<p class=\"not\">Bu adres kayıtlı AP adresi değil: AP arayüzüne gitmek için aşağıdaki AP adresleri'ne kaydedin \
                      (DHCP havuzu dışında olmalı; AP havuzdan adres aldıysa önce sabit adrese alın ya da betiği kullanın).</p>"
@@ -218,14 +255,27 @@ impl Panel {
         let mevcut = if liste.is_empty() {
             "<p>Kayıtlı AP adresi yok.</p>".to_string()
         } else {
+            // panelden yalnızca MAC'i sabitlenmiş adrese gidilir (aktarım her bağlantıda MAC'i denetler)
             let gitler: String = liste
                 .iter()
-                .filter(|a| a.parse::<Ipv4Addr>().is_ok_and(|ip| ap::kayitli_ap_mi(ip, cfg)))
+                .filter(|a| a.parse::<Ipv4Addr>().is_ok_and(|ip| ap::kayitli_ap_mi(ip, cfg)) && cfg.ap.mac.contains_key(*a))
                 .map(|a| git_formu(o, a, &format!("{a} arayüzüne git")))
                 .collect();
+            let kayitlar: Vec<String> = liste
+                .iter()
+                .map(|a| match cfg.ap.mac.get(a) {
+                    Some(m) => format!("<code>{}</code> (MAC <code>{}</code>)", h(a), h(m)),
+                    None => format!("<code>{}</code> (MAC sabitlenmedi)", h(a)),
+                })
+                .collect();
+            let eksik = if liste.iter().any(|a| !cfg.ap.mac.contains_key(a)) {
+                "<p class=\"not\">MAC'i sabitlenmemiş adrese panelden gidilmez: AP açık ve misafir portuna bağlıyken Kaydet'e basın.</p>"
+            } else {
+                ""
+            };
             format!(
-                "<p>Kayıtlı: {}</p>{}",
-                liste.iter().map(|a| format!("<code>{}</code>", h(a))).collect::<Vec<_>>().join(", "),
+                "<p>Kayıtlı: {}</p>{eksik}{}",
+                kayitlar.join(", "),
                 if gitler.is_empty() { String::new() } else { format!("<div class=\"eylemler\">{gitler}</div>") }
             )
         };
@@ -235,7 +285,8 @@ impl Panel {
              <textarea id=\"apa\" name=\"adresler\" rows=\"3\" maxlength=\"200\">{}</textarea>\
              <p><button>Kaydet</button></p></form>\
              <p class=\"not\">AP ayarlandıktan sonra kalıcı yönetim adresini yazın (ör. 10.50.0.2; misafir ağında, DHCP havuzu dışında). \
-             Kayıt ağdaki cihazlar listesinde işaretlenir ve AP'nin arayüzüne panelden yan odasız gidilir. Başka porttaki misafirlerden AP'ye giden trafik cihazın \
+             Kaydederken AP açık olmalı: o anki MAC'i sabitlenir ve panel AP'nin arayüzüne yalnızca bu MAC'teki cihaza yan odasız gider \
+             (AP değişirse yeniden Kaydet'e basın). Kayıt ağdaki cihazlar listesinde işaretlenir. Başka porttaki misafirlerden AP'ye giden trafik cihazın \
              köprü yalıtımıyla zaten düşer; AP'ye kablosuz bağlı misafirleri yalnızca AP'nin kendi ayarı korur (kablosuzdan \
              yönetim kapalı ya da yönetim yalnızca {}).</p>",
             csrf_input(o),
@@ -245,24 +296,60 @@ impl Panel {
         )
     }
 
-    /// AP adresleri kaydı (`[ap] adresler`); güvenlik duvarına dokunmaz. Denetim `PANEL_AP_ADRES adresler=… eski=…`.
+    /// AP adresleri kaydı (`[ap] adresler`); güvenlik duvarına dokunmaz. Her adresin o anki MAC'i (komşu tablosu; yoksa
+    /// AP'ye bir kez bağlanılıp yeniden bakılır) `[ap] mac`'e sabitlenir (final review I1); okunamazsa önceki sabit MAC
+    /// kalır. Aynı listeyi yeniden kaydetmek MAC'i yeniden sabitler (AP değişince). Denetim
+    /// `PANEL_AP_ADRES adresler=… eski=… mac=adres/MAC,… eski_mac=…`.
     pub(super) fn ap_adres_kaydet(&self, cfg: &Config, req: &Req, o: &Oturum) -> Resp {
         let girdi = req.form.get("adresler").map_or("", String::as_str);
         let yeni = match ap::kayit_dogrula(girdi, cfg) {
             Ok(v) => v,
             Err(e) => return redirect("/ap-kurulum", Some((&e, true))),
         };
-        if yeni == cfg.ap.adresler {
-            return redirect("/ap-kurulum", Some(("Değişiklik yok.", false)));
+        let mut neigh = if yeni.is_empty() { String::new() } else { komsu_tablosu(self, cfg) };
+        let mut macler = std::collections::BTreeMap::new();
+        let mut okunamayan = vec![];
+        for a in &yeni {
+            let Ok(ip) = a.parse::<Ipv4Addr>() else { continue };
+            let mut m = ap::komsu_mac(&neigh, ip);
+            if m.is_none() {
+                let _ = (self.ap_dene)(ip, false); // bağlantı denemesi adresi çözdürür (AP açıksa komşu tablosuna girer)
+                neigh = komsu_tablosu(self, cfg);
+                m = ap::komsu_mac(&neigh, ip);
+            }
+            match m {
+                Some(m) => {
+                    macler.insert(a.clone(), m);
+                }
+                None => {
+                    okunamayan.push(a.clone());
+                    if let Some(eski) = cfg.ap.mac.get(a) {
+                        macler.insert(a.clone(), eski.clone()); // şimdi okunamadı: önceki sabit MAC kalır
+                    }
+                }
+            }
+        }
+        if yeni == cfg.ap.adresler && macler == cfg.ap.mac {
+            let msg = if okunamayan.is_empty() { "Değişiklik yok.".to_string() } else { okunamadi_mesaji(&okunamayan) };
+            return redirect("/ap-kurulum", Some((&msg, !okunamayan.is_empty())));
         }
         let mut c = cfg.clone();
         let eski = std::mem::replace(&mut c.ap.adresler, yeni);
+        let eski_mac = std::mem::replace(&mut c.ap.mac, macler);
         if let Err(e) = c.save(&self.cfg_path) {
             return redirect("/ap-kurulum", Some((&e, true)));
         }
         let yaz = |v: &[String]| if v.is_empty() { "-".to_string() } else { v.join(",") };
-        self.audit(&c, req, Some(o), "PANEL_AP_ADRES", &format!("adresler={} eski={}", yaz(&c.ap.adresler), yaz(&eski)));
-        redirect("/ap-kurulum", Some(("Kaydedildi.", false)))
+        let yaz_mac = |m: &std::collections::BTreeMap<String, String>| {
+            if m.is_empty() { "-".to_string() } else { m.iter().map(|(a, x)| format!("{a}/{x}")).collect::<Vec<_>>().join(",") }
+        };
+        self.audit(&c, req, Some(o), "PANEL_AP_ADRES", &format!("adresler={} eski={} mac={} eski_mac={}", yaz(&c.ap.adresler), yaz(&eski),
+                                                                  yaz_mac(&c.ap.mac), yaz_mac(&eski_mac)));
+        if okunamayan.is_empty() {
+            redirect("/ap-kurulum", Some(("Kaydedildi.", false)))
+        } else {
+            redirect("/ap-kurulum", Some((&format!("Kaydedildi. {}", okunamadi_mesaji(&okunamayan)), true)))
+        }
     }
 
     /// Ağdaki cihazlar: cihaz adları kişisel veri olabilir → her açılış denetime (`PANEL_AP_CIHAZLAR`).
@@ -404,8 +491,11 @@ impl Panel {
         self.ap_bul_baslat(cfg, req, o, Some(ip), now)
     }
 
-    /// Arama işini (`ctl ap-bul`, geçici systemd birimi) başlatır; sonuç sayfası kendini yeniler. Aynı anda tek arama.
+    /// Arama işini (`ctl ap-bul`, geçici systemd birimi) başlatır; sonuç sayfası kendini yeniler. Aynı anda tek arama:
+    /// başlatma kilit altında (çift tıklamada ikinci istek ilk aramayı çalışıyor görür; final review M6) ve başlatılamazsa
+    /// ama arama çalışıyorsa (başka yerden başlatıldı) onun durumu "başlatılamadı" ile ezilmez.
     pub(super) fn ap_bul_baslat(&self, _cfg: &Config, req: &Req, o: &Oturum, hedef: Option<Ipv4Addr>, now: f64) -> Resp {
+        let _kilit = self.ap_bul_kilit.lock().unwrap_or_else(|e| e.into_inner());
         if ap_bul::calisiyor(&*self.ip_oku) {
             return redirect("/ap-kurulum/bul", None); // sürüyor: onun sonucu beklenir
         }
@@ -416,6 +506,9 @@ impl Panel {
         }
         let ip = if req.ip.parse::<std::net::IpAddr>().is_ok() { req.ip.as_str() } else { "-" };
         if !(self.runner)(&ap_bul::komut(&o.user, rol, ip, hedef)) {
+            if ap_bul::calisiyor(&*self.ip_oku) {
+                return redirect("/ap-kurulum/bul", None); // birim zaten var: koşan aramanın durumuna dokunulmaz
+            }
             (d.durum, d.mesaj, d.bitis) = ("hata".into(), "Arama başlatılamadı.".into(), now);
             let _ = ap_bul::kaydet(&self.ap_yollar, &d);
             return redirect("/ap-kurulum", Some(("Arama başlatılamadı (systemd-run).", true)));
@@ -455,8 +548,28 @@ impl Panel {
             Err(e) => return hata(&e),
         };
         let yan_odadan = matches!(yol, Yol::YanOda(..));
+        if !yan_odadan && !cfg.ap.mac.contains_key(&ip.to_string()) {
+            return hata(&format!(
+                "{ip} adresinin MAC'i sabitlenmemiş: AP açık ve misafir portuna bağlıyken AP adresleri'nde Kaydet'e basın (AP'nin MAC'i \
+                 kaydedilir; panel yalnızca o cihaza gider)."
+            ));
+        }
         let Some(port) = (self.ap_dene)(ip, yan_odadan) else {
             return hata(&format!("{ip} adresinde web arayüzü (80/443) cevap vermedi. AP açık mı, kablo misafir portunda mı?"));
+        };
+        // kayıtlı AP adresi (misafir ağı): bağlantı denemesinden sonra komşu tablosundaki MAC sabitlenen MAC olmalı (final
+        // review I1: misafir ağında AP'nin adresini elle alan bir cihaz AP yerine geçip yazılan parolayı toplamasın)
+        let mac = match &yol {
+            Yol::YanOda(..) => None,
+            Yol::Misafir => {
+                let kayitli = cfg.ap.mac.get(&ip.to_string()).cloned().unwrap_or_default();
+                let simdi = ap::komsu_mac(&komsu_tablosu(self, cfg), ip);
+                if simdi.as_deref() != Some(kayitli.as_str()) {
+                    self.audit(cfg, req, Some(o), "AP_ARAYUZ", &format!("red hedef={ip} neden=mac mac={kayitli} simdi={}", simdi.as_deref().unwrap_or("-")));
+                    return hata(&ap_arayuz::mac_degisti_mesaji(&kayitli, simdi.as_deref()));
+                }
+                Some(kayitli)
+            }
         };
         let (yol_adi, yan_oda, bitis) = match yol {
             Yol::YanOda(k, b) => ("yan_oda", Some(k), (now + ap_arayuz::SURE_SN).min(b)),
@@ -471,6 +584,7 @@ impl Panel {
             kim: o.user.clone(),
             rol: rol_adi(o).into(),
             yan_oda,
+            mac,
         };
         if let Some(eski) = ap_arayuz::oku(&self.ap_yollar).filter(|e| e.adres != yeni.adres || e.yol != yeni.yol) {
             self.audit(cfg, req, Some(o), "AP_ARAYUZ", &ap_arayuz::kapandi_ek(&eski, "yeni_hedef"));

@@ -230,6 +230,26 @@ pub fn kayitli_ap_mi(ip: Ipv4Addr, cfg: &Config) -> bool {
     cfg.ap.adresler.iter().any(|a| *a == s) && kayit_dogrula(&s, cfg).is_ok()
 }
 
+/// `ip -4 neigh show dev <köprü>` çıktısında adresin MAC'i (lladdr'sız — FAILED / INCOMPLETE — satır yok sayılır).
+/// Kayıtlı AP adresinin MAC'ini sabitlemek ve "AP arayüzüne git"te denetlemek için (final review I1).
+pub fn komsu_mac(neigh: &str, ip: Ipv4Addr) -> Option<String> {
+    komsular("", neigh).into_iter().find(|k| k.ipler.contains(&ip)).map(|k| k.mac)
+}
+
+/// `/proc/net/arp`'ta adresin MAC'i: yalnızca çözülmüş (ATF_COM, 0x2) kayıt. Aktarımda her bağlantıdan sonra okunur
+/// (süreç başlatmadan; bağlantı kurulduysa kayıt çözülmüştür).
+pub fn arp_mac(arp: &str, ip: Ipv4Addr) -> Option<String> {
+    arp.lines().skip(1).find_map(|l| {
+        let p: Vec<&str> = l.split_whitespace().collect();
+        let (adres, bayrak, mac) = (p.first()?, p.get(2)?, p.get(3)?);
+        let bayrak = u32::from_str_radix(bayrak.trim_start_matches("0x"), 16).ok()?;
+        if adres.parse::<Ipv4Addr>().ok()? != ip || bayrak & 0x2 == 0 {
+            return None;
+        }
+        ortak::norm_mac(mac)
+    })
+}
+
 /// Hedef, açık yan odanın ağında mı (ağ / yayın adresi ve yan odanın kendi adresi değil)
 pub fn yan_odada(ip: Ipv4Addr, g: &Gecici) -> bool {
     Cidr::parse(&g.adres).is_some_and(|c| {
@@ -438,15 +458,19 @@ pub struct Kaldirilan {
 /// Yan odayı kapatır (aracı durur → ad alanı ve macvlan çekirdekçe silinir). `kimlik` (zamanlayıcı yolu) dosyadakiyle
 /// aynı değilse hiçbir şey yapmaz: eski bir zamanlayıcı yeni yan odayı erken kapatamaz. `neden` "sure" değilse
 /// zamanlayıcı durdurulur; "sure" değilken aracı durdurulamazsa hata döner ve durum dosyası kalır.
+/// `neden` "araci_yok" (arama işi yeni yan oda açmadan önce): yalnızca durum dosyası kalmış ama aracısı ölmüş (ya da
+/// dosyası bozuk) yan oda temizlenir — "Zaten bir yan oda açık" ile "Bağlan" hep hata vermesin; yaşayan yan odaya ve
+/// dosyasız aracıya (onu `ekle` durdurur) dokunulmaz. Kontrol kilit altında: arada açılan yan oda kapanmaz.
 pub fn kaldir(y: &Yollar, neden: &str, kimlik: Option<&str>, ip_oku: &IpOku, runner: &Runner) -> Result<Option<Kaldirilan>, String> {
     let _kilit = kilit(y)?;
+    let olu = neden == "araci_yok";
     let Some(g) = gecici_oku(y) else {
         if kimlik.is_none() {
             if y.gecici.exists() {
                 let _ = std::fs::remove_file(&y.gecici); // bozuk dosya: elle kapatmada temizlenir
             }
             // durum dosyası olmadan kalmış aracı (yarıda kalmış işlem): elle kapatmada durdurulur
-            if araci_canli(ip_oku) {
+            if !olu && araci_canli(ip_oku) {
                 if !runner(&araci_durdur()) {
                     return Err("Yan oda kapatılamadı (aracı durdurulamadı).".into());
                 }
@@ -455,7 +479,7 @@ pub fn kaldir(y: &Yollar, neden: &str, kimlik: Option<&str>, ip_oku: &IpOku, run
         }
         return Ok(None);
     };
-    if kimlik.is_some_and(|k| k != g.kimlik) {
+    if kimlik.is_some_and(|k| k != g.kimlik) || (olu && araci_canli(ip_oku)) {
         return Ok(None);
     }
     let sure = neden == "sure";
@@ -779,6 +803,44 @@ mod tests {
         let (_, r) = kayitci(|_| true);
         assert_eq!(kaldir(&y, "elle", None, &canli(false), &*r).unwrap(), None);
         assert!(!y.gecici.exists());
+    }
+
+    #[test]
+    fn olu_yan_oda_arama_isinde_temizlenir() {
+        // final review M6: durum dosyası kalmış, aracısı ölmüş yan oda "Bağlan"ı hep "Zaten açık" hatasına düşürmesin
+        let (_, y, _) = cfg_ve_yol();
+        // yaşayan yan odaya dokunulmaz
+        yaz(&y, "0a1b2c3d");
+        let (calls, r) = kayitci(|_| true);
+        assert_eq!(kaldir(&y, "araci_yok", None, &canli(true), &*r).unwrap(), None);
+        assert!(calls.lock().unwrap().is_empty() && y.gecici.exists());
+        // aracısı ölmüş: dosya silinir, zamanlayıcı durur, aracıya komut yok
+        let (calls, r) = kayitci(|_| true);
+        assert_eq!(kaldir(&y, "araci_yok", None, &canli(false), &*r).unwrap(), Some(Kaldirilan { adres: "192.168.1.250/24".into(), hata: None }));
+        assert_eq!(*calls.lock().unwrap(), vec![s(&["systemctl", "stop", "wfc-ap-gecici-0a1b2c3d.timer"])]);
+        assert!(!y.gecici.exists());
+        // bozuk dosya silinir; dosyasız çalışan aracıyı `ekle` durdurur (burada komut yok)
+        std::fs::write(&y.gecici, "bozuk").unwrap();
+        let (calls, r) = kayitci(|_| true);
+        assert_eq!(kaldir(&y, "araci_yok", None, &canli(true), &*r).unwrap(), None);
+        assert!(calls.lock().unwrap().is_empty() && !y.gecici.exists());
+    }
+
+    #[test]
+    fn komsu_ve_arp_mac() {
+        let ip = |s: &str| s.parse::<Ipv4Addr>().unwrap();
+        let neigh = "10.50.0.2 lladdr 70:4F:57:DD:7A:E8 REACHABLE\n10.50.0.3 FAILED\n10.50.0.44 lladdr da:11:22:33:44:55 STALE\n";
+        assert_eq!(komsu_mac(neigh, ip("10.50.0.2")).as_deref(), Some("70:4f:57:dd:7a:e8"));
+        assert_eq!(komsu_mac(neigh, ip("10.50.0.44")).as_deref(), Some("da:11:22:33:44:55"));
+        assert_eq!((komsu_mac(neigh, ip("10.50.0.3")), komsu_mac(neigh, ip("10.50.0.20")), komsu_mac("", ip("10.50.0.2"))), (None, None, None));
+        let arp = "IP address       HW type     Flags       HW address            Mask     Device\n\
+                   10.50.0.2        0x1         0x2         70:4f:57:dd:7a:e8     *        br-hotspot\n\
+                   10.50.0.3        0x1         0x0         00:00:00:00:00:00     *        br-hotspot\n\
+                   192.168.1.1      0x1         0x2         a4:2b:b0:11:22:33     *        enp3s0\n\
+                   10.50.0.5        0x1         0x6         00:0e:c4:00:00:05     *        br-hotspot\n";
+        assert_eq!(arp_mac(arp, ip("10.50.0.2")).as_deref(), Some("70:4f:57:dd:7a:e8"));
+        assert_eq!(arp_mac(arp, ip("10.50.0.5")).as_deref(), Some("00:0e:c4:00:00:05")); // kalıcı + çözülmüş
+        assert_eq!((arp_mac(arp, ip("10.50.0.3")), arp_mac(arp, ip("10.50.0.9")), arp_mac("", ip("10.50.0.2"))), (None, None, None));
     }
 
     #[test]

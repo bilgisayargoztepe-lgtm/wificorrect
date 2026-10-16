@@ -219,7 +219,14 @@ fn ap_bul(cfg: &Config, args: &[String]) -> ExitCode {
     };
     let arp = |istek: &[(Ipv4Addr, Ipv4Addr)]| crate::yan_oda::arp_tara(&cfg.main.iface, istek, Duration::from_millis(1200));
     let yan_oda = || crate::ap::durum(&y, &ip_oku).filter(|(_, canli)| *canli).map(|(g, _)| g);
-    let ac = |c: &str| crate::ap::ekle(cfg, &y, c, crate::ap::SURE_SN, &ip_oku, &runner, ortak::wall());
+    let ac = |c: &str| {
+        // durum dosyası kalmış ama aracısı ölmüş yan oda "Zaten bir yan oda açık" demesin (final review M6): önce kapanır
+        if let Ok(Some(k)) = crate::ap::kaldir(&y, "araci_yok", None, &ip_oku, &runner) {
+            denetim("AP_YAN_ODA", format!("kapandi adres={} neden=araci_yok", k.adres));
+            ap_arayuz_kapat(cfg, &y, ortak::wall());
+        }
+        crate::ap::ekle(cfg, &y, c, crate::ap::SURE_SN, &ip_oku, &runner, ortak::wall())
+    };
     let kapat = |_neden: &str| -> Result<Option<String>, String> {
         let k = crate::ap::kaldir(&y, "elle", None, &ip_oku, &runner)?;
         ap_arayuz_kapat(cfg, &y, ortak::wall());
@@ -1053,7 +1060,7 @@ mod tests {
         assert!(y.gecici.exists());
         // zamanlayıcı kendi kimliğiyle: kapatır, neden=sure; yan odanın AP arayüzü erişimi de biter
         let hedef = crate::ap_arayuz::Hedef { adres: "192.168.1.1".into(), port: 80, sema: "http".into(), yol: "yan_oda".into(), bitis: NOW + 600.0,
-                                              kim: "4511643".into(), rol: "sahip".into(), yan_oda: Some(g.kimlik.clone()) };
+                                              kim: "4511643".into(), rol: "sahip".into(), yan_oda: Some(g.kimlik.clone()), mac: None };
         crate::ap_arayuz::yaz(&y, &hedef).unwrap();
         assert_eq!(kod(ap_adres_kaldir(&c, &y, &a(&["ap-adres-kaldir", "sure", &g.kimlik]), &ip_var, &runner, NOW)), kod(ExitCode::SUCCESS));
         assert!(!y.gecici.exists() && denetim().contains("kapandi adres=192.168.1.250/24 neden=sure"));

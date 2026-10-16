@@ -523,3 +523,84 @@ Düzeltmeler:
 **Teknisyen notu:** kurulumda WifiCorrect kurulum belleği ve (iç disk yoksa) kurulacak boş bellek dışında **bütün USB
 bellek ve diskleri çıkarın**. İç disk (SSD) önerilir; USB belleğe kurulum çalışır ama flash daha çabuk aşınır (en az
 8 GB, tercihen kaliteli/USB 3). Ethernet 1 modeme takılı olmalı.
+
+## AP arayüzü — cihaz (2026-10-16, sürüm 0.4.15)
+Dal `ap-arayuz`; tasarım `docs/superpowers/specs/2026-10-16-ap-arayuz-design.md` (sözleşme: "Mimari"). Merkez tarafı
+(ap.wificorrect.com, `/_ap-gecis`, `/_ap-giris`, `/ap-yetki`, `wca` çerezi) ayrı dalda (`ap-arayuz-merkez`).
+- **Takılan cihaz** (panel → Ayarlar → AP kurulumu, en üstte; sahip ve hizmet sağlayıcı, CSRF + denetim):
+  **Etiketteki adres** (IP ya da bilinen ad: tplinkap.net/tplinkrepeater.net/tplinkeap.net → 192.168.0.254,
+  tplinkwifi.net/tplinklogin.net/tendawifi.com/dlinkrouter.local → 192.168.0.1, routerlogin.net/.com, myrouter.local,
+  mwlogin.net, netis.cc → 192.168.1.1, dlinkap.local → 192.168.0.50, miwifi.com → 192.168.31.1, fritz.box →
+  192.168.178.1; `http://`, yol, port atılır) ve isteğe bağlı **Marka / model** `[ap] etiket`, `[ap] marka`'ya yazılır
+  (değişince `PANEL_AP_ETIKET`; fabrika dönüşünde boşalır). Özel ağ adresi olmalı, /24'ün .0/.255'i ve cihazın kendi
+  adresi değil. Etiketteki kullanıcı adı/parola istenmez.
+- **Bağlan / Otomatik bul** = arka plan işi: panel `/run/wificorrect/ap-bul.json`'a "sürüyor" yazar ve
+  `systemd-run --collect --unit wfc-ap-bul --property=RuntimeMaxSec=180 … ctl ap-bul KIM ROL IP [HEDEF]` başlatır
+  (aynı anda tek arama; birim varken yeni istek bekleme sayfasına gider). Bekleme sayfası `/ap-kurulum/bul` 2 sn'de bir
+  kendini yeniler (meta, JS yok), iş bitince AP kurulumuna döner; sonuç orada. İş (`src/ap_bul.rs`):
+  - misafir ağındaki adres: yan oda yok, ana ad alanından TCP 80, yoksa 443;
+  - diğerleri: kısa ömürlü adressiz yan odadan (`wfcarp0`, macvlan, ayrı ağ ad alanı) **ARP yoklaması** (gönderen
+    0.0.0.0, RFC 5227: kimsenin ARP tablosu değişmez): hedef cevap veriyor mu ve aynı /24'te .250, .249 … .241'den ilk
+    boş adres (ARP'ye cevap yok, hedefin kendisi değil). Hedef yoklamaya cevap vermezse bir kez de boş adresten sorulur.
+    Cevap yoksa yan oda açılmaz: "Bu adreste cihaz yok — kabloyu ve adresi kontrol edin". Cevap varsa yan oda
+    `<boş adres>/24` açılır (`ap::ekle`, 30 dk kuralları; aynı ağda açık yan oda varsa o kullanılır, başka ağdaysa
+    `kapandi … neden=yeni_hedef`), sonra aracı (127.0.0.1:1085) üzerinden TCP 80, yoksa 443 → "Cihaz bulundu (HTTP)"
+    ya da "web arayüzü (80/443) açılmadı" (yan oda açık kalır).
+  - Otomatik bul: kodda 23 yaygın fabrika adresi (`ap::OTOMATIK`: 192.168.1.1, 192.168.0.1, 192.168.0.254,
+    192.168.1.254, 192.168.10.1, 192.168.2.1, AirTies 192.168.2.254, Huawei 192.168.8.1 / 192.168.100.1 / 192.168.3.1,
+    10.0.0.1, 10.0.0.138, D-Link AP 192.168.0.50, Ubiquiti 192.168.1.20, Cisco 192.168.1.245, Ruijie 192.168.110.1 /
+    10.44.77.254, Xiaomi, Asus, MikroTik, Fritz!Box, Buffalo, Apple) tek ARP taramasında yoklanır; cevap verenler
+    sırayla denenir, web arayüzü olan ilkinde yan oda açık kalır (olmayanda `kapandi … neden=web_yok`). Birkaç saniye.
+  - Denetim (panel gibi `kullanici=… rol=… ip=…`): `AP_BAGLAN tur=baglan|otomatik sonuc=bulundu|web_yok|yok|hata
+    [hedef=… port=… yol=…]`, `AP_YAN_ODA acildi|kapandi`.
+- **AP arayüzüne git** (bulunan cihaz, açık yan odanın ağındaki adres formu, kayıtlı AP adresleri; yeni sekme):
+  hedef yalnızca açık yan odanın ağında (aracısı çalışan; ağ/yayın ve yan odanın kendi adresi değil) ya da kayıtlı AP
+  adresi (misafir ağında, havuz dışı, cihazın adresi değil). Web portu yeniden denenir (80, yoksa 443). Yazılır:
+  `/run/wificorrect/ap-hedef.json` (600; adres, port, şema, yol `yan_oda|misafir`, bitiş = şimdi + 30 dk, yan odada en
+  çok yan odanın bitişi, yan oda kimliği, kim/rol), denetim `AP_ARAYUZ acildi hedef=IP:port yol=… sure=…` (önceki başka
+  hedef `kapandi … neden=yeni_hedef`). Cevap 303 değil, `https://cihaz.wificorrect.com/_ap-gecis`'e **meta yenilemeli**
+  sayfa (+ "açılmazsa tıklayın"): Caddy'nin `form-action` CSP'si POST sonrası başka alana yönlendirmeyi kesmesin. Panelde
+  "AP arayüzü erişimi açık … Erişimi kapat" (`kapandi … neden=elle`). Yan oda kapanınca (panel, zamanlayıcı `ctl
+  ap-adres-kaldir sure`, port değişikliği, fabrika) yan oda hedefi de kapanır (`neden=yan_oda|port|fabrika`).
+  Merkez eski sürümdeyse `/_ap-gecis` cihaza panel isteği olarak gelir: "AP erişimi şu an kullanılamıyor" (503).
+- **Aktarım** (`src/ap_arayuz.rs`, `src/panel/ap_aktarim.rs`): `X-WFC-AP: 1` yalnızca `X-WFC-Kullanici` ile aynı güven
+  kuralıyla (açık tünel `wfc` + kaynak merkezin tünel adresi) geçerli; başka kaynakta yok sayılır (istek panele düşer,
+  bağlı cihazda 404). `X-WFC-Kullanici` bağlı müşterinin numarası değilse 403. Hedef her istekte yeniden denetlenir;
+  yoksa/süresi dolmuşsa sade "AP erişimi kapalı" sayfası (403; süresi dolan `kapandi … neden=sure`, kim hedeften).
+  Aktarımlar panelin 4 iş parçacığını tutmaz: ayrı 4 iş parçacığı + 64'lük kuyruk (dolarsa 503). AP kipindeki hiçbir
+  cevaba panelin CSP / X-Frame-Options: DENY / Referrer-Policy başlıkları eklenmez.
+  - İstek: AP'ye HTTP/1.0, `Connection: close`, `Accept-Encoding: identity`; Host / Origin / Referer AP'nin kendi
+    adresine (Origin/Referer yalnızca `https://<gelen Host>` ile başlıyorsa; başkası gitmez); X-WFC-*, X-Forwarded-*,
+    Forwarded, Via, Proxy-*, koşullu istek başlıkları (If-*), Cookie'de wca/wcc/wfc ve merkezin `_` yaptığı parçalar
+    gitmez; HTTP Basic (eski TP-Link) geçer. Yöntem büyük harf, CONNECT/TRACE yok; yol `/` ile başlar. Gövde en çok
+    8 MB (bilinen boyda akar; parçalıysa okunur); fazlası 413.
+  - Bağlantı: yan oda hedefi aracı (SOCKS5, 127.0.0.1:1085; aracı da yalnızca yan odanın ağına izin verir), misafir
+    hedefi ana ad alanından; 5 sn bağlanma, 30 sn boşta. HTTPS AP: rustls (tiny_http'nin 0.20 sürümü,
+    `dangerous_configuration`), sertifika doğrulamasız, SNI `ap.wificorrect.local`, yalnızca TLS 1.2+ (eski TLS'li AP'de
+    betik). close_notify'sız kapanış gövdenin sonu sayılır. HTTP/1.0'a parçalı cevap veren AP'ler çözülür.
+  - Cevap: hop-by-hop başlıklar, Content-Length (yeniden hesaplanır), Cache-Control/Expires/ETag/Last-Modified/Pragma,
+    HSTS, Alt-Svc atılır; her cevap `Cache-Control: no-store` (bütün AP'ler aynı kökende). Başlık değerlerinde ve metin
+    gövdede (text/*, JS, JSON, XML; türsüzse NUL içermeyen; sıkıştırılmamış; en çok 2 MB, fazlası olduğu gibi akar)
+    `http(s)://<hedef>[:port]`, `//<hedef>` ve JSON kaçışlı `http:\/\/<hedef>` → `https://<gelen Host>` / `//<gelen Host>`
+    (`<hedef>`: adres ve ona giden bilinen adlar; 192.168.1.10 gibi başka adresler değişmez). Set-Cookie'den Domain
+    çıkar, wca/wcc/wfc adlı çerez yazılmaz. AP aynı adreste başka şemaya/porta yönlendirirse (http → https://<hedef>/)
+    hedef dosyası güncellenir (döngü olmaz). İkili içerik (resim, ürün yazılımı) akar (tiny_http parçalı gönderir).
+  - Bilinen sınır: arayüzünü JS ile sabit adresten kuran modeller, WebSocket, 8 MB'tan büyük yükleme → betik.
+- **Küçükler:** panel sertifikası boş/bozuksa (PEM ve base64 denetimi; tiny_http boş anahtarda panik ediyordu, Visavis)
+  yeniden üretilir: geçici dosyalar (anahtar baştan 600) doğrulanınca yerlerine taşınır; dosyalar PEM görünüp tiny_http
+  açamazsa bir kez daha üretilir (port dolu hatasında üretilmez). **Monitörsüz açılış:**
+  `/usr/local/lib/wificorrect/efi-baslangic <EFI dizini>` EFI bölümüne CRLF `startup.nsh` + `\EFI\BOOT\startup.nsh` +
+  işaret `\EFI\wificorrect\kimlik` yazar (fs0–fs15'te işareti arar; `\EFI\BOOT\BOOTX64.EFI`, yoksa
+  `\EFI\debian\shimx64.efi`, `grubx64.efi`); içerik aynıysa dokunmaz. postinst (`mountpoint -q /boot/efi`) ve kurucu
+  (`son.sh`, `/target/boot/efi` bağlıysa; seri günlükte `EFI BASLANGIC YAZILDI`, duman testi arar) çağırır. Etkisi gerçek
+  cihazda doğrulanmadı. Portal metinleri örneği gerçek ek hesabıyla (`İŞLETMECİ’nin → Göztepe Bilgisayar’ın`).
+  `scripts/ap-ac.ps1 -Tunel 10.99.0.x [-Merkez gbserver@192.168.1.109] [-MerkezAnahtar ~/.ssh/gbserver]`: geçici
+  ssh_config (`-F`, BOM'suz), merkez üzerinden `ProxyCommand ssh.exe -F … -W %h:%p` (Windows OpenSSH'ta ProxyJump yerine),
+  cihaz anahtarı `-Anahtar` ya da `~/.ssh/bocafe`; cihazın ana makine anahtarı `~/.ssh/known_hosts_wificorrect`'te
+  `HostKeyAlias wificorrect-tunel-<IP>` ile (`accept-new`; tünel adresi başka cihaza geçip anahtar değişirse bağlanmaz,
+  betik `ssh-keygen -R …` satırını yazar; `-E` günlüğünden). `ssh -G` ile Windows OpenSSH 9.5'te ayrıştırması denendi;
+  gerçek atlama canlı kabulde.
+- **Canlı kabul listesi** (henüz yapılmadı; merkez + DNS `ap.wificorrect.com` sonrası, uzaktan güncellemeyle 0.4.15):
+  Göztepe'nin TP-Link'i (10.50.0.2, AP adresleri'ne kaydedilip) → git → giriş sayfası + menüler (frameset) çalışıyor mu;
+  fabrika adresli bir AP (ZyXEL 192.168.1.1) → Bağlan → yan oda .250 → git; Otomatik bul; HTTPS'e yönlendiren bir model;
+  süre dolunca "AP erişimi kapalı"; yan oda kapanınca erişim kapanıyor mu; `ap-ac.ps1 -Tunel` gerçek atlama.

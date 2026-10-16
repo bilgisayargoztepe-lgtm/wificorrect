@@ -216,6 +216,72 @@ Spec §7 gereği canlı cihaz (1537344) ile `deploy/debian/` karşılaştırıld
 - **Caddy bloğu** (`scripts/sunucu/merkez/Caddyfile`, `kur.sh` kopyalar): `cihaz.wificorrect.com` — `request_header -X-WFC-Kullanici` / `-X-WFC-Cihaz`; `/_giris /_cikis` merkeze (forward_auth dışı); diğer her şey `forward_auth` + `reverse_proxy {http.request.header.X-WFC-Cihaz}:8443` (`transport http { tls; tls_insecure_skip_verify }` — cihaz sertifikası kendinden imzalı, tünel zaten şifreli).
 - **Caddy 2.6.2 uyumu** (Ubuntu paketi; kaynak `v2.6.2` incelendi): üst akış adresinde yer tutucu varsa `https://` şeması yazılamaz ("placeholders are not allowed when an upstream address contains a scheme") → plana yazılan `https://{…}:8443` yerine şemasız adres + `tls` taşıma ayarı kullanıldı. `forward_auth` + `copy_headers` 2.6.2'de var. Yer tutuculu `dial` her istekte çözülür. **DNS:** `cihaz.wificorrect.com` kaydı sunucuya yönlenmeli (sertifika için).
 
+## AP arayüzü — merkez (2026-10-16)
+Dal `ap-arayuz-merkez`; tasarım `docs/superpowers/specs/2026-10-16-ap-arayuz-design.md` ("Mimari (sözleşme)" 2–3); cihaz tarafı
+ayrı (0.4.15). Kod `scripts/sunucu/merkez/ap.py` (ap.wificorrect.com), `cihaz.py` (`/_ap-gecis`); testler `tests/test_ap.py`.
+- **Akış:** cihaz paneli → Ayarlar → AP kurulumu → "AP arayüzüne git" → cihaz hedef durumunu yazar, tarayıcıyı
+  `https://cihaz.wificorrect.com/_ap-gecis`'e yönlendirir (Caddy bu yolu forward_auth'suz merkeze verir) → merkez `wcc`
+  çerezinden (müşteri ya da yönetici geçişi oturumu) müşteriyi, cihaz kaydını ve tünel adresini bulur; bunlara ve bu `wcc`
+  oturumuna bağlı **60 sn'lik tek kullanımlık** belirteç → `303 https://ap.wificorrect.com/_ap-giris?t=…` → `wca` çerezi →
+  `303 /` → Caddy her istekte `forward_auth` ile `/ap-yetki`'ye sorar → `200` + `X-WFC-Cihaz: <tünel IP>`,
+  `X-WFC-Kullanici: <müşteri numarası>`, `X-WFC-AP: 1` → `reverse_proxy {X-WFC-Cihaz}:8443`. `wcc` geçersizse `/_ap-gecis`
+  panel girişine (`https://panel.wificorrect.com/giris`) döner.
+- **`wca`:** `HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=1800`, Domain yok (yalnızca ap.wificorrect.com); sunucuda da en
+  çok **30 dk** (mutlak, istekle uzamaz). Her istekte altındaki `wcc` cihaz-yetki kuralıyla yeniden doğrulanır (parola özeti,
+  üyelik, lisans, bağlı cihaz + tünel adresi) ve **açıldığı cihaz kaydı ve tünel adresi** aynı olmalı; değilse `wca` düşer.
+  Adres her istekte `wcc`'nin müşterisinden bulunur: bir müşterinin `wca`'sı başka müşterinin cihazına gidemez; cihaz değişirse
+  (aynı tünel adresi verilse bile) eski `wca` geçmez. AP kullanımı `wcc`'yi de canlı tutar (boşta 30 dk). Cihaz panelinden
+  çıkış, parola değişimi, lisans/üyelik kapanması, bağın kalkması `wca`'yı da geçersiz kılar.
+- **`X-WFC-Kullanici`** yönetici geçişinde de müşteri numarasıdır (cihaz-yetki gibi; cihaz kendi bağındaki numarayla
+  karşılaştırır). Açanın kim olduğu merkezde hareket satırında, cihazda kendi `AP_ARAYUZ` denetiminde.
+- **Geçersiz durumlar:** belirteç yok/kullanılmış/süresi dolmuş ya da altındaki `wcc` düşmüş → `/_ap-giris` 403 sade Türkçe
+  sayfa ("Bağlantı geçersiz … Ayarlar → AP kurulumu → AP arayüzüne git ile yeniden açın", cihaz paneline bağlantı).
+  `/ap-yetki` geçersiz → 403 "AP erişimi kapalı" (forward_auth bu cevabı tarayıcıya aynen verir; bozuk/eski `wca` silinir).
+  `/_ap-cikis[?donus=/yol]` `wca`'yı siler, `https://cihaz.wificorrect.com/yol`'a döner (yalnızca bu sitede bir yol;
+  varsayılan `/`); cihaz paneli oturumu açık kalır.
+- **Yalnızca cihaz panelinden (Fetch Metadata):** AP arayüzü panel/cihaz/yönetimle aynı "site"da çalışır ve `wcc`
+  (SameSite=Lax) aynı-site alt isteklerde de gönderilir: kötü niyetli bir AP'nin betiği `<iframe src=…/_ap-gecis>` ile
+  tarayıcıdaki BAŞKA müşterinin `wcc`'sinden `wca` aldırıp o AP'yi kendi kökeninde okuyabilirdi. Bu yüzden tarayıcı
+  `Sec-Fetch-*` gönderdiyse `/_ap-gecis` yalnızca `Sec-Fetch-Site: same-origin|none` (cihaz.wificorrect.com sayfası ya da elle
+  yazılan adres), `/_ap-giris` `same-origin|same-site|none`; ikisi de `Sec-Fetch-Mode: navigate` + `Sec-Fetch-Dest: document`
+  (çerçeve/fetch/resim değil). Değilse 403 "AP arayüzü açılamadı" (belirteç harcanmaz; oturumlu/belirteçli istekte günlüğe
+  `AP_GECIS_RED` / `AP_GIRIS_RED` + değerler). Başlık göndermeyen eski tarayıcı geçer. Sonuç: `/_ap-gecis`'e bağlantı yalnızca
+  cihaz.wificorrect.com sayfasından verilir (AP kipi sayfalarından, yani ap.wificorrect.com'dan değil).
+- **Hız sınırı, hareket:** `/_ap-gecis` müşteri başına dakikada 20 (aşılırsa 429 sayfası); her geçiş hareket `AP_GECIS`
+  (kim = müşteri numarası ya da `admin`, IP, müşteri, ayrıntı yalnızca `rol=musteri|yonetici`; hedef adres yok — merkez
+  bilmez). `/ap-yetki` ve `/_ap-giris` sınırsız (cihaz-yetki ve `/_giris` gibi; AP sayfası istek başına onlarca kaynak yükler;
+  belirteçler 256 bit). fail2ban değişmedi (bu uçlarda parola yok).
+- **Caddy `ap.wificorrect.com` bloğu** (cihaz bloğunun kalıbı): `request_header -X-WFC-Kullanici` / `-X-WFC-Cihaz` /
+  `-X-WFC-AP`; `@merkez path /_ap-giris /_ap-cikis` → merkez; diğer her şey `forward_auth` (`uri /ap-yetki`,
+  `copy_headers X-WFC-Kullanici X-WFC-Cihaz X-WFC-AP`) + `reverse_proxy {http.request.header.X-WFC-Cihaz}:8443` (`tls` +
+  `tls_insecure_skip_verify`), `header_up -X-WFC-Cihaz`, `header_up Cookie "\b(?:wca|wcc)=[^;]*" "_"` (merkez çerezleri
+  cihaza/AP'ye gitmez, AP'nin kendi çerezleri geçer), Host `ap.wificorrect.com` kalır; 502/503/504 → panel `/cihaz?yok=1`.
+- **Güvenlik başlıkları:** HSTS ve `-Server` diğer bloklar gibi; **CSP, X-Frame-Options, X-Content-Type-Options,
+  Referrer-Policy bilerek yok**: içerik AP'nin kendi arayüzüdür (satır içi betik/eval, frameset, betiği yanlış MIME türüyle
+  sunan gömülü sunucular, Referer denetleyen TP-Link) — herhangi biri arayüzü bozar. Merkezin kendi cevapları (yukarıdaki
+  sayfalar) her zamanki başlıklarla çıkar.
+- **Cihaz bloğu:** `/_ap-gecis` merkeze (forward_auth dışı); `request_header -X-WFC-AP` (AP kipi başlığı cihaz alanından
+  cihaza asla ulaşmaz; cihaz merkezden gelen `X-WFC-AP: 1`'i AP kipi sayar); CSP `form-action`'a `https://ap.wificorrect.com`
+  eklendi (form-action yönlendirmeye de uygulanır: "AP arayüzüne git" formu → `/_ap-gecis` → ap.wificorrect.com; eklenmezse
+  tarayıcı gezinmeyi sessizce iptal eder).
+- **Bir tarayıcıda aynı anda tek AP arayüzü (yönetici için önemli):** bütün müşterilerin AP'leri tek kökende
+  (ap.wificorrect.com) açılır, tarayıcıda tek `wca` çerezi vardır: B'nin AP'si açılınca A'nın AP'si için açık kalmış sekmedeki
+  sonraki istekler (ör. "Kaydet") B'nin AP'sine gider. AP'nin kendi çerezleri ve tarayıcının sakladığı HTTP Basic kimliği de
+  bütün müşteriler için ortaktır (aynı model/realm'de A'nın AP parolası B'nin AP'sine gönderilebilir). Başka işletmenin AP'sine
+  geçmeden önce öbür AP sekmelerini kapatın (ya da gizli pencere kullanın).
+- **Bilinen risk:** AP arayüzü wificorrect.com'un alt alanında, panel ve yönetimle aynı "site"da çalışır: kötü niyetli ya da
+  açıklı bir AP'nin betiği üst alana çerez atabilir (`Domain=wificorrect.com`; oturum bozma) ya da aynı-site istek yapabilir.
+  Merkez çerezleri host-only + HttpOnly (okunamaz), POST'lar CSRF belirteçli, `/_ap-gecis` yukarıdaki gibi korunur. Kalıcı
+  çözüm: ayrı kayıtlı alan adı ve müşteri başına alt alan (ör. `<numara>.ap.<ayrı-alan>`, Caddy on-demand TLS + joker DNS);
+  cihaz bunun için içerik/Location yeniden yazımında sabit ad yerine gelen `Host`'u kullanmalı.
+- **Kurulum sırası:** (1) **DNS: `ap.wificorrect.com` A → merkezin dış IP'si** (Güzel Hosting → DNS Yönetimi; `cihaz` ile
+  aynı IP); sertifikayı Caddy alır; DNS gelmeden yalnızca ap.wificorrect.com açılmaz. (2) `merkez-guncelle.sh` (kullanıcı,
+  sudo): `kur.sh` `ap.py`'yi kurar, Caddyfile'ı `caddy validate`'ten geçmeden kurmaz. (3) Cihazlar 0.4.15. Merkez önce gelmezse
+  eski Caddyfile `/_ap-gecis`'i forward_auth ile cihaza iletir: cihaz bunu "AP erişimi şu an kullanılamıyor" diye göstermeli.
+- **Canlıda doğrulanmadı:** yerelde `caddy` yok; blok, canlıda çalışan cihaz bloğunun aynısı, yalnızca çerez ifadesi farklı
+  (RE2 `\b(?:wca|wcc)=[^;]*`). Kurulumdan sonra: `curl -s -o /dev/null -w '%{http_code}\n' https://ap.wificorrect.com/` → 403;
+  sonra panelden "AP arayüzüne git" uçtan uca.
+
 ## Uzaktan güncelleme (2026-10-12)
 Dal `uzaktan-guncelleme`; tasarım `docs/superpowers/specs/2026-10-12-uzaktan-guncelleme-design.md`. Sürüm **0.4.0**. Cihaz paketini (.deb) merkezden alıp kendi kurar; ISO'dan kurulmuş (paketli) cihazlar için.
 - **Akış:** yönetici → Sürümler'de GitHub'dan paketi alır (ya da elle ekler) ve kanal hedefini seçer → cihaz 5 dk'lık `/api/saglik` raporunda hedefi öğrenir (`guncelleme`: sürüm, sha256, boyut, `hemen`) → `ctl guncelle` paketi `/api/paket`ten indirir, sha256 doğrular → `apt-get install` → kurulumdan 10 dk sonra denetim betiği servisleri ve sağlık raporunu kontrol eder; bozuksa önceki paketi geri kurar. Rapor `paket` (kurulu sürüm) ve son sonucu da taşır.

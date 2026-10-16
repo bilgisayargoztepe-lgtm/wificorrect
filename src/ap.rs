@@ -11,7 +11,9 @@
 //! - AP adresi kaydı (`[ap] adresler`): yalnızca kayıt ve gösterim, güvenlik duvarı kuralı yok. Köprü portları arası
 //!   iletim `kapi.nft`'teki yalıtımla zaten düşer; AP'ye kablosuz bağlı misafirin trafiği cihazdan hiç geçmez (asıl
 //!   koruma AP'nin kendi ayarı, docs/AP_KURULUM.md),
-//! - yabancı DHCP denetimi: `ctl ap-dhcp-denetle` çıktısının ayrıştırılması.
+//! - yabancı DHCP denetimi: `ctl ap-dhcp-denetle` çıktısının ayrıştırılması,
+//! - takılan cihaz (spec 2026-10-16-ap-arayuz): etiketteki adres / bilinen ad, yaygın fabrika adresleri, yan oda için
+//!   boş adres adayları (arama işi `ap_bul.rs`, AP arayüzü aktarımı `ap_arayuz.rs`).
 
 use crate::ayar::Config;
 use crate::ortak::{self, Runner};
@@ -30,12 +32,27 @@ pub const EN_COK: usize = 8;
 const BIRIM_ONEK: &str = "wfc-ap-gecici-";
 
 pub struct Yollar {
+    /// Yan oda durumu (kalıcı: yeniden başlatmada `acilis` temizliği için)
     pub gecici: PathBuf,
+    /// AP arayüzü aktarım hedefi (`ap_arayuz.rs`; /run: yeniden başlatmada kendiliğinden gider)
+    pub hedef: PathBuf,
+    /// "Bağlan" / "Otomatik bul" işinin durumu (`ap_bul.rs`)
+    pub bul: PathBuf,
 }
 
 impl Yollar {
     pub fn sistem() -> Yollar {
-        Yollar { gecici: "/var/lib/wificorrect/ap-gecici.json".into() }
+        Yollar {
+            gecici: "/var/lib/wificorrect/ap-gecici.json".into(),
+            hedef: "/run/wificorrect/ap-hedef.json".into(),
+            bul: "/run/wificorrect/ap-bul.json".into(),
+        }
+    }
+
+    /// Testler: bütün durum dosyaları tek geçici klasörde
+    #[cfg(test)]
+    pub fn kok(d: &std::path::Path) -> Yollar {
+        Yollar { gecici: d.join("ap-gecici.json"), hedef: d.join("ap-hedef.json"), bul: d.join("ap-bul.json") }
     }
 }
 
@@ -86,9 +103,139 @@ impl std::fmt::Display for Cidr {
 }
 
 
-fn ozel(ip: Ipv4Addr) -> bool {
+pub fn ozel(ip: Ipv4Addr) -> bool {
     let o = ip.octets();
     o[0] == 10 || (o[0] == 172 && (16..=31).contains(&o[1])) || (o[0] == 192 && o[1] == 168)
+}
+
+// ---------------------------------------------------------------- takılan cihaz (etiket, otomatik bul)
+/// Etiketlerde yazan bilinen adlar → fabrika adresi (yan odada ad çözümü yok; IP'ye çevrilir).
+pub const BILINEN_ADLAR: &[(&str, [u8; 4])] = &[
+    ("tplinkap.net", [192, 168, 0, 254]),
+    ("tplinkrepeater.net", [192, 168, 0, 254]),
+    ("tplinkeap.net", [192, 168, 0, 254]),
+    ("tplinkwifi.net", [192, 168, 0, 1]),
+    ("tplinklogin.net", [192, 168, 0, 1]),
+    ("routerlogin.net", [192, 168, 1, 1]),
+    ("routerlogin.com", [192, 168, 1, 1]),
+    ("myrouter.local", [192, 168, 1, 1]),
+    ("mwlogin.net", [192, 168, 1, 1]),
+    ("netis.cc", [192, 168, 1, 1]),
+    ("tendawifi.com", [192, 168, 0, 1]),
+    ("dlinkap.local", [192, 168, 0, 50]),
+    ("dlinkrouter.local", [192, 168, 0, 1]),
+    ("miwifi.com", [192, 168, 31, 1]),
+    ("fritz.box", [192, 168, 178, 1]),
+];
+
+/// "Otomatik bul": yaygın fabrika adresleri, olasılık sırasıyla (ilk cevap veren seçilir).
+pub const OTOMATIK: &[[u8; 4]] = &[
+    [192, 168, 1, 1],     // ZyXEL, TP-Link/Huawei/ZTE modemler, Mercusys, Netis
+    [192, 168, 0, 1],     // TP-Link ve Tenda yönlendiriciler, D-Link
+    [192, 168, 0, 254],   // TP-Link AP / EAP / tekrarlayıcı (tplinkap.net)
+    [192, 168, 1, 254],   // eski TP-Link AP, Technicolor, Sagemcom
+    [192, 168, 10, 1],
+    [192, 168, 2, 1],     // AirTies modem, Belkin
+    [192, 168, 2, 254],   // AirTies AP kipi
+    [192, 168, 8, 1],     // Huawei 4G
+    [192, 168, 100, 1],   // Huawei fiber (ONT)
+    [10, 0, 0, 1],
+    [10, 0, 0, 138],
+    [192, 168, 0, 50],    // D-Link AP (dlinkap.local)
+    [192, 168, 1, 20],    // Ubiquiti (DHCP yokken)
+    [192, 168, 1, 245],   // Cisco / Linksys AP
+    [192, 168, 110, 1],   // Ruijie Reyee
+    [10, 44, 77, 254],    // Ruijie Reyee AP (DHCP yokken)
+    [192, 168, 3, 1],     // Huawei WS/AX
+    [192, 168, 31, 1],    // Xiaomi
+    [192, 168, 50, 1],    // Asus
+    [192, 168, 88, 1],    // MikroTik
+    [192, 168, 178, 1],   // AVM Fritz!Box
+    [192, 168, 11, 1],    // Buffalo
+    [10, 0, 1, 1],        // Apple
+];
+
+/// Etiketteki adres: IPv4 ya da bilinen ad (`http://`, yol ve port yazılmışsa atılır, büyük/küçük harf fark etmez).
+/// Özel ağ adresi olmalı, /24'ün ağ ya da yayın adresi değil, cihazın kendi adresi değil. Dönen: (adres, kaydedilecek
+/// yazım: "192.168.0.254" ya da "tplinkap.net").
+pub fn etiket_coz(girdi: &str, cfg: &Config) -> Result<(Ipv4Addr, String), String> {
+    let mut s = girdi.trim().to_ascii_lowercase();
+    for on in ["http://", "https://"] {
+        if let Some(k) = s.strip_prefix(on) {
+            s = k.to_string();
+        }
+    }
+    if let Some(i) = s.find(|c: char| matches!(c, '/' | '?' | '#')) {
+        s.truncate(i);
+    }
+    if let Some((konak, port)) = s.rsplit_once(':') {
+        if !port.is_empty() && port.len() <= 5 && port.bytes().all(|b| b.is_ascii_digit()) {
+            s = konak.to_string();
+        }
+    }
+    if s.is_empty() {
+        return Err("Etiketteki adresi yazın (ör. 192.168.1.1).".into());
+    }
+    let ip = match s.parse::<Ipv4Addr>() {
+        Ok(ip) => ip,
+        Err(_) => match BILINEN_ADLAR.iter().find(|(ad, _)| *ad == s) {
+            Some((_, o)) => Ipv4Addr::from(*o),
+            None if s.len() <= 64 && s.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'.' || b == b'-') => {
+                return Err(format!("\"{s}\" bilinen bir ad değil; etiketteki IP adresini yazın (ör. 192.168.0.1)."));
+            }
+            None => return Err("Adres geçersiz; etiketteki IP adresini yazın (ör. 192.168.1.1).".into()),
+        },
+    };
+    if !ozel(ip) {
+        return Err("Yalnızca özel ağ adresi olabilir (10.x, 172.16-31.x, 192.168.x).".into());
+    }
+    if matches!(ip.octets()[3], 0 | 255) {
+        return Err(format!("{ip} bir ağın ağ ya da yayın adresi; etiketteki adresi denetleyin."));
+    }
+    if cfg.main.router_ip.parse::<Ipv4Addr>().ok() == Some(ip) {
+        return Err(format!("{ip} bu cihazın kendi adresi; takılan cihazın etiketindeki adresi yazın."));
+    }
+    Ok((ip, s))
+}
+
+/// Marka / model (bilgi için): boş olabilir, en çok 60 karakter, denetim karakteri yok.
+pub fn marka_dogrula(girdi: &str) -> Result<String, String> {
+    let s = girdi.trim();
+    if s.chars().count() > 60 || s.chars().any(char::is_control) {
+        return Err("Marka / model en çok 60 karakter olabilir.".into());
+    }
+    Ok(s.to_string())
+}
+
+/// Adresin /24'ü (yan oda ve aday adresler bu ağda)
+pub fn ag24(ip: Ipv4Addr) -> Cidr {
+    Cidr { ip, onek: 24 }
+}
+
+/// Yan oda için boş adres adayları: hedefin /24'ünde .250'den aşağı (.241'e kadar), hedefin kendisi hariç.
+pub fn bos_adaylari(hedef: Ipv4Addr) -> Vec<Ipv4Addr> {
+    let o = hedef.octets();
+    (241..=250u8).rev().map(|s| Ipv4Addr::new(o[0], o[1], o[2], s)).filter(|a| *a != hedef).collect()
+}
+
+/// Adres misafir ağında mı (yan oda gerekmez)
+pub fn misafir_aginda(ip: Ipv4Addr, cfg: &Config) -> bool {
+    Cidr::parse(&cfg.main.subnet).is_some_and(|m| m.cakisir(&Cidr { ip, onek: m.onek }))
+}
+
+/// Misafir ağındaki AP arayüzü hedefi olabilir mi: kayıtlı AP adresi ve bugünkü kurallara uyuyor (cihazın adresi, ağ /
+/// yayın adresi, DHCP havuzu — misafir telefonları — değil). AP arayüzü aktarımı başka bir misafir adresine gitmez.
+pub fn kayitli_ap_mi(ip: Ipv4Addr, cfg: &Config) -> bool {
+    let s = ip.to_string();
+    cfg.ap.adresler.iter().any(|a| *a == s) && kayit_dogrula(&s, cfg).is_ok()
+}
+
+/// Hedef, açık yan odanın ağında mı (ağ / yayın adresi ve yan odanın kendi adresi değil)
+pub fn yan_odada(ip: Ipv4Addr, g: &Gecici) -> bool {
+    Cidr::parse(&g.adres).is_some_and(|c| {
+        let h = Cidr { ip, onek: c.onek };
+        c.cakisir(&h) && ip != c.ag() && ip != c.yayin() && ip != c.ip
+    })
 }
 
 /// Yan oda adresi: `a.b.c.d/önek`, önek 16–30, özel aralık, ağ/yayın adresi değil, misafir ağıyla çakışmıyor (aynı
@@ -222,7 +369,8 @@ pub fn araci_canli(ip_oku: &IpOku) -> bool {
     matches!(ip_oku(&["systemctl", "is-active", &format!("{ARACI_BIRIM}.service")]).trim(), "active" | "activating" | "reloading" | "deactivating")
 }
 
-fn oku(y: &Yollar) -> Option<Gecici> {
+/// Yan oda durum dosyası (bozuksa None)
+pub fn gecici_oku(y: &Yollar) -> Option<Gecici> {
     let g: Gecici = serde_json::from_slice(&std::fs::read(&y.gecici).ok()?).ok()?;
     (Cidr::parse(&g.adres).is_some() && kimlik_ok(&g.kimlik)).then_some(g)
 }
@@ -292,7 +440,7 @@ pub struct Kaldirilan {
 /// zamanlayıcı durdurulur; "sure" değilken aracı durdurulamazsa hata döner ve durum dosyası kalır.
 pub fn kaldir(y: &Yollar, neden: &str, kimlik: Option<&str>, ip_oku: &IpOku, runner: &Runner) -> Result<Option<Kaldirilan>, String> {
     let _kilit = kilit(y)?;
-    let Some(g) = oku(y) else {
+    let Some(g) = gecici_oku(y) else {
         if kimlik.is_none() {
             if y.gecici.exists() {
                 let _ = std::fs::remove_file(&y.gecici); // bozuk dosya: elle kapatmada temizlenir
@@ -324,7 +472,7 @@ pub fn kaldir(y: &Yollar, neden: &str, kimlik: Option<&str>, ip_oku: &IpOku, run
 
 /// Panel gösterimi: açık yan oda ve aracı hâlâ çalışıyor mu.
 pub fn durum(y: &Yollar, ip_oku: &IpOku) -> Option<(Gecici, bool)> {
-    let g = oku(y)?;
+    let g = gecici_oku(y)?;
     Some((g, araci_canli(ip_oku)))
 }
 
@@ -435,7 +583,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(&root);
         std::fs::create_dir_all(&root).unwrap();
         let cfg = Config::parse(&format!("[main]\nlog_root = '{0}/5651'\nstate_root = '{0}/state'\n", root.display())).unwrap();
-        (cfg, Yollar { gecici: root.join("ap-gecici.json") }, root)
+        (cfg, Yollar::kok(&root), root)
     }
 
     /// Sahte `systemctl is-active`: aracı çalışıyor mu
@@ -676,6 +824,52 @@ mod tests {
         assert_eq!((k[1].dhcp, k[1].arp.as_deref()), (false, Some("STALE")));
         assert_eq!((k[2].ad.as_str(), k[2].arp.as_deref(), k[2].rastgele), ("iPhone-Ayse", None, true));
         assert!(!k.iter().any(|x| x.ipler.contains(&"10.50.0.40".parse().unwrap())));
+    }
+
+    #[test]
+    fn etiket_ip_ve_bilinen_ad() {
+        let (cfg, _, _) = cfg_ve_yol();
+        let e = |g: &str| etiket_coz(g, &cfg);
+        assert_eq!(e("192.168.1.1").unwrap(), ("192.168.1.1".parse().unwrap(), "192.168.1.1".into()));
+        assert_eq!(e(" http://192.168.0.254:80/index.htm ").unwrap().0, "192.168.0.254".parse::<Ipv4Addr>().unwrap());
+        // bilinen adlar IP'ye çevrilir (yan odada ad çözümü yok); büyük harf ve şema fark etmez
+        assert_eq!(e("TPLinkAP.net").unwrap(), ("192.168.0.254".parse().unwrap(), "tplinkap.net".into()));
+        assert_eq!(e("http://tplinkwifi.net/").unwrap().0, "192.168.0.1".parse::<Ipv4Addr>().unwrap());
+        assert_eq!(e("routerlogin.net").unwrap().0, "192.168.1.1".parse::<Ipv4Addr>().unwrap());
+        assert!(e("bilinmeyen.example").unwrap_err().contains("bilinen bir ad değil"));
+        assert!(e("").unwrap_err().contains("yazın"));
+        assert!(e("8.8.8.8").unwrap_err().contains("özel ağ"));
+        assert!(e("192.168.1.0").unwrap_err().contains("ağ ya da yayın") && e("192.168.1.255").is_err());
+        assert!(e("10.50.0.1").unwrap_err().contains("kendi adresi"));
+        assert!(e("192.168.1.1; rm").unwrap_err().contains("geçersiz") && e("<b>").is_err());
+        // misafir ağındaki adres de olur (yan oda gerekmez)
+        assert!(e("10.50.0.2").is_ok() && misafir_aginda("10.50.0.2".parse().unwrap(), &cfg) && !misafir_aginda("192.168.1.1".parse().unwrap(), &cfg));
+        for (ad, o) in BILINEN_ADLAR {
+            assert!(ozel(Ipv4Addr::from(*o)) && *ad == ad.to_ascii_lowercase(), "{ad}");
+        }
+        let mut gorulen = BTreeSet::new();
+        assert!(OTOMATIK.iter().all(|o| ozel(Ipv4Addr::from(*o)) && gorulen.insert(*o) && !misafir_aginda(Ipv4Addr::from(*o), &cfg)));
+        assert_eq!(&OTOMATIK[..3], &[[192u8, 168, 1, 1], [192, 168, 0, 1], [192, 168, 0, 254]][..]);
+        assert_eq!(marka_dogrula("  TP-Link TL-WA901ND ").unwrap(), "TP-Link TL-WA901ND");
+        assert!(marka_dogrula(&"x".repeat(61)).is_err() && marka_dogrula("a\nb").is_err() && marka_dogrula("").unwrap().is_empty());
+    }
+
+    #[test]
+    fn bos_aday_kayitli_ap_ve_yan_oda_agi() {
+        let (mut cfg, _, _) = cfg_ve_yol();
+        let a = bos_adaylari("192.168.1.1".parse().unwrap());
+        assert_eq!((a.len(), a[0], a[9]), (10, "192.168.1.250".parse().unwrap(), "192.168.1.241".parse().unwrap()));
+        assert!(!bos_adaylari("192.168.1.250".parse().unwrap()).contains(&"192.168.1.250".parse().unwrap()));
+        // kayıtlı AP adresi: listede ve bugünkü kurallara uyuyor (havuzdaki ya da cihazın adresi elle yazılsa da değil)
+        cfg.ap.adresler = vec!["10.50.0.2".into(), "10.50.0.30".into(), "10.50.0.1".into()];
+        assert!(kayitli_ap_mi("10.50.0.2".parse().unwrap(), &cfg));
+        assert!(!kayitli_ap_mi("10.50.0.30".parse().unwrap(), &cfg) && !kayitli_ap_mi("10.50.0.1".parse().unwrap(), &cfg));
+        assert!(!kayitli_ap_mi("10.50.0.3".parse().unwrap(), &cfg));
+        let g = Gecici { adres: "192.168.1.250/24".into(), kimlik: "0a1b2c3d".into(), bitis: 1.0 };
+        assert!(yan_odada("192.168.1.1".parse().unwrap(), &g));
+        for d in ["192.168.1.250", "192.168.1.0", "192.168.1.255", "192.168.2.1", "10.50.0.2"] {
+            assert!(!yan_odada(d.parse().unwrap(), &g), "{d}");
+        }
     }
 
     #[test]

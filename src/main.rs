@@ -2,6 +2,8 @@
 
 mod ag;
 mod ap;
+mod ap_arayuz;
+mod ap_bul;
 mod ayar;
 mod bekleme;
 mod ctl;

@@ -263,13 +263,19 @@ pub fn misafir_kodu_acik(cfg: &Config) -> bool {
 }
 
 /// AP kurulumu (`[ap]`, src/ap.rs): AP'lerin kalıcı yönetim adresleri (misafir alt ağında, DHCP havuzu dışında; en çok
-/// 8). Yalnızca kayıt: panelde gösterilir, ağdaki cihazlar listesinde işaretlenir. Güvenlik duvarı kuralı yoktur: köprü
-/// portları arası iletim `kapi.nft`'te zaten kapalı. Fabrika dönüşünde boşalır.
+/// 8). Yalnızca kayıt: panelde gösterilir, ağdaki cihazlar listesinde işaretlenir; panelden AP arayüzüne gidilebilir
+/// (src/ap_arayuz.rs). Güvenlik duvarı kuralı yoktur: köprü portları arası iletim `kapi.nft`'te zaten kapalı.
+/// `etiket` / `marka`: takılan cihazın etiketindeki adres (IP ya da bilinen ad, "Bağlan") ve marka/model (yalnızca
+/// bilgi; spec 2026-10-16-ap-arayuz). Fabrika dönüşünde hepsi boşalır.
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
 #[serde(default)]
 pub struct Ap {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub adresler: Vec<String>,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub etiket: String,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub marka: String,
 }
 
 /// Portalsız geçen (`[[allow]]`, ör. AP, personel; trafiği yine kaydedilir) ya da yasaklı (`[[ban]]`) cihaz.
@@ -441,8 +447,14 @@ mod tests {
         assert!(!yazi.contains("adresler"), "{yazi}");
         let c = Config::parse("[ap]\nadresler = ['10.50.0.2', '10.50.0.3']\n[[allow]]\nmac = 'aa:bb:cc:dd:ee:99'\n").unwrap();
         assert_eq!(c.ap.adresler, ["10.50.0.2", "10.50.0.3"]);
+        assert!(c.ap.etiket.is_empty() && c.ap.marka.is_empty());
         let back = Config::parse(&toml::to_string_pretty(&c).unwrap()).unwrap();
         assert_eq!((back.ap.adresler.len(), back.allow.len()), (2, 1));
+        assert!(!toml::to_string_pretty(&c).unwrap().contains("etiket"), "boş etiket yazılmaz");
+        // etiketteki adres ve marka/model (bilgi için) saklanır
+        let c = Config::parse("[ap]\netiket = 'tplinkap.net'\nmarka = 'TP-Link TL-WA901ND'\n").unwrap();
+        let back = Config::parse(&toml::to_string_pretty(&c).unwrap()).unwrap();
+        assert_eq!((back.ap.etiket.as_str(), back.ap.marka.as_str(), back.ap.adresler.len()), ("tplinkap.net", "TP-Link TL-WA901ND", 0));
     }
 
     #[test]

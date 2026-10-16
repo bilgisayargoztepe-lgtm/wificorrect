@@ -27,10 +27,12 @@ fn field<'a>(cfg: &'a Config, key: &str) -> &'a str {
 
 impl Panel {
     pub(super) fn metinler(&self, cfg: &Config, req: &Req, o: &Oturum) -> Resp {
+        // örnek, giriş sayfasındaki gerçek ek hesabıyla (Göztepe Bilgisayar’ın, Bocafe’nin, Starbucks’un)
+        let ornek = crate::portal::isletme_yerlestir("İŞLETMECİ’nin", &cfg.main.site_name);
         let mut body = format!(
-            "<p class=\"not\">Metinlerde geçen <b>İŞLETMECİ</b> kelimesi giriş sayfasında işletme adıyla (şu an: <b>{}</b>) değişir; ekleri ada göre ayarlanır (İŞLETMECİ’nin → {}’nin gibi).</p><form method=\"post\" action=\"/portal-metinleri\">{}",
+            "<p class=\"not\">Metinlerde geçen <b>İŞLETMECİ</b> kelimesi giriş sayfasında işletme adıyla (şu an: <b>{}</b>) değişir; ekleri ada göre ayarlanır (İŞLETMECİ’nin → {} gibi).</p><form method=\"post\" action=\"/portal-metinleri\">{}",
             h(&cfg.main.site_name),
-            h(&cfg.main.site_name),
+            h(&ornek),
             csrf_input(o)
         );
         for (key, title, note) in METINLER {

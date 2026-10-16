@@ -33,13 +33,17 @@ EOF
     sleep 1
   done
 fi
-# Bitti mesajı (bekletmez: 10 sn görünür, sonra kurucu kendi son adımlarını yapıp cihazı kapatır)
-cat >/tmp/wificorrect-bitti.templates <<'T'
-Template: wificorrect/bitti
-Type: text
-Description: Kurulum bitti. Cihaz birazdan kapanacak; kapandıktan sonra USB belleği çıkarın.
-T
-logger -t wificorrect "KURULUM BITTI"
+# Kök dosya sistemi noatime: her okuma diske yazmasın (USB bellekte aşınmayı azaltır; SSD'de de zararsız).
+sed -i -E 's|^([^#[:space:]]+[[:space:]]+/[[:space:]]+ext4[[:space:]]+)([^[:space:]]+)|\1noatime,\2|' /target/etc/fstab || true
+# Bitti mesajı (bekletmez: 10 sn görünür, sonra kurucu kendi son adımlarını yapıp cihazı kapatır). USB belleğe
+# kurulduysa (disk.sh: /tmp/wificorrect-hedef) hangi belleğin çıkarılacağı ayrıca söylenir.
+if [ "$(cat /tmp/wificorrect-hedef 2>/dev/null)" = usb ]; then
+  bitti="Kurulum bitti. Cihaz birazdan kapanacak; kapandıktan sonra yalnızca kurulum belleğini çıkarın. WifiCorrect'in kurulduğu USB bellek takılı kalmalı."
+else
+  bitti="Kurulum bitti. Cihaz birazdan kapanacak; kapandıktan sonra USB belleği çıkarın."
+fi
+printf 'Template: wificorrect/bitti\nType: text\nDescription: %s\n' "$bitti" >/tmp/wificorrect-bitti.templates
+logger -t wificorrect "KURULUM BITTI ($(cat /tmp/wificorrect-hedef 2>/dev/null)) fstab: $(grep -E '[[:space:]]/[[:space:]]' /target/etc/fstab | grep -v '^#')"
 if debconf-loadtemplate wificorrect /tmp/wificorrect-bitti.templates; then
   . /usr/share/debconf/confmodule
   db_progress INFO wificorrect/bitti || true

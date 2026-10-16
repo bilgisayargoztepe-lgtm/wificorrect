@@ -22,7 +22,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      - run: sudo apt-get update -q && sudo apt-get install -y -q xorriso debian-keyring qemu-system-x86 qemu-utils ovmf
+      - run: sudo apt-get update -q && sudo apt-get install -y -q xorriso cpio debian-keyring qemu-system-x86 qemu-utils ovmf
       - uses: dtolnay/rust-toolchain@1.85
       - uses: Swatinem/rust-cache@v2
       - run: cargo build --release --locked

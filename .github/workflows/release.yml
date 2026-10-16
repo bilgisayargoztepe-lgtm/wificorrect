@@ -21,7 +21,7 @@ jobs:
           python-version: "3.13"
       - run: sh scripts/sunucu/merkez/tests/hepsi.sh python
       - run: cargo build --release --locked
-      - run: sudo apt-get install -y -q xorriso debian-keyring qemu-system-x86 qemu-utils ovmf
+      - run: sudo apt-get install -y -q xorriso cpio debian-keyring qemu-system-x86 qemu-utils ovmf
       - name: Paketle
         env:
           WFC_SSH_PUB: ${{ vars.WFC_SSH_PUB }}

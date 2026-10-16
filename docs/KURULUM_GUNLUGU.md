@@ -485,3 +485,41 @@ Dal `kolay-baglama`; tasarım `docs/superpowers/specs/2026-10-16-kolay-baglama-d
   "bağlanıyor" görür, "ulaşılamıyor"a düşmez. Tablo tavanı (2000) doluysa 10 dk'dır bildirmeyen, kimseye ayrılmamış en eski kayıt
   yer açar. Hız sınırlayıcılar pencereden eski anahtarları bellekten siler.
 - **Kurulum sırası:** önce merkez (`merkez-guncelle.sh`), sonra cihazlar (0.4.13); ISO yeniden üretilir (yeni cihazlar kutudan çıkınca bildirsin).
+
+## Kurulum ISO'su gerçek donanımda (2026-10-16, sürüm 0.4.14)
+Dal `iso-donanim`. İlk gerçek kurulum (v0.4.13 ISO, J1900, 2× Realtek r8169, UEFI, USB Rufus DD kipiyle yazıldı) iki kez durdu:
+- **Yanlış kurulum ortamı:** "Failed to retrieve the preconfiguration file file:///cdrom/preseed.cfg". Kurucu kabuğunda
+  `/cdrom` bir Ubuntu kurulum ağacıydı (casper, ubuntu, dists, pool…): `cdrom-detect` adayları sırayla dener ve yalnızca
+  `.disk/info` dosyasına bakar; takılı başka bir Ubuntu belleği/diski bizimkinden önce bağlandı. Disk çıkarılınca preseed yüklendi.
+- **DHCP başarısız** ("Otomatik ağ yapılandırması başarısızlıkla sonuçlandı"), kablo sağlam, Ethernet 1 modemde. Preseed
+  `hw-detect/load_firmware false` idi; RTL8168 ailesinin bir kısmı `rtl_nic` aygıt yazılımı ister (canlı cihazda
+  `firmware-realtek` kurulu).
+
+Düzeltmeler:
+- **preseed initrd'de:** `scripts/iso.sh` Debian'ın `install.amd/initrd.gz`'sinin arkasına ikinci bir cpio ekler:
+  `/preseed.cfg`, `/wificorrect-kimlik` ve `iso/initrd/*` → `/lib/wificorrect/` (`ortak.sh`, `basla.sh`, `list-devices`,
+  `disk.sh`). Menüde `preseed/file` yok; preseed hangi disk bağlanırsa bağlansın yüklenir (UEFI ve BIOS aynı initrd).
+- **Kimlik:** her ISO derlemesinde yeni `WifiCorrect <sürüm> <uuid>`; ISO'da `/.wificorrect`, initrd'de `/wificorrect-kimlik`.
+  `preseed/early_command` (`basla.sh`, cdrom-detect'ten önce) `list-devices`'ı sarmalayıcıyla değiştirir: çağıran
+  cdrom-detect ise adaylar salt okunur ISO 9660 olarak denenir, yalnızca kimliği tutan verilir (seri: `KURULUM ORTAMI
+  ADAYI`); diğer çağıranlar gerçek listeyi görür. Bulunamazsa cdrom-detect'in kendi "ortam yok / yeniden dene" ekranı
+  çıkar. `disk.sh` (partman'dan önce) `/cdrom`'u yeniden doğrular; tutmazsa "Kurulum belleği okunamadı" ekranında kalıcı
+  durur, hiçbir diske dokunulmaz. Böylece apt (cdrom) ve `late_command` (`/cdrom/wificorrect/son.sh`) hep bizim ortamı kullanır.
+- **Ağ:** `hw-detect/load_firmware true` (eksik aygıt yazılımı sorulmadan ISO'nun `/firmware`'inden; kurucu ilgili paketi
+  hedefe de kurar), `pkgsel/include` += `firmware-realtek`, `netcfg/link_wait_timeout 10`, `netcfg/dhcp_timeout 60`.
+  DHCP yine olmazsa kurucunun "yeniden dene" ekranı kalır; ağsız devam edilirse `disk.sh` varsayılan rota yoksa
+  "İnternet bağlantısı yok" ekranında durur (disk silinmeden).
+- **USB belleğe kurulum** (kullanıcı isteği: J1900'de iç disk yok, ikinci boş 32 GB bellek): `disk.sh` kural değişti —
+  kurulum ortamının kendisi (`/cdrom`'daki aygıt) ve bağlı (mount) diskler hiç seçilmez, 7 GB'tan küçük diskler atlanır;
+  **önce iç disk** (USB'ye bağlı olmayan), yoksa **ilk USB disk** — ISO 9660 içeren (başka bir kurulum belleği) USB atlanır.
+  Seçim seride `KURULUM DISKI: <aygıt> (ic|usb)`. GRUB o diske, UEFI'de çıkarılabilir yol da (`force-efi-extra-removable`)
+  yazılır: bellek başka makinede/UEFI kayıtları silinmişken de açılır. Kök dosya sistemi `noatime` (`son.sh`; flash aşınması).
+  USB'ye kurulduysa bitti mesajı "yalnızca kurulum belleğini çıkarın; WifiCorrect'in kurulduğu bellek takılı kalmalı" der.
+- **Duman testi** (`scripts/iso-test.sh`): kurulum ortamı artık `-cdrom` değil, salt okunur ham ISO'lu USB bellek (Rufus DD
+  gibi); `/cdrom`'un kimlikle seçildiği denetlenir. Aşamalar: yalnız kurulum belleği (+64 MB yabancı bellek) → "disk yok"ta
+  durur; iç virtio disk → `/dev/vda (ic)` + açılış + SSH; iç disk yokken ikinci boş 8 GB USB bellek → `(usb)` + UEFI
+  kayıtları sıfır makinede o bellekten açılış. Yabancı bellek ve ISO her aşamada değişmemiş olmalı.
+
+**Teknisyen notu:** kurulumda WifiCorrect kurulum belleği ve (iç disk yoksa) kurulacak boş bellek dışında **bütün USB
+bellek ve diskleri çıkarın**. İç disk (SSD) önerilir; USB belleğe kurulum çalışır ama flash daha çabuk aşınır (en az
+8 GB, tercihen kaliteli/USB 3). Ethernet 1 modeme takılı olmalı.

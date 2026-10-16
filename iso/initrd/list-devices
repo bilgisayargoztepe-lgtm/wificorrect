@@ -1,0 +1,32 @@
+#!/bin/sh
+# list-devices sarmalayıcısı (kurucuda basla.sh gerçeğinin yerine koyar). Yalnızca cdrom-detect çağırdığında süzer:
+# kurulum ortamı adayı olarak yalnızca BU ISO'yu (kimlik dosyası tutan ISO 9660) verir. cdrom-detect yalnızca
+# .disk/info'ya bakar; başka bir Debian/Ubuntu belleği ya da diski takılıysa onu /cdrom'a bağlayabiliyordu.
+# Diğer bütün çağıranlar (partman, disk.sh, hw-detect) gerçek listeyi görür.
+G=/lib/wificorrect/list-devices.gercek
+cdrom_detect_mi() {
+  p=$PPID i=0
+  while [ -n "$p" ] && [ "$p" -gt 1 ] && [ $i -lt 10 ]; do
+    tr '\0' ' ' <"/proc/$p/cmdline" 2>/dev/null | grep -q cdrom-detect && return 0
+    p=$(awk '/^PPid:/{print $2}' "/proc/$p/status" 2>/dev/null)
+    i=$((i + 1))
+  done
+  return 1
+}
+cdrom_detect_mi || exec "$G" "$@"
+. /lib/wificorrect/ortak.sh
+modprobe isofs 2>/dev/null || true
+m=/tmp/wificorrect-ortam-dene
+mkdir -p "$m"
+for d in $("$G" "$@"); do
+  grep -q "^$d " /proc/mounts && continue
+  mount -t iso9660 -o ro "$d" "$m" 2>/dev/null || continue
+  if bizim_ortam "$m"; then
+    echo "$d"
+    seri "KURULUM ORTAMI ADAYI: $d"
+  else
+    logger -t wificorrect "kurulum ortamı değil, atlandı: $d"
+  fi
+  umount "$m" 2>/dev/null || true
+done
+exit 0

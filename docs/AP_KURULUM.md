@@ -12,6 +12,13 @@ modellerde yedek yol Windows betiğidir (4. bölüm). Tasarım: `docs/superpower
 > kendi adresini dağıtır, o misafirler giriş sayfasını göremez ve internete çıkamaz (5651 kaydı da dışında kalırlar).
 > AP takılır takılmaz kurulmalı ve **ilk iş DHCP kapatılmalı**; mümkünse misafir yoğun saatte yapılmasın.
 
+> **AP arayüzünü her müşteri için yeni bir gizli (incognito) pencerede açın; işiniz bitince bütün gizli pencereleri
+> kapatın.** Bütün müşterilerin AP'leri aynı adreste (ap.wificorrect.com) açılır: tarayıcının bu adres için sakladığı AP
+> çerezleri ve AP parolası (HTTP Basic) başka müşterinin AP'sine gidebilir. Gizli pencerede yönetime (ya da
+> panel.wificorrect.com'a) girip oradan cihaz paneline geçin; pencereler kapanınca hepsi silinir. Merkez ve cihaz ayrıca
+> korur (yeni AP oturumunda eski AP çerezleri ve depolaması silinir, Service Worker kaydı engellenir), ama tarayıcıda kalan
+> HTTP Basic parolasını yalnızca pencereyi kapatmak siler.
+
 ## 1. Müşteriden istenecekler
 
 - AP'nin **marka ve modeli**,
@@ -36,7 +43,9 @@ modellerde yedek yol Windows betiğidir (4. bölüm). Tasarım: `docs/superpower
      veren ilk cihazda yan oda açık kalır.
 3. **AP arayüzüne git**: yeni sekmede ap.wificorrect.com açılır, içinde AP'nin kendi giriş ekranı. Etiketteki fabrika
    kullanıcı adı/parolasıyla girin. Erişim **30 dk** sürer (yan odada en çok yan odanın kalan süresi); bölümde
-   **Erişimi kapat** ile erken biter. Süre dolunca ap.wificorrect.com "AP erişimi kapalı" der: panelden yeniden açın.
+   **Erişimi kapat** ile erken biter. Süre dolunca ap.wificorrect.com "AP erişimi kapalı" der: panelden yeniden açın
+   (aynı sayfadaki "AP oturumunu kapat ve bu tarayıcıdaki AP verisini sil" bağlantısı tarayıcıdaki AP çerezlerini,
+   saklanan AP parolasını ve depolamayı da siler; wificorrect.com'daki panel/yönetim oturumları da kapanır).
    Yan oda açıkken o ağdaki başka bir adrese de gidilebilir (Yan oda bölümündeki "AP'nin adresi" formu).
 4. **Yabancı DHCP sunucusu var mı?** düğmesi: misafir portunda ~3 sn DHCP teklifi dinler. Kırmızı uyarı çıkarsa
    listedeki MAC müşterinin AP'sininkiyle aynı mı bakın; o AP'nin DHCP'si 3. bölümde **ilk iş** kapatılır.
@@ -52,14 +61,20 @@ modellerde yedek yol Windows betiğidir (4. bölüm). Tasarım: `docs/superpower
 3. **Ağ adı (SSID):** işletmenin adı; **şifresiz**.
 4. **İstemci yalıtımı (AP isolation / Client isolation)** açık.
 5. **Kanal** 1, 6 ya da 11; **20 MHz**; **iletim gücü yüksek**.
-6. **Yönetim parolası = işletme sahibinin panel parolası** (Yönetim → müşteri sayfasında görünür). Model en çok 15
-   karakter kabul ediyorsa parola kısaltılır ve **kullanılan parola müşteri sayfasına not yazılır**.
-   Dikkat: bu parola panel.wificorrect.com'da bütün 5651 kayıtlarını açar; ucuz AP'ler parolayı zayıf saklayabilir ya
-   da şifresiz HTTP'den gönderebilir. Bu yüzden 8. adımdaki kablosuzdan yönetim kapatma özellikle önemlidir.
+6. **Yönetim parolası = AP yönetim parolası** (merkezin müşteri başına ürettiği 12 karakterlik rastgele parola; Yönetim →
+   müşteri sayfasında "AP yönetim parolası", cihaz panelinde AP kurulumu → Takılan cihaz'da da görünür). **İşletme
+   sahibinin panel parolasını AP'ye yazmayın:** o parola panel.wificorrect.com'da bütün 5651 kayıtlarını açar; bütün
+   AP'ler aynı adreste açıldığı için tarayıcının sakladığı AP parolası başka müşterinin AP'sine gidebilir, ucuz AP'ler
+   parolayı zayıf saklayabilir ya da şifresiz HTTP'den gönderebilir. AP parolası yönetimde **Yenile** ile değişirse AP'de
+   elle değiştirilir (cihaz panelinde sonraki eşitlemeden — her gün 06:00 — sonra görünür).
 7. **Yönetim adresi:** sabit `10.50.0.2/24` (birden çok AP'de .3, .4 …; DHCP havuzu .20–.249 dışında), ağ geçidi
-   ve DNS `10.50.0.1`. Kaydedince bağlantı kopar: panelde **AP adresleri** kutusuna `10.50.0.2` yazıp kaydedin, kutunun
-   altındaki **10.50.0.2 arayüzüne git** ile yeniden girin (yan odasız, misafir ağından) ve ayarların kaldığını kontrol
-   edin. Yan odayı **Şimdi kapat**.
+   ve DNS `10.50.0.1`. Kaydedince bağlantı kopar: panelde **AP adresleri** kutusuna `10.50.0.2` yazıp **AP açıkken**
+   kaydedin — cihaz o anki MAC'i (ör. `10.50.0.2 (MAC 70:4f:57:dd:7a:e8)`) sabitler ve panel bu adrese yalnızca bu
+   MAC'teki cihaz için gider (misafir ağında adresi elle alan biri AP yerine geçip yazılan parolayı toplamasın). "MAC
+   adresi okunamadı" derse AP'nin açık ve misafir portuna bağlı olduğunu kontrol edip yeniden Kaydet'e basın. Sonra
+   kutunun altındaki **10.50.0.2 arayüzüne git** ile yeniden girin (yan odasız, misafir ağından) ve ayarların kaldığını
+   kontrol edin. Yan odayı **Şimdi kapat**. AP değiştirilirse (yeni cihaz) panel "AP'nin MAC adresi değişmiş" der: aynı
+   adresi yeniden Kaydet'e basarak yeni MAC'i sabitleyin.
 8. **Yönetim erişimi kısıtı — en son, AP 10.50.0.2'deyken ve bu adresten yeniden girdikten sonra** (ağ şifresiz;
    misafir AP'ye kablosuz bağlıyken AP'nin kendi sayfasına giden trafiği cihazımızdan hiç geçmez, onu yalnızca AP korur):
    - modelde varsa **"kablosuzdan yönetim" kapalı** ("Wireless management", "Management via wireless", "Web access
@@ -81,8 +96,8 @@ modellerde yedek yol Windows betiğidir (4. bölüm). Tasarım: `docs/superpower
 3. **AP arayüzüne git** → ZyXEL giriş sayfası açılır, etiketteki kullanıcı adı/parola ile girilir.
 4. **İlk iş:** LAN / DHCP Setup → DHCP **None / Off** → Apply. (Sonra 3. bölümdeki sıra.)
 5. Panelde denetimi tekrarlayın: "Yabancı DHCP sunucusu bulunmadı" görülmeli.
-6. AP'yi `10.50.0.2/24` adresine aldıktan sonra **AP adresleri**'ne `10.50.0.2` kaydedip **10.50.0.2 arayüzüne git**;
-   yan odayı **Şimdi kapat**.
+6. AP'yi `10.50.0.2/24` adresine aldıktan sonra **AP adresleri**'ne `10.50.0.2` kaydedip (AP açıkken; MAC sabitlenir)
+   **10.50.0.2 arayüzüne git**; yan odayı **Şimdi kapat**. AP'nin yönetim parolası: AP yönetim parolası (3.6).
 
 ## 4. Yedek yol: AP arayüzünü kendi bilgisayarınızda açın (betik)
 
@@ -120,7 +135,7 @@ scripts\ap-ac.cmd -Adres 192.168.1.1 -Tunel 10.99.0.11 -Kuru     (yalnızca yön
 ## 5. Bitirme
 
 1. Panelde yan oda açıksa **Şimdi kapat**; AP arayüzü erişimi açıksa **Erişimi kapat** (30 dk sonra kendiliğinden de
-   kapanır).
+   kapanır). Bütün gizli pencereleri kapatın.
 2. **Yabancı DHCP sunucusu var mı?** → "bulunmadı" olmalı.
 3. **AP adresleri** kutusunda kalıcı yönetim adresi kayıtlı olsun (ör. `10.50.0.2`; en çok 8). Panelde ve ağdaki
    cihazlar listesinde "kayıtlı AP adresi" olarak görünür; sonraki bakımlarda yan odasız "arayüzüne git" düğmesi
@@ -133,8 +148,15 @@ scripts\ap-ac.cmd -Adres 192.168.1.1 -Tunel 10.99.0.11 -Kuru     (yalnızca yön
 - **ap.wificorrect.com'da bozulan sayfa:** arayüzünü JavaScript'le sabit adresten kuran modellerde (ör. `location`
   yerine `"http://" + ip` birleştiren) bazı sayfalar açılmaz; AP'nin yalnızca eski TLS'li (1.0/1.1) HTTPS arayüzü,
   WebSocket ve 8 MB'tan büyük dosya yükleme (ürün yazılımı) de panelden olmaz → 4. bölüm (betik).
-- **ap.wificorrect.com bütün müşterilerin AP'leri için tek adres:** AP'lerin çerezleri bu adreste tutulur; bir
-  müşterinin AP'sinden ötekine geçmeden önce AP'nin kendi oturumundan çıkın ("Logout").
+- **ap.wificorrect.com bütün müşterilerin AP'leri için tek adres:** her müşteri için yeni gizli pencere (yukarıdaki not).
+  Yeni AP oturumu (panelden "AP arayüzüne git") bu adresin depolamasını ve önceki AP'lerin çerezlerini siler; tarayıcının
+  sakladığı HTTP Basic parolasını silemez. AP parolası müşteriye özel olduğu için sızsa da yalnızca o müşterinin AP'sini
+  ilgilendirir.
+- **"AP'nin MAC adresi değişmiş":** kayıtlı AP adresinde (ör. 10.50.0.2) sabitlenen MAC'ten başka bir cihaz cevap
+  veriyor; istek gitmez, erişim kapanır (denetimde `AP_ARAYUZ … neden=mac`). AP değiştirildiyse AP adresleri'nde
+  Kaydet'e basın; değiştirilmediyse "Ağdaki cihazlar"da o adresi kimin kullandığına bakın.
+- **Aynı sitenin başka sayfasından ya da başka siteden AP'ye istek gitmez** (AP'ye yalnızca cihaz panelinden gelen
+  gezinme ve AP'nin kendi sayfaları); Service Worker kullanan AP arayüzleri (çok nadir) panelden çalışmaz → betik.
 - **Merkez henüz güncellenmediyse** "AP arayüzüne git" "AP erişimi şu an kullanılamıyor" der → betik.
 - **TP-Link + `ssh -L` doğrudan AP'ye (127.0.0.1 port yönlendirmesi):** giriş Referer/Host yüzünden reddedilir. Betik
   hiçbir yöntemde bunu yapmaz: Chrome her zaman SOCKS ile AP'nin kendi adresini açar (`ssh -L` yalnızca cihazdaki
@@ -143,4 +165,5 @@ scripts\ap-ac.cmd -Adres 192.168.1.1 -Tunel 10.99.0.11 -Kuru     (yalnızca yön
 - **Yan odadan alan adı açılmaz** (AP arayüzü `http://zyxel.home/` gibi bir ada yönlendirirse adresi IP ile yazın).
 - **Port değişikliği** (panel → Portlar) köprüyü yeniden kurarsa yan oda ve onun AP arayüzü erişimi kapanır; yeniden
   "Bağlan" deyin.
-- AP'nin parolası müşteri parolası değişince kendiliğinden değişmez; gerekirse elle güncellenir.
+- AP yönetim parolası müşterinin panel parolasından bağımsızdır (panel parolası değişince AP'ye dokunulmaz); yönetimde
+  yenilenirse AP'de elle güncellenir.

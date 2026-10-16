@@ -44,11 +44,16 @@ değişmeden çalışır; yol önekli (/ap/...) aktarım çoğu AP'yi bozar.
    `https://cihaz.wificorrect.com/_ap-gecis` adresine yönlendirir (Caddy bu yolu forward_auth'suz merkeze verir).
    Merkez `wcc` çerezinden (cihaz paneli oturumu: müşteri ya da yönetici geçişi) kimi/hangi cihazı bulur, 60 sn'lik tek
    kullanımlık belirteç üretir → `https://ap.wificorrect.com/_ap-giris?t=…` → merkez belirteci `wca` çerezine çevirir
-   (yalnızca ap.wificorrect.com, HttpOnly, Secure, SameSite=Lax, 30 dk; `wcc` oturumu geçersizleşince — parola, lisans,
+   (yalnızca ap.wificorrect.com, HttpOnly, Secure, SameSite=Strict, 30 dk; `wcc` oturumu geçersizleşince — parola, lisans,
    bağ — `wca` da geçersiz) → `/`'a yönlendirir. `/_ap-cikis` çerezi siler.
-3. **Caddy `ap.wificorrect.com` bloğu:** gelen `X-WFC-*` başlıkları silinir; `/_ap-giris`, `/_ap-cikis` merkeze;
+   *Final review (2026-10-16) eki:* belirteç isteyen istemci adresine bağlı; `/_ap-giris` yalnızca `Sec-Fetch-Site:
+   same-site` (ya da başlıksız eski tarayıcı) ve `Clear-Site-Data: "cache", "storage"` + eski AP çerezlerini siler;
+   `/_ap-cikis` `Clear-Site-Data: "cache", "cookies", "storage"`. Ayrıntı KURULUM_GUNLUGU "AP arayüzü — merkez".
+3. **Caddy `ap.wificorrect.com` bloğu:** gelen `X-WFC-*` başlıkları silinir; Service Worker betiği (`Service-Worker:
+   script`) 403; `/_ap-giris`, `/_ap-cikis` merkeze;
    diğer her şey `forward_auth` → merkez `/ap-yetki` (`wca` geçerliyse 200 + `X-WFC-Cihaz: <tünel IP>`,
-   `X-WFC-Kullanici: <numara ya da yönetici>`, `X-WFC-AP: 1`) → `reverse_proxy {X-WFC-Cihaz}:8443` (cihaz sertifikası
+   `X-WFC-AP-Kullanici: <müşteri numarası>` — yönetici geçişinde de; final review M2: `X-WFC-Kullanici` değil, eski cihaz
+   AP isteğini oturumlu panel isteği saymasın —, `X-WFC-AP: 1`) → `reverse_proxy {X-WFC-Cihaz}:8443` (cihaz sertifikası
    kendinden imzalı: `tls_insecure_skip_verify`, cihaz.wificorrect.com bloğuyla aynı). `wca` çerezi cihaza iletilmez
    (cihaz bloğundaki `wcc` temizliği gibi). Host başlığı `ap.wificorrect.com` kalır. Caddy 2.6.2 kısıtları (yer tutuculu
    üst akışta şema yazılamaz) KURULUM_GUNLUGU "Uzak panel"de.
@@ -58,7 +63,10 @@ değişmeden çalışır; yol önekli (/ap/...) aktarım çoğu AP'yi bozar.
    - Hedef durumu yoksa/süresi dolmuşsa: sade bir Türkçe sayfa ("AP erişimi kapalı; cihaz panelinden yeniden açın").
    - Hedef: yalnızca **açık yan odanın alt ağı** ya da **kayıtlı AP adresleri** (misafir ağı); başka adres asla
      (misafir telefonlarına, cihazın kendisine, WAN'a, tünele aktarım yok). Yan oda hedefine bağlantı yan odadan
-     (mevcut aracı ya da setns), misafir ağı hedefine ana ad alanından.
+     (mevcut aracı ya da setns), misafir ağı hedefine ana ad alanından. *Final review eki:* kayıtlı AP adresinin MAC'i
+     kayıtta sabitlenir, aktarım yalnızca o MAC'e; Service Worker betiği, `Sec-Fetch-Site: cross-site` ve başka alt alandan
+     gezinme dışı istek AP'ye gitmez; AP'ye müşteriye özel **AP yönetim parolası** yazılır (merkez üretir, panel parolası
+     değil).
    - İstek: AP'ye **HTTP/1.0** (Connection: close; parçalı aktarımla uğraşmamak için), `Accept-Encoding: identity`;
      `Host`, `Origin`, `Referer` AP'nin kendi adresine (`http://192.168.1.1`) çevrilir; `X-WFC-*`, `X-Forwarded-*`,
      `wcc`/`wca` çerezleri iletilmez; gövde en çok birkaç MB.

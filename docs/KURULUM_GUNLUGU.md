@@ -222,38 +222,69 @@ ayrı (0.4.15). Kod `scripts/sunucu/merkez/ap.py` (ap.wificorrect.com), `cihaz.p
 - **Akış:** cihaz paneli → Ayarlar → AP kurulumu → "AP arayüzüne git" → cihaz hedef durumunu yazar, tarayıcıyı
   `https://cihaz.wificorrect.com/_ap-gecis`'e yönlendirir (Caddy bu yolu forward_auth'suz merkeze verir) → merkez `wcc`
   çerezinden (müşteri ya da yönetici geçişi oturumu) müşteriyi, cihaz kaydını ve tünel adresini bulur; bunlara ve bu `wcc`
-  oturumuna bağlı **60 sn'lik tek kullanımlık** belirteç → `303 https://ap.wificorrect.com/_ap-giris?t=…` → `wca` çerezi →
-  `303 /` → Caddy her istekte `forward_auth` ile `/ap-yetki`'ye sorar → `200` + `X-WFC-Cihaz: <tünel IP>`,
-  `X-WFC-Kullanici: <müşteri numarası>`, `X-WFC-AP: 1` → `reverse_proxy {X-WFC-Cihaz}:8443`. `wcc` geçersizse `/_ap-gecis`
+  oturumuna ve isteyen adrese bağlı **60 sn'lik tek kullanımlık** belirteç → `303 https://ap.wificorrect.com/_ap-giris?t=…` →
+  `wca` çerezi → `303 /` → Caddy her istekte `forward_auth` ile `/ap-yetki`'ye sorar → `200` + `X-WFC-Cihaz: <tünel IP>`,
+  `X-WFC-AP-Kullanici: <müşteri numarası>`, `X-WFC-AP: 1` → `reverse_proxy {X-WFC-Cihaz}:8443`. `wcc` geçersizse `/_ap-gecis`
   panel girişine (`https://panel.wificorrect.com/giris`) döner.
-- **`wca`:** `HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=1800`, Domain yok (yalnızca ap.wificorrect.com); sunucuda da en
+- **`wca`:** `HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=1800`, Domain yok (yalnızca ap.wificorrect.com); sunucuda da en
   çok **30 dk** (mutlak, istekle uzamaz). Her istekte altındaki `wcc` cihaz-yetki kuralıyla yeniden doğrulanır (parola özeti,
   üyelik, lisans, bağlı cihaz + tünel adresi) ve **açıldığı cihaz kaydı ve tünel adresi** aynı olmalı; değilse `wca` düşer.
   Adres her istekte `wcc`'nin müşterisinden bulunur: bir müşterinin `wca`'sı başka müşterinin cihazına gidemez; cihaz değişirse
   (aynı tünel adresi verilse bile) eski `wca` geçmez. AP kullanımı `wcc`'yi de canlı tutar (boşta 30 dk). Cihaz panelinden
   çıkış, parola değişimi, lisans/üyelik kapanması, bağın kalkması `wca`'yı da geçersiz kılar.
-- **`X-WFC-Kullanici`** yönetici geçişinde de müşteri numarasıdır (cihaz-yetki gibi; cihaz kendi bağındaki numarayla
-  karşılaştırır). Açanın kim olduğu merkezde hareket satırında, cihazda kendi `AP_ARAYUZ` denetiminde.
+- **`X-WFC-AP-Kullanici`** yönetici geçişinde de müşteri numarasıdır (cihaz-yetki gibi; cihaz kendi bağındaki numarayla
+  karşılaştırır). Açanın kim olduğu merkezde hareket satırında, cihazda kendi `AP_ARAYUZ` denetiminde. AP kipinde
+  `X-WFC-Kullanici` hiç gönderilmez: 0.4.15 öncesi cihaz `X-WFC-AP`'yi tanımaz ve `X-WFC-Kullanici`'li isteği oturumlu panel
+  isteği sayıp paneli ap.wificorrect.com kökünde verirdi (final review M2); yeni başlığı tanımadığı için isteği oturumsuz
+  sayar (giriş yönlendirmesi, sonra 404).
 - **Geçersiz durumlar:** belirteç yok/kullanılmış/süresi dolmuş ya da altındaki `wcc` düşmüş → `/_ap-giris` 403 sade Türkçe
   sayfa ("Bağlantı geçersiz … Ayarlar → AP kurulumu → AP arayüzüne git ile yeniden açın", cihaz paneline bağlantı).
-  `/ap-yetki` geçersiz → 403 "AP erişimi kapalı" (forward_auth bu cevabı tarayıcıya aynen verir; bozuk/eski `wca` silinir).
-  `/_ap-cikis[?donus=/yol]` `wca`'yı siler, `https://cihaz.wificorrect.com/yol`'a döner (yalnızca bu sitede bir yol;
-  varsayılan `/`); cihaz paneli oturumu açık kalır.
+  `/ap-yetki` geçersiz → 403 "AP erişimi kapalı" (forward_auth bu cevabı tarayıcıya aynen verir; bozuk/eski `wca` silinir;
+  sayfada temizleyerek çıkış bağlantısı `/_ap-cikis`). `/_ap-cikis[?donus=/yol]` `wca`'yı siler, `Clear-Site-Data: "cache",
+  "cookies", "storage"` gönderir (AP'lerin çerezleri, tarayıcının sakladığı HTTP kimlik bilgileri, depolama, Service
+  Worker'lar; "cookies" kayıtlı alan adının — wificorrect.com — bütün çerezlerini sildiği için panel, yönetim ve cihaz paneli
+  oturumları da kapanır; sunucudaki `wcc` oturumu düşmez) ve `https://cihaz.wificorrect.com/yol`'a döner (yalnızca bu sitede
+  bir yol; varsayılan `/`). Çıkış da yalnızca üst düzey gezinmeyle (`same-origin|same-site|none`): başka siteden tetiklenen
+  "her şeyi sil" oturum kapatma CSRF'i olmasın.
 - **Yalnızca cihaz panelinden (Fetch Metadata):** AP arayüzü panel/cihaz/yönetimle aynı "site"da çalışır ve `wcc`
   (SameSite=Lax) aynı-site alt isteklerde de gönderilir: kötü niyetli bir AP'nin betiği `<iframe src=…/_ap-gecis>` ile
   tarayıcıdaki BAŞKA müşterinin `wcc`'sinden `wca` aldırıp o AP'yi kendi kökeninde okuyabilirdi. Bu yüzden tarayıcı
   `Sec-Fetch-*` gönderdiyse `/_ap-gecis` yalnızca `Sec-Fetch-Site: same-origin|none` (cihaz.wificorrect.com sayfası ya da elle
-  yazılan adres), `/_ap-giris` `same-origin|same-site|none`; ikisi de `Sec-Fetch-Mode: navigate` + `Sec-Fetch-Dest: document`
-  (çerçeve/fetch/resim değil). Değilse 403 "AP arayüzü açılamadı" (belirteç harcanmaz; oturumlu/belirteçli istekte günlüğe
-  `AP_GECIS_RED` / `AP_GIRIS_RED` + değerler). Başlık göndermeyen eski tarayıcı geçer. Sonuç: `/_ap-gecis`'e bağlantı yalnızca
-  cihaz.wificorrect.com sayfasından verilir (AP kipi sayfalarından, yani ap.wificorrect.com'dan değil).
+  yazılan adres), `/_ap-giris` **yalnızca `same-site`** (cihaz alanından yönlenen gezinme; `same-origin` = AP sayfasının
+  kendisi gezindi — bir müşterinin AP'si kendi belirtecini tarayıcıya ekip başka müşterinin açık AP sekmesini kendine
+  çevirirdi; `none` = elle yazılan adres); ikisi de `Sec-Fetch-Mode: navigate` + `Sec-Fetch-Dest: document` (çerçeve/fetch/
+  resim değil). Değilse 403 "AP arayüzü açılamadı" (belirteç harcanmaz; oturumlu/belirteçli istekte günlüğe `AP_GECIS_RED`
+  / `AP_GIRIS_RED` + değerler). **Başlık göndermeyen eski tarayıcı geçer** (Safari < 16.4 vb.; onlarda koruma `wca`
+  SameSite=Strict + belirtecin adres bağı). Sonuç: `/_ap-gecis`'e bağlantı yalnızca cihaz.wificorrect.com sayfasından verilir
+  (AP kipi sayfalarından, yani ap.wificorrect.com'dan değil).
+- **Final review düzeltmeleri (2026-10-16; tek kök, bütün müşterilerin AP'leri):**
+  - **Service Worker yok (C1):** Caddy ap bloğunda `@sw header Service-Worker script` → `handle @sw { respond 403 }`
+    (adlı eşleyicili handle'lar yazıldığı sırayla; ilk o), cihaz da reddeder. Bir AP'nin betiği kök kapsamlı SW kaydetseydi
+    sonraki müşterilerin AP oturumlarını ve `/_ap-giris` belirtecini dinlerdi.
+  - **Yeni AP oturumunda temizlik:** `/_ap-giris` `Clear-Site-Data: "cache", "storage"` (kökün önbelleği, localStorage,
+    IndexedDB, Cache API, SW kayıtları; "cookies" yok — kayıtlı alan adının bütün çerezlerini, az önce yazılan `wca`'yı da
+    silerdi) ve tarayıcının bu kökte gönderdiği eski (Path=/) çerezleri `Max-Age=0` ile siler (`wca` hariç, yalnızca geçerli
+    çerez adları, en çok 30; ör. TP-Link'in betikle yazdığı `Authorization` = Basic kullanıcı:parola). Merkez artık bir
+    başlığa liste verebilir (birden çok `Set-Cookie`, `merkez.baslik_satirlari`).
+  - **Belirteç tarayıcıya bağlı:** `/_ap-gecis` belirteci isteyen istemci adresine (Caddy'nin `X-Forwarded-For` son öğesi)
+    bağlar; `/_ap-giris` başka adresten gelirse belirteç yanar, 403 (günlükte `AP_GIRIS_RED adres_farkli`). Üst alana
+    (`Domain=wificorrect.com`) çerez bilerek kullanılmadı: AP'lerin betiği ap.wificorrect.com'dan okuyup yazabilirdi; ap
+    kökündeki çerez de o kökü ele geçirmiş betiğe karşı işe yaramaz. Adres bağı sızdırılan belirtecin başka ağdan
+    kullanılmasını önler. Not: alan adlarına AAAA eklenirse ikisine birden eklenmeli (istemci cihaz ve ap alan adlarına
+    farklı IP sürümüyle giderse belirteç tutmaz).
+  - **AP yönetim parolası (I1):** müşteri başına 12 karakterlik rastgele parola (`musteri.ap_parola`, açık saklanır; eski
+    müşterilere göçte üretilir), yönetimde müşteri sayfasında "AP yönetim parolası" + **Yenile** (`AP_PAROLASI_YENILENDI`,
+    parola yazılmaz); `/api/giris`, `/api/bagla` ve her `/api/eslesme` cevabında `ap_parola` (müşteriye özel, ortak sır değil:
+    kolay bağlamayla bağlanan cihaza da gider; yanlış bağ "zorla ayır"la kalkınca AP parolasını da yenileyin). AP'ye panel
+    parolası yazılmaz (docs/AP_KURULUM.md 3.6).
 - **Hız sınırı, hareket:** `/_ap-gecis` müşteri başına dakikada 20 (aşılırsa 429 sayfası); her geçiş hareket `AP_GECIS`
   (kim = müşteri numarası ya da `admin`, IP, müşteri, ayrıntı yalnızca `rol=musteri|yonetici`; hedef adres yok — merkez
   bilmez). `/ap-yetki` ve `/_ap-giris` sınırsız (cihaz-yetki ve `/_giris` gibi; AP sayfası istek başına onlarca kaynak yükler;
   belirteçler 256 bit). fail2ban değişmedi (bu uçlarda parola yok).
-- **Caddy `ap.wificorrect.com` bloğu** (cihaz bloğunun kalıbı): `request_header -X-WFC-Kullanici` / `-X-WFC-Cihaz` /
-  `-X-WFC-AP`; `@merkez path /_ap-giris /_ap-cikis` → merkez; diğer her şey `forward_auth` (`uri /ap-yetki`,
-  `copy_headers X-WFC-Kullanici X-WFC-Cihaz X-WFC-AP`) + `reverse_proxy {http.request.header.X-WFC-Cihaz}:8443` (`tls` +
+- **Caddy `ap.wificorrect.com` bloğu** (cihaz bloğunun kalıbı): `request_header -X-WFC-Kullanici` / `-X-WFC-AP-Kullanici` /
+  `-X-WFC-Cihaz` / `-X-WFC-AP` (cihaz bloğunda da); önce `@sw` (Service Worker betiği → 403); `@merkez path /_ap-giris
+  /_ap-cikis` → merkez; diğer her şey `forward_auth` (`uri /ap-yetki`,
+  `copy_headers X-WFC-AP-Kullanici X-WFC-Cihaz X-WFC-AP`) + `reverse_proxy {http.request.header.X-WFC-Cihaz}:8443` (`tls` +
   `tls_insecure_skip_verify`), `header_up -X-WFC-Cihaz`, `header_up Cookie "\b(?:wca|wcc)=[^;]*" "_"` (merkez çerezleri
   cihaza/AP'ye gitmez, AP'nin kendi çerezleri geçer), Host `ap.wificorrect.com` kalır; 502/503/504 → panel `/cihaz?yok=1`.
 - **Güvenlik başlıkları:** HSTS ve `-Server` diğer bloklar gibi; **CSP, X-Frame-Options, X-Content-Type-Options,
@@ -264,11 +295,13 @@ ayrı (0.4.15). Kod `scripts/sunucu/merkez/ap.py` (ap.wificorrect.com), `cihaz.p
   cihaza asla ulaşmaz; cihaz merkezden gelen `X-WFC-AP: 1`'i AP kipi sayar); CSP `form-action`'a `https://ap.wificorrect.com`
   eklendi (form-action yönlendirmeye de uygulanır: "AP arayüzüne git" formu → `/_ap-gecis` → ap.wificorrect.com; eklenmezse
   tarayıcı gezinmeyi sessizce iptal eder).
-- **Bir tarayıcıda aynı anda tek AP arayüzü (yönetici için önemli):** bütün müşterilerin AP'leri tek kökende
-  (ap.wificorrect.com) açılır, tarayıcıda tek `wca` çerezi vardır: B'nin AP'si açılınca A'nın AP'si için açık kalmış sekmedeki
-  sonraki istekler (ör. "Kaydet") B'nin AP'sine gider. AP'nin kendi çerezleri ve tarayıcının sakladığı HTTP Basic kimliği de
-  bütün müşteriler için ortaktır (aynı model/realm'de A'nın AP parolası B'nin AP'sine gönderilebilir). Başka işletmenin AP'sine
-  geçmeden önce öbür AP sekmelerini kapatın (ya da gizli pencere kullanın).
+- **AP arayüzünü her müşteri için yeni bir gizli (incognito) pencerede açın; işiniz bitince bütün gizli pencereleri
+  kapatın** (yönetici için önemli): bütün müşterilerin AP'leri tek kökende (ap.wificorrect.com) açılır, tarayıcıda tek
+  `wca` çerezi vardır: B'nin AP'si açılınca A'nın AP'si için açık kalmış sekmedeki sonraki istekler (ör. "Kaydet") B'nin
+  AP'sine gider. Tarayıcının sakladığı HTTP Basic kimliği bütün müşteriler için ortaktır (aynı model/realm'de A'nın AP
+  parolası B'nin AP'sine gönderilebilir); onu sunucu silemez (yalnızca `/_ap-cikis`'in Clear-Site-Data'sı ya da pencereyi
+  kapatmak). Bu yüzden AP'ye panel parolası değil müşteriye özel AP yönetim parolası yazılır; yeni AP oturumu eski AP
+  çerezlerini ve depolamasını siler. Gizli pencere ek savunmadır.
 - **Bilinen risk:** AP arayüzü wificorrect.com'un alt alanında, panel ve yönetimle aynı "site"da çalışır: kötü niyetli ya da
   açıklı bir AP'nin betiği üst alana çerez atabilir (`Domain=wificorrect.com`; oturum bozma) ya da aynı-site istek yapabilir.
   Merkez çerezleri host-only + HttpOnly (okunamaz), POST'lar CSRF belirteçli, `/_ap-gecis` yukarıdaki gibi korunur. Kalıcı
@@ -279,8 +312,10 @@ ayrı (0.4.15). Kod `scripts/sunucu/merkez/ap.py` (ap.wificorrect.com), `cihaz.p
   sudo): `kur.sh` `ap.py`'yi kurar, Caddyfile'ı `caddy validate`'ten geçmeden kurmaz. (3) Cihazlar 0.4.15. Merkez önce gelmezse
   eski Caddyfile `/_ap-gecis`'i forward_auth ile cihaza iletir: cihaz bunu "AP erişimi şu an kullanılamıyor" diye göstermeli.
 - **Canlıda doğrulanmadı:** yerelde `caddy` yok; blok, canlıda çalışan cihaz bloğunun aynısı, yalnızca çerez ifadesi farklı
-  (RE2 `\b(?:wca|wcc)=[^;]*`). Kurulumdan sonra: `curl -s -o /dev/null -w '%{http_code}\n' https://ap.wificorrect.com/` → 403;
-  sonra panelden "AP arayüzüne git" uçtan uca.
+  (RE2 `\b(?:wca|wcc)=[^;]*`) ve `@sw header Service-Worker script` (belgelenmiş `header <alan> <değer>` biçimi). Kurulumdan
+  sonra: `curl -s -o /dev/null -w '%{http_code}\n' https://ap.wificorrect.com/` → 403; `curl … -H 'Service-Worker: script'
+  https://ap.wificorrect.com/sw.js` → 403 (gövdesiz); sonra panelden "AP arayüzüne git" uçtan uca, DevTools → Application →
+  Service Workers boş, `/_ap-giris` cevabında `Clear-Site-Data`.
 
 ## Uzaktan güncelleme (2026-10-12)
 Dal `uzaktan-guncelleme`; tasarım `docs/superpowers/specs/2026-10-12-uzaktan-guncelleme-design.md`. Sürüm **0.4.0**. Cihaz paketini (.deb) merkezden alıp kendi kurar; ISO'dan kurulmuş (paketli) cihazlar için.
@@ -631,10 +666,32 @@ Dal `ap-arayuz`; tasarım `docs/superpowers/specs/2026-10-16-ap-arayuz-design.md
   Merkez eski sürümdeyse `/_ap-gecis` cihaza panel isteği olarak gelir: "AP erişimi şu an kullanılamıyor" (503).
 - **Aktarım** (`src/ap_arayuz.rs`, `src/panel/ap_aktarim.rs`): `X-WFC-AP: 1` yalnızca `X-WFC-Kullanici` ile aynı güven
   kuralıyla (açık tünel `wfc` + kaynak merkezin tünel adresi) geçerli; başka kaynakta yok sayılır (istek panele düşer,
-  bağlı cihazda 404). `X-WFC-Kullanici` bağlı müşterinin numarası değilse 403. Hedef her istekte yeniden denetlenir;
-  yoksa/süresi dolmuşsa sade "AP erişimi kapalı" sayfası (403; süresi dolan `kapandi … neden=sure`, kim hedeften).
+  bağlı cihazda 404). AP kipinde müşteri numarası `X-WFC-AP-Kullanici`'de (`X-WFC-Kullanici` gelmez: istek panele düşse de
+  oturum açtırmaz); bağlı müşterinin numarası değilse 403. Hedef her istekte yeniden denetlenir;
+  yoksa/süresi dolmuşsa sade "AP erişimi kapalı" sayfası (403; süresi dolan `kapandi … neden=sure`, kim hedeften; sayfada
+  merkezin temizleyerek çıkış bağlantısı `/_ap-cikis`).
   Aktarımlar panelin 4 iş parçacığını tutmaz: ayrı 4 iş parçacığı + 64'lük kuyruk (dolarsa 503). AP kipindeki hiçbir
   cevaba panelin CSP / X-Frame-Options: DENY / Referrer-Policy başlıkları eklenmez.
+  - **AP'ye gitmeyen tarayıcı istekleri** (final review C1/I2; `ap_arayuz::istek_reddi`, 403 sade sayfa, AP'ye bağlanılmaz):
+    Service Worker betiği (`Service-Worker` başlığı ya da `Sec-Fetch-Dest: serviceworker`; merkezin Caddy'si de reddeder);
+    `Sec-Fetch-Site: cross-site`; `same-site` (başka wificorrect.com alt alanı) ise yalnızca üst düzey GET/HEAD gezinme
+    (`navigate` + `document`: cihaz panelinden gelen yönlendirme zinciri ve AP'nin o zincirdeki kendi yönlendirmeleri)
+    geçer. AP'nin kendi sayfaları (`same-origin`), elle yazılan adres (`none`) ve başlıksız eski tarayıcı geçer. AP'nin
+    `Service-Worker-Allowed` cevap başlığı atılır.
+  - **Kayıtlı AP adresinde MAC denetimi** (final review I1): AP adresleri kaydedilirken her adresin o anki MAC'i
+    (`ip -4 neigh show dev <köprü>`; yoksa AP'ye bir kez bağlanılıp yeniden bakılır) `[ap] mac`'e (adres → MAC) sabitlenir;
+    okunamazsa önceki sabit MAC kalır ve uyarı çıkar ("MAC adresi okunamadı …"); aynı listeyi yeniden kaydetmek yeniden
+    sabitler (denetim `PANEL_AP_ADRES adresler=… eski=… mac=adres/MAC,… eski_mac=…`). MAC'i sabitlenmemiş adrese panelden
+    gidilmez. "AP arayüzüne git" bağlantı denemesinden sonra komşu tablosundaki MAC'i sabitlenenle karşılaştırır (farklıysa
+    hedef yazılmaz, `AP_ARAYUZ red hedef=… neden=mac mac=… simdi=…`); hedefe MAC yazılır, sabit MAC değişir/silinirse açık
+    erişim kapanır (`adres_kaydi`). Aktarımda her bağlantıdan sonra `/proc/net/arp`'taki MAC (çözülmüş kayıt) hedefinkiyle
+    aynı olmalı; değilse 403 "AP'nin MAC adresi değişmiş", erişim kapanır (bir kez `AP_ARAYUZ kapandi … neden=mac mac=…
+    simdi=…`). Misafir ağında AP'nin adresini elle alan bir cihaz AP yerine geçip yazılan parolayı toplamasın; ARP
+    zehirlemesine karşı tam koruma değildir (AP açıkken iki cihaz aynı adresi kullanırsa komşu kaydı değişebilir).
+  - **Hedef dosyası yarışı** (final review M1): hedefi yazan işlemler (git, şema/port değişimi, MAC'te kapatma, kapat)
+    süreç içi kilitle sıraya girer; okunamayan hedef dosyası `Yok` sayılır ama silinmez.
+  - **AP yönetim parolası:** merkezden gelir (`merkez.json` `ap_parola`, bağlanırken ve her eşitlemede), panel → AP kurulumu
+    → Takılan cihaz'da gösterilir ("henüz gelmedi" notuyla); yanında gizli pencere notu.
   - İstek: AP'ye HTTP/1.0, `Connection: close`, `Accept-Encoding: identity`; Host / Origin / Referer AP'nin kendi
     adresine (Origin/Referer yalnızca `https://<gelen Host>` ile başlıyorsa; başkası gitmez); X-WFC-*, X-Forwarded-*,
     Forwarded, Via, Proxy-*, koşullu istek başlıkları (If-*), Cookie'de wca/wcc/wfc ve merkezin `_` yaptığı parçalar
@@ -649,15 +706,19 @@ Dal `ap-arayuz`; tasarım `docs/superpowers/specs/2026-10-16-ap-arayuz-design.md
     gövdede (text/*, JS, JSON, XML; türsüzse NUL içermeyen; sıkıştırılmamış; en çok 2 MB, fazlası olduğu gibi akar)
     `http(s)://<hedef>[:port]`, `//<hedef>` ve JSON kaçışlı `http:\/\/<hedef>` → `https://<gelen Host>` / `//<gelen Host>`
     (`<hedef>`: adres ve ona giden bilinen adlar; 192.168.1.10 gibi başka adresler değişmez). Set-Cookie'den Domain
-    çıkar, wca/wcc/wfc adlı çerez yazılmaz. AP aynı adreste başka şemaya/porta yönlendirirse (http → https://<hedef>/)
-    hedef dosyası güncellenir (döngü olmaz). İkili içerik (resim, ürün yazılımı) akar (tiny_http parçalı gönderir).
+    çıkar (`Domain =x` gibi boşluklu yazım da; final review M4), wca/wcc/wfc adlı çerez yazılmaz. AP aynı adreste başka
+    şemaya/porta yönlendirirse (http → https://<hedef>/) hedef dosyası güncellenir (döngü olmaz). Akan (yeniden
+    yazılmayan) gövdenin boyu bildirilmez, tiny_http parçalı gönderir (final review M3: AP bildirdiğinden kısa gövdeyle
+    kapatırsa Content-Length'li cevap Caddy bağlantısını kaydırıp isteği asılı bırakıyordu); boy yalnızca HEAD'de ve
+    yeniden yazılan gövdede.
   - Bilinen sınır: arayüzünü JS ile sabit adresten kuran modeller, WebSocket, 8 MB'tan büyük yükleme → betik.
 - **Küçükler:** panel sertifikası boş/bozuksa (PEM ve base64 denetimi; tiny_http boş anahtarda panik ediyordu, Visavis)
   yeniden üretilir: geçici dosyalar (anahtar baştan 600) doğrulanınca yerlerine taşınır; dosyalar PEM görünüp tiny_http
   açamazsa bir kez daha üretilir (port dolu hatasında üretilmez). **Monitörsüz açılış:**
   `/usr/local/lib/wificorrect/efi-baslangic <EFI dizini>` EFI bölümüne CRLF `startup.nsh` + `\EFI\BOOT\startup.nsh` +
   işaret `\EFI\wificorrect\kimlik` yazar (fs0–fs15'te işareti arar; `\EFI\BOOT\BOOTX64.EFI`, yoksa
-  `\EFI\debian\shimx64.efi`, `grubx64.efi`); içerik aynıysa dokunmaz. postinst (`mountpoint -q /boot/efi`) ve kurucu
+  `\EFI\debian\shimx64.efi`, `grubx64.efi`); içerik aynıysa dokunmaz; başka bir sistemin `startup.nsh`'si (işareti
+  aramayan) ezilmez, uyarı yazılır (final review M5; paket testi denetler). postinst (`mountpoint -q /boot/efi`) ve kurucu
   (`son.sh`, `/target/boot/efi` bağlıysa; seri günlükte `EFI BASLANGIC YAZILDI`, duman testi arar) çağırır. Etkisi gerçek
   cihazda doğrulanmadı. Portal metinleri örneği gerçek ek hesabıyla (`İŞLETMECİ’nin → Göztepe Bilgisayar’ın`).
   `scripts/ap-ac.ps1 -Tunel 10.99.0.x [-Merkez gbserver@192.168.1.109] [-MerkezAnahtar ~/.ssh/gbserver]`: geçici
@@ -666,7 +727,12 @@ Dal `ap-arayuz`; tasarım `docs/superpowers/specs/2026-10-16-ap-arayuz-design.md
   `HostKeyAlias wificorrect-tunel-<IP>` ile (`accept-new`; tünel adresi başka cihaza geçip anahtar değişirse bağlanmaz,
   betik `ssh-keygen -R …` satırını yazar; `-E` günlüğünden). `ssh -G` ile Windows OpenSSH 9.5'te ayrıştırması denendi;
   gerçek atlama canlı kabulde.
+- **Arama işi kenar durumları** (final review M6): durum dosyası kalmış ama aracısı ölmüş yan oda arama işinde yeni yan
+  odadan önce kapanır (`AP_YAN_ODA kapandi … neden=araci_yok`; `ap::kaldir` bunu kilit altında denetler, yaşayan yan odaya
+  dokunmaz) — "Bağlan" artık "Zaten bir yan oda açık" hatasında takılı kalmaz. "Bağlan"/"Otomatik bul" başlatma panelde
+  kilit altında; `systemd-run` başarısız ama arama çalışıyorsa durumu "başlatılamadı" ile ezilmez.
 - **Canlı kabul listesi** (henüz yapılmadı; merkez + DNS `ap.wificorrect.com` sonrası, uzaktan güncellemeyle 0.4.15):
-  Göztepe'nin TP-Link'i (10.50.0.2, AP adresleri'ne kaydedilip) → git → giriş sayfası + menüler (frameset) çalışıyor mu;
+  Göztepe'nin TP-Link'i (10.50.0.2, AP açıkken AP adresleri'ne kaydedilip — MAC sabitlenmeli) → git → giriş sayfası + menüler
+  (frameset) çalışıyor mu; AP yönetim parolası yönetimde ve cihaz panelinde aynı mı (ertesi 06:00 eşitlemesinden sonra);
   fabrika adresli bir AP (ZyXEL 192.168.1.1) → Bağlan → yan oda .250 → git; Otomatik bul; HTTPS'e yönlendiren bir model;
   süre dolunca "AP erişimi kapalı"; yan oda kapanınca erişim kapanıyor mu; `ap-ac.ps1 -Tunel` gerçek atlama.

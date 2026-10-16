@@ -3,21 +3,34 @@
     WifiCorrect: müşterinin AP'sinin web arayüzünü cihaz üzerinden (SSH SOCKS tüneli) ayrı bir Chrome penceresinde açar.
 
 .DESCRIPTION
+    Önce panelden deneyin: Ayarlar > AP kurulumu > Takılan cihaz > "Bağlan" ve "AP arayüzüne git" (ap.wificorrect.com).
+    Bu betik yedek yoldur (eski TLS'li ya da arayüzünü JS ile sabit adresten kuran AP'ler, başka port, büyük dosya).
+
     AP adresi misafir ağındaysa (varsayılan 10.50.0.0/24) ya da bir alan adıysa cihaza "ssh -N -D" ile SOCKS tüneli
     açar (ad çözümü cihazda). AP adresi misafir ağı dışında bir IPv4 ise (fabrika adresi, ör. 192.168.1.1) AP'ye cihazın
-    "yan oda"sından ulaşılır: panelde (Ayarlar > AP kurulumu > Yan oda) yan oda açık olmalı; betik "ssh -N -L" ile
-    cihazdaki SOCKS5 aracısına (127.0.0.1:1085) bağlanır. İki durumda da geçici profilli bir Chrome (yoksa Edge)
-    penceresini bu proxy ile ve verilen AP adresiyle açar; pencere kapanınca tüneli kapatır ve geçici profili siler.
-    Normal Chrome profiline dokunmaz. Sır içermez: kullanıcının mevcut SSH anahtarı kullanılır (BatchMode: parola
-    sorulmaz; anahtar parolalıysa ssh-agent'a eklenmiş olmalı). Ayrıntı: docs/AP_KURULUM.md.
-    Windows PowerShell 5.1 ile çalışır.
+    "yan oda"sından ulaşılır: panelde yan oda açık olmalı; betik "ssh -N -L" ile cihazdaki SOCKS5 aracısına
+    (127.0.0.1:1085) bağlanır. İki durumda da geçici profilli bir Chrome (yoksa Edge) penceresini bu proxy ile ve verilen
+    AP adresiyle açar; pencere kapanınca tüneli kapatır ve geçici profili siler. Normal Chrome profiline dokunmaz.
+
+    Cihaza iki yoldan bağlanılır:
+    - -Cihaz: ~/.ssh/config girdisi ya da root@adres (dükkân ağında "wificorrect", WireGuard yönetici bağlantısıyla
+      "root@10.99.0.11").
+    - -Tunel 10.99.0.x: müşteri başına ayar gerekmez; yönetimde müşteri sayfasındaki tünel adresi yazılır, bağlantı
+      merkez sunucu üzerinden atlanır (-Merkez, varsayılan gbserver@192.168.1.109, anahtar ~/.ssh/gbserver). Cihaz
+      anahtarı -Anahtar ya da ~/.ssh/bocafe. Tünel adresi müşteri değişince başka cihaza verilebildiği için cihazın ana
+      makine anahtarı ayrı dosyada (~/.ssh/known_hosts_wificorrect) tünel adresine özel adla (HostKeyAlias) tutulur:
+      ilk bağlantıda kaydedilir, sonra değişirse bağlantı kurulmaz ve betik eski kaydın nasıl silineceğini yazar.
+    Sır içermez: kullanıcının mevcut SSH anahtarları kullanılır (BatchMode: parola sorulmaz; anahtar parolalıysa
+    ssh-agent'a eklenmiş olmalı). Ayrıntı: docs/AP_KURULUM.md. Windows PowerShell 5.1 ile çalışır.
 
 .EXAMPLE
     scripts\ap-ac.cmd -Adres 10.50.0.2
 .EXAMPLE
+    scripts\ap-ac.cmd -Adres 192.168.1.1 -Tunel 10.99.0.11
+.EXAMPLE
     scripts\ap-ac.cmd -Adres 192.168.1.1 -Cihaz root@10.99.0.11
 .EXAMPLE
-    scripts\ap-ac.cmd -Adres http://10.50.0.2/userRpm/Index.htm -Kuru
+    scripts\ap-ac.cmd -Adres http://10.50.0.2/userRpm/Index.htm -Tunel 10.99.0.11 -Kuru
 #>
 [CmdletBinding()]
 param(
@@ -25,9 +38,14 @@ param(
     [Parameter(Mandatory = $true)][string]$Adres,
     # SSH hedefi: ~/.ssh/config girdisi (dükkân ağında "wificorrect") ya da dışarıdan "root@10.99.0.11"
     [string]$Cihaz = 'wificorrect',
+    # Cihazın tünel adresi (10.99.0.x; yönetimde müşteri sayfasında): merkez üzerinden atlanır, -Cihaz kullanılmaz
+    [string]$Tunel = '',
+    # -Tunel ile atlanan merkez sunucu (kullanıcı@adres) ve onun SSH anahtarı
+    [string]$Merkez = 'gbserver@192.168.1.109',
+    [string]$MerkezAnahtar = '',
     # Yerel SOCKS portu; doluysa 1081-1099 arasında boş olan seçilir
     [int]$Port = 1080,
-    # İsteğe bağlı SSH anahtar dosyası (ssh -i)
+    # İsteğe bağlı SSH anahtar dosyası (ssh -i; -Tunel ile varsayılan ~/.ssh/bocafe)
     [string]$Anahtar = '',
     # Cihazın misafir ağı: bu ağdaki adresler "ssh -D" ile, dışındaki IPv4 adresler yan odadan açılır
     [string]$MisafirAg = '10.50.0.0/24',
@@ -112,6 +130,35 @@ if ($null -eq (Ip4Sayi ($MisafirAg.Split('/')[0])) -or $MisafirAg -cnotmatch '^[
 $konak = ($url -replace '^https?://', '') -replace '[:/].*$', ''
 $yanOda = ($null -ne (Ip4Sayi $konak)) -and -not (AgIcinde $konak $MisafirAg)
 
+# ---------------------------------------------------------------- tünel adresiyle (merkez üzerinden)
+if ($Tunel -ne '') {
+    if ($PSBoundParameters.ContainsKey('Cihaz')) {
+        Hata '-Cihaz ile -Tunel birlikte kullanılmaz (-Tunel cihaza merkez üzerinden root olarak bağlanır).'
+    }
+    $tunelSon = 0
+    if ($Tunel -cmatch '^10\.99\.0\.([0-9]{1,3})$') {
+        $tunelSon = [int]$Matches[1]
+    }
+    if ($tunelSon -lt 2 -or $tunelSon -gt 254) {
+        Hata "Tunel geçersiz: '$Tunel'. Yönetimde müşteri sayfasındaki tünel adresi (10.99.0.x) yazılır."
+    }
+    if ($Merkez -cnotmatch '^[A-Za-z0-9._-]+@[A-Za-z0-9._-]+$') {
+        Hata "Merkez geçersiz: '$Merkez'. Örnek: gbserver@192.168.1.109 (dışarıdan WireGuard ile: gbserver@10.99.0.1)."
+    }
+    if ($MerkezAnahtar -eq '') {
+        $MerkezAnahtar = Join-Path $HOME '.ssh\gbserver'
+    }
+    if (-not $Kuru -and -not (Test-Path -LiteralPath $MerkezAnahtar -PathType Leaf)) {
+        Hata "Merkez anahtarı bulunamadı: $MerkezAnahtar (-MerkezAnahtar ile verin)."
+    }
+    if ($Anahtar -eq '') {
+        $varsayilan = Join-Path $HOME '.ssh\bocafe'
+        if (Test-Path -LiteralPath $varsayilan -PathType Leaf) {
+            $Anahtar = $varsayilan
+        }
+    }
+}
+
 # ---------------------------------------------------------------- boş port
 function PortBos([int]$P) {
     $dinleyici = $null
@@ -177,7 +224,14 @@ if ($null -eq $tarayici) {
     }
 }
 
-$profil = Join-Path $env:TEMP ('wfc-ap-' + [guid]::NewGuid().ToString('N').Substring(0, 8))
+$geciciAd = 'wfc-ap-' + [guid]::NewGuid().ToString('N').Substring(0, 8)
+$profil = Join-Path $env:TEMP $geciciAd
+$sshDizin = Join-Path $env:TEMP ($geciciAd + '-ssh')
+
+# ssh_config yolu: ileri eğik çizgi, % kaçışlı (ssh_config % ile başlayan belirteçleri açar), tırnak içinde
+function SshYolu([string]$Yol) {
+    return '"' + $Yol.Replace('\', '/').Replace('%', '%%') + '"'
+}
 
 # Start-Process (PowerShell 5.1) argümanları boşlukla birleştirir, tırnak eklemez: boşluk içerebilen yollar elle tırnaklanır.
 if ($yanOda) {
@@ -187,10 +241,48 @@ if ($yanOda) {
     $yonlendirme = @('-D', "127.0.0.1:$Port")
 }
 $sshArg = @('-N') + $yonlendirme + @('-o', 'ExitOnForwardFailure=yes', '-o', 'ServerAliveInterval=15', '-o', 'BatchMode=yes')
-if ($Anahtar -ne '') {
-    $sshArg += @('-i', "`"$Anahtar`"")
+$sshAyar = $null
+$sshGunluk = $null
+$merkezGunluk = $null
+$bilinen = $null
+$takmaAd = $null
+if ($Tunel -ne '') {
+    # Geçici ssh_config (-F: kullanıcının ~/.ssh/config'i okunmaz). Merkez: kendi anahtarı, ana makine anahtarı kullanıcının
+    # known_hosts'unda (ilk bağlantıda kaydedilir). Cihaz: merkezden atlanır (ProxyCommand; Windows OpenSSH'ta ProxyJump
+    # yerine), ana makine anahtarı ayrı dosyada tünel adresine özel adla.
+    $bilinen = Join-Path $HOME '.ssh\known_hosts_wificorrect'
+    $takmaAd = "wificorrect-tunel-$Tunel"
+    $sshAyar = Join-Path $sshDizin 'ssh_config'
+    $sshGunluk = Join-Path $sshDizin 'ssh.log'
+    $merkezGunluk = Join-Path $sshDizin 'merkez.log'
+    $mKullanici, $mAdres = $Merkez.Split('@')
+    $satirlar = @(
+        'Host wfc-merkez',
+        "  HostName $mAdres",
+        "  User $mKullanici",
+        "  IdentityFile $(SshYolu $MerkezAnahtar)",
+        '  IdentitiesOnly yes',
+        '  BatchMode yes',
+        '  StrictHostKeyChecking accept-new',
+        'Host wfc-cihaz',
+        "  HostName $Tunel",
+        '  User root',
+        "  ProxyCommand $(SshYolu $sshYolu) -F $(SshYolu $sshAyar) -E $(SshYolu $merkezGunluk) -W %h:%p wfc-merkez",
+        "  HostKeyAlias $takmaAd",
+        "  UserKnownHostsFile $(SshYolu $bilinen)",
+        '  StrictHostKeyChecking accept-new',
+        '  BatchMode yes'
+    )
+    if ($Anahtar -ne '') {
+        $satirlar += "  IdentityFile $(SshYolu $Anahtar)"
+    }
+    $sshArg += @('-F', "`"$sshAyar`"", '-E', "`"$sshGunluk`"", 'wfc-cihaz')
+} else {
+    if ($Anahtar -ne '') {
+        $sshArg += @('-i', "`"$Anahtar`"")
+    }
+    $sshArg += $Cihaz
 }
-$sshArg += $Cihaz
 $tarayiciArg = @("`"--user-data-dir=$profil`"", "--proxy-server=socks5://127.0.0.1:$Port", '--no-first-run',
     '--no-default-browser-check', '--new-window', $url)
 
@@ -199,6 +291,13 @@ if ($Kuru) {
         Write-Host "yöntem  : yan oda ($konak, $MisafirAg dışında; cihazda yan oda açık olmalı, aracı 127.0.0.1:$AraciPort)"
     } else {
         Write-Host "yöntem  : ssh SOCKS (-D; $konak)"
+    }
+    if ($Tunel -ne '') {
+        Write-Host "cihaz   : root@$Tunel, $Merkez üzerinden (ana makine anahtarı: $bilinen, ad $takmaAd)"
+        Write-Host "ssh_config ($sshAyar):"
+        foreach ($s in $satirlar) {
+            Write-Host "  $s"
+        }
     }
     Write-Host "ssh     : `"$sshYolu`" $($sshArg -join ' ')"
     Write-Host "tarayıcı: `"$tarayici`" $($tarayiciArg -join ' ')"
@@ -234,18 +333,61 @@ function SocksCevapVerir([int]$P) {
     }
 }
 
+# ssh günlüğünün son satırları ('' : dosya yok ya da boş)
+function GunlukSonu([string]$Yol) {
+    if ($null -eq $Yol -or $Yol -eq '' -or -not (Test-Path -LiteralPath $Yol)) {
+        return ''
+    }
+    $metin = Get-Content -LiteralPath $Yol -Raw -ErrorAction SilentlyContinue
+    if ($null -eq $metin -or $metin.Trim() -eq '') {
+        return ''
+    }
+    return (($metin.Trim() -split "`r?`n" | Select-Object -Last 3) -join ' | ')
+}
+
+# ssh hatasına açıklama (yalnızca -Tunel'de günlük dosyaları var): önce cihazın değişen anahtarı, sonra merkez atlaması
+function SshNedeni() {
+    # (PowerShell değişken adları büyük/küçük harf ayırmaz: $Merkez / $Cihaz parametreleriyle çakışan ad kullanılmaz)
+    $cihazSonu = GunlukSonu $sshGunluk
+    $tumu = ''
+    if ($null -ne $sshGunluk -and (Test-Path -LiteralPath $sshGunluk)) {
+        $tumu = Get-Content -LiteralPath $sshGunluk -Raw -ErrorAction SilentlyContinue
+    }
+    if ($tumu -match 'REMOTE HOST IDENTIFICATION HAS CHANGED' -or $tumu -match 'Host key verification failed') {
+        return "Cihazın ana makine anahtarı kayıtlı olandan farklı: tünel adresi $Tunel başka bir cihaza verilmiş olabilir. " +
+            "Yönetimde müşteri sayfasındaki tünel adresi doğruysa eski kaydı silip yeniden deneyin: " +
+            "ssh-keygen -R $takmaAd -f `"$bilinen`""
+    }
+    $atlamaSonu = GunlukSonu $merkezGunluk
+    if ($atlamaSonu -ne '') {
+        return "Merkeze ($Merkez) bağlanılamadı ya da cihaza atlanamadı (dışarıdaysanız WireGuard açık ve -Merkez gbserver@10.99.0.1): $atlamaSonu"
+    }
+    if ($cihazSonu -ne '') {
+        return "ssh: $cihazSonu"
+    }
+    return ''
+}
+
 # ---------------------------------------------------------------- tünel + tarayıcı
 $ssh = $null
 try {
-    if ($yanOda) {
-        Write-Host "SSH tüneli açılıyor (yan oda): $Cihaz -> 127.0.0.1:$Port -> cihazdaki aracı 127.0.0.1:$AraciPort ..."
+    if ($Tunel -ne '') {
+        New-Item -ItemType Directory -Path $sshDizin -Force | Out-Null
+        # UTF-8, BOM'suz (OpenSSH baştaki BOM'u ayar adı sanar)
+        [System.IO.File]::WriteAllText($sshAyar, (($satirlar -join "`n") + "`n"), (New-Object System.Text.UTF8Encoding $false))
+        $hedefAdi = "root@$Tunel ($Merkez üzerinden)"
     } else {
-        Write-Host "SSH tüneli açılıyor: $Cihaz -> 127.0.0.1:$Port ..."
+        $hedefAdi = $Cihaz
+    }
+    if ($yanOda) {
+        Write-Host "SSH tüneli açılıyor (yan oda): $hedefAdi -> 127.0.0.1:$Port -> cihazdaki aracı 127.0.0.1:$AraciPort ..."
+    } else {
+        Write-Host "SSH tüneli açılıyor: $hedefAdi -> 127.0.0.1:$Port ..."
     }
     $ssh = Start-Process -FilePath $sshYolu -ArgumentList $sshArg -WindowStyle Minimized -PassThru  # gizli değil: konsol X ile kapanırsa elle kapatılabilsin
     $hazir = $false
     $cevapsiz = 0
-    for ($i = 0; $i -lt 30; $i++) {
+    for ($i = 0; $i -lt 40; $i++) {
         if ($ssh.HasExited) {
             break
         }
@@ -264,12 +406,16 @@ try {
     }
     if (-not $hazir) {
         if ($ssh.HasExited) {
+            $neden = SshNedeni
+            if ($neden -ne '') {
+                Hata "SSH tüneli açılamadı (ssh çıkış kodu $($ssh.ExitCode)). $neden"
+            }
             Hata "SSH tüneli açılamadı (ssh çıkış kodu $($ssh.ExitCode)): cihaz adı/anahtar/ağ (WireGuard açık mı?). Elle deneyin: ssh $Cihaz"
         }
         if ($yanOda -and $cevapsiz -ge 3) {
-            Hata "Cihazda yan oda açık değil (aracı 127.0.0.1:$AraciPort cevap vermiyor). Panel > Ayarlar > AP kurulumu > Yan oda'dan $konak ile aynı alt ağda bir adres açın."
+            Hata "Cihazda yan oda açık değil (aracı 127.0.0.1:$AraciPort cevap vermiyor). Panel > Ayarlar > AP kurulumu > Takılan cihaz > Bağlan ile $konak için yan odayı açın."
         }
-        Hata 'SSH tüneli 15 sn içinde açılmadı ya da SOCKS cevap vermiyor: cihaz adı/anahtar/ağ (WireGuard açık mı?).'
+        Hata 'SSH tüneli 20 sn içinde açılmadı ya da SOCKS cevap vermiyor: cihaz adı/anahtar/ağ (WireGuard açık mı?).'
     }
     New-Item -ItemType Directory -Path $profil -Force | Out-Null
     Write-Host "Tarayıcı açılıyor: $url (pencere kapanınca tünel kapanır)"
@@ -279,19 +425,21 @@ try {
     if ($null -ne $ssh -and -not $ssh.HasExited) {
         try { Stop-Process -Id $ssh.Id -Force -ErrorAction Stop } catch { Write-Warning "ssh süreci durdurulamadı (PID $($ssh.Id))." }
     }
-    if (Test-Path -LiteralPath $profil) {
-        $silindi = $false
-        for ($i = 0; $i -lt 5; $i++) {
-            try {
-                Remove-Item -LiteralPath $profil -Recurse -Force -ErrorAction Stop
-                $silindi = $true
-                break
-            } catch {
-                Start-Sleep -Seconds 1
+    foreach ($dizin in @($profil, $sshDizin)) {
+        if (Test-Path -LiteralPath $dizin) {
+            $silindi = $false
+            for ($i = 0; $i -lt 5; $i++) {
+                try {
+                    Remove-Item -LiteralPath $dizin -Recurse -Force -ErrorAction Stop
+                    $silindi = $true
+                    break
+                } catch {
+                    Start-Sleep -Seconds 1
+                }
             }
-        }
-        if (-not $silindi) {
-            Write-Warning "Geçici profil silinemedi: $profil (elle silebilirsiniz)."
+            if (-not $silindi) {
+                Write-Warning "Geçici klasör silinemedi: $dizin (elle silebilirsiniz)."
+            }
         }
     }
     Write-Host 'Tünel kapandı.'

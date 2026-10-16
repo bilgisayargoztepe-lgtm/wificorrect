@@ -4,7 +4,14 @@ merkez yalnızca kimliği doğrular. Akış: cihaz.wificorrect.com/_ap-gecis (ci
 tek kullanımlık belirteç üretir → /_ap-giris belirteci wca çerezine çevirir → Caddy her istekte forward_auth ile /ap-yetki'ye
 sorar → /_ap-cikis çerezi siler. wca en çok 30 dk ve yalnızca altındaki wcc geçerli kaldıkça (parola, lisans, üyelik, aynı
 cihaz ve tünel adresi) geçerlidir; tünel adresi her istekte wcc'nin müşterisinden bulunur: bir müşterinin wca'sı başka
-müşterinin cihazına gidemez."""
+müşterinin cihazına gidemez.
+Bütün müşterilerin AP'leri tek kökte açıldığı için (final review 2026-10-16): Service Worker betiği hiç aktarılmaz (Caddy ap
+bloğu ve cihaz 403); /_ap-giris (yeni AP oturumu) kökün önbelleğini ve depolamasını (Service Worker kayıtları dahil) siler ve
+önceki AP'lerin bu kökte kalan çerezlerini sona erdirir, /_ap-cikis çerezler dahil her şeyi siler; belirteç yalnızca cihaz
+alanından yönlenen üst düzey gezinmeyle ve /_ap-gecis'i isteyen adresten kullanılır; wca SameSite=Strict; AP kipinde kullanıcı
+X-WFC-AP-Kullanici başlığındadır (0.4.15 öncesi cihaz bunu tanımaz, isteği oturumsuz sayar; X-WFC-Kullanici'yi görse paneli bu
+kökte açardı)."""
+import re
 import time
 import urllib.parse
 
@@ -21,8 +28,20 @@ YENIDEN = "Cihaz panelinde Ayarlar → AP kurulumu → AP arayüzüne git ile ye
 # yönlenen gezinmeyle (aynı site). AP arayüzü panel ve cihazla aynı "site"da çalışır: kötü niyetli bir AP'nin betiği
 # çerçeve/fetch/pencereyle tarayıcıdaki başka müşterinin cihaz paneli oturumundan (wcc) AP oturumu aldıramasın.
 GECIS_KAYNAKLARI = ("same-origin", "none")
-GIRIS_KAYNAKLARI = ("same-origin", "same-site", "none")
+# /_ap-giris'te same-origin = AP sayfasının kendisi gezindi (bir müşterinin AP'si kendi belirtecini tarayıcıya ekip başka
+# müşterinin açık AP sekmesini kendine çevirirdi), none = elle yazılan adres (tek kullanımlık belirteç elle yazılmaz)
+GIRIS_KAYNAKLARI = ("same-site",)
+# /_ap-cikis her şeyi siler: başka sitenin (ya da çerçeve/resmin) tetiklediği çıkış oturum kapatma CSRF'i olmasın
+CIKIS_KAYNAKLARI = ("same-origin", "same-site", "none")
 ELLE = "AP arayüzü yalnızca cihaz panelinden açılabilir. " + YENIDEN
+# Yeni AP oturumu: kökün önbelleği ve depolaması (localStorage, IndexedDB, Cache API, Service Worker kayıtları) silinir.
+# "cookies" yok: kayıtlı alan adının (wificorrect.com) bütün çerezlerini — az önce yazılan wca'yı da — silerdi.
+GIRIS_TEMIZLIK = '"cache", "storage"'
+# Çıkış: çerezler de (AP'lerin çerezleri, tarayıcının sakladığı HTTP kimlik bilgileri). Kayıtlı alan adının bütün çerezleri
+# silindiği için panel, yönetim ve cihaz paneli oturumları da kapanır.
+CIKIS_TEMIZLIK = '"cache", "cookies", "storage"'
+CEREZ_ADI = re.compile(r"[!#$%&'*+.^_`|~0-9A-Za-z-]{1,64}")  # RFC 6265 belirteci: Set-Cookie'ye eklenen ad başlık bozamaz
+ESKI_CEREZ_EN_COK = 30
 
 
 def ust_duzey_gezinme(basliklar, kaynaklar):
@@ -42,16 +61,31 @@ def getirme_ozeti(basliklar):
 
 
 def _cerez(token):
-    """Yalnızca ap.wificorrect.com (Domain yok); Lax: cihaz.wificorrect.com'dan gelen yönlendirmede de gönderilsin."""
+    """Yalnızca ap.wificorrect.com (Domain yok). Strict: giriş zinciri (cihaz.wificorrect.com → /_ap-gecis → /_ap-giris →
+    /) baştan sona aynı site; başka siteden üst düzey GET gezinmesi de oturumlu gitmez (GET ile ayar değiştiren AP'ler)."""
     if token is None:
-        return f"{CEREZ}=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0"
-    return f"{CEREZ}={token}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age={SURE}"
+        return f"{CEREZ}=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0"
+    return f"{CEREZ}={token}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age={SURE}"
 
 
-def sayfa(durum, baslik, metin, cerez=None):
-    """Sade Türkçe sayfa ve cihaz paneline bağlantı (JavaScript yok)."""
+def eski_cerezler(baslik):
+    """/_ap-giris'e gelen, bu kökte önceki AP oturumlarından kalan (Path=/) çerezlerin adları (wca hariç, tekrarsız, en çok
+    ESKI_CEREZ_EN_COK): yeni oturumda silinir — bir müşterinin AP'sinin çerezleri (ör. TP-Link'in betikle yazdığı
+    Authorization = Basic kullanıcı:parola) sonraki müşterinin AP'sine gitmesin. Geçersiz ad atlanır."""
+    adlar = []
+    for parca in (baslik or "").split(";"):
+        ad = parca.partition("=")[0].strip()
+        if ad != CEREZ and CEREZ_ADI.fullmatch(ad) and ad not in adlar:
+            adlar.append(ad)
+    return adlar[:ESKI_CEREZ_EN_COK]
+
+
+def sayfa(durum, baslik, metin, cerez=None, cikis=False):
+    """Sade Türkçe sayfa ve cihaz paneline bağlantı (JavaScript yok). cikis: AP kökünde, temizleyerek çıkış bağlantısı."""
+    cik = ('<p><a href="/_ap-cikis">AP oturumunu kapat ve bu tarayıcıdaki AP verisini sil</a> (WifiCorrect panel ve '
+           'yönetim oturumlarınız da kapanır)</p>') if cikis else ""
     govde = web._cerceve(baslik, web.kart(f'<h1>{e(baslik)}</h1><p>{e(metin)}</p>'
-                                          f'<p><a href="{CIHAZ_PANELI}/">Cihaz paneline git</a></p>'))
+                                          f'<p><a href="{CIHAZ_PANELI}/">Cihaz paneline git</a></p>{cik}'))
     b = {"Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store"}
     if cerez:
         b["Set-Cookie"] = cerez
@@ -87,9 +121,10 @@ class Ap:
             if o is None:
                 return sayfa(403, "AP erişimi kapalı",
                              "AP arayüzü oturumu yok ya da süresi doldu (en çok 30 dakika). " + YENIDEN,
-                             _cerez(None) if token else None)
-            # X-WFC-Kullanici her zaman müşteri numarası (yönetici geçişinde de): cihaz kendi bağındaki numarayla karşılaştırır
-            return 200, {"X-WFC-Cihaz": o["adres"], "X-WFC-Kullanici": o["numara"], "X-WFC-AP": "1",
+                             _cerez(None) if token else None, cikis=True)
+            # kullanıcı her zaman müşteri numarası (yönetici geçişinde de): cihaz kendi bağındaki numarayla karşılaştırır.
+            # Ayrı başlık: X-WFC-Kullanici olsaydı eski (0.4.15 öncesi) cihaz isteği oturumlu panel isteği sayardı
+            return 200, {"X-WFC-Cihaz": o["adres"], "X-WFC-AP-Kullanici": o["numara"], "X-WFC-AP": "1",
                          "Cache-Control": "no-store"}, b""
         if yol == "/_ap-giris":
             t = (urllib.parse.parse_qs(sorgu).get("t") or [""])[0]
@@ -100,17 +135,26 @@ class Ap:
             simdi = self.saat()
             b = self.cihaz_app.ap_belirtecleri.tuket(t, simdi)
             o = self.cihaz_app.oturum(b["wcc"]) if b else None
+            if b is not None and b.get("ip") != ip:
+                # belirteç /_ap-gecis'i isteyen adrese bağlı: dışarı sızdırılan belirteç başka adresten kullanılamaz (yanar)
+                web.log(f"AP_GIRIS_RED adres_farkli ip={ip}")
+                o = None
             if b is None or not _ayni(o, b):
                 return sayfa(403, "Bağlantı geçersiz", "AP arayüzü bağlantısı geçersiz ya da süresi dolmuş (bağlantı bir "
                                                        "dakika geçerlidir ve bir kez kullanılır). " + YENIDEN)
             self.oturumlar.drop(token)  # bu tarayıcının eski AP oturumu
             yeni = self.oturumlar.create(o["numara"], o["rol"], simdi,
                                          ek={"wcc": b["wcc"], "cihaz": o["cihaz"], "adres": o["adres"]})
-            return 303, {"Location": "/", "Set-Cookie": _cerez(yeni), "Cache-Control": "no-store"}, b""
+            sil = [f"{ad}=; Path=/; Max-Age=0; Secure" for ad in eski_cerezler(basliklar.get("Cookie"))]
+            return 303, {"Location": "/", "Set-Cookie": [_cerez(yeni)] + sil, "Clear-Site-Data": GIRIS_TEMIZLIK,
+                         "Cache-Control": "no-store"}, b""
         if yol == "/_ap-cikis":
+            if not ust_duzey_gezinme(basliklar, CIKIS_KAYNAKLARI):
+                return sayfa(403, "AP oturumu kapatılamadı", "Çıkış yalnızca AP arayüzünden ya da cihaz panelinden açılır.")
             self.oturumlar.drop(token)
             # yalnızca cihaz.wificorrect.com'da bir yol; Location ASCII kalsın (http.server başlığı latin-1 yazar)
             donus = urllib.parse.quote(web.guvenli_donus((urllib.parse.parse_qs(sorgu).get("donus") or ["/"])[0]),
                                        safe="/?=&-._~%")
-            return 303, {"Location": CIHAZ_PANELI + donus, "Set-Cookie": _cerez(None), "Cache-Control": "no-store"}, b""
+            return 303, {"Location": CIHAZ_PANELI + donus, "Set-Cookie": _cerez(None), "Clear-Site-Data": CIKIS_TEMIZLIK,
+                         "Cache-Control": "no-store"}, b""
         return 404, {"Content-Type": "text/plain; charset=utf-8"}, "Bulunamadı".encode("utf-8")

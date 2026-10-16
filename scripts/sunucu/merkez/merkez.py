@@ -33,6 +33,13 @@ def istemci_ip(basliklar):
     return (basliklar.get("X-Forwarded-For") or "").split(",")[-1].strip() or "yerel"
 
 
+def baslik_satirlari(basliklar):
+    """(ad, değer) satırları; değer liste ise her öğesi ayrı satır (ör. birden çok Set-Cookie)."""
+    for k, v in basliklar.items():
+        for d in (v if isinstance(v, (list, tuple)) else (v,)):
+            yield k, d
+
+
 def parcali_yaz(w, icerik, parca=PARCA):
     """Soket zaman aşımı her yazmaya ayrı uygulanır (sendall'da bütün gönderime): paket yavaş hatta kesilmesin."""
     for i in range(0, len(icerik), parca):
@@ -74,7 +81,7 @@ class Isleyici(BaseHTTPRequestHandler):
                 web.log(f"HATA {yontem} {parca.path}: {ex!r}")
                 durum, basliklar, icerik = 500, {"Content-Type": "text/plain; charset=utf-8"}, "Bir sorun oluştu".encode()
         self.send_response(durum)
-        for k, v in list(basliklar.items()) + list(GUVENLIK_BASLIKLARI):
+        for k, v in list(baslik_satirlari(basliklar)) + list(GUVENLIK_BASLIKLARI):
             self.send_header(k, v)
         self.send_header("Content-Length", str(len(icerik)))
         self.end_headers()

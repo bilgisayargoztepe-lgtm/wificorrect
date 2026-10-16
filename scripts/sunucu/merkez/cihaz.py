@@ -43,9 +43,9 @@ class Cihaz:
         return {"numara": ot["user"], "rol": ot["role"], "adres": c["tunel_ip"], "cihaz": c["id"]}
 
     def ap_gecis(self, token, basliklar, ip):
-        """Cihaz panelindeki "AP arayüzüne git" → bu oturuma, müşteriye ve cihaza bağlı 60 sn'lik tek kullanımlık belirteç →
-        ap.wificorrect.com/_ap-giris. Yalnızca cihaz.wificorrect.com sayfasından üst düzey gezinme (ap.ust_duzey_gezinme).
-        Hareket satırında yalnızca kim (numara ya da admin) ve rol."""
+        """Cihaz panelindeki "AP arayüzüne git" → bu oturuma, müşteriye, cihaza ve isteyen adrese (ip; /_ap-giris aynı adresten
+        gelmeli) bağlı 60 sn'lik tek kullanımlık belirteç → ap.wificorrect.com/_ap-giris. Yalnızca cihaz.wificorrect.com
+        sayfasından üst düzey gezinme (ap.ust_duzey_gezinme). Hareket satırında yalnızca kim (numara ya da admin) ve rol."""
         if not ap.ust_duzey_gezinme(basliklar, ap.GECIS_KAYNAKLARI):
             if token:  # oturumlu tarayıcı: saldırı ya da beklenmedik tarayıcı davranışı (teşhis için)
                 web.log(f"AP_GECIS_RED {ap.getirme_ozeti(basliklar)} ip={ip}")
@@ -56,7 +56,7 @@ class Cihaz:
         simdi = self.saat()
         if not self.ap_hiz.izin(o["numara"], simdi):
             return ap.sayfa(429, "Çok fazla deneme", "AP arayüzü kısa sürede çok kez açıldı. Bir dakika sonra yeniden deneyin.")
-        t = self.ap_belirtecleri.uret({"wcc": token, **o}, simdi)
+        t = self.ap_belirtecleri.uret({"wcc": token, "ip": ip, **o}, simdi)
         self.veri.hareket("admin" if o["rol"] == "yonetici" else o["numara"], ip, "AP_GECIS", int(o["numara"]),
                           f"rol={o['rol']}")
         return 303, {"Location": ap.GIRIS + t, "Cache-Control": "no-store"}, b""

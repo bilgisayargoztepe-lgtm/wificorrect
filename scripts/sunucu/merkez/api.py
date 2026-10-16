@@ -56,13 +56,15 @@ def _lisans(veri, m):
     return {"lisans": durum, "lisans_bitis": bitis}
 
 
-def _cihaz_ekleri(veri, eski=True):
+def _cihaz_ekleri(veri, m, eski=True):
     """Belirlenmişse tek admin parolasının özeti (açık parola gitmez) ve SMS eki. `mock` + `netgsm` yalnızca eski (0.4.7)
     cihazlar için, bugünkü gibi (ayar kayıtlıysa); yeni cihazlar `etkin_mock`u okur: deneme modu açık ya da seçili
     sağlayıcının ayarı eksik (ayar hiç yoksa yalnızca bu alan gider; eski cihaz `netgsm` olmadan eki yok sayar).
     eski=False: kolay bağlamayla (/api/bagla, hesapsız) bağlanan cihaz — yalnızca 0.4.13+ olabilir; bütün cihazlarda
-    ortak NetGSM bilgisi ona hiç gitmez (aynı IP'den sahte cihaz bağlatan biri ortak sırrı alamasın)."""
-    ek = {}
+    ortak NetGSM bilgisi ona hiç gitmez (aynı IP'den sahte cihaz bağlatan biri ortak sırrı alamasın).
+    `ap_parola`: müşterinin AP yönetim parolası (m: müşteri satırı; final review I1) — cihaz panelindeki AP kurulumunda
+    gösterilir. Müşteriye özeldir (ortak sır değil): kolay bağlamayla bağlanan cihaza da gider."""
+    ek = {"ap_parola": m["ap_parola"]} if m["ap_parola"] else {}
     a = veri.admin_parolasi()
     if a is not None:
         ek["admin"] = a
@@ -226,7 +228,7 @@ class Api:
             self.veri.bekleyen_baglandi(otomatik, cid)  # "hazırlanıyor" süresi başarılı bağdan sayılır
             ek = f" otomatik kimlik={otomatik[:8]}"
         self.veri.hareket(numara, ip, "CIHAZ_BAGLANDI", m["numara"], f"cihaz={cid} tunel={s['tunel_ip']}{ek}")
-        y = dict(_parola_alanlari(m), **_lisans(self.veri, m), **_cihaz_ekleri(self.veri, eski=not otomatik),
+        y = dict(_parola_alanlari(m), **_lisans(self.veri, m), **_cihaz_ekleri(self.veri, m, eski=not otomatik),
                  cihaz_anahtari=anahtar, tunel_ip=s["tunel_ip"],
                  sunucu_pub=s["sunucu_pub"], uc_nokta=s["uc_nokta"],
                  yedek_hedefi=f"wfc-{numara}@{YEDEK_SUNUCU}:")
@@ -293,7 +295,7 @@ class Api:
         self.veri.eslesme_kaydet(c["id"], _metin(b.get("isletme_adi")), _metin(b.get("unvan")), _metin(b.get("surum")),
                                 b.get("isletme_turu"), _metin(b["adres"]) if "adres" in b else None)
         m = self.veri.musteri(c["musteri"])
-        ekler = _cihaz_ekleri(self.veri, eski=not c["otomatik"])
+        ekler = _cihaz_ekleri(self.veri, m, eski=not c["otomatik"])
         return _json(200, dict(_parola_alanlari(m), **_lisans(self.veri, m), **ekler, durum="bagli", uyelik=m["uyelik"]))
 
     def parola(self, b, ip):

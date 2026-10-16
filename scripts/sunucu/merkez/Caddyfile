@@ -9,8 +9,9 @@ yonetim.wificorrect.com, panel.wificorrect.com, api.wificorrect.com {
 # Uzak panel (spec 2026-10-09): müşteri cihaz panelini tünel (wfc) üstünden buradan açar.
 # Caddy 2.6.2: üst akış adresinde yer tutucu varsa şema (https://) yazılamaz → "tls" taşıma ayarıyla.
 cihaz.wificorrect.com {
-	# istemcinin kendi gönderdiği kimlik başlıkları asla geçmez (X-WFC-AP: AP kipi yalnızca ap.wificorrect.com'dan gelir)
+	# istemcinin kendi gönderdiği kimlik başlıkları asla geçmez (X-WFC-AP*: AP kipi yalnızca ap.wificorrect.com'dan gelir)
 	request_header -X-WFC-Kullanici
+	request_header -X-WFC-AP-Kullanici
 	request_header -X-WFC-Cihaz
 	request_header -X-WFC-AP
 	# /_ap-gecis: cihaz paneli oturumundan (wcc) AP arayüzüne geçiş belirteci (spec 2026-10-16)
@@ -58,16 +59,26 @@ cihaz.wificorrect.com {
 ap.wificorrect.com {
 	# istemcinin kendi gönderdiği kimlik ve AP kipi başlıkları asla geçmez
 	request_header -X-WFC-Kullanici
+	request_header -X-WFC-AP-Kullanici
 	request_header -X-WFC-Cihaz
 	request_header -X-WFC-AP
+	# Service Worker yok (final review 2026-10-16): bütün müşterilerin AP'leri bu tek kökte; bir AP'nin betiği kök kapsamlı
+	# Service Worker kaydederse sonraki müşterilerin AP oturumlarını (ve /_ap-giris belirtecini) dinlerdi. Tarayıcı SW
+	# betiğini (kayıt ve güncelleme) her zaman "Service-Worker: script" başlığıyla ister. Cihaz da ayrıca reddeder.
+	# Adlı eşleyicili handle'lar yazıldığı sırayla denenir: bu ilk olmalı.
+	@sw header Service-Worker script
+	handle @sw {
+		respond 403
+	}
 	@merkez path /_ap-giris /_ap-cikis
 	handle @merkez {
 		reverse_proxy 127.0.0.1:8081
 	}
 	handle {
+		# AP kipinde kullanıcı X-WFC-AP-Kullanici'de: X-WFC-Kullanici'yi 0.4.15 öncesi cihaz oturumlu panel isteği sayardı
 		forward_auth 127.0.0.1:8081 {
 			uri /ap-yetki
-			copy_headers X-WFC-Kullanici X-WFC-Cihaz X-WFC-AP
+			copy_headers X-WFC-AP-Kullanici X-WFC-Cihaz X-WFC-AP
 		}
 		reverse_proxy {http.request.header.X-WFC-Cihaz}:8443 {
 			transport http {
@@ -87,7 +98,8 @@ ap.wificorrect.com {
 	# CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy bilerek YOK: içerik AP'nin kendi arayüzüdür (satır içi
 	# betik/eval, frameset, betiği yanlış MIME türüyle sunan gömülü sunucular, Referer denetleyen TP-Link); herhangi biri
 	# arayüzü bozar. AP içeriği yalnızca kendi kökeninde çalışır: merkez çerezleri host-only + HttpOnly (buradan okunamaz),
-	# panel/yönetim formları CSRF belirteçli, wca SameSite=Lax (başka sitenin çerçevesinde gönderilmez).
+	# panel/yönetim formları CSRF belirteçli, wca SameSite=Strict (başka siteden hiçbir istekte gönderilmez; cihaz da
+	# Sec-Fetch-Site: cross-site isteği reddeder).
 	header {
 		Strict-Transport-Security "max-age=31536000"
 		-Server

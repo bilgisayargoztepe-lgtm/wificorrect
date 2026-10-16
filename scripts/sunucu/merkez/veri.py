@@ -70,7 +70,13 @@ ISLETME_TURLERI = {"kafe": "Kafe/Restoran", "otel": "Otel/Pansiyon", "yurt": "Yu
 # Sonradan eklenen müşteri sütunları (eski veritabanına ALTER ile eklenir)
 YENI_SUTUNLAR = (("parola_acik", "TEXT NOT NULL DEFAULT ''"), ("lisans_bitis", "TEXT NOT NULL DEFAULT ''"),
                  ("askida", "INTEGER NOT NULL DEFAULT 0"), ("guncelleme_kanali", "TEXT NOT NULL DEFAULT 'kararli'"),
-                 ("guncelleme_hemen", "REAL NOT NULL DEFAULT 0"), ("guncelleme_hemen_surum", "TEXT NOT NULL DEFAULT ''"))
+                 ("guncelleme_hemen", "REAL NOT NULL DEFAULT 0"), ("guncelleme_hemen_surum", "TEXT NOT NULL DEFAULT ''"),
+                 ("ap_parola", "TEXT NOT NULL DEFAULT ''"))
+# AP yönetim parolası (final review 2026-10-16 I1): müşteri başına rastgele, panel parolasından ayrı. Bütün müşterilerin
+# AP'leri ap.wificorrect.com'da açılır ve tarayıcının sakladığı AP kimliği başka müşterinin AP'sine gidebilir: AP'ye panel
+# parolası yazılırsa sızan parola o müşterinin bütün 5651 kayıtlarını açardı. Harfler karışmaz (guvenlik.HARFLER), simge yok
+# (AP'lerin çoğu yalnızca harf/rakam kabul eder), 12 karakter (TP-Link 15 sınırının altında).
+AP_PAROLA_UZUNLUK = 12
 GUNCELLEME_KANALLARI = ("kararli", "test", "kapali")
 YENI_CIHAZ_SUTUNLARI = (("admin_parola", "TEXT NOT NULL DEFAULT ''"), ("admin_tuz", "TEXT NOT NULL DEFAULT ''"),
                         ("admin_ozet", "TEXT NOT NULL DEFAULT ''"), ("admin_yineleme", "INTEGER NOT NULL DEFAULT 0"),
@@ -131,6 +137,9 @@ class Veri:
         for r in self.db.execute("SELECT numara, olusturma FROM musteri WHERE lisans_bitis = ''").fetchall():
             self.db.execute("UPDATE musteri SET lisans_bitis = ? WHERE numara = ?",
                             (_yil_sonra(datetime.date.fromisoformat(r["olusturma"][:10])), r["numara"]))
+        for r in self.db.execute("SELECT numara FROM musteri WHERE ap_parola = ''").fetchall():
+            self.db.execute("UPDATE musteri SET ap_parola = ? WHERE numara = ?",
+                            (guvenlik.parola_uret(AP_PAROLA_UZUNLUK), r["numara"]))
         var_c = {r[1] for r in self.db.execute("PRAGMA table_info(cihaz)")}
         for ad, tip in YENI_CIHAZ_SUTUNLARI:
             if ad not in var_c:
@@ -174,9 +183,10 @@ class Veri:
                 numara = NUMARA_ARALIGI[0] + secrets.randbelow(NUMARA_ARALIGI[1] - NUMARA_ARALIGI[0] + 1)
                 if db.execute("SELECT 1 FROM musteri WHERE numara = ?", (numara,)).fetchone() is None:
                     break
-            db.execute("INSERT INTO musteri (numara, tuz, ozet, yineleme, not_, olusturma, parola_acik, lisans_bitis) "
-                       "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                       (numara, tuz, oz, y, (not_ or "").strip()[:200], self._simdi(), pw, _yil_sonra(self.bugun())))
+            db.execute("INSERT INTO musteri (numara, tuz, ozet, yineleme, not_, olusturma, parola_acik, lisans_bitis, ap_parola) "
+                       "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                       (numara, tuz, oz, y, (not_ or "").strip()[:200], self._simdi(), pw, _yil_sonra(self.bugun()),
+                        guvenlik.parola_uret(AP_PAROLA_UZUNLUK)))
         return numara, pw
 
     def musteri(self, numara):
@@ -205,6 +215,13 @@ class Veri:
     def parola_sifirla(self, numara):
         pw = guvenlik.parola_uret()
         self.parola_koy(numara, pw)
+        return pw
+
+    def ap_parolasi_yenile(self, numara):
+        """Yeni AP yönetim parolası (yönetimde gösterilir, cihaza sonraki eşitlemede gider; AP'de elle değiştirilir)."""
+        pw = guvenlik.parola_uret(AP_PAROLA_UZUNLUK)
+        with self._islem() as db:
+            db.execute("UPDATE musteri SET ap_parola = ? WHERE numara = ?", (pw, numara))
         return pw
 
     def giris_kaydet(self, numara):

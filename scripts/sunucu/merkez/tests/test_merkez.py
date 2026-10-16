@@ -64,6 +64,34 @@ def test_soket_zaman_asimi():
     assert MZ.Isleyici.timeout == 20
 
 
+def test_liste_degerli_baslik_ayri_satirlar():
+    """Uygulama bir başlığa liste verirse (ör. /_ap-giris: yeni wca + eski AP çerezlerinin silinmesi) her değer ayrı satır."""
+    import http.client
+    import threading
+    from http.server import ThreadingHTTPServer
+
+    class Coklu:
+        def istek(self, yontem, yol, basliklar, govde, sorgu, ip):
+            return 303, {"Location": "/", "Set-Cookie": ["a=1; Path=/", "b=; Path=/; Max-Age=0"]}, b""
+    assert list(MZ.baslik_satirlari({"Set-Cookie": ["a=1", "b=2"], "Location": "/"})) == \
+        [("Set-Cookie", "a=1"), ("Set-Cookie", "b=2"), ("Location", "/")]
+    eski = MZ.Isleyici.app
+    MZ.Isleyici.app = Coklu()
+    srv = ThreadingHTTPServer(("127.0.0.1", 0), MZ.Isleyici)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    try:
+        c = http.client.HTTPConnection("127.0.0.1", srv.server_address[1], timeout=5)
+        c.request("GET", "/_ap-giris?t=x", headers={"Host": "ap.wificorrect.com"})
+        r = c.getresponse()
+        assert r.status == 303 and r.headers.get_all("Set-Cookie") == ["a=1; Path=/", "b=; Path=/; Max-Age=0"]
+        assert r.headers["X-Frame-Options"] == "DENY"  # merkezin kendi cevaplarında güvenlik başlıkları yine var
+        c.close()
+    finally:
+        srv.shutdown()
+        srv.server_close()
+        MZ.Isleyici.app = eski
+
+
 def test_buyuk_govde_parca_parca_yazilir():
     """Paket (MB'larca) tek sendall ile yazılırsa 20 sn'lik zaman aşımı bütün gönderime uygulanır: 64 KB'lık parçalar."""
     class Yazici:

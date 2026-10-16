@@ -351,6 +351,8 @@ def test_bagla_cevabi_ortak_sms_sirlarini_tasimaz():
         assert g["sms"] == {"etkin_mock": False} and set(g["admin"]) == {"tuz", "ozet", "yineleme"}
         d, e = post(api, "/api/eslesme", {"cihaz_anahtari": g["cihaz_anahtari"], "surum": "0.4.7"})
         assert d == 200 and "netgsm-gizli" not in json.dumps(e) and e["sms"] == {"etkin_mock": False}
+        # müşteriye özel AP yönetim parolası (ortak sır değil) bu cihaza da gider: cihaz panelinde gösterilir
+        assert g["ap_parola"] == e["ap_parola"] == v.musteri(n)["ap_parola"]
         # parolalı giriş (eski cihazlar) değişmedi
         n2, pw2 = v.musteri_ekle(parola="musteri-parola-2")
         d, g2 = post(api, "/api/giris", {"numara": str(n2), "parola": pw2, "wg_pub": WG2, "ssh_pub": SSH})

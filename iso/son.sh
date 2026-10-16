@@ -41,6 +41,15 @@ else
 fi
 # Kök dosya sistemi noatime: her okuma diske yazmasın (USB bellekte aşınmayı azaltır; SSD'de de zararsız).
 sed -i -E 's|^([^#[:space:]]+[[:space:]]+/[[:space:]]+ext4[[:space:]]+)([^[:space:]]+)|\1noatime,\2|' /target/etc/fstab || true
+# Monitörsüz açılış: NVRAM'inde önyükleme kaydı olmayan kutu UEFI Shell'e düşerse startup.nsh sistemi başlatır. Paketin
+# postinst'i de yazar; kurucunun içinde /boot/efi'nin bağlı görünmesine güvenmemek için burada da (yalnızca UEFI).
+if grep -q ' /target/boot/efi ' /proc/mounts; then
+  if sh /target/usr/local/lib/wificorrect/efi-baslangic /target/boot/efi; then
+    logger -t wificorrect "EFI BASLANGIC YAZILDI"
+  else
+    logger -t wificorrect "EFI BASLANGIC YAZILAMADI"
+  fi
+fi
 # Bitti mesajı (bekletmez: 10 sn görünür, sonra kurucu kendi son adımlarını yapıp cihazı kapatır). USB belleğe
 # kurulduysa (disk.sh: /tmp/wificorrect-hedef) hangi belleğin çıkarılacağı ayrıca söylenir.
 if [ "$(cat /tmp/wificorrect-hedef 2>/dev/null)" = usb ]; then

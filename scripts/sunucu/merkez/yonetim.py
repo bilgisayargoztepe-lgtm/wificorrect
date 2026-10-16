@@ -235,6 +235,10 @@ class Yonetim(web.Taban):
             self.veri.parola_koy(n, pw)
             self.veri.hareket("admin", ip, "PAROLA_SIFIRLANDI", n)
             return yonlendir(f"/m/{n}")
+        if (yontem, alt) == ("POST", "/ap-parola"):
+            self.veri.ap_parolasi_yenile(n)
+            self.veri.hareket("admin", ip, "AP_PAROLASI_YENILENDI", n)  # parola hareket satırına yazılmaz
+            return yonlendir(f"/m/{n}")
         if (yontem, alt) == ("POST", "/serbest"):
             return self.serbest(ot, n, form, ip)
         if (yontem, alt) == ("POST", "/guncelleme"):
@@ -546,7 +550,14 @@ class Yonetim(web.Taban):
         parola = (f'<span class="sir">{e(m["parola_acik"])}</span>' if m["parola_acik"]
                   else '<span class="bos">bilinmiyor (bu özellikten önce belirlendi) — parolayı sıfırlayın</span>')
         lisans_metni = {"aktif": "Aktif", "bitti": '<b class="kotu">Süresi doldu</b>', "askida": '<b class="kotu">Askıda</b>'}[ldurum]
-        bilgi = bilgi_tablosu([("Numara", str(n)), ("Parola", parola), ("Lisans", f"{lisans_metni} · bitiş {e(common.tarih_goster(lbitis) or '—')}"),
+        # AP'ye (müşterinin erişim noktası/modemi) yönetim parolası olarak bu yazılır, panel parolası değil (final review I1)
+        ap_parola = (f'<span class="sir">{e(m["ap_parola"])}</span>'
+                     f'<form method="post" action="/m/{n}/ap-parola" class="satir-ici"><input type="hidden" name="csrf" value="{cs}">'
+                     '<button class="ikincil">Yenile</button></form><br><span class="alt">AP\'nin (modemin) yönetim parolası; panel '
+                     'parolasını AP\'ye yazmayın. Yenilenirse AP\'de elle değiştirilir; cihaz panelinde sonraki eşitlemeden '
+                     '(her gün 06:00) sonra görünür.</span>')
+        bilgi = bilgi_tablosu([("Numara", str(n)), ("Parola", parola), ("AP yönetim parolası", ap_parola),
+                               ("Lisans", f"{lisans_metni} · bitiş {e(common.tarih_goster(lbitis) or '—')}"),
                                ("Not", e(m["not_"] or "—")), ("Oluşturma", e(common.tarih_goster(m["olusturma"]))),
                                ("Son giriş (panel)", e(common.tarih_goster(m["son_giris"]) or "—")),
                                ("Bugün doğrulama SMS'i", str(self.veri.sms_sayac(n, self.veri.bugun().isoformat()))),

@@ -236,6 +236,23 @@ def test_sifirlama_sayfasi_ve_lisans_tarihi_kaydi():
         assert "gününden sonra" in Y.al(app, f"/m/{n}", c)[2].decode()
 
 
+def test_ap_yonetim_parolasi_musteri_sayfasinda():
+    """AP yönetim parolası (final review I1): müşteri sayfasında görünür (AP'ye bu yazılır, panel parolası değil) ve
+    yenilenebilir; hareket satırına parola yazılmaz."""
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        app, v, _, c, _ = kur(tmp)
+        n, _ = v.musteri_ekle(parola="musteri-parola-1")
+        ap = v.musteri(n)["ap_parola"]
+        s = Y.al(app, f"/m/{n}", c)[2].decode()
+        assert "AP yönetim parolası" in s and f'<span class="sir">{ap}</span>' in s and f'action="/m/{n}/ap-parola"' in s
+        assert Y.gonder(app, f"/m/{n}/ap-parola", c, {})[0] == 403 and v.musteri(n)["ap_parola"] == ap  # CSRF'siz
+        r = Y.gonder(app, f"/m/{n}/ap-parola", c, {"csrf": Y.csrf(Y.al(app, f"/m/{n}", c))})
+        yeni = v.musteri(n)["ap_parola"]
+        assert r[0] == 303 and r[1]["Location"] == f"/m/{n}" and yeni != ap and yeni in Y.al(app, f"/m/{n}", c)[2].decode()
+        h = v.hareketler(n)[0]
+        assert (h["olay"], h["kim"]) == ("AP_PAROLASI_YENILENDI", "admin") and yeni not in h["ayrinti"] and ap not in h["ayrinti"]
+
+
 def test_tek_admin_parolasi_sayfasi():
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
         app, v, _, c, _ = kur(tmp)

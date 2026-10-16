@@ -19,6 +19,11 @@ systemctl enable dnsmasq.service wificorrect-guvenlik.service wificorrect-ag-aci
 if command -v update-grub >/dev/null; then
   update-grub || echo "wificorrect: update-grub başarısız; açılış ayarları uygulanmadı" >&2
 fi
+# Monitörsüz açılış (UEFI Shell'e düşen J1900'ler): EFI bölümüne startup.nsh + işaret; yalnızca UEFI kurulumunda
+# (/boot/efi bağlıysa). İçerik aynıysa dosyalara dokunulmaz.
+if mountpoint -q /boot/efi 2>/dev/null; then
+  sh /usr/local/lib/wificorrect/efi-baslangic /boot/efi || echo "wificorrect: EFI başlangıç dosyası yazılamadı" >&2
+fi
 # çalışan dnsmasq'ın "PID özet" kaydı (dnsmasq.service.d/wificorrect.conf ExecStartPost → dnsmasq-ozet yazar);
 # eski sürümlerin tuttuğu kalıcı özet dosyası artık kullanılmaz (geri dönüşte bayatlıyordu)
 dnsmasq_ozet=/run/wificorrect-dnsmasq-conf.sha256

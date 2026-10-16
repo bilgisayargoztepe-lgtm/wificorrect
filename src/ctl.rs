@@ -165,6 +165,7 @@ fn ap_adres_kaldir(cfg: &Config, y: &crate::ap::Yollar, args: &[String], ip_oku:
         Ok(Some(k)) => {
             let hata = k.hata.map_or(String::new(), |h| format!(" hata={h}"));
             ap_denetim(cfg, now, format!("kapandi adres={} neden={neden}{hata}", k.adres));
+            ap_arayuz_kapat(cfg, y, now);
             println!("yan oda {} kapandı{hata}", k.adres);
             ExitCode::SUCCESS
         }
@@ -177,6 +178,80 @@ fn ap_adres_kaldir(cfg: &Config, y: &crate::ap::Yollar, args: &[String], ip_oku:
             ExitCode::from(1)
         }
     }
+}
+
+/// Yan oda kapanınca onun AP arayüzü erişimi de biter (`AP_ARAYUZ kapandi … neden=yan_oda`; kim + rol hedef dosyasından).
+fn ap_arayuz_kapat(cfg: &Config, y: &crate::ap::Yollar, now: f64) {
+    if let Some(h) = crate::ap_arayuz::kapat(y, true) {
+        crate::ap_arayuz::denetim(&cfg.main.log_root, now, &h, &crate::ap_arayuz::kapandi_ek(&h, "yan_oda"));
+    }
+}
+
+const AP_BUL_KULLANIM: &str = "Kullanım: wificorrect ctl ap-bul KIM <sahip|hizmet|konsol> IP [HEDEF]  (panelin arama işi; HEDEF yoksa otomatik)";
+
+/// `ctl ap-bul KIM ROL IP [HEDEF]` argümanları: (kim, rol, ip, hedef). Kim yalnızca harf/rakam/._-, IP geçerli ya da "-".
+fn ap_bul_argumanlari(args: &[String]) -> Option<(&str, &str, &str, Option<std::net::Ipv4Addr>)> {
+    let kim = args.get(1).filter(|k| !k.is_empty() && k.len() <= 64 && k.bytes().all(|b| b.is_ascii_alphanumeric() || b"._-".contains(&b)))?;
+    let rol = args.get(2).filter(|r| matches!(r.as_str(), "sahip" | "hizmet" | "konsol"))?;
+    let ip = args.get(3).filter(|i| *i == "-" || i.parse::<std::net::IpAddr>().is_ok())?;
+    let hedef = match args.get(4) {
+        None => None,
+        Some(h) => Some(h.parse().ok()?),
+    };
+    (args.len() <= 5).then_some((kim.as_str(), rol.as_str(), ip.as_str(), hedef))
+}
+
+/// `ctl ap-bul`: panelin "Bağlan" / "Otomatik bul" arka plan işi (`systemd-run --unit wfc-ap-bul`, src/ap_bul.rs).
+/// Denetim satırları panelinki gibi kim + rol + IP ile.
+fn ap_bul(cfg: &Config, args: &[String]) -> ExitCode {
+    use std::net::{Ipv4Addr, SocketAddrV4, TcpStream};
+    use std::time::Duration;
+    let Some((kim, rol, ip, hedef)) = ap_bul_argumanlari(args) else {
+        eprintln!("{AP_BUL_KULLANIM}");
+        return ExitCode::from(2);
+    };
+    let y = crate::ap::Yollar::sistem();
+    let ip_oku = |c: &[&str]| ortak::capture(c);
+    let runner = |c: &[String]| ortak::run(c);
+    let log_root = &cfg.main.log_root;
+    let denetim = |olay: &str, ek: String| {
+        ortak::audit(log_root, Row::new(olay, &ortak::now_iso(ortak::wall())).set("ek", format!("kullanici={kim} rol={rol} ip={ip} {ek}")));
+    };
+    let arp = |istek: &[(Ipv4Addr, Ipv4Addr)]| crate::yan_oda::arp_tara(&cfg.main.iface, istek, Duration::from_millis(1200));
+    let yan_oda = || crate::ap::durum(&y, &ip_oku).filter(|(_, canli)| *canli).map(|(g, _)| g);
+    let ac = |c: &str| {
+        // durum dosyası kalmış ama aracısı ölmüş yan oda "Zaten bir yan oda açık" demesin (final review M6): önce kapanır
+        if let Ok(Some(k)) = crate::ap::kaldir(&y, "araci_yok", None, &ip_oku, &runner) {
+            denetim("AP_YAN_ODA", format!("kapandi adres={} neden=araci_yok", k.adres));
+            ap_arayuz_kapat(cfg, &y, ortak::wall());
+        }
+        crate::ap::ekle(cfg, &y, c, crate::ap::SURE_SN, &ip_oku, &runner, ortak::wall())
+    };
+    let kapat = |_neden: &str| -> Result<Option<String>, String> {
+        let k = crate::ap::kaldir(&y, "elle", None, &ip_oku, &runner)?;
+        ap_arayuz_kapat(cfg, &y, ortak::wall());
+        Ok(k.map(|k| k.adres))
+    };
+    let dene = |a: SocketAddrV4, yan: bool| {
+        if yan {
+            crate::yan_oda::socks_baglan(a, Duration::from_secs(8)).is_ok()
+        } else {
+            TcpStream::connect_timeout(&a.into(), Duration::from_secs(3)).is_ok()
+        }
+    };
+    let kaydet = |d: &crate::ap_bul::Durum| {
+        if let Err(e) = crate::ap_bul::kaydet(&y, d) {
+            eprintln!("{e}");
+        }
+    };
+    let a = crate::ap_bul::Araclar { arp: &arp, yan_oda: &yan_oda, ac: &ac, kapat: &kapat, dene: &dene, denetim: &denetim, kaydet: &kaydet };
+    let d = crate::ap_bul::calistir(cfg, hedef, kim, rol, &a, &ortak::wall);
+    if d.mesaj.is_empty() {
+        println!("{}: {}:{} ({})", d.durum, d.adres, d.port, d.yol);
+    } else {
+        println!("{}: {}", d.durum, d.mesaj);
+    }
+    ExitCode::SUCCESS
 }
 
 /// `ctl ap-adres-ekle ADRES [--sure SN]` (SN 60–1800): panelin konsol eşdeğeri.
@@ -414,6 +489,8 @@ pub fn run(cfg: Config, args: &[String]) -> ExitCode {
         Some("ap-adres-kaldir") => ap_adres_kaldir(&cfg, &crate::ap::Yollar::sistem(), args, &|c: &[&str]| ortak::capture(c), &runner, now),
         Some("ap-araci") => ap_araci(&cfg, args),
         Some("ap-dhcp-denetle") => ap_dhcp_denetle(&cfg),
+        // Panel → AP kurulumu → Takılan cihaz: "Bağlan" / "Otomatik bul" (systemd-run --unit wfc-ap-bul)
+        Some("ap-bul") => ap_bul(&cfg, args),
         // Paket kurulumu (postinst): 0.4.8 öncesinden ayar dosyasında kalan SMS sırları
         Some("ayar-temizle") => {
             eski_sirlari_temizle();
@@ -747,7 +824,7 @@ pub fn run(cfg: Config, args: &[String]) -> ExitCode {
         _ => {
             eprintln!(
                 "Kullanım: wificorrect ctl <komut>\n  dhcp-olay <add|old|del> <mac> <ip> [ad]\n  yukle\n  oturumlar\n  \
-                 gun-kapat [YYYY-AA-GG] [--zorla]\n  dogrula [--son N]\n  temizle [--kuru]\n  yedekle\n  ara ...  (ayrıntı: ctl ara)\n  disa-aktar --baslangic G --bitis G --cikti DOSYA\n  ag-uygula | ag-gecis DOSYA | ag-onayla | ag-geri-al | ag-ilk\n  ayar-temizle\n  filtre-uygula\n  liste-uygula | liste-guncelle\n  hiz-uygula\n  admin-parola\n  merkez-eslesme\n  saglik\n  guncelle\n  ap-adres-ekle a.b.c.d/önek [--sure SN]  (AP yan odası)\n  ap-adres-kaldir <elle|sure> [KIMLIK]\n  ap-dhcp-denetle"
+                 gun-kapat [YYYY-AA-GG] [--zorla]\n  dogrula [--son N]\n  temizle [--kuru]\n  yedekle\n  ara ...  (ayrıntı: ctl ara)\n  disa-aktar --baslangic G --bitis G --cikti DOSYA\n  ag-uygula | ag-gecis DOSYA | ag-onayla | ag-geri-al | ag-ilk\n  ayar-temizle\n  filtre-uygula\n  liste-uygula | liste-guncelle\n  hiz-uygula\n  admin-parola\n  merkez-eslesme\n  saglik\n  guncelle\n  ap-adres-ekle a.b.c.d/önek [--sure SN]  (AP yan odası)\n  ap-adres-kaldir <elle|sure> [KIMLIK]\n  ap-dhcp-denetle\n  ap-bul KIM ROL IP [HEDEF]"
             );
             ExitCode::from(2)
         }
@@ -951,7 +1028,7 @@ mod tests {
     #[test]
     fn ap_yan_oda_acilis_ve_komutlar() {
         let (c, root) = cfg();
-        let y = crate::ap::Yollar { gecici: root.join("ap-gecici.json") };
+        let y = crate::ap::Yollar::kok(&root);
         let denetim = || std::fs::read_to_string(root.join("5651/gunluk/2026-09-29/denetim.csv")).unwrap_or_default();
         // sahte `systemctl is-active wfc-ap-araci.service`
         let ip_var = |a: &[&str]| if a.first() == Some(&"systemctl") { "active\n".to_string() } else { String::new() };
@@ -981,9 +1058,14 @@ mod tests {
         // eski zamanlayıcı (başka kimlik) kapatamaz
         assert_eq!(kod(ap_adres_kaldir(&c, &y, &a(&["ap-adres-kaldir", "sure", "ffffffff"]), &ip_var, &runner, NOW)), kod(ExitCode::SUCCESS));
         assert!(y.gecici.exists());
-        // zamanlayıcı kendi kimliğiyle: kapatır, neden=sure
+        // zamanlayıcı kendi kimliğiyle: kapatır, neden=sure; yan odanın AP arayüzü erişimi de biter
+        let hedef = crate::ap_arayuz::Hedef { adres: "192.168.1.1".into(), port: 80, sema: "http".into(), yol: "yan_oda".into(), bitis: NOW + 600.0,
+                                              kim: "4511643".into(), rol: "sahip".into(), yan_oda: Some(g.kimlik.clone()), mac: None };
+        crate::ap_arayuz::yaz(&y, &hedef).unwrap();
         assert_eq!(kod(ap_adres_kaldir(&c, &y, &a(&["ap-adres-kaldir", "sure", &g.kimlik]), &ip_var, &runner, NOW)), kod(ExitCode::SUCCESS));
         assert!(!y.gecici.exists() && denetim().contains("kapandi adres=192.168.1.250/24 neden=sure"));
+        assert!(!y.hedef.exists());
+        assert!(denetim().lines().any(|l| l.contains("AP_ARAYUZ") && l.contains("kullanici=4511643 rol=sahip") && l.contains("kapandi hedef=192.168.1.1:80 yol=yan_oda neden=yan_oda")), "{}", denetim());
         let eski = a(&["ip", "addr", "flush", "dev", "br-hotspot", "label", "br-hotspot:ap"]);
         assert!(calls.lock().unwrap().iter().any(|x| *x == eski)); // 0.4.11'in köprüdeki adresi de kalkar
         assert_eq!(kod(ap_adres_kaldir(&c, &y, &a(&["ap-adres-kaldir", "fabrika"]), &ip_var, &runner, NOW)), kod(ExitCode::from(2)));
@@ -994,5 +1076,18 @@ mod tests {
         // aracı birimi geçersiz adresi reddeder (yan oda açılmaz)
         assert_eq!(kod(ap_araci(&c, &a(&["ap-araci", "10.50.0.9/24"]))), kod(ExitCode::from(1)));
         assert_eq!(kod(ap_araci(&c, &a(&["ap-araci"]))), kod(ExitCode::from(2)));
+        // arama işi: argümanlar sıkı (ağa dokunmadan reddedilir)
+        let arg = |v: &[&str]| ap_bul_argumanlari(&a(v)).map(|(k, r, i, h)| (k.to_string(), r.to_string(), i.to_string(), h));
+        assert_eq!(arg(&["ap-bul", "4511643", "sahip", "192.168.1.50", "192.168.1.1"]),
+                   Some(("4511643".into(), "sahip".into(), "192.168.1.50".into(), Some("192.168.1.1".parse().unwrap()))));
+        assert_eq!(arg(&["ap-bul", "konsol", "konsol", "-"]).map(|x| x.3), Some(None));
+        assert!(arg(&["ap-bul", "2001:db8::1", "hizmet", "2001:db8::1"]).is_none(), "kimde ':' yok");
+        assert!(arg(&["ap-bul", "4511643", "hizmet", "2001:db8::1"]).is_some());
+        for kotu in [&["ap-bul"][..], &["ap-bul", "4511643", "kral", "1.2.3.4"], &["ap-bul", "a b", "sahip", "1.2.3.4"],
+                     &["ap-bul", "4511643", "sahip", "x"], &["ap-bul", "4511643", "sahip", "1.2.3.4", "tplinkap.net"],
+                     &["ap-bul", "4511643", "sahip", "1.2.3.4", "1.2.3.5", "fazla"]] {
+            assert!(ap_bul_argumanlari(&a(kotu)).is_none(), "{kotu:?}");
+            assert_eq!(kod(ap_bul(&c, &a(kotu))), kod(ExitCode::from(2)));
+        }
     }
 }

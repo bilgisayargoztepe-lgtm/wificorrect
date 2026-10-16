@@ -33,6 +33,15 @@ pub struct Merkez {
     /// lisans bitiş günü (YYYY-AA-GG, TR): cihaz bu günden sonra misafirlere internet vermez (eşitleme beklemeden)
     #[serde(default)]
     pub lisans_bitis: String,
+    /// Müşterinin AP yönetim parolası (merkez üretir; bağlanırken ve her eşitlemede gelir, panel → AP kurulumu gösterir).
+    /// AP'ye panel parolası değil bu yazılır (final review 2026-10-16 I1). Eski merkez göndermezse boş.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub ap_parola: String,
+}
+
+/// Merkezin gönderdiği AP yönetim parolası: 8–64 yazdırılabilir ASCII karakter (boşluk yok); değilse yok sayılır.
+fn ap_parola_oku(v: &Value) -> Option<String> {
+    metin(v, "ap_parola").filter(|s| (8..=64).contains(&s.len()) && s.bytes().all(|b| b.is_ascii_graphic()))
 }
 
 /// (yol, JSON gövde) → (HTTP durumu, gövde). Err: merkeze ulaşılamadı.
@@ -271,7 +280,8 @@ pub fn giris_cevabi(d: u16, v: &Value, numara: &str, now: f64) -> Result<Giris, 
         let (tuz, ozet, yineleme) = ozet_alanlari(v)?;
         Some(Giris {
             merkez: Merkez { numara: numara.into(), tuz, ozet, yineleme, cihaz_anahtari: metin(v, "cihaz_anahtari")?, son_eslesme: now, deneme: 0.0,
-                             lisans: metin(v, "lisans").unwrap_or_default(), lisans_bitis: metin(v, "lisans_bitis").unwrap_or_default() },
+                             lisans: metin(v, "lisans").unwrap_or_default(), lisans_bitis: metin(v, "lisans_bitis").unwrap_or_default(),
+                             ap_parola: ap_parola_oku(v).unwrap_or_default() },
             tunel_ip: metin(v, "tunel_ip")?,
             sunucu_pub: metin(v, "sunucu_pub")?,
             uc_nokta: metin(v, "uc_nokta")?,
@@ -353,6 +363,9 @@ pub fn eslesme(m: &mut Merkez, isletme_adi: &str, unvan: &str, adres: &str, isle
             }
             if let Some(b) = metin(&v, "lisans_bitis") {
                 m.lisans_bitis = b;
+            }
+            if let Some(a) = ap_parola_oku(&v) {
+                m.ap_parola = a; // merkezde yenilendiyse burada iner; göndermeyen (eski) merkezde eskisi kalır
             }
             Ok(Eslesme::Bagli { uyelik: metin(&v, "uyelik").unwrap_or_default(), ek: ek(&v) })
         }
@@ -479,6 +492,33 @@ mod tests {
         let b = ekli(r#"{"durum":"bagli","tuz":"a1b2c3d4","ozet":"ee38d08b3d6573ecc281263ad6259d2e7ee39f37d6b8958b3180906580a44495","yineleme":120000,"uyelik":"aktif"}"#, &oz);
         let (h, _) = sahte(vec![Ok((200, b))]);
         assert!(matches!(eslesme(&mut m, "", "", "", "", false, &*h, 1.0), Ok(Eslesme::Bagli { ek, .. }) if ek.admin.is_some() && ek.sms_mock == Some(false)));
+    }
+
+    #[test]
+    fn ap_yonetim_parolasi_giris_ve_eslesmede() {
+        // final review I1: merkez müşteriye özel AP parolasını bağlanırken ve her eşitlemede gönderir; geçersiz değer yok sayılır
+        let g: &'static str = Box::leak(GIRIS_OK.replace(r#""lisans":"aktif""#, r#""ap_parola":"Kp7mQx2Rtz4W","lisans":"aktif""#).into_boxed_str());
+        let (h, _) = sahte(vec![Ok((200, g)), Ok((200, GIRIS_OK))]);
+        assert_eq!(giris(N, "parola-12345", "W", "S", "", "", &*h, 0.0).unwrap().merkez.ap_parola, "Kp7mQx2Rtz4W");
+        assert_eq!(giris(N, "parola-12345", "W", "S", "", "", &*h, 0.0).unwrap().merkez.ap_parola, ""); // eski merkez
+        let govde = |ek: &str| -> &'static str {
+            Box::leak(format!(r#"{{"durum":"bagli","tuz":"a1b2c3d4","ozet":"o","yineleme":120000,"uyelik":"aktif"{ek}}}"#).into_boxed_str())
+        };
+        let mut m = ornek();
+        let (h, _) = sahte(vec![Ok((200, govde(r#","ap_parola":"Yeni2345Abcd""#))), Ok((200, govde(""))), Ok((200, govde(r#","ap_parola":"a b c d e f""#))),
+                               Ok((200, govde(r#","ap_parola":"kisa""#))), Ok((200, govde(r#","ap_parola":12345678901"#)))]);
+        eslesme(&mut m, "", "", "", "", false, &*h, 1.0).unwrap();
+        assert_eq!(m.ap_parola, "Yeni2345Abcd");
+        for _ in 0..4 {
+            eslesme(&mut m, "", "", "", "", false, &*h, 1.0).unwrap(); // yok, boşluklu, kısa, sayı: eskisi kalır
+            assert_eq!(m.ap_parola, "Yeni2345Abcd");
+        }
+        // merkez.json'da saklanır (600); boşsa dosyaya yazılmaz
+        let p = tmp("ap-parola").join("merkez.json");
+        kaydet(&p, &m).unwrap();
+        assert_eq!(oku(&p).unwrap().ap_parola, "Yeni2345Abcd");
+        kaydet(&p, &ornek()).unwrap();
+        assert!(!std::fs::read_to_string(&p).unwrap().contains("ap_parola") && oku(&p).unwrap().ap_parola.is_empty());
     }
 
     #[test]

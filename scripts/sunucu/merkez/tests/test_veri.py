@@ -165,6 +165,27 @@ def test_eski_veritabani_gocu():
         v = V.Veri(yol, saat=lambda: 1_790_000_000.0)
         m = v.musteri(4511643)
         assert (m["lisans_bitis"], m["parola_acik"], m["askida"]) == ("2027-10-04", "", 0)
+        ap = m["ap_parola"]  # eski müşteriye göçte AP yönetim parolası üretilir
+        assert len(ap) == V.AP_PAROLA_UZUNLUK and set(ap) <= set(G.HARFLER)
+        v.db.close()
+        assert V.Veri(yol, saat=lambda: 1_790_000_000.0).musteri(4511643)["ap_parola"] == ap  # her açılışta yeniden üretilmez
+
+
+def test_ap_yonetim_parolasi():
+    """Müşteri başına rastgele AP yönetim parolası (final review I1): panel parolasından ayrı (bütün AP'ler tek kökte açılır,
+    tarayıcının sakladığı AP kimliği başka müşterinin AP'sine gidebilir), 12 karakter, karışmayan harfler; açık saklanır
+    (yönetimde ve cihaz panelinde gösterilir) ve yenilenebilir."""
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        v = yeni(tmp)
+        n, pw = v.musteri_ekle(parola="musteri-parola-1")
+        ap = v.musteri(n)["ap_parola"]
+        assert len(ap) == 12 and set(ap) <= set(G.HARFLER) and ap != pw
+        n2, _ = v.musteri_ekle()
+        assert v.musteri(n2)["ap_parola"] not in ("", ap)
+        yeni_ap = v.ap_parolasi_yenile(n)
+        assert yeni_ap != ap and len(yeni_ap) == 12 and v.musteri(n)["ap_parola"] == yeni_ap
+        v.parola_koy(n, "baska-parola-12")
+        assert v.musteri(n)["ap_parola"] == yeni_ap  # müşteri parolası değişince AP parolası değişmez
 
 
 def test_silinen_veri_sayfalarda_kalmaz():

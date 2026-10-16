@@ -105,6 +105,9 @@ impl Panel {
             Ok(None) => {}
             Err(e) => return redirect("/portlar", Some((&format!("{e} Port değişikliği yapılmadı."), true))),
         }
+        if let Some(h) = crate::ap_arayuz::kapat(&self.ap_yollar, true) {
+            self.audit(cfg, req, Some(o), "AP_ARAYUZ", &crate::ap_arayuz::kapandi_ek(&h, "port"));
+        }
         let staged = y.yeni();
         if let Err(e) = ortak::mkdirs(&y.durum).map_err(|e| e.to_string()).and_then(|_| ag::save(&staged, &new)) {
             return redirect("/portlar", Some((&e, true)));

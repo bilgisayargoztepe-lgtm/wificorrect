@@ -43,11 +43,15 @@ class Oturumlar:
         self._s = {}
         self.lock = threading.Lock()
 
-    def create(self, user, role, now, surum=""):
-        """surum: hesabın o anki parola özeti; değişince (sıfırlama, başka yerden değişim) oturum geçersizleşir."""
+    def create(self, user, role, now, surum="", ek=None):
+        """surum: hesabın o anki parola özeti; değişince (sıfırlama, başka yerden değişim) oturum geçersizleşir.
+        ek: oturuma bağlı ek alanlar (ör. AP oturumunun altındaki cihaz paneli oturumu); asıl alanları ezemez.
+        Süresi dolmuş oturumlar burada silinir (bir daha bakılmayan oturum bellekte kalmasın)."""
         token = secrets.token_urlsafe(32)
         with self.lock:
-            self._s[token] = {"user": user, "role": role, "csrf": secrets.token_urlsafe(24),
+            for t in [t for t, s in self._s.items() if now - s["last"] > self.bosta or now - s["created"] > self.en_cok]:
+                del self._s[t]
+            self._s[token] = {**(ek or {}), "user": user, "role": role, "csrf": secrets.token_urlsafe(24),
                               "created": now, "last": now, "gerekce": None, "surum": surum}
         return token
 
@@ -99,6 +103,28 @@ class GecisBelirtecleri:
         with self.lock:
             v = self._b.pop(token or "", None)
         return (v[0], v[2], v[3]) if v and v[1] > simdi else None
+
+
+class TekKullanimlik:
+    """Kısa ömürlü, tek kullanımlık belirteç → değer (URL'de taşınır, çerez değil; ör. cihaz paneli → AP arayüzü geçişi).
+    Süresi dolanlar her üretimde silinir."""
+
+    def __init__(self, sure=60):
+        self.sure = sure
+        self._b, self.lock = {}, threading.Lock()
+
+    def uret(self, deger, simdi):
+        t = secrets.token_urlsafe(32)
+        with self.lock:
+            self._b = {k: v for k, v in self._b.items() if v[0] > simdi}
+            self._b[t] = (simdi + self.sure, deger)
+        return t
+
+    def tuket(self, token, simdi):
+        """Değer ya da None (yok, kullanılmış ya da süresi dolmuş)."""
+        with self.lock:
+            v = self._b.pop(token or "", None)
+        return v[1] if v and v[0] > simdi else None
 
 
 class GirisKilidi:

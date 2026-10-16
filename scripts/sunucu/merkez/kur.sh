@@ -12,7 +12,7 @@ install -d -o root -g wcpanel -m 750 /var/lib/wificorrect/detay /var/lib/wificor
 install -d -m 700 /var/lib/wificorrect/rapor-ham   # takma kimlikli ham özetler + sır: yalnızca root
 install -d -o wcpanel -g wcpanel -m 700 /var/lib/wificorrect/merkez /var/lib/wificorrect/kuyruk
 rm -f $L/panel.py $L/panel_auth.py $L/hesap.py   # eski kafe paneli
-install -m 644 common.py ozet.py detay.py guvenlik.py veri.py kayitlar.py web.py musteri.py yonetim.py api.py cihaz.py netgsm.py twilio.py surumler.py rapor.py raporlar.py $L/
+install -m 644 common.py ozet.py detay.py guvenlik.py veri.py kayitlar.py web.py musteri.py yonetim.py api.py cihaz.py ap.py netgsm.py twilio.py surumler.py rapor.py raporlar.py $L/
 install -m 755 merkez.py istatistik.py durum.py kuyruk.py yonetici.py saglik.py listeler.py $L/
 ln -sf $L/istatistik.py /usr/local/sbin/wc-istatistik
 ln -sf $L/durum.py /usr/local/sbin/wc-durum

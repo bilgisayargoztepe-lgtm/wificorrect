@@ -98,6 +98,7 @@ kur() {
   [ -n "$bitti" ] || hata "'Kurulum bitti' mesajı görünmedi"
   grep -aq "FIRMWARE-REALTEK KURULU" "$d/$log" || hata "firmware-realtek kurulan sisteme kurulmadı"
   grep -aq "KURULUM BITTI .* noatime," "$d/$log" || hata "kök dosya sistemi noatime değil"
+  grep -aq "EFI BASLANGIC YAZILDI" "$d/$log" || hata "EFI bölümüne startup.nsh yazılmadı"
   usb_ayni "kurulumda ($log)"
 }
 # acilis <seri-günlük> [ek argümanlar]: systemd durum satırı (açıklama konsol genişliğine kırpılır → birim adıyla

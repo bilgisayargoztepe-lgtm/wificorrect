@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 """WifiCorrect yönetim merkezi (spec 2026-10-04): tek süreç, Caddy arkasında 127.0.0.1:8081. Alan adına göre:
-yonetim.wificorrect.com (hizmet sağlayıcı), panel.wificorrect.com (müşteri), api.wificorrect.com (cihazlar)."""
+yonetim.wificorrect.com (hizmet sağlayıcı), panel.wificorrect.com (müşteri), api.wificorrect.com (cihazlar),
+cihaz.wificorrect.com (cihaz paneline geçit), ap.wificorrect.com (AP arayüzüne geçit)."""
 import os
 import sys
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+import ap  # noqa: E402
 import api  # noqa: E402
 import cihaz  # noqa: E402
 import guvenlik  # noqa: E402
@@ -19,7 +21,7 @@ import yonetim  # noqa: E402
 
 DB = "/var/lib/wificorrect/merkez/merkez.db"
 ALANLAR = {"yonetim.wificorrect.com": "yonetim", "panel.wificorrect.com": "musteri", "api.wificorrect.com": "api",
-           "cihaz.wificorrect.com": "cihaz"}
+           "cihaz.wificorrect.com": "cihaz", "ap.wificorrect.com": "ap"}
 GOVDE_SINIRI = 10_000
 PARCA = 65536
 GUVENLIK_BASLIKLARI = (("X-Content-Type-Options", "nosniff"), ("Referrer-Policy", "no-referrer"), ("X-Frame-Options", "DENY"),
@@ -29,6 +31,13 @@ GUVENLIK_BASLIKLARI = (("X-Content-Type-Options", "nosniff"), ("Referrer-Policy"
 def istemci_ip(basliklar):
     """Yalnızca 127.0.0.1 dinlenir; Caddy gelen X-Forwarded-For'a gerçek istemciyi SONA ekler."""
     return (basliklar.get("X-Forwarded-For") or "").split(",")[-1].strip() or "yerel"
+
+
+def baslik_satirlari(basliklar):
+    """(ad, değer) satırları; değer liste ise her öğesi ayrı satır (ör. birden çok Set-Cookie)."""
+    for k, v in basliklar.items():
+        for d in (v if isinstance(v, (list, tuple)) else (v,)):
+            yield k, d
 
 
 def parcali_yaz(w, icerik, parca=PARCA):
@@ -72,7 +81,10 @@ class Isleyici(BaseHTTPRequestHandler):
                 web.log(f"HATA {yontem} {parca.path}: {ex!r}")
                 durum, basliklar, icerik = 500, {"Content-Type": "text/plain; charset=utf-8"}, "Bir sorun oluştu".encode()
         self.send_response(durum)
-        for k, v in list(basliklar.items()) + list(GUVENLIK_BASLIKLARI):
+        # cevabın kendi verdiği güvenlik başlığı (ap.sayfa: aynı kökenden çerçevelenebilir) varsayılanın yerine geçer: iki
+        # farklı X-Frame-Options / CSP satırı tarayıcıda belirsiz ya da en sıkısı olurdu
+        ozel = {k.lower() for k in basliklar}
+        for k, v in list(baslik_satirlari(basliklar)) + [(k, v) for k, v in GUVENLIK_BASLIKLARI if k.lower() not in ozel]:
             self.send_header(k, v)
         self.send_header("Content-Length", str(len(icerik)))
         self.end_headers()
@@ -97,9 +109,10 @@ def main():
         web.log(f"rapor-gruplari yazilamadi: {ex!r}")
     gecis, rp = guvenlik.GecisBelirtecleri(), raporlar.Raporlar()
     m = musteri.Musteri(v, k, gecis=gecis, raporlar=rp)
+    c = cihaz.Cihaz(v, gecis, m)
     Isleyici.app = Merkez({"yonetim": yonetim.Yonetim(v, k, gecis=gecis, musteri_app=m, rapor_gruplari=veri.RAPOR_GRUPLARI,
                                                       raporlar=rp), "musteri": m, "api": api.Api(v, raporlar=rp),
-                           "cihaz": cihaz.Cihaz(v, gecis, m)})
+                           "cihaz": c, "ap": ap.Ap(c)})
     srv = ThreadingHTTPServer(("127.0.0.1", 8081), Isleyici)
     srv.daemon_threads = True
     srv.serve_forever()

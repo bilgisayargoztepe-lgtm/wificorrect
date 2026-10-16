@@ -186,6 +186,21 @@ def test_giris_ve_eslesme_tek_admin_ozetini_tasir():
         assert j3["admin"] == j2["admin"]  # her eşitlemede aynı özet: admin oturumları boşuna düşmez
 
 
+def test_giris_ve_eslesme_ap_parolasini_tasir():
+    """AP yönetim parolası (final review I1; müşteriye özel, panel parolasından ayrı) cihaza bağlanırken ve her eşitlemede
+    gider: cihaz paneli AP kurulumunda işletme sahibine de gösterilir. Yenilenen parola sonraki eşitlemede iner."""
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        api, v, _, _ = kur(tmp)
+        n, pw = v.musteri_ekle()
+        d, j = giris(api, n, pw)
+        ap = v.musteri(n)["ap_parola"]
+        assert d == 200 and j["ap_parola"] == ap and ap != pw
+        yeni = v.ap_parolasi_yenile(n)
+        assert post(api, "/api/eslesme", {"cihaz_anahtari": j["cihaz_anahtari"]})[1]["ap_parola"] == yeni
+        d, h = post(api, "/api/eslesme", {"cihaz_anahtari": "yanlis"})
+        assert d == 401 and "ap_parola" not in h
+
+
 def test_sms_ayari_yoksa_yalnizca_etkin_mock_varsa_gider():
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
         api, v, _, _ = kur(tmp)

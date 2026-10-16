@@ -12,19 +12,25 @@
 //!   parçacığı `setns` ile yan odaya girer), yalnızca yan odanın alt ağına; CONNECT, kimlik doğrulamasız, IPv4.
 //! - Yabancı DHCP denetimi (`ctl ap-dhcp-denetle`): kısa ömürlü ayrı bir yan odadan DHCPDISCOVER, gelen teklifler
 //!   (AF_PACKET; 10.50.0.1'in kendi dnsmasq'ı bu yayını almaz, köprüden yerel çıkış olarak gider).
+//! - ARP taraması (spec 2026-10-16-ap-arayuz, "Bağlan" / "Otomatik bul"): kısa ömürlü adressiz yan odadan ARP
+//!   yoklaması (gönderen 0.0.0.0, RFC 5227: kimsenin ARP tablosu değişmez); hedef cihaz var mı, yan oda için aday adres
+//!   boş mu. Aracıya SOCKS5 istemcisi (`socks_baglan`): panelin AP arayüzü aktarımı ve arama işi yan odadaki hedefe
+//!   aracı üzerinden bağlanır (setns gerekmez; aracı yalnızca yan odanın alt ağına izin verir).
 
 use crate::ap::Cidr;
+use std::collections::BTreeMap;
 use std::fs::File;
 use std::io::{self, Read, Write};
-use std::net::{Ipv4Addr, Shutdown, SocketAddrV4, TcpListener, TcpStream};
+use std::net::{Ipv4Addr, Shutdown, SocketAddr, SocketAddrV4, TcpListener, TcpStream};
 use std::os::unix::io::AsRawFd;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{mpsc, Arc};
 use std::time::{Duration, Instant};
 
-/// Yan odadaki macvlan arayüzü (aracı) ve DHCP denetiminin arayüzü
+/// Yan odadaki macvlan arayüzü (aracı), DHCP denetiminin ve ARP taramasının arayüzü
 pub const ARAYUZ: &str = "wfcap0";
 pub const DHCP_ARAYUZ: &str = "wfcdhcp0";
+pub const ARP_ARAYUZ: &str = "wfcarp0";
 /// Aracının dinlediği yerel port (127.0.0.1)
 pub const ARACI_PORT: u16 = 1085;
 /// Aracının geçici systemd birimi (tek yan oda)
@@ -285,6 +291,39 @@ fn hazir_bildir() {
     }
 }
 
+/// Aracıya SOCKS5 istemcisi: `araci` (127.0.0.1:`ARACI_PORT`) üzerinden `hedef`e bağlanır. `sure`: aracıya bağlanma ve
+/// cevap bekleme (aracı hedefe en çok `BAGLANMA` bekler; `sure` ondan uzun olmalı). Aracının ret kodları G/Ç hatasına
+/// çevrilir: reddedildi → ConnectionRefused, zaman aşımı → TimedOut, kural (alt ağ dışı) → PermissionDenied.
+pub fn socks_baglan_adres(araci: SocketAddr, hedef: SocketAddrV4, sure: Duration) -> io::Result<TcpStream> {
+    let mut s = TcpStream::connect_timeout(&araci, sure)?;
+    s.set_read_timeout(Some(sure))?;
+    s.set_write_timeout(Some(sure))?;
+    s.write_all(&[5, 1, 0])?;
+    let mut b = [0u8; 2];
+    s.read_exact(&mut b)?;
+    if b != [5, 0] {
+        return Err(io::Error::new(io::ErrorKind::ConnectionAborted, "SOCKS5 el sıkışması reddedildi"));
+    }
+    let mut istek = vec![5, 1, 0, 1];
+    istek.extend(hedef.ip().octets());
+    istek.extend(hedef.port().to_be_bytes());
+    s.write_all(&istek)?;
+    let mut c = [0u8; 10];
+    s.read_exact(&mut c)?;
+    match c[1] {
+        0 => Ok(s),
+        RET_RED => Err(io::Error::from(io::ErrorKind::ConnectionRefused)),
+        RET_SURE => Err(io::Error::from(io::ErrorKind::TimedOut)),
+        RET_KURAL => Err(io::Error::new(io::ErrorKind::PermissionDenied, "hedef yan odanın ağında değil")),
+        k => Err(io::Error::new(io::ErrorKind::NotConnected, format!("aracı hedefe ulaşamadı (kod {k})"))),
+    }
+}
+
+/// Cihazdaki yan oda aracısı üzerinden bağlanır (yan oda açık değilse bağlantı reddedilir).
+pub fn socks_baglan(hedef: SocketAddrV4, sure: Duration) -> io::Result<TcpStream> {
+    socks_baglan_adres(SocketAddr::from((Ipv4Addr::LOCALHOST, ARACI_PORT)), hedef, sure)
+}
+
 /// `ctl ap-araci ADRES` (geçici systemd birimi): 127.0.0.1:`ARACI_PORT` dinlenir, yan oda `adres` ile açılır,
 /// hazır bildirilir; süreç durdurulana kadar hizmet verir (durunca yan oda kendiliğinden kalkar).
 pub fn araci_calistir(kopru: &str, adres: Cidr) -> Result<(), String> {
@@ -460,6 +499,117 @@ pub fn dhcp_denetle(kopru: &str) -> Result<Vec<Teklif>, String> {
     .map_err(|_| "DHCP denetimi çöktü".to_string())?
 }
 
+// ---------------------------------------------------------------- ARP taraması
+/// ARP isteği (Ethernet başlığı çekirdekten: AF_PACKET SOCK_DGRAM, yayın). `gonderen` 0.0.0.0 ise ARP yoklaması
+/// (RFC 5227): adresin sahibi cevap verir, kimsenin ARP tablosuna yan odanın MAC'i yazılmaz.
+pub fn arp_istegi(mac: &[u8; 6], gonderen: Ipv4Addr, hedef: Ipv4Addr) -> [u8; 28] {
+    let mut p = [0u8; 28];
+    p[..8].copy_from_slice(&[0, 1, 8, 0, 6, 4, 0, 1]); // Ethernet, IPv4, 6, 4, istek
+    p[8..14].copy_from_slice(mac);
+    p[14..18].copy_from_slice(&gonderen.octets());
+    p[24..28].copy_from_slice(&hedef.octets());
+    p
+}
+
+/// ARP paketinin göndereni (IP, MAC); istek ya da cevap fark etmez: o adresi kullanan biri var. Gönderen 0.0.0.0
+/// (başkasının yoklaması) ve bozuk paket: None.
+pub fn arp_gonderen(p: &[u8]) -> Option<(Ipv4Addr, [u8; 6])> {
+    if p.len() < 28 || p[..6] != [0, 1, 8, 0, 6, 4] || !matches!((p[6], p[7]), (0, 1) | (0, 2)) {
+        return None;
+    }
+    let ip = Ipv4Addr::new(p[14], p[15], p[16], p[17]);
+    let mut mac = [0u8; 6];
+    mac.copy_from_slice(&p[8..14]);
+    (!ip.is_unspecified()).then_some((ip, mac))
+}
+
+/// Yan odanın içinde (çağıran iş parçacığı `gir` yapmış olmalı): her (hedef, gönderen) için iki kez ARP isteği, `sure`
+/// boyunca cevaplar. Dönen: cevap veren hedef → MAC.
+fn arp_yokla(arayuz: &str, mac: &[u8; 6], istekler: &[(Ipv4Addr, Ipv4Addr)], sure: Duration) -> Result<BTreeMap<Ipv4Addr, String>, String> {
+    use std::os::fd::{FromRawFd, OwnedFd};
+    let ad = std::ffi::CString::new(arayuz).map_err(|e| e.to_string())?;
+    // SAFETY: geçerli C dizgisi
+    let ifindex = unsafe { libc::if_nametoindex(ad.as_ptr()) };
+    if ifindex == 0 {
+        return Err(format!("{arayuz} bulunamadı"));
+    }
+    let proto = (libc::ETH_P_ARP as u16).to_be();
+    // SAFETY: sistem çağrısı; dönen tanıtıcı OwnedFd'ye geçer
+    let fd = unsafe { libc::socket(libc::AF_PACKET, libc::SOCK_DGRAM | libc::SOCK_CLOEXEC, i32::from(proto)) };
+    if fd < 0 {
+        return Err(format!("paket soketi açılamadı: {}", io::Error::last_os_error()));
+    }
+    // SAFETY: az önce açılan, başka sahibi olmayan tanıtıcı
+    let fd = unsafe { OwnedFd::from_raw_fd(fd) };
+    let raw = fd.as_raw_fd();
+    // SAFETY: sıfırlanmış düz C yapısı
+    let mut sa: libc::sockaddr_ll = unsafe { std::mem::zeroed() };
+    sa.sll_family = libc::AF_PACKET as u16;
+    sa.sll_protocol = proto;
+    sa.sll_ifindex = ifindex as i32;
+    let boy = std::mem::size_of::<libc::sockaddr_ll>() as libc::socklen_t;
+    // SAFETY: sa geçerli sockaddr_ll, boyu doğru
+    if unsafe { libc::bind(raw, &sa as *const _ as *const libc::sockaddr, boy) } != 0 {
+        return Err(format!("paket soketi bağlanamadı: {}", io::Error::last_os_error()));
+    }
+    let tv = libc::timeval { tv_sec: 0, tv_usec: 100_000 };
+    // SAFETY: tv geçerli timeval
+    unsafe { libc::setsockopt(raw, libc::SOL_SOCKET, libc::SO_RCVTIMEO, &tv as *const _ as *const libc::c_void, std::mem::size_of::<libc::timeval>() as libc::socklen_t) };
+    let mut yayin = sa;
+    yayin.sll_halen = 6;
+    yayin.sll_addr[..6].copy_from_slice(&[0xff; 6]);
+    let gonder = || {
+        for (hedef, gonderen) in istekler {
+            let p = arp_istegi(mac, *gonderen, *hedef);
+            // SAFETY: p ve yayin geçerli
+            unsafe { libc::sendto(raw, p.as_ptr() as *const libc::c_void, p.len(), 0, &yayin as *const _ as *const libc::sockaddr, boy) };
+        }
+    };
+    gonder();
+    let istenen: std::collections::BTreeSet<Ipv4Addr> = istekler.iter().map(|(h, _)| *h).collect();
+    let basla = Instant::now();
+    let mut ikinci = false;
+    let mut v: BTreeMap<Ipv4Addr, String> = BTreeMap::new();
+    let mut buf = [0u8; 512];
+    while basla.elapsed() < sure {
+        if !ikinci && basla.elapsed() >= Duration::from_millis(300) {
+            ikinci = true;
+            gonder();
+        }
+        // SAFETY: sıfırlanmış düz C yapısı
+        let mut kaynak: libc::sockaddr_ll = unsafe { std::mem::zeroed() };
+        let mut kboy = boy;
+        // SAFETY: buf ve kaynak geçerli, boyları doğru
+        let n = unsafe { libc::recvfrom(raw, buf.as_mut_ptr() as *mut libc::c_void, buf.len(), 0, &mut kaynak as *mut _ as *mut libc::sockaddr, &mut kboy) };
+        if n <= 0 || kaynak.sll_pkttype == libc::PACKET_OUTGOING as u8 {
+            continue;
+        }
+        if let Some((ip, m)) = arp_gonderen(&buf[..n as usize]) {
+            if istenen.contains(&ip) && m != *mac {
+                v.entry(ip).or_insert_with(|| mac_yaz(&m));
+            }
+        }
+    }
+    Ok(v)
+}
+
+/// "Bağlan" / "Otomatik bul": kısa ömürlü adressiz yan odadan ARP taraması (her istek: hedef, gönderen IP'si; gönderen
+/// 0.0.0.0 = yoklama). Süreç (iş parçacığı) bitince yan oda gider. Dönen: cevap veren hedefler → MAC.
+pub fn arp_tara(kopru: &str, istekler: &[(Ipv4Addr, Ipv4Addr)], sure: Duration) -> Result<BTreeMap<Ipv4Addr, String>, String> {
+    if istekler.is_empty() {
+        return Ok(BTreeMap::new());
+    }
+    let mac = rastgele_mac();
+    let ns = ac(kopru, ARP_ARAYUZ, None, mac)?;
+    let istekler = istekler.to_vec();
+    std::thread::spawn(move || {
+        gir(&ns).map_err(|e| format!("yan odaya girilemedi: {e}"))?;
+        arp_yokla(ARP_ARAYUZ, &mac, &istekler, sure)
+    })
+    .join()
+    .map_err(|_| "ARP taraması çöktü".to_string())?
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -475,7 +625,8 @@ mod tests {
             s(&["ip", "link", "add", "link", "br-hotspot", "name", "wfcap0", "address", "02:aa:bb:cc:dd:ee", "netns", "4242", "type", "macvlan", "mode", "private"]));
         assert_eq!(ic_komutlar(ARAYUZ, Some(&ag())), vec![s(&["ip", "addr", "add", "192.168.1.250/24", "dev", "wfcap0"]), s(&["ip", "link", "set", "wfcap0", "up"])]);
         assert_eq!(ic_komutlar(DHCP_ARAYUZ, None), vec![s(&["ip", "link", "set", "wfcdhcp0", "up"])]);
-        assert!(ARAYUZ.len() <= 15 && DHCP_ARAYUZ.len() <= 15);
+        assert!(ARAYUZ.len() <= 15 && DHCP_ARAYUZ.len() <= 15 && ARP_ARAYUZ.len() <= 15);
+        assert!(ARAYUZ != ARP_ARAYUZ && DHCP_ARAYUZ != ARP_ARAYUZ);
         for _ in 0..20 {
             let m = rastgele_mac();
             assert_eq!(m[0] & 0x03, 0x02, "yerel yönetilen, tek yayınlı");
@@ -555,6 +706,68 @@ mod tests {
         assert_eq!(araci_dene(&[5, 1, 0, 5, 1, 0, 1, 192, 168, 1, 1, 0, 80], red)[2..4], [5, RET_RED]);
         let sure: Arc<Baglan> = Arc::new(|_| Err(io::Error::from(io::ErrorKind::TimedOut)));
         assert_eq!(araci_dene(&[5, 1, 0, 5, 1, 0, 1, 192, 168, 1, 1, 0, 80], sure)[2..4], [5, RET_SURE]);
+    }
+
+    /// Panelin / arama işinin aracı istemcisi, gerçek aracı sunucusuna (sahte bağlantı kurucuyla) karşı
+    #[test]
+    fn socks_istemcisi() {
+        let ap = TcpListener::bind("127.0.0.1:0").unwrap();
+        let ap_adres = ap.local_addr().unwrap();
+        std::thread::spawn(move || {
+            for s in ap.incoming().flatten() {
+                let mut s = s;
+                let mut b = [0u8; 3];
+                let _ = s.read_exact(&mut b);
+                let _ = s.write_all(b"tamam");
+            }
+        });
+        let baglan: Arc<Baglan> = Arc::new(move |h: SocketAddrV4| match h.port() {
+            80 => TcpStream::connect(ap_adres),
+            443 => Err(io::Error::from(io::ErrorKind::ConnectionRefused)),
+            _ => Err(io::Error::from(io::ErrorKind::TimedOut)),
+        });
+        let dinle = TcpListener::bind("127.0.0.1:0").unwrap();
+        let araci = dinle.local_addr().unwrap();
+        std::thread::spawn(move || sun(dinle, ag(), baglan));
+        let sure = Duration::from_secs(5);
+        let mut s = socks_baglan_adres(araci, "192.168.1.1:80".parse().unwrap(), sure).unwrap();
+        s.write_all(b"GET").unwrap();
+        let mut v = String::new();
+        s.read_to_string(&mut v).unwrap();
+        assert_eq!(v, "tamam");
+        let hata = |h: &str| socks_baglan_adres(araci, h.parse().unwrap(), sure).unwrap_err().kind();
+        assert_eq!(hata("192.168.1.1:443"), io::ErrorKind::ConnectionRefused);
+        assert_eq!(hata("192.168.1.1:8080"), io::ErrorKind::TimedOut);
+        assert_eq!(hata("10.50.0.1:80"), io::ErrorKind::PermissionDenied); // yan odanın ağı dışı: aracı reddeder
+        // aracı yok (yan oda kapalı): bağlanılamaz
+        let kapali = TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap();
+        assert!(socks_baglan_adres(kapali, "192.168.1.1:80".parse().unwrap(), sure).is_err());
+    }
+
+    #[test]
+    fn arp_paketleri() {
+        let mac = [0x02, 1, 2, 3, 4, 5];
+        let p = arp_istegi(&mac, Ipv4Addr::UNSPECIFIED, "192.168.1.1".parse().unwrap());
+        assert_eq!(&p[..8], &[0, 1, 8, 0, 6, 4, 0, 1]);
+        assert_eq!((&p[8..14], &p[14..18], &p[18..24], &p[24..28]), (&mac[..], &[0u8; 4][..], &[0u8; 6][..], &[192u8, 168, 1, 1][..]));
+        // kendi yoklamamız (gönderen 0.0.0.0) kimseyi göstermez
+        assert_eq!(arp_gonderen(&p), None);
+        let istek = arp_istegi(&mac, "192.168.1.250".parse().unwrap(), "192.168.1.1".parse().unwrap());
+        assert_eq!(arp_gonderen(&istek), Some(("192.168.1.250".parse().unwrap(), mac)));
+        // cevap: gönderen = adresin sahibi
+        let mut cevap = [0u8; 28];
+        cevap[..8].copy_from_slice(&[0, 1, 8, 0, 6, 4, 0, 2]);
+        cevap[8..14].copy_from_slice(&[0x70, 0x4f, 0x57, 0xdd, 0x7a, 0xe8]);
+        cevap[14..18].copy_from_slice(&[192, 168, 1, 1]);
+        assert_eq!(arp_gonderen(&cevap), Some(("192.168.1.1".parse().unwrap(), [0x70, 0x4f, 0x57, 0xdd, 0x7a, 0xe8])));
+        assert_eq!(arp_gonderen(&cevap[..27]), None);
+        let mut bozuk = cevap;
+        bozuk[7] = 3; // RARP
+        assert_eq!(arp_gonderen(&bozuk), None);
+        bozuk = cevap;
+        bozuk[2] = 0x86; // IPv6 değil IPv4 beklenir
+        assert_eq!(arp_gonderen(&bozuk), None);
+        assert!(arp_tara("br-yok", &[], Duration::from_millis(1)).unwrap().is_empty(), "istek yoksa yan oda açılmaz");
     }
 
     #[test]

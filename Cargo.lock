@@ -572,12 +572,13 @@ dependencies = [
 
 [[package]]
 name = "wificorrect"
-version = "0.4.14"
+version = "0.4.15"
 dependencies = [
  "flate2",
  "getrandom",
  "libc",
  "pbkdf2",
+ "rustls",
  "serde",
  "serde_json",
  "sha2",

@@ -19,6 +19,12 @@ docker run --rm -v "$PWD/$(dirname "$deb"):/p:ro" debian:trixie sh -euc "
   test -f /usr/local/lib/wificorrect/dnsmasq-ozet
   dpkg -L wificorrect | grep -q /etc/wificorrect/hiz.nft
   test -x /usr/local/lib/wificorrect/dhcp-script
+  test -x /usr/local/lib/wificorrect/efi-baslangic && test ! -e /boot/efi/startup.nsh
+  mkdir -p /tmp/esp && sh /usr/local/lib/wificorrect/efi-baslangic /tmp/esp
+  test -s /tmp/esp/startup.nsh && cmp -s /tmp/esp/startup.nsh /tmp/esp/EFI/BOOT/startup.nsh
+  grep -q 'fs0:.EFI.wificorrect.kimlik' /tmp/esp/startup.nsh && grep -q WifiCorrect /tmp/esp/EFI/wificorrect/kimlik
+  mkdir -p /tmp/esp2 && printf 'echo baska\r\n' > /tmp/esp2/startup.nsh && sh /usr/local/lib/wificorrect/efi-baslangic /tmp/esp2
+  grep -q baska /tmp/esp2/startup.nsh && grep -q 'EFI.wificorrect.kimlik' /tmp/esp2/EFI/BOOT/startup.nsh
   command -v iptables-restore
   echo 'site_name = \"Kalsin\"' >> /etc/wificorrect/ayarlar.toml
   echo 'elle' > /etc/wificorrect/yasak-siteler.conf

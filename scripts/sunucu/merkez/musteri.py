@@ -40,14 +40,19 @@ class Musteri(web.Taban):
         super().__init__(veri, kayitlar, saat, raporlar or raporlar_modulu.Raporlar())
         self.gecis = gecis or guvenlik.GecisBelirtecleri()
 
-    def cihaz_adresi(self, numara):
-        """Bağlı, tünel adresi olan, üyeliği ve lisansı açık cihazın tünel IP'si; değilse None."""
+    def calisan_cihaz(self, numara):
+        """Bağlı, tünel adresi olan, üyeliği ve lisansı açık cihazın kaydı; değilse None."""
         c, m = self.veri.bagli_cihaz(numara), self.veri.musteri(numara)
         if c is None or m is None or c["durum"] != "bagli" or not c["tunel_ip"]:
             return None
         if m["uyelik"] != "aktif" or self.veri.lisans_durumu(m)[0] != "aktif":
             return None
-        return c["tunel_ip"]
+        return c
+
+    def cihaz_adresi(self, numara):
+        """Bağlı, tünel adresi olan, üyeliği ve lisansı açık cihazın tünel IP'si; değilse None."""
+        c = self.calisan_cihaz(numara)
+        return c["tunel_ip"] if c is not None else None
 
     def giris_sonrasi(self, kimlik):
         """Cihazı çalışıyorsa cihaz paneli; bağlı cihazı yoksa (üyelik aktif) kolay bağlama; değilse yedek arşiv."""

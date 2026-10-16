@@ -94,6 +94,11 @@ pub fn fabrika(
         Ok(None) => {}
         Err(e) => eprintln!("AP yan odası kapatılamadı: {e}"),
     }
+    // AP arayüzü erişimi ve son aramanın sonucu da biter (yeni işletme yeni AP)
+    if let Some(h) = crate::ap_arayuz::kapat(ap, false) {
+        crate::ap_arayuz::denetim(&m.log_root, now, &h, &crate::ap_arayuz::kapandi_ek(&h, "fabrika"));
+    }
+    let _ = std::fs::remove_file(&ap.bul);
     // 2) kayıtlar sunucuya; olmazsa iptal (servisler geri açılır, ayarlara dokunulmaz)
     if let Err(e) = kayitlari_teslim_et(cfg, now, runner) {
         runner(&cmd(&["systemctl", "start", "dnsmasq", "wificorrect-kaydedici", "wificorrect-portal"]));
@@ -237,15 +242,18 @@ mod tests {
         // sunucuya gönderilemezse iptal: hiçbir şey silinmez, ayarlar aynı, servisler geri açılır
         let fail = |c: &[String]| c[0] != "rsync";
         // AP kurulumunun yan odası açık (aracı çalışıyor)
-        let apy = crate::ap::Yollar { gecici: root.join("ap-gecici.json") };
+        let apy = crate::ap::Yollar::kok(&root);
         std::fs::write(&apy.gecici, r#"{"adres":"192.168.0.250/24","kimlik":"0a1b2c3d","bitis":1791001000.0}"#).unwrap();
+        // AP arayüzü erişimi açık (misafir ağındaki kayıtlı AP) ve son arama sonucu duruyor
+        std::fs::write(&apy.hedef, r#"{"adres":"10.50.0.2","port":80,"sema":"http","yol":"misafir","bitis":1791001000.0,"kim":"4511643","rol":"hizmet"}"#).unwrap();
+        std::fs::write(&apy.bul, "{}").unwrap();
         let ip_ap = |a: &[&str]| if a.first() == Some(&"systemctl") { "active\n".to_string() } else { String::new() };
         let r = fabrika(&cfg, &cfg_path.to_string_lossy(), &root.join("hesaplar.json").to_string_lossy(), &mp, &bildir, &root.join("yasak.conf"), &hl, &y, &apy, &ip_ap, 1_791_000_000.0, &fail);
         assert!(r.unwrap_err().contains("gönderilemedi"));
         assert!(root.join("5651/gunluk/2026-10-01").exists() && h.load().unwrap().len() == 1 && mp.exists() && bildirimler.lock().unwrap().is_empty());
         assert_eq!(Config::load(&cfg_path.to_string_lossy()).unwrap().main.site_name, "Bocafe");
         // AP yan odası misafirler düşürülürken kapanır (teslim edilecek kayda yazılır; iptalde de geri gelmez)
-        assert!(!apy.gecici.exists());
+        assert!(!apy.gecici.exists() && !apy.hedef.exists() && !apy.bul.exists());
         let muhurlu = {
             // iptalden önce bugün de mühürlendi: satır sıkıştırılmış denetim dosyasında
             let mut s = String::new();
@@ -254,6 +262,7 @@ mod tests {
             s
         };
         assert!(muhurlu.contains("kapandi adres=192.168.0.250/24 neden=fabrika"), "{muhurlu}");
+        assert!(muhurlu.contains("kullanici=4511643 rol=hizmet ip=- kapandi hedef=10.50.0.2:80 yol=misafir neden=fabrika"), "{muhurlu}");
         // gönderilince: kayıtlar mühürlü + yedeklendi işaretli olarak sunucuya, sonra cihazdan silinir
         let errs = fabrika(&cfg, &cfg_path.to_string_lossy(), &root.join("hesaplar.json").to_string_lossy(), &mp, &bildir, &root.join("yasak.conf"), &hl, &y, &apy, &ip_ap, 1_791_000_000.0, &runner).unwrap();
         assert!(errs.is_empty(), "{errs:?}");
@@ -328,7 +337,7 @@ mod tests {
             hiz_uygulanan: root.join("hiz_uygulanan"),
         };
         let hl = crate::liste::Yollar { dizin: root.join("liste"), conf: root.join("hazir-liste.conf") };
-        let apy = crate::ap::Yollar { gecici: root.join("ap-gecici.json") };
+        let apy = crate::ap::Yollar::kok(&root);
         let ip_ap = |_: &[&str]| String::new();
         let r = fabrika(&cfg, &cfg_path.to_string_lossy(), &root.join("hesaplar.json").to_string_lossy(), &root.join("merkez.json"),
                         &|_: &crate::merkez::Merkez| Ok(()), &root.join("yasak.conf"), &hl, &y, &apy, &ip_ap, 1_791_000_000.0, &runner);

@@ -255,22 +255,28 @@ pub fn giris(numara: &str, pw: &str, wg_pub: &str, ssh_pub: &str, isletme_adi: &
     let govde = json!({"numara": numara, "parola": pw, "wg_pub": wg_pub, "ssh_pub": ssh_pub,
                        "isletme_adi": isletme_adi, "unvan": unvan, "surum": env!("CARGO_PKG_VERSION")});
     let (d, v) = cagir(http, "/api/giris", &govde).map_err(|_| GirisHata::Baglanti)?;
+    giris_cevabi(d, &v, numara, now)
+}
+
+/// `/api/giris` ve `/api/bagla` (kolay bağlama) cevabı → bağ bilgileri. Hata cevabı merkezin mesajıyla; bozuk/eksik cevap
+/// bağlantı hatası sayılır.
+pub fn giris_cevabi(d: u16, v: &Value, numara: &str, now: f64) -> Result<Giris, GirisHata> {
     if d != 200 {
-        return match hata(&v) {
+        return match hata(v) {
             Some((m, kod)) => Err(GirisHata::Mesaj(m, kod == "hatali")),
             None => Err(GirisHata::Baglanti),
         };
     }
     let alanlar = (|| {
-        let (tuz, ozet, yineleme) = ozet_alanlari(&v)?;
+        let (tuz, ozet, yineleme) = ozet_alanlari(v)?;
         Some(Giris {
-            merkez: Merkez { numara: numara.into(), tuz, ozet, yineleme, cihaz_anahtari: metin(&v, "cihaz_anahtari")?, son_eslesme: now, deneme: 0.0,
-                             lisans: metin(&v, "lisans").unwrap_or_default(), lisans_bitis: metin(&v, "lisans_bitis").unwrap_or_default() },
-            tunel_ip: metin(&v, "tunel_ip")?,
-            sunucu_pub: metin(&v, "sunucu_pub")?,
-            uc_nokta: metin(&v, "uc_nokta")?,
-            yedek_hedefi: metin(&v, "yedek_hedefi")?,
-            ek: ek(&v),
+            merkez: Merkez { numara: numara.into(), tuz, ozet, yineleme, cihaz_anahtari: metin(v, "cihaz_anahtari")?, son_eslesme: now, deneme: 0.0,
+                             lisans: metin(v, "lisans").unwrap_or_default(), lisans_bitis: metin(v, "lisans_bitis").unwrap_or_default() },
+            tunel_ip: metin(v, "tunel_ip")?,
+            sunucu_pub: metin(v, "sunucu_pub")?,
+            uc_nokta: metin(v, "uc_nokta")?,
+            yedek_hedefi: metin(v, "yedek_hedefi")?,
+            ek: ek(v),
         })
     })();
     alanlar.ok_or(GirisHata::Baglanti)
@@ -284,6 +290,33 @@ pub fn uygula(cfg: &mut Config, g: &Giris) {
     cfg.uzak.adres.clone_from(&g.tunel_ip);
     cfg.backup.enabled = true;
     cfg.backup.target.clone_from(&g.yedek_hedefi);
+}
+
+/// Bağlama dosya kilidi (`merkez.json` yanında `merkez.kilit`): yerel panelden bağlama ile kolay bağlama (`ctl bekliyor`,
+/// ayrı süreç) aynı anda iki bağ yazmasın. Düşünce bırakılır.
+pub fn kilit(merkez_path: &Path) -> std::io::Result<crate::ortak::StateLock> {
+    crate::ortak::dosya_kilidi(&merkez_path.with_extension("kilit"))
+}
+
+/// Merkez bağlamayı kabul ettikten sonra cihaz tarafı (yerel panel ve kolay bağlama ortak): önce ayarlar (tünel + yedek +
+/// merkezden gelen ekler), sonra bağ dosyası — ayar yazılamazsa cihaz "bağlı ama tünelsiz" kalmasın; eski yerel sahip
+/// hesapları silinir, tünel ayrı işte kurulur, SMS deneme modu değiştiyse portal yeniden başlar.
+/// Dönen: (yeni ayar, admin eki sonucu, SMS eki sonucu) — denetim satırları çağıranın.
+pub fn kur(cfg: &Config, cfg_path: &str, merkez_path: &Path, hesaplar: &crate::hesap::Hesaplar, g: &Giris, runner: &crate::ortak::Runner) -> Result<(Config, Result<bool, String>, Result<bool, String>), String> {
+    let mut yeni = cfg.clone();
+    uygula(&mut yeni, g);
+    let (admin, sms) = ek_uygula(&mut yeni, hesaplar, &g.ek);
+    yeni.save(cfg_path)?;
+    kaydet(merkez_path, &g.merkez)?;
+    if let Err(e) = hesaplar.keep_only_admin() {
+        eprintln!("merkez: {e}");
+    }
+    let unit = format!("wfc-uzak-{}", crate::ortak::random_hex(4));
+    runner(&["systemd-run", "--collect", "--unit", unit.as_str(), "--on-active", "1s", "/usr/local/bin/wificorrect", "ctl", "uzak-uygula"].map(String::from).to_vec());
+    if sms == Ok(true) {
+        runner(&["systemctl", "restart", "wificorrect-portal"].map(String::from).to_vec());
+    }
+    Ok((yeni, admin, sms))
 }
 
 #[derive(Debug)]

@@ -3,6 +3,7 @@
 mod ag;
 mod ap;
 mod ayar;
+mod bekleme;
 mod ctl;
 mod dil;
 mod fabrika;

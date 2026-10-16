@@ -85,9 +85,11 @@ def bilgi_tablosu(satirlar):
     return "<table>" + "".join(f"<tr><th>{e(k)}</th><td>{v}</td></tr>" for k, v in satirlar) + "</table>"
 
 
-def _cerceve(baslik, icerik, nav="", genis=False):
+def _cerceve(baslik, icerik, nav="", genis=False, yenile=None):
+    """yenile: sayfa bu kadar saniyede kendini yeniler (meta refresh; JavaScript yok)."""
+    yen = f'<meta http-equiv="refresh" content="{int(yenile)}">' if yenile else ""
     return ('<!doctype html><html lang="tr"><head><meta charset="utf-8">'
-            '<meta name="viewport" content="width=device-width,initial-scale=1">'
+            f'<meta name="viewport" content="width=device-width,initial-scale=1">{yen}'
             f'<title>{e(baslik)} · WifiCorrect</title><style>{CSS}</style></head><body>'
             f'<header><a class="marka" href="/">WifiCorrect</a>{nav}</header>'
             f'<main{SINIF_GENIS if genis else ""}>{icerik}</main></body></html>')
@@ -135,12 +137,12 @@ class Taban:
         return None
 
     # --- ortak ---
-    def sayfa(self, baslik, icerik, ot, genis=False):
+    def sayfa(self, baslik, icerik, ot, genis=False, yenile=None):
         nav = ""
         if ot:
             nav = (f'<nav>{self.menu(ot)}<form method="post" action="/cikis">'
                    f'<input type="hidden" name="csrf" value="{e(ot["csrf"])}"><button class="ikincil">Çıkış</button></form></nav>')
-        return _cerceve(baslik, icerik, nav, genis)
+        return _cerceve(baslik, icerik, nav, genis, yenile)
 
     def mesaj(self, ot, baslik, metin):
         return self.sayfa(baslik, kart(f'<h1>{e(baslik)}</h1><p>{e(metin)}</p><p><a href="/">Ana sayfa</a></p>'), ot)
@@ -166,7 +168,8 @@ class Taban:
         if yol == "/giris":
             if yontem == "POST":
                 return self._giris(form, ip, simdi)
-            return yonlendir("/") if ot else yanit_html(self._giris_html())
+            # oturum varken giriş sayfası (ör. cihaz.wificorrect.com oturumsuz → panel girişi): giriş sonrası sayfaya
+            return yonlendir(self.giris_sonrasi(ot["user"])) if ot else yanit_html(self._giris_html())
         if not ot:
             return yonlendir("/giris")
         if yontem == "POST" and not hmac.compare_digest(form.get("csrf", "").encode(), ot["csrf"].encode()):

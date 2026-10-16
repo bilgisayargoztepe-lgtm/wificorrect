@@ -4,10 +4,18 @@
 import time
 import urllib.parse
 
+import common
 import guvenlik
 import raporlar as raporlar_modulu
+import veri as veri_modulu
 import web
 from web import e, kart, yanit_html, yonlendir
+
+HAZIRLIK_SN = 30  # cihaz bağlandıktan sonra tünel kalkana dek "panel hazırlanıyor" (sonra cihaz paneline)
+YENILE_SN = 5
+BULUNAMADI = ("Cihazınız bulunamadı. Cihazın modeme takılı ve açık olduğundan, bu sayfayı cihazla aynı internetten "
+              "(işletmenin Wi-Fi'ı ya da kablosu; mobil veri değil) açtığınızdan emin olun.")
+BAGLANIYOR = "Cihazınız bulundu ve hesabınıza bağlanıyor. Bu birkaç dakika sürebilir; bu sayfa kendini yeniler."
 
 
 def parola_html(ot, hata="", tamam=""):
@@ -42,7 +50,60 @@ class Musteri(web.Taban):
         return c["tunel_ip"]
 
     def giris_sonrasi(self, kimlik):
-        return "/cihaz" if self.cihaz_adresi(int(kimlik)) else "/"
+        """Cihazı çalışıyorsa cihaz paneli; bağlı cihazı yoksa (üyelik aktif) kolay bağlama; değilse yedek arşiv."""
+        n = int(kimlik)
+        if self.cihaz_adresi(n):
+            return "/cihaz"
+        m = self.veri.musteri(n)
+        if self.veri.bagli_cihaz(n) is None and m is not None and m["uyelik"] == "aktif":
+            return "/baglan"
+        return "/"
+
+    # --- kolay bağlama (spec 2026-10-16) ---
+    def _bekle_sayfasi(self, ot, baslik, metin):
+        return yanit_html(self.sayfa(baslik, kart(f'<h1>{e(baslik)}</h1><p>{e(metin)}</p>'), ot, yenile=YENILE_SN))
+
+    def baglan(self, ot, n, yontem, form, ip):
+        """Müşterinin bağlı cihazı yoksa aynı internet adresinden bekleyen cihazı bulur: tek → kendiliğinden ayırır,
+        çok → liste (müşteri seçer), hiç → nasıl yapılacağı. Ayrılan cihaz sonraki bildiriminde bağlanır."""
+        c = self.veri.bagli_cihaz(n)
+        if c is not None:
+            r = self.veri.bekleyen_musterinin(n)
+            if r and r["atama"] == "bagli":
+                gecen = self.saat() - r["baglandi"]
+                if not c["tunel_ip"] and gecen < veri_modulu.AYRILMA_SN:  # tünel kaydı başarısız: cihaz yeniden deniyor
+                    return self._bekle_sayfasi(ot, "Cihazınız bağlanıyor", BAGLANIYOR)
+                if c["tunel_ip"] and gecen < HAZIRLIK_SN:
+                    return self._bekle_sayfasi(ot, "Cihazınız bağlandı", "Cihaz paneliniz hazırlanıyor, bu sayfa kendini yeniler.")
+            return yonlendir("/cihaz")
+        m = self.veri.musteri(n)
+        if m is None or m["uyelik"] != "aktif":
+            return yanit_html(self.mesaj(ot, "Cihaz bağlanamıyor", "Üyeliğiniz sona ermiş. Hizmet sağlayıcınıza başvurun."))
+        adaylar = self.veri.bekleyen_adaylar(ip) if ip and ip != "yerel" else []
+        if yontem == "POST":
+            k = form.get("kimlik", "")
+            if not any(a["kimlik"] == k for a in adaylar) or not self.veri.bekleyen_ayir(k, n, ip):
+                return yanit_html(self.mesaj(ot, "Cihaz seçilemedi", "Bu cihaz artık seçilemiyor. Sayfayı yenileyip tekrar deneyin."), 400)
+            self.veri.hareket(str(n), ip, "CIHAZ_OTOMATIK_AYRILDI", n, f"kimlik={k[:8]} secim=liste")
+            return yonlendir("/baglan")
+        if self.veri.bekleyen_musterinin(n):
+            return self._bekle_sayfasi(ot, "Cihazınız bağlanıyor", BAGLANIYOR)
+        if len(adaylar) == 1 and self.veri.bekleyen_ayir(adaylar[0]["kimlik"], n, ip):
+            self.veri.hareket(str(n), ip, "CIHAZ_OTOMATIK_AYRILDI", n, f"kimlik={adaylar[0]['kimlik'][:8]} secim=tek")
+            return self._bekle_sayfasi(ot, "Cihazınız bağlanıyor", BAGLANIYOR)
+        if not adaylar:
+            return yanit_html(self.sayfa("Cihaz bağlama", kart(
+                f'<h1>Cihazınız bulunamadı</h1><p>{e(BULUNAMADI)}</p><p><a href="/baglan">Yeniden dene</a></p>'), ot))
+        satirlar = "".join(
+            f'<tr><td>{e(common.tarih_goster(common.now_iso(a["ilk"])))}</td><td>{e(a["wan_mac"][-5:].upper() or "—")}</td>'
+            f'<td>{e(a["surum"] or "—")}</td><td><form method="post" action="/baglan">'
+            f'<input type="hidden" name="csrf" value="{e(ot["csrf"])}"><input type="hidden" name="kimlik" value="{e(a["kimlik"])}">'
+            '<button class="ikincil">Bu cihaz</button></form></td></tr>' for a in adaylar)
+        return yanit_html(self.sayfa("Cihaz bağlama", kart(
+            '<h1>Birden çok cihaz bulundu</h1><p>Bu internet bağlantısında bağlanmayı bekleyen birden çok cihaz var. '
+            'Sizinkini seçin: cihazın altındaki etiketteki MAC adresinin son dört hanesine bakın.</p>'
+            '<div class="kaydir"><table><tr><th>İlk görülme</th><th>MAC (son 4)</th><th>Sürüm</th><th></th></tr>'
+            f'{satirlar}</table></div><p><a href="/baglan">Listeyi yenile</a></p>'), ot))
 
     def dogrula(self, kul, pw):
         if not guvenlik.NUMARA_RE.fullmatch(kul):
@@ -76,7 +137,12 @@ class Musteri(web.Taban):
             return self.kayit_sayfasi(ot, n, yol, sorgu, "", ip, baslik, yontem, form)
         if yontem == "GET" and (yol == "/raporlar" or yol.startswith("/rapor/")):
             return raporlar_modulu.istek(self, ot, n, yol, "")
+        if yol == "/baglan" and yontem in ("GET", "POST"):
+            return self.baglan(ot, n, yontem, form, ip)
         if yol == "/cihaz" and yontem == "GET":
+            m = self.veri.musteri(n)
+            if self.veri.bagli_cihaz(n) is None and m is not None and m["uyelik"] == "aktif":
+                return yonlendir("/baglan")
             if self.cihaz_adresi(n) and "yok" not in urllib.parse.parse_qs(sorgu):  # yok=1: Caddy cihaza ulaşamadı → döngü olmasın
                 ozet = self.veri.musteri(n)["ozet"]
                 return yonlendir("https://cihaz.wificorrect.com/_giris?t=" + self.gecis.uret(ot["user"], self.saat(), ozet))

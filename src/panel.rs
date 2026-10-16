@@ -994,7 +994,9 @@ impl Panel {
             "<div class=\"kart dar\"><h2>Cihazı eşleştir — müşteri numarası ve parola</h2>{err}<form method=\"post\" action=\"/giris\"><label for=\"k\">Müşteri numarası</label>\
              <input type=\"text\" id=\"k\" name=\"kullanici\" autocomplete=\"username\" required autofocus>\
              <label for=\"p\">Parola</label><input type=\"password\" id=\"p\" name=\"parola\" autocomplete=\"current-password\" required>\
-             <div style=\"margin-top:20px\"><button>Giriş</button></div></form></div>"
+             <div style=\"margin-top:20px\"><button>Giriş</button></div></form>\
+             <p class=\"alt\">Kolay yol: bu cihazla aynı internetten <a href=\"https://cihaz.wificorrect.com\">cihaz.wificorrect.com</a> \
+             adresine müşteri numaranız ve parolanızla girin; cihaz birkaç dakikada kendiliğinden bağlanır.</p></div>"
         );
         self.page(cfg, req, None, "Cihazı eşleştir", &body)
     }
@@ -1012,8 +1014,10 @@ impl Panel {
             self.giris(cfg, req, e)
         };
         let surum = {
-            // bağ kontrolü ve ilk bağlanma kilit altında: aynı anda iki giriş iki ayrı cihaz anahtarı almasın
+            // bağ kontrolü ve ilk bağlanma kilit altında: aynı anda iki giriş iki ayrı cihaz anahtarı almasın; dosya kilidi
+            // kolay bağlamayla (`ctl bekliyor`, ayrı süreç) yarışmasın diye
             let _k = self.baglan_kilit.lock().unwrap_or_else(|e| e.into_inner());
+            let _d = crate::merkez::kilit(&self.merkez_path);
             match crate::merkez::oku(&self.merkez_path) {
                 Some(m) => {
                     if user != m.numara {
@@ -1056,18 +1060,7 @@ impl Panel {
             Err(crate::merkez::GirisHata::Baglanti) => return Err(("Merkeze ulaşılamadı, internet bağlantısını kontrol edin. Modem kablosunun Ethernet 1'e takılı olduğunu kontrol edin.".into(), false)),
             Err(crate::merkez::GirisHata::Mesaj(m, kilit)) => return Err((m, kilit)),
         };
-        // önce ayarlar (tünel + yedek), sonra bağ: ayar yazılamazsa cihaz "bağlı ama tünelsiz" kalmasın
-        let mut yeni = cfg.clone();
-        crate::merkez::uygula(&mut yeni, &g);
-        let (admin, sms) = crate::merkez::ek_uygula(&mut yeni, &self.hesaplar, &g.ek);
-        yeni.save(&self.cfg_path).map_err(|e| (e, false))?;
-        crate::merkez::kaydet(&self.merkez_path, &g.merkez).map_err(|e| (e, false))?;
-        // güncellenen eski cihazdaki yerel sahip hesapları artık geçersiz: yalnızca admin kalır
-        if let Err(e) = self.hesaplar.keep_only_admin() {
-            eprintln!("panel: {e}");
-        }
-        let unit = format!("wfc-uzak-{}", ortak::random_hex(4));
-        (self.runner)(&cmd(&["systemd-run", "--collect", "--unit", &unit, "--on-active", "1s", "/usr/local/bin/wificorrect", "ctl", "uzak-uygula"]));
+        let (yeni, admin, sms) = crate::merkez::kur(cfg, &self.cfg_path, &self.merkez_path, &self.hesaplar, &g, &*self.runner).map_err(|e| (e, false))?;
         self.audit(&yeni, req, None, "PANEL_MERKEZ_BAGLANDI", &format!("numara={numara} tunel={}", g.tunel_ip));
         match admin {
             Ok(true) => self.audit(&yeni, req, None, "ADMIN_PAROLA_MERKEZ", ""),
@@ -1075,10 +1068,7 @@ impl Panel {
             Err(e) => self.audit(&yeni, req, None, "MERKEZ_EK_HATA", &e),
         }
         match sms {
-            Ok(true) => {
-                self.audit(&yeni, req, None, "SMS_AYARI_MERKEZ", ""); // şifre yazılmaz
-                (self.runner)(&cmd(&["systemctl", "restart", "wificorrect-portal"]));
-            }
+            Ok(true) => self.audit(&yeni, req, None, "SMS_AYARI_MERKEZ", ""), // şifre yazılmaz; portal kur'da yeniden başladı
             Ok(false) => {}
             Err(e) => self.audit(&yeni, req, None, "MERKEZ_EK_HATA", &e),
         }

@@ -298,6 +298,16 @@ pub fn state_lock(state_root: &str) -> std::io::Result<StateLock> {
     Ok(StateLock(f))
 }
 
+/// Herhangi bir kilit dosyası (600); düşünce bırakılır.
+pub fn dosya_kilidi(path: &Path) -> std::io::Result<StateLock> {
+    if let Some(d) = path.parent() {
+        mkdirs(d)?;
+    }
+    let f = OpenOptions::new().append(true).create(true).mode(0o600).open(path)?;
+    flock(&f);
+    Ok(StateLock(f))
+}
+
 pub fn sessions_path(state_root: &str) -> PathBuf {
     Path::new(state_root).join("sessions.json")
 }

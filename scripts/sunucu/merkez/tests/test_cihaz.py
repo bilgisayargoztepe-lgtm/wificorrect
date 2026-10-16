@@ -103,6 +103,10 @@ def test_cikis_iki_oturumu_kapatir_ve_cihazsiz_musteri_merkezde_kalir():
         assert m.istek("GET", "/", {"Cookie": cz}, "", "", "1.2.3.4")[0] == 303  # merkez oturumu da kapandı → giriş
         n2, _ = v.musteri_ekle(parola="musteri-parola-2")  # cihazı yok
         r = gir(m, n2, "musteri-parola-2")
+        assert r[1]["Location"] == "/baglan"  # kolay bağlama (spec 2026-10-16)
+        assert m.istek("GET", "/cihaz", {"Cookie": Y.cerez(r)}, "", "", "1.2.3.4")[1]["Location"] == "/baglan"
+        v.uyelik(n2, "bitti")  # üyeliği biten cihazsız müşteri merkezde (yedek arşiv) kalır
+        r = gir(m, n2, "musteri-parola-2")
         assert r[1]["Location"] == "/"
         s = m.istek("GET", "/cihaz", {"Cookie": Y.cerez(r)}, "", "", "1.2.3.4")[2].decode()
         assert "ulaşılamıyor" in s

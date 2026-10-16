@@ -42,6 +42,13 @@ def test_kilit_ve_hiz():
     assert h.izin("ip", 61)
 
 
+def test_hiz_siniri_eski_anahtarlari_unutur():
+    h = G.HizSiniri(1, 60)
+    assert h.izin("a", 0) and h.izin("b", 1) and not h.izin("a", 2)
+    assert h.izin("c", 200)  # pencereden eski anahtarlar bellekten silinir
+    assert set(h._z) == {"c"}
+
+
 if __name__ == "__main__":
     for _name, _fn in sorted(globals().items()):
         if _name.startswith("test_") and callable(_fn):

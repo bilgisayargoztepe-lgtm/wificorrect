@@ -3,6 +3,7 @@ SQLite; tek bağlantı + kilit (ThreadingHTTPServer iş parçacıkları için). 
 import contextlib
 import datetime
 import hashlib
+import hmac
 import json
 import os
 import secrets
@@ -28,7 +29,8 @@ CREATE TABLE IF NOT EXISTS cihaz (
   surum TEXT NOT NULL DEFAULT '', son_eslesme TEXT NOT NULL DEFAULT '', baglanma TEXT NOT NULL,
   admin_parola TEXT NOT NULL DEFAULT '', admin_tuz TEXT NOT NULL DEFAULT '',
   admin_ozet TEXT NOT NULL DEFAULT '', admin_yineleme INTEGER NOT NULL DEFAULT 0,
-  ayrilma TEXT NOT NULL DEFAULT '', isletme_turu TEXT NOT NULL DEFAULT '', adres TEXT NOT NULL DEFAULT '');
+  ayrilma TEXT NOT NULL DEFAULT '', isletme_turu TEXT NOT NULL DEFAULT '', adres TEXT NOT NULL DEFAULT '',
+  otomatik INTEGER NOT NULL DEFAULT 0);
 CREATE UNIQUE INDEX IF NOT EXISTS cihaz_tek ON cihaz(musteri) WHERE durum != 'serbest';
 CREATE TABLE IF NOT EXISTS hareket (
   id INTEGER PRIMARY KEY AUTOINCREMENT, zaman TEXT NOT NULL, kim TEXT NOT NULL, ip TEXT NOT NULL,
@@ -48,7 +50,20 @@ CREATE TABLE IF NOT EXISTS sms_sayac (
   musteri INTEGER NOT NULL, gun TEXT NOT NULL, sayi INTEGER NOT NULL, PRIMARY KEY (musteri, gun));
 CREATE TABLE IF NOT EXISTS sms_son (
   musteri INTEGER PRIMARY KEY, zaman TEXT NOT NULL, saglayici TEXT NOT NULL, sonuc TEXT NOT NULL, kod TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS bekleyen (
+  kimlik TEXT PRIMARY KEY, sir_ozet TEXT NOT NULL, ilk REAL NOT NULL, son REAL NOT NULL, ip TEXT NOT NULL,
+  surum TEXT NOT NULL DEFAULT '', wan_mac TEXT NOT NULL DEFAULT '', wg_pub TEXT NOT NULL, ssh_pub TEXT NOT NULL,
+  musteri INTEGER, ayrilma REAL NOT NULL DEFAULT 0, belirtec_ozet TEXT NOT NULL DEFAULT '',
+  belirtec_bitis REAL NOT NULL DEFAULT 0, cihaz INTEGER, baglandi REAL NOT NULL DEFAULT 0);
+CREATE INDEX IF NOT EXISTS bekleyen_ip ON bekleyen(ip, son);
 """
+# Kolay bağlama (spec 2026-10-16): bağlanmamış cihazın bekleme kaydı
+BEKLEYEN_SIL_SN = 7 * 86400  # bu kadar bildirmeyen kayıt silinir
+BEKLEYEN_ESKI_SN = 1800  # yönetimde "eski"
+BEKLEYEN_ADAY_SN = 600  # müşteri girişinde aday: son bu kadar süre içinde bildirmiş
+AYRILMA_SN = 900  # ayrılmış ama bu sürede bağlanmamış cihaz serbest kalır
+BELIRTEC_SN = 600  # tek kullanımlık bağlama belirteci
+BEKLEYEN_EN_COK = 2000
 CIHAZ_ALANLARI = {"tunel_ip", "isletme_adi", "unvan", "adres", "surum", "son_eslesme", "isletme_turu"}
 # Cihazın eşitlemede bildirdiği işletme türü (cihaz ayarı main.isletme_turu); başka değer saklanmaz
 ISLETME_TURLERI = {"kafe": "Kafe/Restoran", "otel": "Otel/Pansiyon", "yurt": "Yurt", "diger": "Diğer"}
@@ -59,7 +74,8 @@ YENI_SUTUNLAR = (("parola_acik", "TEXT NOT NULL DEFAULT ''"), ("lisans_bitis", "
 GUNCELLEME_KANALLARI = ("kararli", "test", "kapali")
 YENI_CIHAZ_SUTUNLARI = (("admin_parola", "TEXT NOT NULL DEFAULT ''"), ("admin_tuz", "TEXT NOT NULL DEFAULT ''"),
                         ("admin_ozet", "TEXT NOT NULL DEFAULT ''"), ("admin_yineleme", "INTEGER NOT NULL DEFAULT 0"),
-                        ("isletme_turu", "TEXT NOT NULL DEFAULT ''"), ("adres", "TEXT NOT NULL DEFAULT ''"))
+                        ("isletme_turu", "TEXT NOT NULL DEFAULT ''"), ("adres", "TEXT NOT NULL DEFAULT ''"),
+                        ("otomatik", "INTEGER NOT NULL DEFAULT 0"))  # kolay bağlamayla bağlandı: eski SMS eki gitmez
 UYARI_VARSAYILAN = {"telefonlar": [], "acik": False, "gunluk_sinir": 20}
 UYARI_TELEFON_EN_COK = 3
 UYARI_SINIR_ARALIK = (2, 100)  # günlük uyarı SMS sınırı (yönetim formu da bunu kullanır)
@@ -258,6 +274,10 @@ class Veri:
                 (numara, wg_pub, ssh_pub, anahtar_ozeti(anahtar), isletme_adi, unvan, surum, self._simdi()))
             return cur.lastrowid, anahtar
 
+    def cihaz_otomatik_isaretle(self, cid):
+        with self._islem() as db:
+            db.execute("UPDATE cihaz SET otomatik = 1 WHERE id = ?", (cid,))
+
     def cihaz_anahtarla(self, anahtar):
         if not isinstance(anahtar, str) or not anahtar:
             return None
@@ -297,6 +317,133 @@ class Veri:
     def temizlendi(self, cid):
         with self._islem() as db:
             db.execute("UPDATE cihaz SET durum = 'serbest', ayrilma = ? WHERE id = ?", (self._simdi(), cid))
+
+    # --- kolay bağlama (spec 2026-10-16): bağlanmamış cihazların bekleme kayıtları ---
+    @staticmethod
+    def _atama(db, r, simdi, wg_pub=None):
+        """Kaydın müşteriye ayrılması hâlâ geçerli mi: "bagli" (bu kayıttan bağlanmış, bağ aynı wg anahtarıyla duruyor —
+        cihaz cevabı kaybettiyse yeniden bağlanır), "ayrildi" (AYRILMA_SN içinde, müşterinin bağlı cihazı yok, üyeliği
+        aktif) ya da None."""
+        if r["musteri"] is None:
+            return None
+        if r["cihaz"] is not None:
+            c = db.execute("SELECT * FROM cihaz WHERE id = ?", (r["cihaz"],)).fetchone()
+            ok = (c is not None and c["durum"] == "bagli" and c["musteri"] == r["musteri"]
+                  and c["wg_pub"] == (wg_pub or r["wg_pub"]))
+            return "bagli" if ok else None
+        if simdi - r["ayrilma"] > AYRILMA_SN:
+            return None
+        m = db.execute("SELECT uyelik FROM musteri WHERE numara = ?", (r["musteri"],)).fetchone()
+        if m is None or m["uyelik"] != "aktif":
+            return None
+        if db.execute("SELECT 1 FROM cihaz WHERE musteri = ? AND durum != 'serbest'", (r["musteri"],)).fetchone():
+            return None
+        return "ayrildi"
+
+    def _aday_mi(self, db, r, simdi):
+        """Kimseye (geçerli olarak) ayrılmamış ve wg anahtarı bağlı bir cihazda olmayan kayıt."""
+        if self._atama(db, r, simdi) is not None:
+            return False
+        return db.execute("SELECT 1 FROM cihaz WHERE wg_pub = ? AND durum != 'serbest'", (r["wg_pub"],)).fetchone() is None
+
+    def bekleyen_bildir(self, kimlik, sir, ip, surum, wan_mac, wg_pub, ssh_pub):
+        """Cihazın "bekliyorum" bildirimi. Dönen: (durum, yeni_mi, belirteç): durum "bekle" | "baglan" (belirteç açık,
+        yalnızca burada) | "taninmadi" (sır tutmadı, kayıt değişmez) | "dolu" (tablo sınırı). İlk bildirim sırrın özetini
+        kaydeder; sonrakiler aynı sırrı kanıtlamalıdır."""
+        simdi = self.saat()
+        oz = anahtar_ozeti(sir)
+        with self._islem() as db:
+            db.execute("DELETE FROM bekleyen WHERE son < ?", (simdi - BEKLEYEN_SIL_SN,))
+            r = db.execute("SELECT * FROM bekleyen WHERE kimlik = ?", (kimlik,)).fetchone()
+            if r is None:
+                if db.execute("SELECT COUNT(*) FROM bekleyen").fetchone()[0] >= BEKLEYEN_EN_COK:
+                    # tavan doluysa aday olmayan (BEKLEYEN_ADAY_SN'dir bildirmeyen), kimseye ayrılmamış en eski kayıt
+                    # yer açar: bir kez doldurulan tablo yeni cihazları 7 gün kapatmasın
+                    sil = db.execute("SELECT kimlik FROM bekleyen WHERE musteri IS NULL AND cihaz IS NULL AND son < ? "
+                                     "ORDER BY son, kimlik LIMIT 1", (simdi - BEKLEYEN_ADAY_SN,)).fetchone()
+                    if sil is None:
+                        return "dolu", False, None
+                    db.execute("DELETE FROM bekleyen WHERE kimlik = ?", (sil["kimlik"],))
+                db.execute("INSERT INTO bekleyen (kimlik, sir_ozet, ilk, son, ip, surum, wan_mac, wg_pub, ssh_pub) "
+                           "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", (kimlik, oz, simdi, simdi, ip, surum, wan_mac, wg_pub, ssh_pub))
+                return "bekle", True, None
+            if not hmac.compare_digest(r["sir_ozet"], oz):
+                return "taninmadi", False, None
+            db.execute("UPDATE bekleyen SET son = ?, ip = ?, surum = ?, wan_mac = ?, wg_pub = ?, ssh_pub = ? WHERE kimlik = ?",
+                       (simdi, ip, surum, wan_mac, wg_pub, ssh_pub, kimlik))
+            if self._atama(db, r, simdi, wg_pub) is None:
+                if r["musteri"] is not None:  # süresi dolmuş / bozulmuş ayrılma düşer
+                    db.execute("UPDATE bekleyen SET musteri = NULL, ayrilma = 0, cihaz = NULL, baglandi = 0, "
+                               "belirtec_ozet = '', belirtec_bitis = 0 WHERE kimlik = ?", (kimlik,))
+                return "bekle", False, None
+            t = secrets.token_urlsafe(32)
+            db.execute("UPDATE bekleyen SET belirtec_ozet = ?, belirtec_bitis = ? WHERE kimlik = ?",
+                       (anahtar_ozeti(t), simdi + BELIRTEC_SN, kimlik))
+            return "baglan", False, t
+
+    def bekleyen_var(self, kimlik):
+        return self._bir("SELECT 1 FROM bekleyen WHERE kimlik = ?", kimlik) is not None
+
+    def bekleyen_adaylar(self, ip):
+        """Müşterinin tarayıcısıyla aynı internet adresinden son BEKLEYEN_ADAY_SN içinde bildirmiş, ayrılabilir kayıtlar."""
+        simdi = self.saat()
+        with self.lock:
+            rows = self.db.execute("SELECT * FROM bekleyen WHERE ip = ? AND son >= ? ORDER BY ilk, kimlik",
+                                   (ip, simdi - BEKLEYEN_ADAY_SN)).fetchall()
+            return [dict(r) for r in rows if self._aday_mi(self.db, r, simdi)]
+
+    def bekleyen_ayir(self, kimlik, numara, ip):
+        """Kaydı müşteriye ayırır (hâlâ aynı IP'den aday ve müşterinin bağlı cihazı yoksa). Müşterinin bağlanmamış
+        başka ayrılmaları düşer. Dönen: başarılı mı."""
+        simdi = self.saat()
+        with self._islem() as db:
+            r = db.execute("SELECT * FROM bekleyen WHERE kimlik = ? AND ip = ? AND son >= ?",
+                           (kimlik, ip, simdi - BEKLEYEN_ADAY_SN)).fetchone()
+            if r is None or not self._aday_mi(db, r, simdi):
+                return False
+            m = db.execute("SELECT uyelik FROM musteri WHERE numara = ?", (numara,)).fetchone()
+            if m is None or m["uyelik"] != "aktif":
+                return False
+            if db.execute("SELECT 1 FROM cihaz WHERE musteri = ? AND durum != 'serbest'", (numara,)).fetchone():
+                return False
+            db.execute("UPDATE bekleyen SET musteri = NULL, ayrilma = 0, belirtec_ozet = '', belirtec_bitis = 0 "
+                       "WHERE musteri = ? AND cihaz IS NULL", (numara,))
+            db.execute("UPDATE bekleyen SET musteri = ?, ayrilma = ?, cihaz = NULL, baglandi = 0, belirtec_ozet = '', "
+                       "belirtec_bitis = 0 WHERE kimlik = ?", (numara, simdi, kimlik))
+            return True
+
+    def bekleyen_musterinin(self, numara):
+        """Müşteriye geçerli olarak ayrılmış (ya da ondan bağlanmış) kayıt; {"atama": "ayrildi"|"bagli", …} ya da None."""
+        simdi = self.saat()
+        with self.lock:
+            for r in self.db.execute("SELECT * FROM bekleyen WHERE musteri = ? ORDER BY ayrilma DESC", (numara,)).fetchall():
+                a = self._atama(self.db, r, simdi)
+                if a:
+                    return dict(r, atama=a)
+        return None
+
+    def bekleyen_belirtec_tuket(self, kimlik, sir, belirtec):
+        """Bağlama belirteci: sır ve belirteç tutuyor, süresi geçmemiş, kayıt bir müşteriye ayrılmışsa kaydı döner;
+        belirteç her durumda tüketilir (tek kullanımlık). Değilse None."""
+        simdi = self.saat()
+        with self._islem() as db:
+            r = db.execute("SELECT * FROM bekleyen WHERE kimlik = ?", (kimlik,)).fetchone()
+            if r is None or not hmac.compare_digest(r["sir_ozet"], anahtar_ozeti(sir)) or not r["belirtec_ozet"]:
+                return None
+            db.execute("UPDATE bekleyen SET belirtec_ozet = '', belirtec_bitis = 0 WHERE kimlik = ?", (kimlik,))
+            if not hmac.compare_digest(r["belirtec_ozet"], anahtar_ozeti(belirtec)) or simdi > r["belirtec_bitis"]:
+                return None
+            return dict(r) if r["musteri"] is not None else None
+
+    def bekleyen_baglandi(self, kimlik, cid):
+        with self._islem() as db:
+            db.execute("UPDATE bekleyen SET cihaz = ?, baglandi = ? WHERE kimlik = ?", (cid, self.saat(), kimlik))
+
+    def bekleyenler(self):
+        """Yönetim listesi (yeniden eskiye); BEKLEYEN_SIL_SN'den eski kayıtlar önce silinir."""
+        with self._islem() as db:
+            db.execute("DELETE FROM bekleyen WHERE son < ?", (self.saat() - BEKLEYEN_SIL_SN,))
+            return [dict(r) for r in db.execute("SELECT * FROM bekleyen ORDER BY son DESC, kimlik")]
 
     # --- sürüm deposu ve güncelleme kanalları (uzaktan güncelleme) ---
     @staticmethod

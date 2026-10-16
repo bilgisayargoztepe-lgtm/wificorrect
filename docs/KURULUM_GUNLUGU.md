@@ -449,3 +449,39 @@ Türkiye'deki modem/AP'lerin çoğu fabrikada 192.168.1.1 (ör. ZyXEL P-660HN-T1
 - Canlı Göztepe cihazı: 0.4.12'ye geçince eski metin yenisiyle değişir ve adres boş olduğu için yer tutucu görünür;
   güncellemeden sonra panelden unvan + adres (+ telefon, KEP, e-posta) girilmeli.
 
+
+## Kolay bağlama (2026-10-16, sürüm 0.4.13)
+Dal `kolay-baglama`; tasarım `docs/superpowers/specs/2026-10-16-kolay-baglama-design.md`, plan `docs/superpowers/plans/2026-10-16-kolay-baglama.md`.
+- **Akış:** bağlanmamış cihaz (merkez.json yok) internete çıkınca kaydedici 2 dk'da bir `systemd-run --unit wfc-bekliyor … ctl bekliyor`
+  başlatır → `POST /api/bekliyor` (kimlik, sır, sürüm, WAN MAC, WireGuard + yedek açık anahtarı). Müşteri panel.wificorrect.com'a
+  (ya da cihaz.wificorrect.com → panel girişi) girer; bağlı cihazı yoksa `/baglan`: aynı internet adresinden son 10 dk'da
+  bildiren tek aday → müşteriye ayrılır (`CIHAZ_OTOMATIK_AYRILDI`), çok aday → liste (ilk görülme, WAN MAC son 4, sürüm), hiç →
+  "bulunamadı" + yeniden dene. Ayrılan cihaz sonraki bildiriminde `baglan` + tek kullanımlık belirteç (10 dk) alır ve
+  `POST /api/bagla` ile parolasız bağlanır (yan etkiler `/api/giris` ile aynı; cevapta `numara`). Sayfa 5 sn'de bir yenilenir;
+  bağlandıktan 30 sn sonra cihaz paneline geçer (tünel kalksın). Yerel `https://<ip>:8443` bağlama sayfası yedek yol olarak kalır.
+- **Kimlik:** cihazda `/etc/wificorrect/bekleme.json` (600; 32 hex kimlik + 64 hex sır), ilk `ctl bekliyor`da üretilir, fabrika
+  dönüşünde kalır. Merkez sırrın yalnızca SHA-256'sını tutar (ilk bildirim kaydeder); sırrı tutmayan bildirim 401 ve kaydı değiştirmez.
+- **Merkez kuralları:** tablo `bekleyen`; 30 dk bildirmeyen yönetimde "eski", 7 gün bildirmeyen silinir; ayrılmış ama 15 dk'da
+  bağlanmamış cihaz serbest kalır; wg anahtarı bağlı bir cihazda olan kayıt aday olmaz; bu kayıttan bağlanmış cihaz cevabı
+  kaybettiyse (bağ duruyor, cihaz yine bildiriyor) yeniden `baglan` alır (aynı müşteri, aynı wg anahtarı). Hız: IP başına genel
+  sınır + kimlik başına dakikada 3 + IP başına saatte 10 yeni kimlik; tabloda en çok 2000 kayıt. Üyeliği bitmiş müşteri bağlamaz.
+- **Yönetim → Bekleyen cihazlar** (salt okunur): kimlik (ilk 8), ilk/son görülme, internet adresi, sürüm, WAN MAC, durum.
+- **Denetim:** cihaz `MERKEZ_BEKLIYOR durum=bekle|ulasilamadi` (yalnızca değişince; `/var/lib/wificorrect/bekleme-durum`),
+  `MERKEZ_BAGLANDI … yol=otomatik`, `MERKEZ_BAGLAMA_HATA`, ayrıca `ADMIN_PAROLA_MERKEZ` / `SMS_AYARI_MERKEZ`; merkez `CIHAZ_BEKLIYOR`
+  (ilk görülme), `CIHAZ_OTOMATIK_AYRILDI secim=tek|liste`, `CIHAZ_BAGLANDI … otomatik`.
+- **Caddy değişikliği yok:** cihaz.wificorrect.com oturumsuzken zaten panel girişine yönlenir; oturum varken panel `/giris` artık
+  giriş sonrası sayfaya (cihaz paneli ya da bağlama) gider. İstemci adresi `X-Forwarded-For`'un son öğesi (api ve panel aynı Caddy).
+- **Bilinen sınır:** müşterinin tarayıcısı IPv6, cihaz IPv4 ile çıkarsa adresler eşleşmez; ikisi de IPv6 ile çıksa da eşleşmez
+  (gizlilik adresleri aynı /64'te bile farklı) — alan adlarında AAAA kaydı yoksa sorun yok, eklenirse cihaz curl'üne `-4` verilmeli;
+  CGNAT'ta aynı dış adresi paylaşan başka bir bekleyen cihaz varsa liste gösterilir (kendiliğinden bağlanmaz).
+- **Kalan risk (kabul edildi, spec "Anti-hedefler"):** aynı dış adresi paylaşan biri (müşterilere açık modem Wi-Fi'ı, CGNAT)
+  hesapsız sahte cihaz bildirip, sahip gerçek cihazdan önce girerse onu müşteriye bağlatabilir. En aza indirme: `/api/bagla` ve bu
+  yolla bağlanmış cihazın (`cihaz.otomatik=1`) eşitlemeleri ortak NetGSM bilgisini taşımaz; parola özeti, admin özeti ve cihaz
+  anahtarı bağlama için gerekli olduğundan kalır (`/api/giris` değişmedi). Görme ve kurtarma: Yönetim → Bekleyen cihazlar ve
+  hareketler (`CIHAZ_BAGLANDI … otomatik kimlik=…`, `CIHAZ_BEKLIYOR_RED` / `CIHAZ_BAGLA_RED` — sırrı ya da belirteci tutmayan
+  deneme, kimlik başına saatte bir satır); yanlış bağ "zorla ayır" ile kalkar.
+- **Kayıt hatasında takılmama:** kuyruk (tünel + yedek hesabı) başarısız ya da zaman aşımı olursa (`CIHAZ_KAYIT_HATA`, 503) bekleme
+  kaydı bağa önceden işaretlendiği için cihaz sonraki bildiriminde yeniden `baglan` alır ve dener; müşteri bu sürede (en çok 15 dk)
+  "bağlanıyor" görür, "ulaşılamıyor"a düşmez. Tablo tavanı (2000) doluysa 10 dk'dır bildirmeyen, kimseye ayrılmamış en eski kayıt
+  yer açar. Hız sınırlayıcılar pencereden eski anahtarları bellekten siler.
+- **Kurulum sırası:** önce merkez (`merkez-guncelle.sh`), sonra cihazlar (0.4.13); ISO yeniden üretilir (yeni cihazlar kutudan çıkınca bildirsin).

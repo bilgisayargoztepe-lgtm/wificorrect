@@ -154,7 +154,7 @@ class Yonetim(web.Taban):
         return int(m.group(1)) if m else None
 
     def menu(self, ot):
-        return ('<a href="/">Müşteriler</a><a href="/yeni">Yeni müşteri</a><a href="/hareketler">Hareketler</a>'
+        return ('<a href="/">Müşteriler</a><a href="/yeni">Yeni müşteri</a><a href="/bekleyen">Bekleyen cihazlar</a><a href="/hareketler">Hareketler</a>'
                 '<a href="/surumler">Sürümler</a><a href="/listeler">Engel listeleri</a><a href="/sms">SMS ayarları</a><a href="/uyari">Uyarı ayarları</a><a href="/admin-parolasi">Admin parolası</a><a href="/eski-arsivler">Eski arşivler</a><a href="/hesabim">Hesabım</a>')
 
     # --- yardımcılar ---
@@ -192,6 +192,8 @@ class Yonetim(web.Taban):
             return self.liste(ot, sorgu)
         if yol == "/yeni":
             return self.yeni(ot, yontem, form, ip)
+        if (yontem, yol) == ("GET", "/bekleyen"):
+            return self.bekleyen_sayfasi(ot)
         if (yontem, yol) == ("GET", "/hareketler"):
             return yanit_html(self.sayfa("Hareketler", kart("<h1>Hareketler</h1>" + self._hareket_tablosu(self.veri.hareketler())), ot, genis=True))
         if yol == "/eski-arsivler":
@@ -265,6 +267,31 @@ class Yonetim(web.Taban):
             baslik = (c["isletme_adi"] if c is not None and c["isletme_adi"] else f"Müşteri {n}")
             return self.kayit_sayfasi(ot, n, alt[len("/kayitlar"):] or "/", sorgu, f"/m/{n}/kayitlar", ip, baslik, yontem, form)
         return None
+
+    def bekleyen_sayfasi(self, ot):
+        """Kolay bağlama (spec 2026-10-16): bağlanmayı bekleyen cihazlar, salt okunur (kurulumda neyin olduğunu görmek için)."""
+        simdi, satirlar = self.saat(), []
+        for r in self.veri.bekleyenler():
+            son = e(common.tarih_goster(common.now_iso(r["son"]), saniye=True))
+            if simdi - r["son"] > veri_modulu.BEKLEYEN_ESKI_SN:
+                son += ' <span class="uyarisi">eski</span>'
+            if r["cihaz"] is not None:
+                durum = f'bağlandı: <a href="/m/{r["musteri"]}">{r["musteri"]}</a>'
+            elif r["musteri"] is not None:
+                gecti = simdi - r["ayrilma"] > veri_modulu.AYRILMA_SN
+                durum = (f'ayrıldı: <a href="/m/{r["musteri"]}">{r["musteri"]}</a>'
+                         + (' <span class="alt">(süresi doldu)</span>' if gecti else ""))
+            else:
+                durum = "bekliyor"
+            satirlar.append(f'<tr><td>{e(r["kimlik"][:8])}</td><td>{e(common.tarih_goster(common.now_iso(r["ilk"])))}</td>'
+                            f'<td>{son}</td><td>{e(r["ip"])}</td><td>{e(r["surum"] or "—")}</td>'
+                            f'<td>{e(r["wan_mac"] or "—")}</td><td>{durum}</td></tr>')
+        tablo = ('<div class="kaydir"><table class="detay"><tr><th>Kimlik</th><th>İlk görülme</th><th>Son görülme</th>'
+                 '<th>İnternet adresi</th><th>Sürüm</th><th>WAN MAC</th><th>Durum</th></tr>' + "".join(satirlar)
+                 + "</table></div>") if satirlar else '<p class="alt">Bağlanmayı bekleyen cihaz yok.</p>'
+        aciklama = ('<p class="alt">Bağlanmamış cihazlar internete çıkınca 2 dakikada bir bildirir. Müşteri cihazla aynı internet '
+                    'adresinden panele girince cihaz kendiliğinden bağlanır. 30 dakikadır bildirmeyen "eski", 7 gün bildirmeyen silinir.</p>')
+        return yanit_html(self.sayfa("Bekleyen cihazlar", kart(f"<h1>Bekleyen cihazlar</h1>{aciklama}") + kart(tablo), ot, genis=True))
 
     def liste(self, ot, sorgu):
         q = detay.tr_kucuk((urllib.parse.parse_qs(sorgu).get("q") or [""])[0].strip())

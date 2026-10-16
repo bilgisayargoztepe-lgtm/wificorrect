@@ -131,16 +131,21 @@ class GirisKilidi:
 
 
 class HizSiniri:
-    """Anahtar başına kayan pencere (API: IP başına dakikada 20 istek).
-    ponytail: anahtarlar bellekten silinmez; çok sayıda farklı IP'de periyodik temizlik eklenir."""
+    """Anahtar başına kayan pencere (API: IP başına dakikada 20 istek). Pencere başına bir kez, son isteği pencereden
+    eski anahtarlar bellekten silinir (rastgele kimlik/IP ile bellek şişmesin)."""
 
     def __init__(self, limit=20, pencere=60):
         self.limit, self.pencere = limit, pencere
         self._z = collections.defaultdict(collections.deque)
         self.lock = threading.Lock()
+        self._temizlik = None
 
     def izin(self, anahtar, now):
         with self.lock:
+            if self._temizlik is None or now - self._temizlik >= self.pencere:
+                self._temizlik = now
+                for k in [k for k, q in self._z.items() if not q or q[-1] <= now - self.pencere]:
+                    del self._z[k]
             q = self._z[anahtar]
             while q and q[0] <= now - self.pencere:
                 q.popleft()

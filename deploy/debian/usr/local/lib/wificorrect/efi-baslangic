@@ -38,7 +38,16 @@ yaz() {
   mv -f "$1.yeni" "$1"
 }
 
+# startup.nsh başka bir sistemin ya da üreticinin olabilir: yalnızca yoksa ya da bizimkiyse (işareti arıyorsa) yazılır
+nsh_yaz() {
+  if [ -f "$1" ] && ! grep -qF 'EFI\wificorrect\kimlik' "$1"; then
+    echo "efi-baslangic: $1 başka bir sisteme ait, dokunulmadı" >&2
+    return 0
+  fi
+  yaz "$1" nsh
+}
+
 mkdir -p "$esp/EFI/BOOT" "$esp/EFI/wificorrect"
 yaz "$esp/EFI/wificorrect/kimlik" kimlik
-yaz "$esp/startup.nsh" nsh
-yaz "$esp/EFI/BOOT/startup.nsh" nsh
+nsh_yaz "$esp/startup.nsh"
+nsh_yaz "$esp/EFI/BOOT/startup.nsh"

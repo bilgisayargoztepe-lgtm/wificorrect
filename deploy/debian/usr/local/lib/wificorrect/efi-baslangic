@@ -1,0 +1,44 @@
+#!/bin/sh
+# Monitörsüz açılış (spec 2026-10-16-ap-arayuz, "Monitörsüz açılış denemesi"): bazı J1900 kutularının (AMI Aptio CRB,
+# 2015) NVRAM'inde önyükleme kaydı yok; monitör takılı değilken firmware yerleşik UEFI Shell'e düşüyor. Shell açılışta
+# startup.nsh'yi çalıştırır: işareti (\EFI\wificorrect\kimlik) taşıyan dosya sistemini (fs0..fs15) bulup
+# \EFI\BOOT\BOOTX64.EFI'yi (yoksa \EFI\debian\shimx64.efi, grubx64.efi) başlatır. Monitör varken Shell'e hiç
+# düşülmediği için zararsız. Etkisi gerçek cihazda doğrulanmadı.
+# Kullanım: efi-baslangic <EFI bölümünün bağlandığı dizin>  (paket: /boot/efi; kurucu: /target/boot/efi)
+# Dosyalar CRLF (UEFI Shell betiği); içerik zaten aynıysa dokunulmaz (FAT'a gereksiz yazma yok). busybox sh ile de çalışır.
+set -eu
+esp=${1:-}
+if [ -z "$esp" ] || [ ! -d "$esp" ]; then
+  echo "Kullanım: efi-baslangic <EFI dizini>" >&2
+  exit 2
+fi
+
+nsh() {
+  printf '@echo -off\r\n'
+  for i in 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
+    printf 'if exist fs%s:\\EFI\\wificorrect\\kimlik then\r\n' "$i"
+    printf '  fs%s:\r\n' "$i"
+    for f in '\EFI\BOOT\BOOTX64.EFI' '\EFI\debian\shimx64.efi' '\EFI\debian\grubx64.efi'; do
+      printf '  if exist %s then\r\n    %s\r\n  endif\r\n' "$f" "$f"
+    done
+    printf 'endif\r\n'
+  done
+}
+
+kimlik() {
+  printf 'WifiCorrect\r\n'
+}
+
+# yaz <dosya> <üreten işlev>: içerik farklıysa geçici dosya + taşıma
+yaz() {
+  if [ -f "$1" ] && [ "$(cat "$1")" = "$($2)" ]; then
+    return 0
+  fi
+  $2 >"$1.yeni"
+  mv -f "$1.yeni" "$1"
+}
+
+mkdir -p "$esp/EFI/BOOT" "$esp/EFI/wificorrect"
+yaz "$esp/EFI/wificorrect/kimlik" kimlik
+yaz "$esp/startup.nsh" nsh
+yaz "$esp/EFI/BOOT/startup.nsh" nsh

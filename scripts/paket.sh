@@ -10,6 +10,7 @@ rm -f "$kok/etc/network/interfaces.d/wificorrect" "$kok/etc/wificorrect/arayuzle
       "$kok/etc/issue.d/wificorrect.issue" "$kok/etc/wificorrect/yasak-siteler.conf"
 install -D -m 755 "$ikili" "$kok/usr/local/bin/wificorrect"
 chmod 755 "$kok/usr/local/lib/wificorrect/dhcp-script"  # dnsmasq doğrudan çalıştırır; git/Windows modu ne olursa olsun
+chmod 755 "$kok/usr/local/lib/wificorrect/efi-baslangic"  # postinst ve kurucu sh ile çağırır; elle de çalışsın
 mkdir -p "$kok/DEBIAN"
 sed "s/@SURUM@/$surum/" paket/control.in > "$kok/DEBIAN/control"
 install -m 755 paket/postinst "$kok/DEBIAN/postinst"

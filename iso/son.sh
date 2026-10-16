@@ -33,6 +33,12 @@ EOF
     sleep 1
   done
 fi
+# Realtek ağ kartlarının aygıt yazılımı kurulan sistemde olmalı (pkgsel/include); duman testi bu satırı arar.
+if chroot /target dpkg-query -W -f='${Status}' firmware-realtek 2>/dev/null | grep -q 'install ok installed'; then
+  logger -t wificorrect "FIRMWARE-REALTEK KURULU"
+else
+  logger -t wificorrect "FIRMWARE-REALTEK YOK"
+fi
 # Kök dosya sistemi noatime: her okuma diske yazmasın (USB bellekte aşınmayı azaltır; SSD'de de zararsız).
 sed -i -E 's|^([^#[:space:]]+[[:space:]]+/[[:space:]]+ext4[[:space:]]+)([^[:space:]]+)|\1noatime,\2|' /target/etc/fstab || true
 # Bitti mesajı (bekletmez: 10 sn görünür, sonra kurucu kendi son adımlarını yapıp cihazı kapatır). USB belleğe

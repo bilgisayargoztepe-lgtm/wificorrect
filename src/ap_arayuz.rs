@@ -14,9 +14,12 @@
 //!   `\/\/` dahil) → `https://<Host>`, `//<Host>`; diğer içerik olduğu gibi akar. Her cevap `Cache-Control: no-store`:
 //!   bütün müşterilerin AP'leri aynı kökende, bir AP'nin dosyası ötekine karışmasın. Panelin sıkı başlıkları (CSP,
 //!   X-Frame-Options) eklenmez.
-//! - AP aynı adreste başka şemaya/porta yönlendirirse (http → https://<hedef>/) hedef güncellenir (döngü olmaz).
+//! - AP aynı adreste başka şemaya/porta yönlendirirse (http → https://<hedef>/ ya da tersi) hedef güncellenir (döngü olmaz).
 //! - HTTPS AP: TLS 1.2+ (rustls), sertifika doğrulamasız (AP'ler kendinden imzalı; bağlantı yan oda / misafir ağında).
 //!   Yalnızca eski TLS'li AP'de ve arayüzünü JS ile sabit adresten kuran modelde yedek yol `ap-ac` betiği.
+//! - Hedefin şeması (`web_sec`, 0.4.16): 443'te aynı TLS ayarıyla el sıkışma olursa HTTPS, olmazsa 80 (HTTP). Canlı
+//!   ZyXEL: sayfa HTTPS'te açıldığı için AP'nin betiği istekleri şifrelemez; AP'ye 80'den gidilirse giriş döner. Panelde
+//!   "HTTP ile aç" yalnızca 80'i dener (HTTPS arayüzü bozuk AP için).
 //! - Bütün müşterilerin AP'leri tek kökte (final review 2026-10-16): Service Worker betiği, başka siteden gelen istek ve
 //!   başka alt alandan gezinme dışı istek AP'ye gitmez (`istek_reddi`; merkez/Caddy de reddeder); kayıtlı AP adresine
 //!   (misafir ağı) aktarım yalnızca komşu tablosundaki MAC kayıt anında sabitlenenle aynıysa (`baglan`).
@@ -451,7 +454,13 @@ impl rustls::client::ServerCertVerifier for Dogrulamasiz {
     }
 }
 
-fn tls(tcp: TcpStream) -> io::Result<rustls::StreamOwned<rustls::ClientConnection, TcpStream>> {
+/// TLS'te gönderilen ad (SNI): AP IP adresiyle açılır; ad gönderilmesi gerekmez ama rustls bir ad ister (AP'ler SNI'ye
+/// bakmaz)
+pub const TLS_ADI: &str = "ap.wificorrect.local";
+
+/// AP'ye TLS istemcisi: aktarım (`tls`) ve web arayüzü seçimi (`tls_el_sikis`) aynı ayarla — TLS 1.2+ (rustls güvenli
+/// varsayılanları), sertifika doğrulamasız, SNI `TLS_ADI`.
+fn tls_baglantisi() -> io::Result<rustls::ClientConnection> {
     use std::sync::{Arc, OnceLock};
     static AYAR: OnceLock<Arc<rustls::ClientConfig>> = OnceLock::new();
     let ayar = AYAR
@@ -459,14 +468,90 @@ fn tls(tcp: TcpStream) -> io::Result<rustls::StreamOwned<rustls::ClientConnectio
             Arc::new(rustls::ClientConfig::builder().with_safe_defaults().with_custom_certificate_verifier(Arc::new(Dogrulamasiz)).with_no_client_auth())
         })
         .clone();
-    // AP IP adresiyle açılır; ad gönderilmesi gerekmez ama rustls bir ad ister (AP'ler SNI'ye bakmaz)
-    let ad = rustls::ServerName::try_from("ap.wificorrect.local").map_err(|_| io::Error::other("TLS adı"))?;
-    let baglanti = rustls::ClientConnection::new(ayar, ad).map_err(|e| io::Error::other(format!("TLS: {e}")))?;
-    let mut s = rustls::StreamOwned::new(baglanti, tcp);
+    let ad = rustls::ServerName::try_from(TLS_ADI).map_err(|_| io::Error::other("TLS adı"))?;
+    rustls::ClientConnection::new(ayar, ad).map_err(|e| io::Error::other(format!("TLS: {e}")))
+}
+
+fn tls(tcp: TcpStream) -> io::Result<rustls::StreamOwned<rustls::ClientConnection, TcpStream>> {
+    let mut s = rustls::StreamOwned::new(tls_baglantisi()?, tcp);
     while s.conn.is_handshaking() {
         s.conn.complete_io(&mut s.sock)?;
     }
     Ok(s)
+}
+
+/// Web arayüzü seçiminde TLS el sıkışmasının en uzun süresi (yavaş gömülü AP'de RSA imzası birkaç saniye sürebilir)
+const TLS_DENEME: Duration = Duration::from_secs(5);
+/// Misafir ağındaki hedefe TCP denemesi
+const TCP_DENEME: Duration = Duration::from_secs(3);
+
+/// 443'teki sunucu aktarımın TLS'iyle konuşabiliyor mu: aynı ayarla (`tls_baglantisi`) el sıkışma en çok `sure` içinde
+/// biterse Ok (bağlantı close_notify ile kapatılır). Süre bütün el sıkışmaya uygulanır (her okumada kalan süre): parça
+/// parça cevap veren cihaz da süreyi uzatamaz. TLS 1.0/1.1'li eski AP, 443'te düz HTTP, uyarı ya da kapanma: hata.
+pub fn tls_el_sikis(mut tcp: TcpStream, sure: Duration) -> io::Result<()> {
+    let son = std::time::Instant::now() + sure;
+    let mut c = tls_baglantisi()?;
+    let sonuc = el_sikis(&mut c, &mut tcp, son);
+    if sonuc.is_ok() {
+        c.send_close_notify();
+    }
+    // kuyruktaki son kayıt (close_notify ya da rustls'in hata uyarısı) gönderilir; sonucu değiştirmez
+    let _ = c.write_tls(&mut tcp);
+    sonuc
+}
+
+fn el_sikis(c: &mut rustls::ClientConnection, tcp: &mut TcpStream, son: std::time::Instant) -> io::Result<()> {
+    loop {
+        let kalan = son.saturating_duration_since(std::time::Instant::now());
+        if kalan.is_zero() {
+            return Err(io::Error::new(io::ErrorKind::TimedOut, "TLS el sıkışması süre içinde bitmedi"));
+        }
+        tcp.set_read_timeout(Some(kalan))?;
+        tcp.set_write_timeout(Some(kalan))?;
+        while c.wants_write() {
+            c.write_tls(tcp)?;
+        }
+        if !c.is_handshaking() {
+            return Ok(());
+        }
+        if !c.wants_read() {
+            return Err(io::Error::other("TLS el sıkışması ilerlemiyor"));
+        }
+        if c.read_tls(tcp)? == 0 {
+            return Err(io::ErrorKind::UnexpectedEof.into());
+        }
+        c.process_new_packets().map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+    }
+}
+
+/// Web arayüzü seçimi kuralı (canlı ZyXEL bulgusu, 2026-10-18): arayüz tarayıcıda hep https://ap.wificorrect.com'da
+/// açılır; `location.protocol` "https:" olduğu için bazı AP'lerin betikleri (ZyXEL, Vue, 2020) girişi ve cgi-bin
+/// isteklerini şifrelemez, oysa aynı AP 80'de şifreli istek bekler (giriş döngüye girer). Bu yüzden önce HTTPS:
+/// `https()` = 443'te aktarımın TLS'iyle el sıkışma başarılı → 443; değilse `http()` = 80'e TCP bağlantısı → 80.
+/// Dönen port: 443 = https, 80 = http. Yalnızca TCP'si açık 443 yetmez (eski TLS'li AP 80'e düşer).
+pub fn web_sec(https: impl FnOnce() -> bool, http: impl FnOnce() -> bool) -> Option<u16> {
+    if https() {
+        Some(443)
+    } else if http() {
+        Some(80)
+    } else {
+        None
+    }
+}
+
+/// `web_sec` gerçek bağlantılarla. `baglan(port)`: hedefin o portuna TCP bağlantısı (misafir ağında doğrudan, yan odada
+/// aracı üzerinden); `sure`: TLS el sıkışmasının en uzun süresi.
+pub fn web_bul(baglan: &dyn Fn(u16) -> io::Result<TcpStream>, sure: Duration) -> Option<u16> {
+    web_sec(|| baglan(443).and_then(|t| tls_el_sikis(t, sure)).is_ok(), || baglan(80).is_ok())
+}
+
+/// Hedefin portuna TCP: misafir ağında doğrudan, yan odada aracı üzerinden
+fn tcp_baglan(a: SocketAddrV4, yan_oda: bool) -> io::Result<TcpStream> {
+    if yan_oda {
+        crate::yan_oda::socks_baglan(a, ARACI_BEKLEME)
+    } else {
+        TcpStream::connect_timeout(&a.into(), TCP_DENEME)
+    }
 }
 
 /// Kayıtlı AP adresinde (misafir ağı) başka MAC: aktarım reddedilir (final review I1). `simdi`: komşu tablosundaki MAC.
@@ -517,12 +602,14 @@ pub fn baglan(h: &Hedef) -> io::Result<Box<dyn Akis>> {
     }
 }
 
-/// Panel "AP arayüzüne git" ve arama işi: hedefte web arayüzü var mı (önce 80, yoksa 443). Dönen: port.
-pub fn web_portu(ip: Ipv4Addr, yan_oda: bool) -> Option<u16> {
-    [80u16, 443].into_iter().find(|p| {
-        let a = SocketAddrV4::new(ip, *p);
-        if yan_oda { crate::yan_oda::socks_baglan(a, ARACI_BEKLEME).is_ok() } else { TcpStream::connect_timeout(&a.into(), Duration::from_secs(3)).is_ok() }
-    })
+/// Panel "AP arayüzüne git", AP adresi kaydı ve arama işi: hedefin web arayüzü (`web_bul`; yan odada aracı üzerinden).
+/// `yalniz_http`: yalnızca 80. Dönen: port.
+pub fn web_portu(ip: Ipv4Addr, yan_oda: bool, yalniz_http: bool) -> Option<u16> {
+    let baglan = |p: u16| tcp_baglan(SocketAddrV4::new(ip, p), yan_oda);
+    if yalniz_http {
+        return baglan(80).is_ok().then_some(80);
+    }
+    web_bul(&baglan, TLS_DENEME)
 }
 
 // ---------------------------------------------------------------- aktarım
@@ -1050,6 +1137,17 @@ mod tests {
         let c = aktar(&h, "ap.wificorrect.com", "GET", "/", &[], None, &mut io::empty(), &*baglanti(adres), &|s: &str, p: u16| *degisti.lock().unwrap() = Some((s.to_string(), p))).unwrap();
         assert_eq!((c.durum, deger(&c, "Location")), (302, vec!["https://ap.wificorrect.com/webpages/login.html"]));
         assert_eq!(*degisti.lock().unwrap(), Some(("https".to_string(), 443)));
+        // ters yön: HTTPS'i yalnızca yönlendiren AP (https → http://<hedef>/): hedef http/80'e döner
+        let hs = Hedef { sema: "https".into(), port: 443, ..h.clone() };
+        let (adres, _) = sahte_ap(b"HTTP/1.0 301 Moved\r\nLocation: http://192.168.1.1/index.htm\r\n\r\n".to_vec());
+        let c = aktar(&hs, "ap.wificorrect.com", "GET", "/", &[], None, &mut io::empty(), &*baglanti(adres), &|s: &str, p: u16| *degisti.lock().unwrap() = Some((s.to_string(), p))).unwrap();
+        assert_eq!((c.durum, deger(&c, "Location")), (301, vec!["https://ap.wificorrect.com/index.htm"]));
+        assert_eq!(*degisti.lock().unwrap(), Some(("http".to_string(), 80)));
+        // aynı şema ve port: güncelleme yok
+        *degisti.lock().unwrap() = None;
+        let (adres, _) = sahte_ap(b"HTTP/1.0 302 Found\r\nLocation: https://192.168.1.1/login\r\n\r\n".to_vec());
+        aktar(&hs, "ap.wificorrect.com", "GET", "/", &[], None, &mut io::empty(), &*baglanti(adres), &|s: &str, p: u16| *degisti.lock().unwrap() = Some((s.to_string(), p))).unwrap();
+        assert_eq!(*degisti.lock().unwrap(), None);
         // ikili içerik (uzunluksuz, bağlantı kapanınca biter) olduğu gibi akar
         let mut ikili = b"HTTP/1.0 200 OK\r\nContent-Type: image/png\r\n\r\n".to_vec();
         let resim: Vec<u8> = (0..3000u32).map(|i| (i % 251) as u8).chain(b"http://192.168.1.1/".iter().copied()).collect();
@@ -1093,6 +1191,175 @@ mod tests {
         assert!(matches!(e, Hata::Ulasilamadi(_)) && e.durum() == 502 && e.mesaj().contains("AP'ye ulaşılamadı"));
         let (adres, _) = sahte_ap(b"".to_vec());
         assert!(matches!(aktar(&h, "ap.wificorrect.com", "GET", "/", &[], None, &mut io::empty(), &*baglanti(adres), &yok), Err(Hata::Bozuk(_))));
+    }
+
+    fn gecici_dizin(ad: &str) -> std::path::PathBuf {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        static N: AtomicUsize = AtomicUsize::new(0);
+        let d = std::env::temp_dir().join(format!("wfc-{ad}-{}-{}", std::process::id(), N.fetch_add(1, Ordering::SeqCst)));
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(&d).unwrap();
+        d
+    }
+
+    /// Deneme HTTPS sunucusu (AP'nin 443'ü yerine): tiny_http + rustls (TLS 1.2/1.3). Sertifika testte openssl ile üretilir
+    /// (depoda gizli anahtar yok); el sıkışma tiny_http'nin kendi iş parçacığında olur. Sunucu düşerse dinleme biter.
+    fn tls_sunucusu() -> (tiny_http::Server, std::net::SocketAddr) {
+        let d = gecici_dizin("tls");
+        let (c, k) = (d.join("c.pem"), d.join("k.pem"));
+        let ok = std::process::Command::new("openssl")
+            .args(["req", "-x509", "-newkey", "ec", "-pkeyopt", "ec_paramgen_curve:prime256v1", "-nodes", "-days", "1", "-subj", "/CN=ap-deneme", "-keyout"])
+            .arg(&k)
+            .arg("-out")
+            .arg(&c)
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()
+            .is_ok_and(|s| s.success());
+        assert!(ok, "openssl ile deneme sertifikası üretilemedi");
+        let ssl = tiny_http::SslConfig { certificate: std::fs::read(&c).unwrap(), private_key: std::fs::read(&k).unwrap() };
+        let _ = std::fs::remove_dir_all(&d);
+        let port = TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();
+        (tiny_http::Server::https(("127.0.0.1", port), ssl).unwrap(), ([127, 0, 0, 1], port).into())
+    }
+
+    /// Sahte 443 (aktarımın TLS'iyle konuşamayan cihaz): her bağlantıda ClientHello'yu okur, sonra `cevap`ı yazar ve
+    /// istemci kapatana kadar bekler; boş cevapta hemen kapatır, `None`'da hiç cevap vermez.
+    fn sahte_443(cevap: Option<Vec<u8>>) -> std::net::SocketAddr {
+        let l = TcpListener::bind("127.0.0.1:0").unwrap();
+        let adres = l.local_addr().unwrap();
+        std::thread::spawn(move || {
+            for s in l.incoming().flatten() {
+                let cevap = cevap.clone();
+                std::thread::spawn(move || {
+                    let mut s = s;
+                    let _ = s.set_read_timeout(Some(Duration::from_secs(10)));
+                    let _ = s.read(&mut [0u8; 4096]);
+                    match cevap {
+                        Some(c) if c.is_empty() => {}
+                        Some(c) => {
+                            let _ = s.write_all(&c);
+                            let _ = s.read_to_end(&mut vec![]);
+                        }
+                        None => {
+                            let _ = s.read_to_end(&mut vec![]);
+                        }
+                    }
+                });
+            }
+        });
+        adres
+    }
+
+    /// Sahte 443: ClientHello'dan sonra 16.000 baytlık bir kaydı 100 ms'de bir bayt yollar (hiç bitmeyen el sıkışma; her
+    /// okuma süre dolmadan veri alır)
+    fn sahte_443_damla() -> std::net::SocketAddr {
+        let l = TcpListener::bind("127.0.0.1:0").unwrap();
+        let adres = l.local_addr().unwrap();
+        std::thread::spawn(move || {
+            for s in l.incoming().flatten() {
+                std::thread::spawn(move || {
+                    let mut s = s;
+                    let _ = s.read(&mut [0u8; 4096]);
+                    let mut ok = s.write_all(&[0x16, 0x03, 0x03, 0x3e, 0x80]).is_ok();
+                    for _ in 0..200 {
+                        if !ok {
+                            break;
+                        }
+                        std::thread::sleep(Duration::from_millis(100));
+                        ok = s.write_all(&[0]).is_ok();
+                    }
+                });
+            }
+        });
+        adres
+    }
+
+    /// Yalnızca TLS 1.0 bilen eski AP'nin ServerHello'su (TLS_RSA_WITH_AES_128_CBC_SHA): rustls TLS 1.2+ ister
+    fn tls10_server_hello() -> Vec<u8> {
+        let mut govde = vec![0x03, 0x01];
+        govde.extend([0x5a; 32]);
+        govde.extend([0x00, 0x00, 0x2f, 0x00]); // oturum kimliği yok, şifre takımı, sıkıştırma yok
+        let mut el = vec![0x02, 0x00, 0x00, govde.len() as u8];
+        el.extend(govde);
+        let mut kayit = vec![0x16, 0x03, 0x01, 0x00, el.len() as u8];
+        kayit.extend(el);
+        kayit
+    }
+
+    #[test]
+    fn tls_el_sikismasi_aktarim_ayariyla() {
+        let (_sunucu, iyi) = tls_sunucusu();
+        let dene_sure = |a: std::net::SocketAddr, sure: Duration| tls_el_sikis(TcpStream::connect(a).unwrap(), sure);
+        let sonuc = dene_sure(iyi, TLS_DENEME);
+        assert!(sonuc.is_ok(), "{sonuc:?}");
+        // başarısızlar çabuk biter; yalnızca hiç cevap vermeyen süreyi bekler (kısa süreyle)
+        let dene = |a: std::net::SocketAddr| dene_sure(a, Duration::from_millis(800));
+        // TCP'si açık ama aktarımın konuşamadığı 443'ler: yalnızca TLS 1.0, 443'te düz HTTP, TLS uyarısı (protocol_version),
+        // hemen kapatan, hiç cevap vermeyen (süre sınırında biter)
+        for (ad, cevap) in [
+            ("tls1.0", Some(tls10_server_hello())),
+            ("düz http", Some(b"HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".to_vec())),
+            ("uyarı", Some(vec![0x15, 0x03, 0x01, 0x00, 0x02, 0x02, 0x46])),
+            ("kapatan", Some(vec![])),
+            ("sessiz", None),
+        ] {
+            let a = sahte_443(cevap);
+            let t = std::time::Instant::now();
+            assert!(dene(a).is_err(), "{ad}");
+            assert!(t.elapsed() < Duration::from_secs(3), "{ad}: {:?}", t.elapsed());
+        }
+        // süre bütün el sıkışmaya: damla damla cevap veren cihaz süreyi uzatamaz
+        let t = std::time::Instant::now();
+        let e = dene(sahte_443_damla()).unwrap_err();
+        // son okuma süresi dolarsa Linux EAGAIN (WouldBlock) verir, döngü başı denetimi TimedOut
+        assert!(matches!(e.kind(), io::ErrorKind::TimedOut | io::ErrorKind::WouldBlock) && t.elapsed() < Duration::from_secs(3), "{e:?} {:?}", t.elapsed());
+    }
+
+    #[test]
+    fn web_arayuzu_https_ancak_tls_calisirsa() {
+        // Canlı ZyXEL (2026-10-18): sayfa https://ap.wificorrect.com'da açıldığı için AP'nin betiği istekleri şifrelemez;
+        // AP'ye 80'den gidilirse AP şifreli istek bekler, giriş döner. 443'te aktarımın TLS'iyle el sıkışma olursa HTTPS
+        // (80 açık olsa da); olmazsa (eski TLS) 80. Yalnızca TCP'si açık 443 HTTPS sayılmaz.
+        let (_sunucu, tls) = tls_sunucusu();
+        let eski = sahte_443(Some(tls10_server_hello()));
+        let duz = TcpListener::bind("127.0.0.1:0").unwrap(); // 80: TCP açık yeter
+        let http = duz.local_addr().unwrap();
+        let kapali = TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap();
+        let sec = |p443: std::net::SocketAddr, p80: std::net::SocketAddr| {
+            web_bul(&|p: u16| TcpStream::connect(if p == 443 { p443 } else { p80 }), TLS_DENEME)
+        };
+        assert_eq!(sec(tls, http), Some(443), "TLS el sıkışması başarılı: HTTPS");
+        assert_eq!(sec(eski, http), Some(80), "443 açık ama TLS 1.0: HTTP");
+        assert_eq!(sec(kapali, http), Some(80), "yalnızca 80");
+        assert_eq!(sec(tls, kapali), Some(443), "yalnızca 443, TLS çalışıyor");
+        assert_eq!(sec(eski, kapali), None, "aktarımın konuşamadığı 443 tek başına web arayüzü değil");
+        assert_eq!(sec(kapali, kapali), None);
+        // kural: önce 443 (TLS); başarılıysa 80 hiç denenmez
+        let sira = std::cell::RefCell::new(vec![]);
+        assert_eq!(web_sec(|| { sira.borrow_mut().push(443); true }, || { sira.borrow_mut().push(80); true }), Some(443));
+        assert_eq!(web_sec(|| { sira.borrow_mut().push(443); false }, || { sira.borrow_mut().push(80); true }), Some(80));
+        assert_eq!(*sira.borrow(), [443, 443, 80]);
+        drop(duz);
+    }
+
+    #[test]
+    fn https_aktarimi_gercek_tls() {
+        // HTTPS hedefe aktarım gerçek TLS üzerinden: istek gider, cevap (ZyXEL'in HTTPS'teki JSON'u gibi) yeniden yazılır
+        let (sunucu, a) = tls_sunucusu();
+        let t = std::thread::spawn(move || {
+            let rq = sunucu.recv().unwrap();
+            let govde = format!("{{\"RSAPublicKey\":\"None\",\"yol\":\"{}\",\"u\":\"https://127.0.0.1/x\"}}", rq.url());
+            let tur = tiny_http::Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap();
+            rq.respond(tiny_http::Response::from_string(govde).with_header(tur)).unwrap();
+        });
+        let mut h = hedef("127.0.0.1", "yan_oda");
+        (h.sema, h.port) = ("https".into(), a.port());
+        let b: Box<Baglanti> = Box::new(move |_: &Hedef| Ok(Box::new(tls(TcpStream::connect(a)?)?) as Box<dyn Akis>));
+        let c = aktar(&h, "ap.wificorrect.com", "GET", "/getRSAPublickKey", &[], None, &mut io::empty(), &*b, &|_: &str, _: u16| {}).unwrap();
+        assert_eq!(c.durum, 200);
+        assert_eq!(String::from_utf8(govde(c)).unwrap(), "{\"RSAPublicKey\":\"None\",\"yol\":\"/getRSAPublickKey\",\"u\":\"https://ap.wificorrect.com/x\"}");
+        t.join().unwrap();
     }
 
     #[test]
@@ -1236,6 +1503,10 @@ mod tests {
         sema_guncelle(&y, &m, "https", 443);
         let g = oku(&y).unwrap();
         assert_eq!((g.sema.as_str(), g.port), ("https", 443));
+        // ters yön (https → http)
+        sema_guncelle(&y, &g, "http", 80);
+        assert_eq!(oku(&y).map(|x| (x.sema, x.port)), Some(("http".to_string(), 80)));
+        sema_guncelle(&y, &g, "https", 443);
         assert!(!kapat_eger(&y, &m) && y.hedef.exists());
         assert!(kapat_eger(&y, &g) && !y.hedef.exists());
         assert!(!kapat_eger(&y, &g));

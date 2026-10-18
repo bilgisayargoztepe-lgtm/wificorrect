@@ -457,8 +457,9 @@ pub struct Panel {
     dhcp_denetim: std::sync::atomic::AtomicBool,
     /// "Bağlan" / "Otomatik bul" başlatma tek seferde (çift tıklamada ikinci istek koşan aramanın durumunu ezmesin)
     ap_bul_kilit: std::sync::Mutex<()>,
-    /// AP arayüzü: hedefte web arayüzü var mı (adres, yan odadan mı) → port (80, yoksa 443); testte sahte
-    ap_dene: Box<dyn Fn(std::net::Ipv4Addr, bool) -> Option<u16> + Send + Sync>,
+    /// AP arayüzü: hedefte web arayüzü var mı (adres, yan odadan mı, yalnızca HTTP mi) → port (443'te TLS el sıkışması
+    /// olursa 443, yoksa 80; `ap_arayuz::web_portu`); testte sahte
+    ap_dene: Box<dyn Fn(std::net::Ipv4Addr, bool, bool) -> Option<u16> + Send + Sync>,
     /// AP arayüzü aktarımında AP'ye bağlantı (yan oda aracısı ya da misafir ağı; testte sahte)
     ap_baglan: Box<crate::ap_arayuz::Baglanti>,
 }
@@ -2081,7 +2082,7 @@ mod tests {
         let ek2 = ip_ek.clone();
         p.ip_oku = Box::new(move |a: &[&str]| sahte_ip(a, &ek2.lock().unwrap()));
         // AP arayüzü: testler gerçek ağa bağlanmaz (web arayüzü 80'de var sayılır; aktarım bağlantısı yok)
-        p.ap_dene = Box::new(|_, _| Some(80));
+        p.ap_dene = Box::new(|_, _, _| Some(80));
         p.ap_baglan = Box::new(|_: &crate::ap_arayuz::Hedef| Err(std::io::Error::from(std::io::ErrorKind::ConnectionRefused)));
         Env { p, calls, root, ip_ek }
     }
@@ -4553,15 +4554,16 @@ mod tests {
         e.calls.lock().unwrap().clear();
         let denenen: Arc<Mutex<Vec<String>>> = Arc::default();
         let d2 = denenen.clone();
-        e.p.ap_dene = Box::new(move |ip, yan| {
-            d2.lock().unwrap().push(format!("{ip} {yan}"));
+        e.p.ap_dene = Box::new(move |ip, yan, yalniz_http| {
+            d2.lock().unwrap().push(format!("{ip} {yan} {yalniz_http}"));
             None
         });
         let r = e.p.handle(&req("POST", "/ap-kurulum/adresler", &[("csrf", &csrf), ("adresler", "10.50.0.2, 10.50.0.3 10.50.0.2")], Some(&tok)));
         assert!(loc(&r).contains("e=1") && loc(&r).contains(&pct("MAC adresi okunamadı: 10.50.0.3")), "{}", loc(&r));
         assert_eq!(kayitli(), ["10.50.0.2", "10.50.0.3"]);
         assert_eq!(mac().into_iter().collect::<Vec<_>>(), vec![("10.50.0.2".to_string(), "70:4f:57:dd:7a:e8".to_string())]);
-        assert_eq!(*denenen.lock().unwrap(), ["10.50.0.3 false"], "yalnızca tabloda olmayan adres denenir");
+        // yalnızca tabloda olmayan adres denenir; adres çözülsün diye tek TCP bağlantısı yeter (TLS denemesi yok)
+        assert_eq!(*denenen.lock().unwrap(), ["10.50.0.3 false true"]);
         assert!(denetim().contains("PANEL_AP_ADRES") && denetim().contains("adresler=10.50.0.2,10.50.0.3 eski=- mac=10.50.0.2/70:4f:57:dd:7a:e8 eski_mac=-"));
         assert!(e.calls.lock().unwrap().is_empty());
         let a = e.p.handle(&req("GET", "/ayarlar", &[], Some(&tok))).body;
@@ -4652,6 +4654,13 @@ mod tests {
         assert!(a.contains("Cihaz bulundu (HTTP):</b> <code>192.168.0.254</code>"), "{a}");
         assert!(a.contains("action=\"/ap-kurulum/arayuz\" target=\"_blank\"") && a.contains("name=\"hedef\" value=\"192.168.0.254\""));
         assert!(a.contains("value=\"tplinkap.net\"") && a.contains("value=\"TP-Link TL-WA901ND\"") && tekrar_eden_idler(&a).is_empty());
+        assert!(!a.contains("name=\"sema\" value=\"http\""), "HTTP'den bulunan cihazda \"HTTP ile aç\" gerekmez");
+        // HTTPS'ten bulunduysa (443'te TLS el sıkışması) şema görünür; yanında "HTTP ile aç" (HTTPS arayüzü bozuk AP için)
+        (d.port, d.sema) = (443, "https".into());
+        crate::ap_bul::kaydet(&e.p.ap_yollar, &d).unwrap();
+        let a = e.p.handle(&req("GET", "/ayarlar", &[], Some(&tok))).body;
+        assert!(a.contains("Cihaz bulundu (HTTPS):</b> <code>192.168.0.254</code>"), "{a}");
+        assert!(a.contains("<button>AP arayüzüne git</button><button class=\"ikincil\" name=\"sema\" value=\"http\">HTTP ile aç</button>"), "{a}");
         // yan oda kapandıysa düğme yok
         e.ip_ek.lock().unwrap().clear();
         let a = e.p.handle(&req("GET", "/ayarlar", &[], Some(&tok))).body;
@@ -4733,19 +4742,19 @@ mod tests {
         // yan odanın kendi adresi ve ağı dışı reddedilir
         assert!(git(&e, &tok, &csrf, "192.168.1.250").body.contains("class=\"hata\"") && git(&e, &tok, &csrf, "192.168.2.1").body.contains("class=\"hata\""));
         // kayıtlı ama MAC'i sabitlenmemiş adres (final review I1): gidilmez, AP'ye bağlanılmaz
-        e.p.ap_dene = Box::new(|_, _| panic!("MAC'siz kayıtta AP'ye bağlanılmamalı"));
+        e.p.ap_dene = Box::new(|_, _, _| panic!("MAC'siz kayıtta AP'ye bağlanılmamalı"));
         let mut c = Config::load(&e.p.cfg_path).unwrap();
         c.ap.adresler = vec!["10.50.0.2".into()];
         c.save(&e.p.cfg_path).unwrap();
         assert!(git(&e, &tok, &csrf, "10.50.0.2").body.contains("MAC&#x27;i sabitlenmemiş"));
         // web arayüzü cevap vermiyor: hedef değişmez
-        e.p.ap_dene = Box::new(|_, _| None);
+        e.p.ap_dene = Box::new(|_, _, _| None);
         c.ap.mac.insert("10.50.0.2".into(), "aa:bb:cc:dd:ee:ff".into());
         c.save(&e.p.cfg_path).unwrap();
         assert!(git(&e, &tok, &csrf, "10.50.0.2").body.contains("cevap vermedi"));
         assert_eq!(crate::ap_arayuz::oku(&e.p.ap_yollar).unwrap().adres, "192.168.1.1");
         // komşu tablosundaki MAC (70:4f:…) sabitlenenden farklı: hedef yazılmaz, red denetimde
-        e.p.ap_dene = Box::new(|ip, yan| (ip.to_string() == "10.50.0.2" && !yan).then_some(443));
+        e.p.ap_dene = Box::new(|ip, yan, _| (ip.to_string() == "10.50.0.2" && !yan).then_some(443));
         let r = git(&e, &tok, &csrf, "10.50.0.2");
         assert!(r.body.contains("kayıtlı MAC aa:bb:cc:dd:ee:ff, şu an 70:4f:57:dd:7a:e8") && !r.body.contains("http-equiv=\"refresh\""), "{}", r.body);
         assert_eq!(crate::ap_arayuz::oku(&e.p.ap_yollar).unwrap().adres, "192.168.1.1");
@@ -4766,11 +4775,61 @@ mod tests {
         assert!(!loc(&r).contains("e=1") && !e.p.ap_yollar.hedef.exists());
         assert!(denetim_metni(&e).contains("kapandi hedef=10.50.0.2:443 yol=misafir neden=elle"));
         // yan oda kapanınca onun hedefi de kapanır
-        e.p.ap_dene = Box::new(|_, _| Some(80));
+        e.p.ap_dene = Box::new(|_, _, _| Some(80));
         git(&e, &tok, &csrf, "192.168.1.1");
         assert!(e.p.ap_yollar.hedef.exists());
         e.p.handle(&req("POST", "/ap-kurulum/gecici-kaldir", &[("csrf", &csrf)], Some(&tok)));
         assert!(!e.p.ap_yollar.hedef.exists() && denetim_metni(&e).contains("kapandi hedef=192.168.1.1:80 yol=yan_oda neden=yan_oda"));
+    }
+
+    #[test]
+    fn ap_arayuz_https_ve_http_ile_ac() {
+        // 0.4.16 (canlı ZyXEL, 2026-10-18): "AP arayüzüne git" HTTPS'i (443'te TLS el sıkışması) tercih eder; "HTTP ile aç"
+        // yalnızca 80'i dener ve hedefi http/80 yazar (HTTPS arayüzü bozuk AP için). Doğrulama ve denetim aynı.
+        let mut e = env();
+        let (tok, csrf) = setup_and_login(&e, "admin", "hizmet-parola-1");
+        let denenen: Arc<Mutex<Vec<bool>>> = Arc::default();
+        let d2 = denenen.clone();
+        e.p.ap_dene = Box::new(move |_, _, yalniz_http| {
+            d2.lock().unwrap().push(yalniz_http);
+            Some(if yalniz_http { 80 } else { 443 })
+        });
+        let http_ile = |hedef: &str, csrf: Option<&str>| {
+            let mut f = vec![("hedef", hedef), ("sema", "http")];
+            f.extend(csrf.map(|c| ("csrf", c)));
+            e.p.handle(&req("POST", "/ap-kurulum/arayuz", &f, Some(&tok)))
+        };
+        let now = 1_790_705_134.0;
+        yan_oda_ac(&e, "192.168.1.250/24", now + 600.0);
+        assert!(git(&e, &tok, &csrf, "192.168.1.1").body.contains("http-equiv=\"refresh\""));
+        let hd = crate::ap_arayuz::oku(&e.p.ap_yollar).unwrap();
+        assert_eq!((hd.sema.as_str(), hd.port), ("https", 443));
+        assert!(denetim_metni(&e).contains("acildi hedef=192.168.1.1:443 yol=yan_oda sure=600"));
+        // panelde şema; HTTPS erişiminin yanında "HTTP ile aç"
+        let a = e.p.handle(&req("GET", "/ayarlar", &[], Some(&tok))).body;
+        assert!(a.contains("AP arayüzü erişimi açık:</b> <code>192.168.1.1</code> (HTTPS, yan odadan)"), "{a}");
+        assert!(a.contains("name=\"sema\" value=\"http\">HTTP ile aç</button>"), "{a}");
+        // HTTP ile aç: yalnızca 80, hedef http/80 (aynı adres ve yol)
+        let r = http_ile("192.168.1.1", Some(&csrf));
+        assert!(r.body.contains("http-equiv=\"refresh\""), "{}", r.body);
+        let hd = crate::ap_arayuz::oku(&e.p.ap_yollar).unwrap();
+        assert_eq!((hd.sema.as_str(), hd.port, hd.yol.as_str(), hd.bitis), ("http", 80, "yan_oda", now + 600.0));
+        assert_eq!(*denenen.lock().unwrap(), [false, true]);
+        let d = denetim_metni(&e);
+        assert!(d.contains("acildi hedef=192.168.1.1:80 yol=yan_oda sure=600") && !d.contains("neden=yeni_hedef"), "{d}");
+        // açık erişim satırında "HTTP ile aç" kalır: HTTP ile açılan erişim aynı şemayla yeniden açılabilir ("AP arayüzüne
+        // git" şemayı yeniden seçer)
+        let a = e.p.handle(&req("GET", "/ayarlar", &[], Some(&tok))).body;
+        assert!(a.contains("<code>192.168.1.1</code> (HTTP, yan odadan)") && a.contains("name=\"sema\" value=\"http\">HTTP ile aç</button>"), "{a}");
+        // doğrulama aynı: CSRF'siz 403, yan oda dışı adres reddedilir (AP'ye bağlanılmaz)
+        assert_eq!(http_ile("192.168.1.1", None).status, 403);
+        let r = http_ile("192.168.2.1", Some(&csrf));
+        assert!(r.body.contains("class=\"hata\"") && !r.body.contains("http-equiv=\"refresh\"") && denenen.lock().unwrap().len() == 2, "{}", r.body);
+        // 80 cevap vermiyor: hedef değişmez
+        e.p.ap_dene = Box::new(|_, _, yalniz_http| (!yalniz_http).then_some(443));
+        let r = e.p.handle(&req("POST", "/ap-kurulum/arayuz", &[("csrf", &csrf), ("hedef", "192.168.1.1"), ("sema", "http")], Some(&tok)));
+        assert!(r.body.contains("HTTP (80) web arayüzü cevap vermedi") && !r.body.contains("http-equiv=\"refresh\""), "{}", r.body);
+        assert_eq!(crate::ap_arayuz::oku(&e.p.ap_yollar).map(|h| h.port), Some(80));
     }
 
     #[test]

@@ -651,14 +651,14 @@ Dal `ap-arayuz`; tasarım `docs/superpowers/specs/2026-10-16-ap-arayuz-design.md
   `systemd-run --collect --unit wfc-ap-bul --property=RuntimeMaxSec=180 … ctl ap-bul KIM ROL IP [HEDEF]` başlatır
   (aynı anda tek arama; birim varken yeni istek bekleme sayfasına gider). Bekleme sayfası `/ap-kurulum/bul` 2 sn'de bir
   kendini yeniler (meta, JS yok), iş bitince AP kurulumuna döner; sonuç orada. İş (`src/ap_bul.rs`):
-  - misafir ağındaki adres: yan oda yok, ana ad alanından TCP 80, yoksa 443;
+  - misafir ağındaki adres: yan oda yok, ana ad alanından web arayüzü (HTTPS tercihi, aşağıda);
   - diğerleri: kısa ömürlü adressiz yan odadan (`wfcarp0`, macvlan, ayrı ağ ad alanı) **ARP yoklaması** (gönderen
     0.0.0.0, RFC 5227: kimsenin ARP tablosu değişmez): hedef cevap veriyor mu ve aynı /24'te .250, .249 … .241'den ilk
     boş adres (ARP'ye cevap yok, hedefin kendisi değil). Hedef yoklamaya cevap vermezse bir kez de boş adresten sorulur.
     Cevap yoksa yan oda açılmaz: "Bu adreste cihaz yok — kabloyu ve adresi kontrol edin". Cevap varsa yan oda
     `<boş adres>/24` açılır (`ap::ekle`, 30 dk kuralları; aynı ağda açık yan oda varsa o kullanılır, başka ağdaysa
-    `kapandi … neden=yeni_hedef`), sonra aracı (127.0.0.1:1085) üzerinden TCP 80, yoksa 443 → "Cihaz bulundu (HTTP)"
-    ya da "web arayüzü (80/443) açılmadı" (yan oda açık kalır).
+    `kapandi … neden=yeni_hedef`), sonra aracı (127.0.0.1:1085) üzerinden web arayüzü (HTTPS tercihi, aşağıda) →
+    "Cihaz bulundu (HTTPS)" / "(HTTP)" ya da "web arayüzü (80/443) açılmadı" (yan oda açık kalır).
   - Otomatik bul: kodda 23 yaygın fabrika adresi (`ap::OTOMATIK`: 192.168.1.1, 192.168.0.1, 192.168.0.254,
     192.168.1.254, 192.168.10.1, 192.168.2.1, AirTies 192.168.2.254, Huawei 192.168.8.1 / 192.168.100.1 / 192.168.3.1,
     10.0.0.1, 10.0.0.138, D-Link AP 192.168.0.50, Ubiquiti 192.168.1.20, Cisco 192.168.1.245, Ruijie 192.168.110.1 /
@@ -668,7 +668,7 @@ Dal `ap-arayuz`; tasarım `docs/superpowers/specs/2026-10-16-ap-arayuz-design.md
     [hedef=… port=… yol=…]`, `AP_YAN_ODA acildi|kapandi`.
 - **AP arayüzüne git** (bulunan cihaz, açık yan odanın ağındaki adres formu, kayıtlı AP adresleri; yeni sekme):
   hedef yalnızca açık yan odanın ağında (aracısı çalışan; ağ/yayın ve yan odanın kendi adresi değil) ya da kayıtlı AP
-  adresi (misafir ağında, havuz dışı, cihazın adresi değil). Web portu yeniden denenir (80, yoksa 443). Yazılır:
+  adresi (misafir ağında, havuz dışı, cihazın adresi değil). Web arayüzü yeniden seçilir (HTTPS tercihi, aşağıda). Yazılır:
   `/run/wificorrect/ap-hedef.json` (600; adres, port, şema, yol `yan_oda|misafir`, bitiş = şimdi + 30 dk, yan odada en
   çok yan odanın bitişi, yan oda kimliği, kim/rol), denetim `AP_ARAYUZ acildi hedef=IP:port yol=… sure=…` (önceki başka
   hedef `kapandi … neden=yeni_hedef`). Cevap 303 değil, `https://cihaz.wificorrect.com/_ap-gecis`'e **meta yenilemeli**
@@ -676,6 +676,25 @@ Dal `ap-arayuz`; tasarım `docs/superpowers/specs/2026-10-16-ap-arayuz-design.md
   "AP arayüzü erişimi açık … Erişimi kapat" (`kapandi … neden=elle`). Yan oda kapanınca (panel, zamanlayıcı `ctl
   ap-adres-kaldir sure`, port değişikliği, fabrika) yan oda hedefi de kapanır (`neden=yan_oda|port|fabrika`).
   Merkez eski sürümdeyse `/_ap-gecis` cihaza panel isteği olarak gelir: "AP erişimi şu an kullanılamıyor" (503).
+- **HTTPS tercihi (0.4.16, 2026-10-18; ilk canlı AP denemesinin bulgusu):** modern bir ZyXEL modem (Vue tek sayfa
+  uygulaması, 2020 ürün yazılımı) girişi ve cgi-bin isteklerini yalnızca `location.protocol != "https:"` iken AES/RSA ile
+  şifreliyor. Arayüz tarayıcıda https://ap.wificorrect.com'da açıldığı için tarayıcı düz JSON gönderiyordu; aktarım
+  ZyXEL'e HTTP'den (80) gidince ZyXEL gerçek RSA anahtarı veriyor ve şifreli istek bekliyordu → giriş hep `/login`'e
+  dönüyordu. HTTPS'ten (443) aynı ZyXEL `RSAPublicKey` "None" döndürüp düz JSON kabul ediyor (yan oda aracısı üzerinden
+  `curl -k https://192.168.1.1/` → 200; `/getRSAPublickKey` HTTPS'te 47 bayt, HTTP'de 506). **Kural**
+  (`ap_arayuz::web_sec` / `web_bul`; "Bağlan", "Otomatik bul" ve "AP arayüzüne git" aynı kuralı kullanır): önce 443'e
+  aktarımın kendi TLS ayarıyla (`tls_baglantisi`: rustls, TLS 1.2+, sertifika doğrulamasız, SNI `ap.wificorrect.local`)
+  el sıkışma denenir (en çok 5 sn, bütün el sıkışmaya; parça parça cevap veren cihaz süreyi uzatamaz); başarılıysa
+  HTTPS/443. Değilse 80'e TCP bağlantısı kuruluyorsa HTTP/80. Yalnızca TCP'si açık 443 yetmez: TLS 1.0/1.1'li ya da
+  yalnızca CBC / RSA anahtar değişimli eski AP (rustls'te yok) ve 443'te düz HTTP konuşan cihaz 80'e düşer; 80 de yoksa
+  "web arayüzü açılmadı". Panelde "Cihaz bulundu (HTTPS)" / "(HTTP)", açık erişim satırında "(HTTPS, yan odadan)". AP'nin
+  aynı adreste başka şemaya yönlendirmesi hedefi iki yönde de günceller (http → https, https → http). **HTTP ile aç**
+  (HTTPS'ten bulunan cihazın ve açık erişim satırının yanında; HTTPS arayüzü bozuk AP için): aynı form, `sema=http`,
+  yalnızca 80 denenir, hedef http/80; doğrulama ve denetim aynı (`AP_ARAYUZ acildi hedef=IP:80 …`). "AP arayüzüne git"
+  şemayı her seferinde yeniden seçer. AP adresi kaydında MAC'i çözdürmek için tek TCP bağlantısı yeter (TLS denenmez).
+  Testler: gerçek TLS sunucusu (tiny_http + rustls; sertifika testte `openssl` ile üretilir, depoda anahtar yok), TLS 1.0
+  ServerHello'su, TLS uyarısı, 443'te düz HTTP, hemen kapatan ve hiç cevap vermeyen sahte 443'ler; HTTPS hedefe gerçek
+  TLS üzerinden aktarım.
 - **Aktarım** (`src/ap_arayuz.rs`, `src/panel/ap_aktarim.rs`): `X-WFC-AP: 1` yalnızca `X-WFC-Kullanici` ile aynı güven
   kuralıyla (açık tünel `wfc` + kaynak merkezin tünel adresi) geçerli; başka kaynakta yok sayılır (istek panele düşer,
   bağlı cihazda 404). AP kipinde müşteri numarası `X-WFC-AP-Kullanici`'de (`X-WFC-Kullanici` gelmez: istek panele düşse de
@@ -754,6 +773,10 @@ Dal `ap-arayuz`; tasarım `docs/superpowers/specs/2026-10-16-ap-arayuz-design.md
     adreslerini not edin (aynı /24 mü); Özel Geçiş kapalıyken açılıyor mu; zincir `/_ap-giris`'e `same-site` olarak
     geliyor mu (günlükte `AP_GIRIS_RED site='same-origin'` görülmemeli: WebKit yönlendirmede siteyi yeniden hesaplamazsa
     iPhone'da hiç açılmaz).
+  - **0.4.16 HTTPS tercihi:** ZyXEL (192.168.1.1) → Bağlan → "Cihaz bulundu (HTTPS)" → git → giriş `/login`'e dönmeden
+    açılıyor mu, menüler ve kaydetme çalışıyor mu. Cihazın rustls'i ile ZyXEL'in TLS el sıkışması canlıda denenmedi (bulgu
+    curl/OpenSSL ile): olmazsa cihaz 0.4.15 gibi HTTP'ye düşer ("Cihaz bulundu (HTTP)"), o zaman ZyXEL'in TLS sürümü ve
+    şifre takımları incelenmeli. Göztepe'nin TP-Link'i (443 yok) yine HTTP'den açılmalı.
   - **Eski kuralla kurulmuş AP'ler** (2026-10-16'ya kadar AP parolası = işletme sahibinin panel parolası): Göztepe'nin
     TP-Link'i ve önceden kurulmuş her AP'nin yönetim parolası yeni **AP yönetim parolası**na çevrilmeli; panel parolası bir
     AP'ye yazıldıysa (betikle ya da ap.wificorrect.com üzerinden) o müşterinin panel parolası da yenilenmeli.

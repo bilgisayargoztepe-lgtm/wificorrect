@@ -1,12 +1,15 @@
 //! AP kurulumu → "Takılan cihaz" (spec 2026-10-16-ap-arayuz): etiketteki adresle **Bağlan** ya da yaygın fabrika
 //! adresleriyle **Otomatik bul**. Panel `systemd-run --unit wfc-ap-bul … ctl ap-bul` ile arka planda başlatır (panelin
 //! iş parçacıkları beklemez; sayfa kendini yeniler, JS yok); durum `/run/wificorrect/ap-bul.json`.
-//! - Misafir ağındaki adres (ör. 10.50.0.2): yan oda gerekmez, ana ad alanından TCP 80 (yoksa 443) denenir.
+//! - Web arayüzü (`ap_arayuz::web_bul`): 443'te aktarımın TLS'iyle el sıkışma olursa HTTPS, olmazsa 80'e TCP açıksa
+//!   HTTP (2026-10-18, canlı ZyXEL: sayfa HTTPS'te açıldığı için AP'nin betiği istekleri şifrelemez, AP'ye de HTTPS ile
+//!   gidilmeli).
+//! - Misafir ağındaki adres (ör. 10.50.0.2): yan oda gerekmez, web arayüzü ana ad alanından denenir.
 //! - Diğerleri: kısa ömürlü yan odadan ARP yoklaması (gönderen 0.0.0.0): hedef cevap veriyor mu, aynı /24'te yan oda
 //!   için boş adres (.250, doluysa .249 … ; "boş" = ARP'ye cevap yok ve hedefin kendisi değil). Hedef yoklamaya cevap
 //!   vermezse bir kez de boş adresten sorulur (yalnızca kendi ağından gelen ARP'ye cevap veren cihazlar için).
 //!   Cevap veren hedef için yan oda açılır (`ap::ekle`, 30 dk kuralları; aynı ağda açık yan oda varsa o kullanılır,
-//!   başka ağdaysa kapanır), sonra aracı üzerinden TCP 80, yoksa 443 denenir.
+//!   başka ağdaysa kapanır), sonra web arayüzü aracı üzerinden denenir.
 //! - "Otomatik bul" cevap veren ilk adreste yan odayı açık bırakır; web arayüzü olmayan adreste yan odayı kapatıp
 //!   sıradakine geçer.
 
@@ -15,7 +18,7 @@ use crate::ayar::Config;
 use crate::ortak;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
-use std::net::{Ipv4Addr, SocketAddrV4};
+use std::net::Ipv4Addr;
 
 /// Arama işinin geçici systemd birimi (aynı anda tek arama)
 pub const BIRIM: &str = "wfc-ap-bul";
@@ -93,16 +96,12 @@ pub struct Araclar<'a> {
     pub ac: &'a dyn Fn(&str) -> Result<Gecici, String>,
     /// Açık yan odayı kapat (neden denetim için); kapanan adres
     pub kapat: &'a dyn Fn(&str) -> Result<Option<String>, String>,
-    /// TCP bağlantısı kurulabiliyor mu (yan odadan: aracı üzerinden)
-    pub dene: &'a dyn Fn(SocketAddrV4, bool) -> bool,
+    /// Hedefin web arayüzü (yan odadan: aracı üzerinden) → port (443 = https, 80 = http); gerçeği `ap_arayuz::web_portu`
+    pub web: &'a dyn Fn(Ipv4Addr, bool) -> Option<u16>,
     /// Denetim satırı (olay, ek); kim / rol / IP'yi çağıran ekler
     pub denetim: &'a dyn Fn(&str, String),
     /// Ara durum (sayfa "aranıyor" gösterir)
     pub kaydet: &'a dyn Fn(&Durum),
-}
-
-fn web_portu(ip: Ipv4Addr, yan: bool, a: &Araclar) -> Option<u16> {
-    [80u16, 443].into_iter().find(|p| (a.dene)(SocketAddrV4::new(ip, *p), yan))
 }
 
 fn bitir(mut d: Durum, durum: &str, mesaj: String, now: f64) -> Durum {
@@ -166,7 +165,7 @@ pub fn calistir(cfg: &Config, hedef: Option<Ipv4Addr>, kim: &str, rol: &str, a: 
     if let Some(h) = hedef.filter(|h| ap::misafir_aginda(*h, cfg)) {
         d.adres = h.to_string();
         d.yol = "misafir".into();
-        return match web_portu(h, false, a) {
+        return match (a.web)(h, false) {
             Some(p) => {
                 (d.port, d.sema) = (p, sema(p).into());
                 sonuc(d, "bulundu", String::new())
@@ -179,7 +178,7 @@ pub fn calistir(cfg: &Config, hedef: Option<Ipv4Addr>, kim: &str, rol: &str, a: 
     if let (Some(h), Some(g)) = (hedef, (a.yan_oda)()) {
         if ap::yan_odada(h, &g) {
             (d.adres, d.yol, d.yan_oda) = (h.to_string(), "yan_oda".into(), g.adres.clone());
-            return match web_portu(h, true, a) {
+            return match (a.web)(h, true) {
                 Some(p) => {
                     (d.port, d.sema) = (p, sema(p).into());
                     sonuc(d, "bulundu", String::new())
@@ -223,7 +222,7 @@ pub fn calistir(cfg: &Config, hedef: Option<Ipv4Addr>, kim: &str, rol: &str, a: 
         };
         (d.adres, d.yol, d.yan_oda) = (h.to_string(), "yan_oda".into(), yan.adres.clone());
         (a.kaydet)(&d);
-        match web_portu(h, true, a) {
+        match (a.web)(h, true) {
             Some(p) => {
                 (d.port, d.sema) = (p, sema(p).into());
                 return sonuc(d, "bulundu", String::new());
@@ -252,6 +251,7 @@ pub fn calistir(cfg: &Config, hedef: Option<Ipv4Addr>, kim: &str, rol: &str, a: 
 mod tests {
     use super::*;
     use std::cell::RefCell;
+    use std::net::SocketAddrV4;
 
     fn cfg() -> Config {
         Config::parse("[main]\nsite_name = 'X'\n").unwrap()
@@ -261,11 +261,13 @@ mod tests {
         s.parse().unwrap()
     }
 
-    /// Sahte ağ: ARP'ye cevap verenler (gönderen 0.0.0.0'a cevap vermeyenler ayrı), açık web portları, yan oda.
+    /// Sahte ağ: ARP'ye cevap verenler (gönderen 0.0.0.0'a cevap vermeyenler ayrı), TCP'si açık web portları, 443'te
+    /// aktarımın TLS'iyle el sıkışan cihazlar (yoksa 443 yalnızca TCP açık: eski TLS), yan oda.
     struct Ag {
         var: Vec<Ipv4Addr>,
         yoklamaya_sessiz: Vec<Ipv4Addr>,
         web: Vec<SocketAddrV4>,
+        tls: Vec<Ipv4Addr>,
         yan_oda: RefCell<Option<Gecici>>,
         olaylar: RefCell<Vec<String>>,
         aramalar: RefCell<usize>,
@@ -277,6 +279,7 @@ mod tests {
                 var: var.iter().map(|s| ip(s)).collect(),
                 yoklamaya_sessiz: vec![],
                 web: web.iter().map(|s| s.parse().unwrap()).collect(),
+                tls: vec![],
                 yan_oda: RefCell::new(None),
                 olaylar: RefCell::default(),
                 aramalar: RefCell::new(0),
@@ -304,15 +307,17 @@ mod tests {
                 self.olaylar.borrow_mut().push(format!("kapat {n}"));
                 Ok(g.map(|g| g.adres))
             };
-            let dene = |a: SocketAddrV4, yan: bool| {
-                self.olaylar.borrow_mut().push(format!("dene {a} {}", if yan { "yan" } else { "dogrudan" }));
+            // gerçek seçim kuralı (ap_arayuz::web_sec), sahte bağlantılarla
+            let web = |h: Ipv4Addr, yan: bool| {
+                self.olaylar.borrow_mut().push(format!("web {h} {}", if yan { "yan" } else { "dogrudan" }));
                 // yan oda açık değilse ya da hedef onun ağında değilse aracı bağlanamaz
-                let ulasir = !yan || self.yan_oda.borrow().as_ref().is_some_and(|g| ap::yan_odada(*a.ip(), g));
-                ulasir && self.web.contains(&a)
+                let ulasir = !yan || self.yan_oda.borrow().as_ref().is_some_and(|g| ap::yan_odada(h, g));
+                let acik = |p: u16| ulasir && self.web.contains(&SocketAddrV4::new(h, p));
+                crate::ap_arayuz::web_sec(|| acik(443) && self.tls.contains(&h), || acik(80))
             };
             let denetim = |o: &str, e: String| self.olaylar.borrow_mut().push(format!("{o} {e}"));
             let kaydet = |_: &Durum| {};
-            let a = Araclar { arp: &arp, yan_oda: &yan_oda, ac: &ac, kapat: &kapat, dene: &dene, denetim: &denetim, kaydet: &kaydet };
+            let a = Araclar { arp: &arp, yan_oda: &yan_oda, ac: &ac, kapat: &kapat, web: &web, denetim: &denetim, kaydet: &kaydet };
             calistir(&cfg(), hedef.map(ip), "4511643", "sahip", &a, &|| 1000.0)
         }
 
@@ -331,11 +336,12 @@ mod tests {
         let o = ag.olay();
         assert_eq!(o[0], "ac 192.168.1.249/24");
         assert!(o.contains(&"AP_YAN_ODA acildi adres=192.168.1.249/24 sure=1800".to_string()));
-        assert!(o.contains(&"dene 192.168.1.1:80 yan".to_string()) && !o.iter().any(|x| x.contains(":443")));
+        assert!(o.contains(&"web 192.168.1.1 yan".to_string()));
         assert_eq!(o.last().unwrap(), "AP_BAGLAN tur=baglan sonuc=bulundu hedef=192.168.1.1 port=80 yol=yan_oda");
         assert_eq!(*ag.aramalar.borrow(), 1, "tek ARP taraması (hedef + adaylar)");
-        // yalnızca 443: https
-        let ag = Ag::yeni(&["192.168.0.254"], &["192.168.0.254:443"]);
+        // yalnızca 443 (TLS çalışıyor): https
+        let mut ag = Ag::yeni(&["192.168.0.254"], &["192.168.0.254:443"]);
+        ag.tls = vec![ip("192.168.0.254")];
         let d = ag.calistir(Some("192.168.0.254"));
         assert_eq!((d.durum.as_str(), d.port, d.sema.as_str(), d.yan_oda.as_str()), ("bulundu", 443, "https", "192.168.0.250/24"));
         // cihaz var, web yok: yan oda açık kalır
@@ -352,7 +358,7 @@ mod tests {
         let d = ag.calistir(Some("192.168.1.1"));
         assert_eq!(d.durum, "yok");
         assert!(d.mesaj.contains("Bu adreste cihaz yok"));
-        assert!(!ag.olay().iter().any(|x| x.starts_with("ac ") || x.starts_with("dene")));
+        assert!(!ag.olay().iter().any(|x| x.starts_with("ac ") || x.starts_with("web")));
         assert_eq!(ag.olay().last().unwrap(), "AP_BAGLAN tur=baglan sonuc=yok hedef=192.168.1.1");
         assert_eq!(*ag.aramalar.borrow(), 2, "yoklama + boş adresten ikinci soru");
         // yoklamaya (0.0.0.0) cevap vermeyen, kendi ağından soruya cevap veren cihaz
@@ -375,7 +381,7 @@ mod tests {
         let ag = Ag::yeni(&[], &["10.50.0.2:80"]);
         let d = ag.calistir(Some("10.50.0.2"));
         assert_eq!((d.durum.as_str(), d.yol.as_str(), d.port), ("bulundu", "misafir", 80));
-        assert_eq!(ag.olay()[0], "dene 10.50.0.2:80 dogrudan");
+        assert_eq!(ag.olay()[0], "web 10.50.0.2 dogrudan");
         assert_eq!(*ag.aramalar.borrow(), 0);
         // aynı ağda açık yan oda: yeniden açılmaz
         let ag = Ag::yeni(&["192.168.1.1"], &["192.168.1.1:80"]);
@@ -410,6 +416,35 @@ mod tests {
         assert!(d.durum == "yok" && d.mesaj.contains("Yaygın fabrika adreslerinde"));
         assert_eq!(*ag.aramalar.borrow(), 1);
         assert_eq!(ag.olay().last().unwrap(), "AP_BAGLAN tur=otomatik sonuc=yok");
+    }
+
+    #[test]
+    fn web_arayuzu_https_ancak_tls_calisirsa() {
+        // Canlı ZyXEL (2026-10-18): 443'te aktarımın TLS'iyle el sıkışan cihaz HTTPS'ten açılır (80 açık olsa da); TLS'i
+        // eski (TCP'si açık ama el sıkışma yok) cihaz 80'den; yalnızca TCP'si açık 443 web arayüzü sayılmaz
+        let bul = |hedef: &str, web: &[&str], tls: &[&str]| {
+            let mut ag = Ag::yeni(&[hedef], web);
+            ag.tls = tls.iter().map(|s| ip(s)).collect();
+            let d = ag.calistir(Some(hedef));
+            (d.durum, d.port, d.sema, d.yol)
+        };
+        let s = |durum: &str, port: u16, sema: &str, yol: &str| (durum.to_string(), port, sema.to_string(), yol.to_string());
+        for (yol, h) in [("yan_oda", "192.168.1.1"), ("misafir", "10.50.0.2")] {
+            let (p80, p443) = (format!("{h}:80"), format!("{h}:443"));
+            let (p80, p443) = (p80.as_str(), p443.as_str());
+            assert_eq!(bul(h, &[p80, p443], &[h]), s("bulundu", 443, "https", yol), "{yol}: TLS el sıkışması başarılı");
+            assert_eq!(bul(h, &[p80, p443], &[]), s("bulundu", 80, "http", yol), "{yol}: 443 açık ama TLS eski");
+            assert_eq!(bul(h, &[p80], &[]), s("bulundu", 80, "http", yol), "{yol}: yalnızca 80");
+            assert_eq!(bul(h, &[p443], &[h]), s("bulundu", 443, "https", yol), "{yol}: yalnızca 443, TLS çalışıyor");
+        }
+        assert_eq!(bul("192.168.1.1", &["192.168.1.1:443"], &[]).0, "web_yok", "aktarımın konuşamadığı 443");
+        assert_eq!(bul("10.50.0.2", &["10.50.0.2:443"], &[]).0, "yok");
+        // otomatik bul: denetimde port, sonuçta şema
+        let mut ag = Ag::yeni(&["192.168.1.1"], &["192.168.1.1:80", "192.168.1.1:443"]);
+        ag.tls = vec![ip("192.168.1.1")];
+        let d = ag.calistir(None);
+        assert_eq!((d.durum.as_str(), d.port, d.sema.as_str()), ("bulundu", 443, "https"));
+        assert_eq!(ag.olay().last().unwrap(), "AP_BAGLAN tur=otomatik sonuc=bulundu hedef=192.168.1.1 port=443 yol=yan_oda");
     }
 
     #[test]

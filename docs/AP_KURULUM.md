@@ -36,14 +36,16 @@ modellerde yedek yol Windows betiğidir (4. bölüm). Tasarım: `docs/superpower
    - Adres misafir ağındaysa (10.50.0.x) yan oda gerekmez, cihaz doğrudan dener.
    - Değilse cihaz aynı ağdan boş bir adresle (önce .250, doluysa .249 …) 30 dk'lık **yan oda** açar (misafir portuna
      bağlı ayrı bir ağ; modemin ağıyla aynı olsa da cihazın interneti, tüneli ve misafirler etkilenmez) ve AP'nin web
-     arayüzüne (80, yoksa 443) bağlanmayı dener. Sayfa birkaç saniye kendini yeniler; sonuç bölümde görünür:
-     **"Cihaz bulundu (HTTP)"** ya da **"Bu adreste cihaz yok — kabloyu ve adresi kontrol edin"**.
+     arayüzüne bağlanmayı dener: 443'te HTTPS çalışıyorsa HTTPS, yoksa HTTP (80). Sayfa birkaç saniye kendini yeniler;
+     sonuç bölümde görünür: **"Cihaz bulundu (HTTPS)"** / **"(HTTP)"** ya da **"Bu adreste cihaz yok — kabloyu ve adresi
+     kontrol edin"**.
    - Etiket okunmuyorsa **Otomatik bul**: yaygın fabrika adreslerini (192.168.1.1, 192.168.0.1, 192.168.0.254,
      192.168.1.254, 192.168.2.254 AirTies, 192.168.8.1 / 192.168.100.1 Huawei, 192.168.88.1 MikroTik …) tarar; cevap
      veren ilk cihazda yan oda açık kalır.
-3. **AP arayüzüne git**: yeni sekmede ap.wificorrect.com açılır, içinde AP'nin kendi giriş ekranı. Etiketteki fabrika
-   kullanıcı adı/parolasıyla girin. Erişim **30 dk** sürer (yan odada en çok yan odanın kalan süresi); bölümde
-   **Erişimi kapat** ile erken biter. Süre dolunca ap.wificorrect.com "AP erişimi kapalı" der: panelden yeniden açın
+3. **AP arayüzüne git**: yeni sekmede ap.wificorrect.com açılır, içinde AP'nin kendi giriş ekranı (HTTPS çalışıyorsa
+   AP'ye HTTPS'ten gidilir: bazı modemler, ör. ZyXEL, ancak böyle giriş yapar; HTTPS arayüzü düzgün çalışmayan cihazda
+   yanındaki **HTTP ile aç**). Etiketteki fabrika kullanıcı adı/parolasıyla girin. Erişim **30 dk** sürer (yan odada en
+   çok yan odanın kalan süresi); bölümde **Erişimi kapat** ile erken biter. Süre dolunca ap.wificorrect.com "AP erişimi kapalı" der: panelden yeniden açın
    (aynı sayfadaki "AP oturumunu kapat ve bu tarayıcıdaki AP verisini sil" bağlantısı tarayıcıdaki AP çerezlerini ve
    depolamayı da siler, saklanan AP parolasını da çoğu tarayıcıda siler — tarayıcıya bağlı; wificorrect.com'daki
    panel/yönetim oturumları da kapanır).

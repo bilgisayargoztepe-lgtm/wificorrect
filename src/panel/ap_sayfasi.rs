@@ -35,14 +35,20 @@ fn okunamadi_mesaji(adresler: &[String]) -> String {
     )
 }
 
-/// "AP arayüzüne git": yeni sekmede (form hedefi), oturumun CSRF'iyle
-fn git_formu(o: &Oturum, adres: &str, etiket: &str) -> String {
+/// "AP arayüzüne git": yeni sekmede (form hedefi), oturumun CSRF'iyle. `http_secenegi`: yanında "HTTP ile aç" (aynı form,
+/// `sema=http`: yalnızca 80 denenir; HTTPS arayüzü bozuk AP için)
+fn git_formu(o: &Oturum, adres: &str, etiket: &str, http_secenegi: bool) -> String {
+    let http = if http_secenegi { "<button class=\"ikincil\" name=\"sema\" value=\"http\">HTTP ile aç</button>" } else { "" };
     format!(
-        "<form class=\"ic\" method=\"post\" action=\"/ap-kurulum/arayuz\" target=\"_blank\">{}<input type=\"hidden\" name=\"hedef\" value=\"{}\"><button>{}</button></form>",
+        "<form class=\"ic\" method=\"post\" action=\"/ap-kurulum/arayuz\" target=\"_blank\">{}<input type=\"hidden\" name=\"hedef\" value=\"{}\"><button>{}</button>{http}</form>",
         csrf_input(o),
         h(adres),
         h(etiket)
     )
+}
+
+fn sema_adi(sema: &str) -> &'static str {
+    if sema == "https" { "HTTPS" } else { "HTTP" }
 }
 
 impl Panel {
@@ -164,12 +170,15 @@ impl Panel {
              kapanınca silinir).</p>",
         );
         match ap_arayuz::denetle(&self.ap_yollar, cfg, now) {
+            // "AP arayüzüne git" şemayı yeniden seçer (HTTPS çalışıyorsa HTTPS); "HTTP ile aç" burada hep var: HTTP ile
+            // açılmış erişim de aynı şemayla yeniden açılabilsin
             ap_arayuz::Durum::Gecerli(hd) => s.push_str(&format!(
-                "<p><b>AP arayüzü erişimi açık:</b> <code>{}</code> ({}), {} kendiliğinden kapanır.</p><div class=\"eylemler\">{}{}</div>",
+                "<p><b>AP arayüzü erişimi açık:</b> <code>{}</code> ({}, {}), {} kendiliğinden kapanır.</p><div class=\"eylemler\">{}{}</div>",
                 h(&hd.konak()),
+                sema_adi(&hd.sema),
                 if hd.yol == "yan_oda" { "yan odadan" } else { "misafir ağından" },
                 h(&saat(hd.bitis)),
-                git_formu(o, &hd.adres, "AP arayüzüne git"),
+                git_formu(o, &hd.adres, "AP arayüzüne git", true),
                 post_button(o, "/ap-kurulum/arayuz-kapat", "Erişimi kapat", &[], "ikincil")
             )),
             ap_arayuz::Durum::Kapandi(hd, neden) => ap_arayuz::denetim(&cfg.main.log_root, now, &hd, &ap_arayuz::kapandi_ek(&hd, neden)),
@@ -186,7 +195,8 @@ impl Panel {
              <button>Bağlan</button></form>\
              <p class=\"not\">Modemin ya da access point'in altındaki etikette yazan IP adresini yazın. Etiketteki kullanıcı adı ve \
              parolayı buraya yazmayın. Bilinen adlar da olur ({} …). Adres misafir ağında değilse cihaz aynı ağdan boş bir adresle \
-             {} dk'lık yan oda açar ve cihazın web arayüzüne (80, yoksa 443) bağlanmayı dener.</p><p>{}</p>\
+             {} dk'lık yan oda açar ve cihazın web arayüzüne bağlanmayı dener: 443'te HTTPS çalışıyorsa HTTPS, yoksa HTTP (80). \
+             HTTPS arayüzü düzgün çalışmayan cihazda \"HTTP ile aç\".</p><p>{}</p>\
              <p class=\"not\">Etiket okunmuyorsa: yaygın fabrika adreslerini (192.168.1.1, 192.168.0.1, 192.168.0.254 …) sırayla dener; \
              cevap veren ilk cihazda yan oda açık kalır.</p>",
             csrf_input(o),
@@ -217,7 +227,7 @@ impl Panel {
                 });
                 let yer = if d.yol == "misafir" { "misafir ağında".to_string() } else { format!("yan oda <code>{}</code>", h(&d.yan_oda)) };
                 let alt = if gidilir {
-                    format!("<div class=\"eylemler\">{}</div>", git_formu(o, &d.adres, "AP arayüzüne git"))
+                    format!("<div class=\"eylemler\">{}</div>", git_formu(o, &d.adres, "AP arayüzüne git", d.sema == "https"))
                 } else if d.yol == "misafir" && kayitli {
                     "<p class=\"not\">Bu kayıtlı AP adresinin MAC'i sabitlenmemiş: AP açıkken aşağıdaki AP adresleri'nde Kaydet'e basın.</p>".into()
                 } else if d.yol == "misafir" {
@@ -229,7 +239,7 @@ impl Panel {
                 };
                 format!(
                     "<p><b>Cihaz bulundu ({}):</b> <code>{}</code> — {yer} ({}).</p>{alt}",
-                    if d.sema == "https" { "HTTPS" } else { "HTTP" },
+                    sema_adi(&d.sema),
                     h(&d.adres),
                     h(&saat(d.bitis))
                 )
@@ -259,7 +269,7 @@ impl Panel {
             let gitler: String = liste
                 .iter()
                 .filter(|a| a.parse::<Ipv4Addr>().is_ok_and(|ip| ap::kayitli_ap_mi(ip, cfg)) && cfg.ap.mac.contains_key(*a))
-                .map(|a| git_formu(o, a, &format!("{a} arayüzüne git")))
+                .map(|a| git_formu(o, a, &format!("{a} arayüzüne git"), false))
                 .collect();
             let kayitlar: Vec<String> = liste
                 .iter()
@@ -313,7 +323,7 @@ impl Panel {
             let Ok(ip) = a.parse::<Ipv4Addr>() else { continue };
             let mut m = ap::komsu_mac(&neigh, ip);
             if m.is_none() {
-                let _ = (self.ap_dene)(ip, false); // bağlantı denemesi adresi çözdürür (AP açıksa komşu tablosuna girer)
+                let _ = (self.ap_dene)(ip, false, true); // bağlantı denemesi adresi çözdürür (AP açıksa komşu tablosuna girer; tek TCP yeter)
                 neigh = komsu_tablosu(self, cfg);
                 m = ap::komsu_mac(&neigh, ip);
             }
@@ -534,9 +544,10 @@ impl Panel {
         self.page(cfg, req, Some(o), "Takılan cihaz aranıyor", &body)
     }
 
-    /// "AP arayüzüne git" (yeni sekme): hedef yalnızca açık yan odanın ağında ya da kayıtlı AP adresi; web arayüzü (80,
-    /// yoksa 443) cevap veriyorsa hedef yazılır (`AP_ARAYUZ acildi`) ve sayfa merkezin geçişine gider (meta yenileme:
-    /// CSP form-action yönlendirmeyi kesmesin). Erişim 30 dk, yan odada en çok yan odanın kalan süresi.
+    /// "AP arayüzüne git" (yeni sekme): hedef yalnızca açık yan odanın ağında ya da kayıtlı AP adresi; web arayüzü cevap
+    /// veriyorsa (443'te TLS el sıkışması olursa HTTPS, yoksa HTTP 80; "HTTP ile aç" = `sema=http`: yalnızca 80) hedef
+    /// yazılır (`AP_ARAYUZ acildi`) ve sayfa merkezin geçişine gider (meta yenileme: CSP form-action yönlendirmeyi
+    /// kesmesin). Erişim 30 dk, yan odada en çok yan odanın kalan süresi.
     pub(super) fn ap_arayuz_ac(&self, cfg: &Config, req: &Req, o: &Oturum, now: f64) -> Resp {
         let hata = |m: &str| {
             let body = format!("<p><a href=\"/ayarlar#ap-kurulum\">← AP kurulumu</a></p><p class=\"hata\">{}</p>", h(m));
@@ -554,8 +565,11 @@ impl Panel {
                  kaydedilir; panel yalnızca o cihaza gider)."
             ));
         }
-        let Some(port) = (self.ap_dene)(ip, yan_odadan) else {
-            return hata(&format!("{ip} adresinde web arayüzü (80/443) cevap vermedi. AP açık mı, kablo misafir portunda mı?"));
+        // "HTTP ile aç": HTTPS arayüzü bozuk AP için yalnızca 80 (doğrulama ve denetim aynı)
+        let yalniz_http = req.form.get("sema").is_some_and(|s| s == "http");
+        let Some(port) = (self.ap_dene)(ip, yan_odadan, yalniz_http) else {
+            let ne = if yalniz_http { "HTTP (80) web arayüzü" } else { "web arayüzü (80/443)" };
+            return hata(&format!("{ip} adresinde {ne} cevap vermedi. AP açık mı, kablo misafir portunda mı?"));
         };
         // kayıtlı AP adresi (misafir ağı): bağlantı denemesinden sonra komşu tablosundaki MAC sabitlenen MAC olmalı (final
         // review I1: misafir ağında AP'nin adresini elle alan bir cihaz AP yerine geçip yazılan parolayı toplamasın)

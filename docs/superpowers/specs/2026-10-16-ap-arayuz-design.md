@@ -21,6 +21,8 @@ hesaplamasın.
      aynı /24'ten boş bir yan oda adresi seçer (önce .250, doluysa .249 … — "boş" = yan odadan ARP/ICMP ile cevap yok,
      hedefin kendisi değil) ve yan odayı açar (mevcut 30 dk kuralları), sonra hedefe TCP 80 (yoksa 443) bağlantısını dener.
      Sonuç sayfada: "Cihaz bulundu (HTTP)" ya da "Bu adreste cihaz yok — kabloyu ve adresi kontrol edin".
+     *0.4.16 eki (2026-10-18, canlı ZyXEL):* önce 443'te aktarımın TLS'iyle el sıkışma, başarılıysa HTTPS; olmazsa HTTP
+     80 ("Cihaz bulundu (HTTPS)" / "(HTTP)"); yanında "HTTP ile aç". Ayrıntı KURULUM_GUNLUGU "AP arayüzü — cihaz".
    - **Otomatik bul** (etiket bilinmiyorsa): yaygın fabrika adreslerini sırayla dener (192.168.1.1, 192.168.0.1,
      192.168.0.254, 192.168.1.254, 192.168.10.1, 192.168.2.1, 192.168.8.1, 192.168.100.1, 10.0.0.1, 10.0.0.138 …;
      liste kodda, uygulayıcı tamamlar), cevap veren ilk adreste yan odayı açık bırakır. Süre ~20 sn; arka plan işi olarak

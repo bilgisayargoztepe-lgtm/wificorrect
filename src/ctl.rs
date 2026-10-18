@@ -204,7 +204,7 @@ fn ap_bul_argumanlari(args: &[String]) -> Option<(&str, &str, &str, Option<std::
 /// `ctl ap-bul`: panelin "Bağlan" / "Otomatik bul" arka plan işi (`systemd-run --unit wfc-ap-bul`, src/ap_bul.rs).
 /// Denetim satırları panelinki gibi kim + rol + IP ile.
 fn ap_bul(cfg: &Config, args: &[String]) -> ExitCode {
-    use std::net::{Ipv4Addr, SocketAddrV4, TcpStream};
+    use std::net::Ipv4Addr;
     use std::time::Duration;
     let Some((kim, rol, ip, hedef)) = ap_bul_argumanlari(args) else {
         eprintln!("{AP_BUL_KULLANIM}");
@@ -232,19 +232,14 @@ fn ap_bul(cfg: &Config, args: &[String]) -> ExitCode {
         ap_arayuz_kapat(cfg, &y, ortak::wall());
         Ok(k.map(|k| k.adres))
     };
-    let dene = |a: SocketAddrV4, yan: bool| {
-        if yan {
-            crate::yan_oda::socks_baglan(a, Duration::from_secs(8)).is_ok()
-        } else {
-            TcpStream::connect_timeout(&a.into(), Duration::from_secs(3)).is_ok()
-        }
-    };
+    // web arayüzü: panelin "AP arayüzüne git"iyle aynı seçim (443'te TLS el sıkışması olursa HTTPS, yoksa 80)
+    let web = |adres: Ipv4Addr, yan: bool| crate::ap_arayuz::web_portu(adres, yan, false);
     let kaydet = |d: &crate::ap_bul::Durum| {
         if let Err(e) = crate::ap_bul::kaydet(&y, d) {
             eprintln!("{e}");
         }
     };
-    let a = crate::ap_bul::Araclar { arp: &arp, yan_oda: &yan_oda, ac: &ac, kapat: &kapat, dene: &dene, denetim: &denetim, kaydet: &kaydet };
+    let a = crate::ap_bul::Araclar { arp: &arp, yan_oda: &yan_oda, ac: &ac, kapat: &kapat, web: &web, denetim: &denetim, kaydet: &kaydet };
     let d = crate::ap_bul::calistir(cfg, hedef, kim, rol, &a, &ortak::wall);
     if d.mesaj.is_empty() {
         println!("{}: {}:{} ({})", d.durum, d.adres, d.port, d.yol);

@@ -76,7 +76,8 @@ Bitenler (canlıda):
 
 - **Merkezde sağlık izleme + SMS uyarısı** (spec `docs/superpowers/specs/2026-10-11-saglik-izleme-design.md`): cihaz 5 dk'da
   bir `/api/saglik`; merkezde `wc-saglik.timer` kurallar + NetGSM genel SMS (`netgsm.py`); Yönetim'de "Sağlık izleme: son tur",
-  Açık sorunlar, müşteri sağlık kartı, sorun geçmişi, **Uyarı ayarları** (telefon + deneme SMS'i; kullanıcı henüz girmedi).
+  Açık sorunlar, müşteri sağlık kartı, sorun geçmişi, **Uyarı ayarları** (telefon + deneme SMS'i; 2026-10-20'de kullanıcının
+  numarası girildi, uyarılar açık, günlük sınır 20, deneme SMS'i ulaştı).
   Merkez testleri `WC_TEST` ile gerçek SMS'i reddeder.
 - Yönetim → müşteri sayfası **"Cihaz paneline git"** (yönetici geçiş belirteci; çıkış yönetime döner, müşteri oturumu düşmez).
 - Caddy düzeltmeleri (PR #8): `header_up Cookie "…" ""` Caddy 2.6.2'de Cookie'yi EZİYORDU (cihaz oturumu her istekte
@@ -197,7 +198,7 @@ Kullanıcının onayladığı sıra (2026-10-11; donanım bekçisi hariç): ~~1 
 arka plan işleri, kurulum/yan yana geçiş, uçtan uca + Python'u kaldırma; aynı SQLite şeması ve parola biçimi korunur). Zaman damgası: kontör alınınca. İki aşamalı giriş istenmedi.
 Ertelenmiş küçük bulgular: `.superpowers/sdd/*/progress.md` (yalnızca bu makinede).
 Bekleyen kullanıcı işleri: iki J1900'de BIOS → "Restore on AC Power Loss = Power On" (monitör + klavyeyle; sonra fiş çekip
-kendiliğinden açıldığını dene) ve yeni kutulara sahte ekran fişi; Yönetim → Uyarı ayarları'na telefon (SMS uyarıları hiç gitmiyor); Göztepe'nin TP-Link'inin yönetim
+kendiliğinden açıldığını dene) ve yeni kutulara sahte ekran fişi; Göztepe'nin TP-Link'inin yönetim
 parolasını AP yönetim parolasına çevirmek (2026-10-16'ya kadarki kural panel parolasıydı); aydınlatma metni (misafir kodu
 cümlesi ve yeni veri sorumlusu kalıbı) için hukukçu onayı; AP canlı kabul listesinin kalanı (KURULUM_GUNLUGU "AP arayüzü —
 cihaz": Göztepe TP-Link'in yeni yoldan açılması, iPhone/Özel Geçiş, süre dolumu sayfası, `ap-ac.ps1 -Tunel`).

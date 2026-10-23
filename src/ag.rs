@@ -338,6 +338,45 @@ pub fn rota_arayuzu(ip_route: &str) -> Option<String> {
     None
 }
 
+/// `ip -o route show default` satırları: (arayüz, metrik). Yalnızca `default` ile başlayan ve bir `dev` taşıyan satırlar sayılır
+/// (arayüzsüz `blackhole` gibi rotalar kullanılamaz); `ip` metrik 0'ı yazmaz, metriksiz satır 0'dır.
+fn varsayilan_rotalar(ip_route: &str) -> Vec<(String, u32)> {
+    ip_route
+        .lines()
+        .filter_map(|satir| {
+            let mut it = satir.split_whitespace();
+            if it.next()? != "default" {
+                return None;
+            }
+            let (mut arayuz, mut metrik) = (None, 0);
+            while let Some(w) = it.next() {
+                match w {
+                    "dev" => arayuz = it.next().map(String::from),
+                    "metric" => metrik = it.next().and_then(|m| m.parse().ok()).unwrap_or(0),
+                    _ => {}
+                }
+            }
+            arayuz.map(|a| (a, metrik))
+        })
+        .collect()
+}
+
+/// İnternet koşulu: cihazın varsayılan rotası var (DHCP ya da PPPoE). `ip -o route show default` çıktısı boşsa internet yoktur;
+/// giriş sayfasındaki "internet bağlantısı yok" uyarısı ve Servis buna bakar.
+pub fn internet_var(ip_route_default: &str) -> bool {
+    !varsayilan_rotalar(ip_route_default).is_empty()
+}
+
+/// Trafiğin gerçekten çıktığı arayüz: çekirdek en düşük metrikli varsayılan rotayı kullanır, PPPoE rotası (metrik 100) DHCP'ninkinin
+/// (1000+) önündedir. Bu rota `wfcppp` ise `wfcppp`; yalnız DHCP rotası varsa ya da rota yoksa internet alan Ethernet.
+/// Yavaşlatma (HTB + sınıf kuralları) bu arayüze kurulur.
+pub fn etkin_cikis(ag: &Ag, ip_route_default: &str) -> String {
+    match varsayilan_rotalar(ip_route_default).into_iter().min_by_key(|(_, metrik)| *metrik) {
+        Some((arayuz, _)) if arayuz == pppoe::ARAYUZ => arayuz,
+        _ => ag.wan.clone(),
+    }
+}
+
 /// Kurulum (paket postinst): ag.toml yoksa rolleri belirler ve dosyaları yazar; ağı geçirmez (kurucunun içinde çalışır).
 /// İnternet alan: kurulumun internete çıktığı arayüz (varsayılan rota) → yoksa bu kutunun varsayılanı → yoksa Ethernet 1.
 pub fn ilk(cfg: &Config, y: &Yollar, sys: &Path, rota: Option<&str>) -> Result<bool, String> {
@@ -1053,5 +1092,51 @@ mod tests {
         // birim başlamazsa
         let (r, _) = sahte(&["systemctl restart"]);
         assert_eq!(pppoe_uygula(&cfg, &y, &yeni, &r), Ok(vec!["PPPoE başlatılamadı".to_string()]));
+    }
+
+    // `ip -o route show default` çıktıları (cihazdaki gerçek biçim: satır sonunda boşluk; DHCP metriği cihaza göre 1002-1003)
+    const DHCP_ROTA: &str = "default via 192.168.1.1 dev enp3s0 proto dhcp src 192.168.1.110 metric 1003 \n";
+    const PPP_ROTA: &str = "default dev wfcppp scope link metric 100 \n";
+
+    #[test]
+    fn internet_kosulu() {
+        assert!(!internet_var(""));
+        assert!(!internet_var("\n"));
+        assert!(internet_var("default via 192.168.1.1 dev enp3s0 proto dhcp metric 1002"));
+        assert!(internet_var(DHCP_ROTA));
+        assert!(internet_var(PPP_ROTA)); // yalnız PPPoE
+        assert!(internet_var(&format!("{PPP_ROTA}{DHCP_ROTA}")));
+        // varsayılan olmayan ya da arayüzü olmayan satır internet sayılmaz
+        assert!(!internet_var("10.99.0.0/24 dev wfc scope link\n"));
+        assert!(!internet_var("blackhole default metric 1\n"));
+        assert!(!internet_var("default via 192.168.1.1\n"));
+        assert!(!internet_var("RTNETLINK answers: Operation not permitted\n"));
+    }
+
+    #[test]
+    fn etkin_cikis_secimi() {
+        let ag = Ag::default(); // internet portu enp3s0
+        // ikisi de var: PPPoE'nin düşük metrikli rotası tercih edilir, satır sırası önemsiz
+        assert_eq!(etkin_cikis(&ag, &format!("{PPP_ROTA}{DHCP_ROTA}")), "wfcppp");
+        assert_eq!(etkin_cikis(&ag, &format!("{DHCP_ROTA}{PPP_ROTA}")), "wfcppp");
+        assert_eq!(etkin_cikis(&ag, "default dev wfcppp scope link metric 100\ndefault via 192.168.1.1 dev enp3s0 proto dhcp metric 1002"), "wfcppp");
+        // yalnız PPPoE; yalnız DHCP; rota yok (internet yok ya da çıktı okunamadı): internet portu
+        assert_eq!(etkin_cikis(&ag, PPP_ROTA), "wfcppp");
+        assert_eq!(etkin_cikis(&ag, DHCP_ROTA), "enp3s0");
+        assert_eq!(etkin_cikis(&ag, ""), "enp3s0");
+        // internet alan port başka olabilir
+        let b = Ag { wan: "enp1s0".into(), lan: vec!["enp3s0".into()], ..Ag::default() };
+        assert_eq!(etkin_cikis(&b, "default via 10.0.0.1 dev enp1s0 proto dhcp metric 1002\n"), "enp1s0");
+        assert_eq!(etkin_cikis(&b, &format!("{PPP_ROTA}default via 10.0.0.1 dev enp1s0 metric 1002\n")), "wfcppp");
+        assert_eq!(etkin_cikis(&b, ""), "enp1s0");
+        // çekirdek en düşük metriği kullanır: PPPoE rotası daha yüksek metrikliyse trafik DHCP'den çıkar
+        assert_eq!(etkin_cikis(&ag, "default dev wfcppp scope link metric 2000\ndefault via 192.168.1.1 dev enp3s0 metric 1002\n"), "enp3s0");
+        // metrik yazılmamışsa 0 (en düşük); eşitlikte ilk satır
+        assert_eq!(etkin_cikis(&ag, "default via 192.168.1.1 dev enp3s0\ndefault dev wfcppp scope link metric 100\n"), "enp3s0");
+        assert_eq!(etkin_cikis(&ag, "default dev wfcppp scope link metric 100\ndefault via 192.168.1.1 dev enp3s0 metric 100\n"), "wfcppp");
+        // başka bir arayüzdeki rota (internet portu değişirken bir an): yapılandırılmış internet portu
+        assert_eq!(etkin_cikis(&ag, "default via 10.0.0.1 dev eno9 metric 100\n"), "enp3s0");
+        // varsayılan olmayan satırlar (başka hedef ağ) yok sayılır
+        assert_eq!(etkin_cikis(&ag, &format!("10.99.0.0/24 dev wfcppp scope link metric 1\n{DHCP_ROTA}")), "enp3s0");
     }
 }

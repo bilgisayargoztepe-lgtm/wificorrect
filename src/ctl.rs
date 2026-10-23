@@ -771,8 +771,11 @@ pub fn run(cfg: Config, args: &[String]) -> ExitCode {
         }
         // Panel → Bağlı kullanıcılar → Yavaşlat / Yavaşlatmayı kaldır
         Some("hiz-uygula") => {
-            let wan = crate::ag::load(&crate::ag::Yollar::sistem().ag).wan;
-            hiz_uygula(&cfg, &wan, &runner, &crate::hiz::nft_dosya, std::path::Path::new(crate::hiz::UYGULANAN_YOLU))
+            // kaydedici ile aynı seçim (yoksa ikisi planı sırayla farklı arayüzlere kurup birbirini bozar): trafiğin gerçekten çıktığı
+            // arayüz, PPPoE bağlıyken wfcppp. Rota okunamazsa (tek seferlik komut: bekleyemez) internet alan Ethernet.
+            let ag = crate::ag::load(&crate::ag::Yollar::sistem().ag);
+            let rota = ortak::capture_timeout(&["ip", "-o", "route", "show", "default"], 5).unwrap_or_default();
+            hiz_uygula(&cfg, &crate::ag::etkin_cikis(&ag, &rota), &runner, &crate::hiz::nft_dosya, std::path::Path::new(crate::hiz::UYGULANAN_YOLU))
         }
         // Açılışta (wificorrect-guvenlik) ve panelden: yasaklı site / kelime listelerini uygula
         Some("filtre-uygula") => match crate::filtre::uygula(&cfg, std::path::Path::new(crate::filtre::DNSMASQ_CONF), &runner) {

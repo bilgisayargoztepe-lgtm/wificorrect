@@ -416,10 +416,11 @@ impl Kaydedici {
         d
     }
 
-    /// Yavaşlatma uzlaştırması (değişiklik yoksa komut çalışmaz); hata bir sonraki trafik.json'a yazılır.
-    pub fn hiz_adimi(&mut self, wan: &str) -> Result<bool, String> {
+    /// Yavaşlatma uzlaştırması (değişiklik yoksa komut çalışmaz); hata bir sonraki trafik.json'a yazılır. `cikis`: trafiğin çıktığı
+    /// arayüz (`ag::etkin_cikis`: PPPoE bağlıyken wfcppp, değilse internet alan Ethernet).
+    pub fn hiz_adimi(&mut self, cikis: &str) -> Result<bool, String> {
         let ip_of: BTreeMap<String, String> = self.ip_mac().into_iter().map(|(ip, mac)| (mac, ip)).collect();
-        let r = hiz::uygula(&self.cfg, wan, &ip_of, &*self.runner, &*self.nft_f, &self.uygulanan_yolu);
+        let r = hiz::uygula(&self.cfg, cikis, &ip_of, &*self.runner, &*self.nft_f, &self.uygulanan_yolu);
         let hata = r.as_ref().err().cloned();
         if hata.is_some() && hata != self.hiz_hata {
             eprintln!("kaydedici: {}", hata.as_deref().unwrap_or(""));
@@ -456,14 +457,15 @@ impl Kaydedici {
     }
 
     /// tc kökleri dışarıdan gittiyse (arayüz yeniden kuruldu, elle silindi) plan izi silinir: sonraki uzlaştırma yeniden kurar.
-    /// Plan her zaman HTB kökü kurduğundan iki arayüzde de `htb 1:` beklenir.
-    fn kok_denetle(&mut self, wan: &str) {
+    /// Plan her zaman HTB kökü kurduğundan iki arayüzde de (köprü ve `cikis`: trafiğin çıktığı arayüz) `htb 1:` beklenir. PPPoE'de
+    /// `wfcppp` her yeniden bağlanmada yeniden doğar ve kökü kaybolur; bu denetim onu da yeniden kurdurur.
+    fn kok_denetle(&mut self, cikis: &str) {
         if !self.uygulanan_yolu.exists() {
             return;
         }
         let lan = self.cfg.main.iface.clone();
         // okunamayan (asılı/süresi dolan) tc yok sayılır: sağlam kökler boşuna yeniden kurulmasın
-        if [lan.as_str(), wan].iter().any(|d| (self.capture)(&["tc", "qdisc", "show", "dev", d, "root"]).is_some_and(|o| !o.contains("htb 1:"))) {
+        if [lan.as_str(), cikis].iter().any(|d| (self.capture)(&["tc", "qdisc", "show", "dev", d, "root"]).is_some_and(|o| !o.contains("htb 1:"))) {
             let _ = std::fs::remove_file(&self.uygulanan_yolu);
         }
     }
@@ -476,14 +478,19 @@ impl Kaydedici {
         let set = |ad: &str| (self.capture)(&["nft", "-j", "list", "set", "inet", "wfc_hiz", ad]).unwrap_or_default();
         let (indir, yukle) = (set("indir"), set("yukle"));
         if tablo {
-            let wan = crate::ag::load(&self.ag_path).wan;
-            if now - self.kok_son >= 30.0 {
-                self.kok_son = now;
-                self.kok_denetle(&wan);
-            }
-            if self.hiz_hata.is_none() || now - self.hiz_hata_zaman >= 60.0 {
-                if self.hiz_adimi(&wan).is_err() {
-                    self.hiz_hata_zaman = now;
+            // Yavaşlatma trafiğin gerçekten çıktığı arayüze kurulur: PPPoE bağlıyken wfcppp, yoksa internet alan Ethernet (WAN DHCP
+            // bekçisi `check_wan` bundan bağımsız, hep internet portuna bakar). Rota okunamazsa (asılı/süresi dolan `ip`) çıkış
+            // bilinmez: bu tur uzlaştırılmaz, tc kökleri denetlenmez; internet portuna dönülüp plan boşuna değiştirilmesin.
+            if let Some(rota) = (self.capture)(&["ip", "-o", "route", "show", "default"]) {
+                let cikis = crate::ag::etkin_cikis(&crate::ag::load(&self.ag_path), &rota);
+                if now - self.kok_son >= 30.0 {
+                    self.kok_son = now;
+                    self.kok_denetle(&cikis);
+                }
+                if self.hiz_hata.is_none() || now - self.hiz_hata_zaman >= 60.0 {
+                    if self.hiz_adimi(&cikis).is_err() {
+                        self.hiz_hata_zaman = now;
+                    }
                 }
             }
         }
@@ -1358,5 +1365,138 @@ mod tests {
         k.capture = Box::new(|_: &[&str]| None); // tc asıldı, süre doldu
         k.kok_denetle("enp3s0");
         assert!(k.uygulanan_yolu.exists());
+    }
+
+    // ---------------------------------------------------------------- yavaşlatma etkin çıkış arayüzünde (PPPoE, spec 2026-10-23)
+    // `ip -o route show default` çıktıları (cihazdaki gerçek biçim: satır sonunda boşluk)
+    const DHCP_ROTA: &str = "default via 192.168.1.1 dev enp3s0 proto dhcp src 192.168.1.110 metric 1003 \n";
+    const PPP_ROTA: &str = "default dev wfcppp scope link metric 100 \n";
+    const HTB_KOKU: &str = "qdisc htb 1: root refcnt 2 r2q 10 default 0x1 direct_packets_stat 0";
+
+    /// hiz_turu için sahte `ip -o route show default` (`None`: komut çalışmadı/zaman aşımı) ve arayüz başına tc kökü çıktısı
+    /// (tabloda yoksa HTB kurulu görünür).
+    fn rota_kur(k: &mut Kaydedici) -> (Arc<Mutex<Option<String>>>, Arc<Mutex<BTreeMap<String, String>>>) {
+        let rota = Arc::new(Mutex::new(Some(String::new())));
+        let kokler: Arc<Mutex<BTreeMap<String, String>>> = Arc::default();
+        let (r2, k2) = (rota.clone(), kokler.clone());
+        k.capture = Box::new(move |c: &[&str]| match c[0] {
+            "ip" => {
+                assert_eq!(c, ["ip", "-o", "route", "show", "default"]);
+                r2.lock().unwrap().clone()
+            }
+            // tc qdisc show dev <arayüz> root
+            "tc" => Some(k2.lock().unwrap().get(c[4]).cloned().unwrap_or_else(|| HTB_KOKU.into())),
+            _ => Some(String::new()),
+        });
+        (rota, kokler)
+    }
+
+    /// Şimdiye kadarki runner çağrılarının tc olanları; listeyi boşaltır.
+    fn tc_cagrilari(calls: &Arc<Mutex<Vec<String>>>) -> Vec<String> {
+        std::mem::take(&mut *calls.lock().unwrap()).into_iter().filter(|c| c.starts_with("tc ")).collect()
+    }
+
+    #[test]
+    fn yavaslatma_etkin_cikis_arayuzune_kurulur() {
+        let (mut k, root, _) = setup();
+        let (_, calls, _) = hiz_kur(&mut k, &root); // ag.toml yok: internet portu enp3s0; M1 (10.50.0.23) 5 Mb/sn'ye yavaşlatılmış
+        let (rota, kokler) = rota_kur(&mut k);
+        let plan = |k: &Kaydedici| std::fs::read_to_string(&k.uygulanan_yolu).unwrap();
+
+        // PPPoE de DHCP de bağlı: trafik wfcppp'den çıkar → yavaşlatma wfcppp'ye kurulur, internet portuna değil
+        *rota.lock().unwrap() = Some(format!("{PPP_ROTA}{DHCP_ROTA}"));
+        k.hiz_turu(T);
+        let tc = tc_cagrilari(&calls);
+        assert!(tc.contains(&"tc qdisc replace dev wfcppp root handle 1: htb default 1".to_string()), "{tc:?}");
+        assert!(tc.contains(&"tc qdisc replace dev br-hotspot root handle 1: htb default 1".to_string()), "{tc:?}");
+        assert!(tc.iter().any(|c| c.starts_with("tc class replace dev wfcppp parent 1: classid 1:10 htb rate 5mbit")), "{tc:?}");
+        assert!(tc.iter().all(|c| !c.contains("enp3s0")), "{tc:?}");
+        assert!(plan(&k).contains("oifname \"wfcppp\" ip saddr 10.50.0.23 meta priority set 1:10") && !plan(&k).contains("enp3s0"), "{}", plan(&k));
+        k.hiz_turu(T + 5.0);
+        assert!(tc_cagrilari(&calls).is_empty()); // aynı çıkış, aynı plan: komut yok
+
+        // PPPoE düştü, yalnız DHCP rotası kaldı: yavaşlatma internet portuna döner
+        *rota.lock().unwrap() = Some(DHCP_ROTA.into());
+        k.hiz_turu(T + 10.0);
+        let tc = tc_cagrilari(&calls);
+        assert!(tc.contains(&"tc qdisc replace dev enp3s0 root handle 1: htb default 1".to_string()), "{tc:?}");
+        assert!(tc.iter().all(|c| !c.contains("wfcppp")), "{tc:?}");
+        assert!(plan(&k).contains("oifname \"enp3s0\" ip saddr 10.50.0.23 ") && !plan(&k).contains("wfcppp"), "{}", plan(&k));
+
+        // rota hiç yok (internet yok): internet portu, bugünkü davranış
+        *rota.lock().unwrap() = Some(String::new());
+        k.hiz_turu(T + 15.0);
+        assert!(tc_cagrilari(&calls).is_empty());
+        assert!(plan(&k).contains("oifname \"enp3s0\""));
+
+        // PPPoE geri geldi
+        *rota.lock().unwrap() = Some(format!("{PPP_ROTA}{DHCP_ROTA}"));
+        k.hiz_turu(T + 20.0);
+        let tc = tc_cagrilari(&calls);
+        assert!(tc.contains(&"tc qdisc replace dev wfcppp root handle 1: htb default 1".to_string()), "{tc:?}");
+        assert!(plan(&k).contains("oifname \"wfcppp\""));
+
+        // etkin çıkış değilken internet portunun kökü denetlenmez; etkin çıkışın (wfcppp) kökü denetlenir
+        kokler.lock().unwrap().insert("enp3s0".into(), "qdisc fq_codel 0: root refcnt 2".into());
+        k.hiz_turu(T + 51.0);
+        assert!(tc_cagrilari(&calls).is_empty());
+        // pppd yeniden bağlandı: wfcppp yeni doğdu, HTB kökü yok → 30 sn'lik denetim kökü yeniden kurar
+        kokler.lock().unwrap().insert("wfcppp".into(), "qdisc noqueue 0: root refcnt 2".into());
+        k.hiz_turu(T + 55.0);
+        assert!(tc_cagrilari(&calls).is_empty()); // denetim 30 sn'de bir
+        k.hiz_turu(T + 82.0);
+        let tc = tc_cagrilari(&calls);
+        assert!(tc.contains(&"tc qdisc replace dev wfcppp root handle 1: htb default 1".to_string()), "{tc:?}");
+        assert!(tc.iter().all(|c| !c.contains("enp3s0")), "{tc:?}");
+    }
+
+    #[test]
+    fn yavaslatma_rota_okunamazsa_tahmin_yurutmez() {
+        let (mut k, root, _) = setup();
+        let (_, calls, _) = hiz_kur(&mut k, &root);
+        let (rota, kokler) = rota_kur(&mut k);
+        *rota.lock().unwrap() = Some(PPP_ROTA.into());
+        k.hiz_turu(T);
+        let iz = std::fs::read_to_string(&k.uygulanan_yolu).unwrap();
+        assert!(iz.contains("oifname \"wfcppp\""));
+        tc_cagrilari(&calls);
+        // `ip` asıldı (zaman aşımı): çıkış arayüzü bilinmez → internet portuna dönülüp plan boşuna değiştirilmez, tc kökleri de denetlenmez
+        *rota.lock().unwrap() = None;
+        kokler.lock().unwrap().insert("wfcppp".into(), "qdisc noqueue 0: root refcnt 2".into());
+        k.hiz_turu(T + 40.0);
+        assert!(tc_cagrilari(&calls).is_empty());
+        assert_eq!(std::fs::read_to_string(&k.uygulanan_yolu).unwrap(), iz);
+        // trafik ölçümü yine de sürer
+        assert_eq!(crate::trafik::oku(&k.trafik_yolu).unwrap().zaman, T + 40.0);
+        // rota okunabilince bekleyen kök onarımı yapılır
+        *rota.lock().unwrap() = Some(PPP_ROTA.into());
+        k.hiz_turu(T + 45.0);
+        assert!(tc_cagrilari(&calls).iter().any(|c| c == "tc qdisc replace dev wfcppp root handle 1: htb default 1"));
+    }
+
+    #[test]
+    fn wan_dhcp_bekcisi_internet_portuna_bakar() {
+        // PPPoE bağlıyken (etkin çıkış wfcppp) bile DHCP istemcisi internet portunda aranır: DHCP hep açık kalır, bekçi ona bakar
+        let (mut k, root, _) = setup();
+        std::fs::write(root.join("ag.toml"), "wan = \"enp1s0\"\nlan = [\"enp3s0\"]\n").unwrap();
+        k.ag_path = root.join("ag.toml");
+        let sys = root.join("sys");
+        std::fs::create_dir_all(sys.join("enp1s0")).unwrap();
+        std::fs::write(sys.join("enp1s0/carrier"), "1\n").unwrap();
+        k.sys = sys;
+        let (rota, _) = rota_kur(&mut k);
+        *rota.lock().unwrap() = Some(PPP_ROTA.into());
+        let calls = Arc::new(Mutex::new(Vec::<String>::new()));
+        let c2 = calls.clone();
+        k.runner = Box::new(move |c: &[String]| {
+            c2.lock().unwrap().push(c.join(" "));
+            c[0] != "pgrep" // dhcpcd yok
+        });
+        k.check_wan(1000.0);
+        k.check_wan(1065.0);
+        let c = calls.lock().unwrap().clone();
+        assert!(c.iter().any(|x| x == "pgrep -f ^dhcpcd: enp1s0 "), "{c:?}");
+        assert!(c.iter().any(|x| x == "systemctl restart ifup@enp1s0.service"), "{c:?}");
+        assert!(c.iter().all(|x| !x.contains("wfcppp")), "{c:?}");
     }
 }

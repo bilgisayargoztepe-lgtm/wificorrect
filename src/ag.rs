@@ -409,6 +409,9 @@ pub fn switch(cfg: &Config, ag: &Ag, y: &Yollar, runner: &Runner) -> Vec<String>
     if !runner(&cmd(&["systemctl", wifi, "wificorrect-wifi"])) && ag.wifi.acik {
         errs.push("Wi-Fi yayını başlatılamadı".into());
     }
+    // PPPoE: pppd ayrı birimde. Açıksa yeni bağlantı dosyasıyla yeniden başlar; kapalıysa durur ve açılışta başlamaz.
+    // switch'i kullanan her yol (panel geçişi, geri alma, fabrika dönüşü) pppd'yi de ayara getirir.
+    errs.extend(pppoe::birim_uygula(ag, runner));
     errs
 }
 
@@ -443,6 +446,37 @@ pub fn gecis(cfg: &Config, y: &Yollar, new_path: &Path, now: f64, runner: &Runne
     let _ = fs::remove_file(new_path);
     let errs = switch(cfg, &ag, y, runner);
     audit(cfg, "AG_UYGULANDI", &format!("wan={} lan={} wifi={}{}", ag.wan, ag.lan.join(","), ag.wifi.acik, if errs.is_empty() { String::new() } else { format!(" hata={}", errs.join(",")) }));
+    Ok(errs)
+}
+
+/// Giriş sayfasındaki Servis bölümü (`ctl pppoe-servis`): yalnızca PPPoE ayarını yeni değerle değiştirir ve uygular.
+/// **Geri alma zamanlayıcısı kurulmaz**: Servis cihaz internetsizken kullanılır; geri almak teknisyenin düzelttiği bilgiyi yanlış
+/// eskisine döndürürdü. Boş parola = eskisi kalır (parola hiçbir yerde geri gösterilmez). Geçersiz ayar (ya da onay bekleyen bir
+/// port değişikliği: süresi dolunca geri alma yedeği bu ayarı ezerdi) `Err`, hiçbir şey değişmez. Dönen: kalan hatalar.
+/// Ağı yeniden kurmaz (`switch` değil): ag.toml, bağlantı dosyası, güvenlik duvarı kuralları, pppd birimi.
+pub fn pppoe_uygula(cfg: &Config, y: &Yollar, yeni: &Pppoe, runner: &Runner) -> Result<Vec<String>, String> {
+    if pending(y).is_some() {
+        return Err("Bir port değişikliği onay bekliyor (en çok 3 dakika); onaylanınca ya da geri alınınca yeniden deneyin.".into());
+    }
+    let mut ag = load(&y.ag);
+    let mut p = yeni.clone();
+    if p.parola.is_empty() {
+        p.parola = ag.pppoe.parola.clone();
+    }
+    pppoe_dogrula(&p)?;
+    ag.pppoe = p;
+    save(&y.ag, &ag)?;
+    let mut errs = vec![];
+    if let Err(e) = write_files(cfg, &ag, y) {
+        errs.push(e);
+    }
+    // Yükseltilmiş cihazda çekirdeğe yüklü kurallar eski tek adlı WAN ile kuruldu (arayuzler.nft ancak şimdi küme oldu): yeniden
+    // yüklenmezse wfcppp'den gelen/giden trafik iletilmez ve NAT'lanmaz (switch ile aynı yükleme; hız sayaçları da WAN adını alır)
+    if !runner(&cmd(&["nft", "-f", "/etc/wificorrect/guvenlik.nft"])) {
+        errs.push("güvenlik duvarı yüklenemedi".into());
+    }
+    runner(&cmd(&["nft", "-f", "/etc/wificorrect/hiz.nft"]));
+    errs.extend(pppoe::birim_uygula(&ag, runner));
     Ok(errs)
 }
 
@@ -852,5 +886,172 @@ mod tests {
         assert_eq!(describe(&Ag { pppoe: Pppoe { vlan: 0, ..pppoe_acik() }, ..Ag::default() }, &e), format!("{kapali}, PPPoE açık"));
         // kapalıyken (bilgiler dolu olsa da) çıktı değişmez
         assert_eq!(describe(&Ag { pppoe: Pppoe { acik: false, ..pppoe_acik() }, ..Ag::default() }, &e), kapali);
+    }
+
+    // ---------------------------------------------------------------- PPPoE birimi ve Servis yolu
+    /// Sahte komut çalıştırıcı: çağrıları sırayla toplar; `basarisiz` listesindeki önekle başlayan komut false döner.
+    fn sahte(basarisiz: &'static [&'static str]) -> (impl Fn(&[String]) -> bool + Send + Sync, Arc<Mutex<Vec<String>>>) {
+        let calls: Arc<Mutex<Vec<String>>> = Arc::default();
+        let c2 = calls.clone();
+        let r = move |c: &[String]| {
+            let s = c.join(" ");
+            c2.lock().unwrap().push(s.clone());
+            !basarisiz.iter().any(|b| s.starts_with(b))
+        };
+        (r, calls)
+    }
+
+    /// `ara` listesinde, her biri öncekinden sonra gelen komutların yerleri; bulunamayan komut panik (mesajda tüm liste).
+    fn sirayla(calls: &[String], ara: &[&str]) -> Vec<usize> {
+        let mut yerler: Vec<usize> = vec![];
+        for a in ara {
+            let basla = yerler.last().map_or(0, |y| y + 1);
+            let y = calls[basla..].iter().position(|x| x == a).unwrap_or_else(|| panic!("{a:?} (sırayla) yok: {calls:?}")) + basla;
+            yerler.push(y);
+        }
+        yerler
+    }
+
+    #[test]
+    fn switch_pppoe_birimi() {
+        let (cfg, y, _) = setup();
+        let acik = Ag { pppoe: pppoe_acik(), ..Ag::default() };
+        // açık: bağlantı dosyası yazılır, Wi-Fi adımından sonra birim açılışta başlayacak biçimde etkinleştirilip yeniden başlatılır
+        let (r, c) = sahte(&[]);
+        assert_eq!(switch(&cfg, &acik, &y, &r), Vec::<String>::new());
+        let calls = c.lock().unwrap().clone();
+        sirayla(&calls, &["systemctl restart dnsmasq", "systemctl stop wificorrect-wifi", "systemctl enable wificorrect-pppoe.service", "systemctl restart wificorrect-pppoe.service"]);
+        assert!(!calls.iter().any(|x| x.contains("disable")), "{calls:?}");
+        assert!(y.peers.exists());
+        // kapalı: birim durur ve açılışta başlamaz (pppd'nin eski oturumu kalmaz); bağlantı dosyası gider
+        let (r, c) = sahte(&[]);
+        assert_eq!(switch(&cfg, &Ag::default(), &y, &r), Vec::<String>::new());
+        let calls = c.lock().unwrap().clone();
+        sirayla(&calls, &["systemctl stop wificorrect-wifi", "systemctl disable --now wificorrect-pppoe.service"]);
+        assert!(!calls.iter().any(|x| x.contains("restart wificorrect-pppoe")) && !y.peers.exists(), "{calls:?}");
+        // birim başlatılamazsa geçişin geri kalanı yine yapılmıştır; hata listede
+        let (r, c) = sahte(&["systemctl restart wificorrect-pppoe"]);
+        assert_eq!(switch(&cfg, &acik, &y, &r), vec!["PPPoE başlatılamadı".to_string()]);
+        sirayla(&c.lock().unwrap(), &["systemctl restart dnsmasq", "systemctl restart wificorrect-pppoe.service"]);
+    }
+
+    #[test]
+    fn pppoe_birimi_gecis_ve_geri_alma_yolunda() {
+        // switch'i kullanan her yol (panel geçişi, geri alma, fabrika dönüşü) pppd birimini de yönetir
+        let (cfg, y, root) = setup();
+        let (r, c) = sahte(&[]);
+        let acik = Ag { pppoe: pppoe_acik(), ..Ag::default() };
+        save(&y.ag, &acik).unwrap();
+        let staged = root.join("yeni.toml");
+        save(&staged, &Ag::default()).unwrap(); // panelden PPPoE kapatıldı
+        assert_eq!(gecis(&cfg, &y, &staged, 1000.0, &r), Ok(vec![]));
+        assert!(c.lock().unwrap().iter().any(|x| x == "systemctl disable --now wificorrect-pppoe.service"));
+        assert!(!y.peers.exists());
+        // 3 dk içinde onaylanmadı: eski ayar (PPPoE açık) geri gelir, pppd yeniden başlar
+        c.lock().unwrap().clear();
+        assert_eq!(geri_al(&cfg, &y, "sure", &r), Ok(vec![]));
+        assert_eq!(load(&y.ag), acik);
+        sirayla(&c.lock().unwrap(), &["systemctl enable wificorrect-pppoe.service", "systemctl restart wificorrect-pppoe.service"]);
+        assert!(y.peers.exists());
+    }
+
+    #[test]
+    fn pppoe_uygula_bos_parola_korunur() {
+        let (cfg, y, _) = setup();
+        let eski = Ag { pppoe: Pppoe { acik: true, kullanici: "k1".into(), parola: "p1".into(), vlan: 35, mtu: 1400, kimlik: "chap".into(), ..Pppoe::default() }, ..Ag::default() };
+        save(&y.ag, &eski).unwrap();
+        let (r, c) = sahte(&[]);
+        let yeni = Pppoe { acik: true, kullanici: "k2".into(), parola: String::new(), vlan: 0, ..Pppoe::default() };
+        assert_eq!(pppoe_uygula(&cfg, &y, &yeni, &r), Ok(vec![]));
+        // boş parola = eskisi kalır; gönderilen öbür alanlar (boş AC adı, varsayılan MTU/kimlik dahil) aynen yazılır
+        let k = load(&y.ag);
+        assert_eq!(k.pppoe, Pppoe { acik: true, kullanici: "k2".into(), parola: "p1".into(), vlan: 0, ..Pppoe::default() });
+        assert_eq!((&k.wan, &k.lan, &k.wifi, &k.wan_mac), (&eski.wan, &eski.lan, &eski.wifi, &eski.wan_mac)); // portlara ve Wi-Fi'a dokunulmaz
+        // bağlantı dosyası yeniden yazıldı (yeni kullanıcı adı, eski parola, VLAN'sız arayüz)
+        let peers = fs::read_to_string(&y.peers).unwrap();
+        assert_eq!(peers, crate::pppoe::peers_text(&k));
+        assert!(peers.contains("user \"k2\"\n") && peers.contains("password \"p1\"\n") && peers.contains("nic-enp3s0\n"), "{peers}");
+        assert!(y.interfaces.exists() && y.nft.exists());
+        // güvenlik duvarı (yükseltilmiş cihazda yüklü olan eski tek adlı WAN wfcppp trafiğini iletmez) ve hız sayaçları yeniden
+        // yüklenir, sonra pppd birimi; geri alma zamanlayıcısı yok (cihaz zaten çevrimdışı olabilir) ve ağ yeniden kurulmaz
+        let calls = c.lock().unwrap().clone();
+        sirayla(&calls, &["nft -f /etc/wificorrect/guvenlik.nft", "nft -f /etc/wificorrect/hiz.nft", "systemctl enable wificorrect-pppoe.service", "systemctl restart wificorrect-pppoe.service"]);
+        assert!(!calls.iter().any(|x| x.contains("systemd-run") || x.contains("ag-geri-al") || x.starts_with("if") || x.contains("dnsmasq")), "{calls:?}");
+        assert!(pending(&y).is_none() && !y.yedek().exists());
+
+        // parola yazılırsa değişir
+        let (r, _) = sahte(&[]);
+        assert_eq!(pppoe_uygula(&cfg, &y, &Pppoe { parola: "p2".into(), ..yeni.clone() }, &r), Ok(vec![]));
+        assert_eq!(load(&y.ag).pppoe.parola, "p2");
+        assert!(fs::read_to_string(&y.peers).unwrap().contains("password \"p2\"\n"));
+
+        // kapatma: bağlantı dosyası gider, birim durur; kullanıcı adı ve parola ag.toml'da kalır (yeniden açınca yazmak gerekmez)
+        let (r, c) = sahte(&[]);
+        assert_eq!(pppoe_uygula(&cfg, &y, &Pppoe { acik: false, ..Pppoe::default() }, &r), Ok(vec![]));
+        let k = load(&y.ag);
+        assert_eq!((k.pppoe.acik, k.pppoe.kullanici.as_str(), k.pppoe.parola.as_str()), (false, "", "p2")); // kullanıcı adı gönderildiği gibi (boş), parola kalır
+        assert!(!y.peers.exists());
+        let calls = c.lock().unwrap().clone();
+        sirayla(&calls, &["nft -f /etc/wificorrect/guvenlik.nft", "systemctl disable --now wificorrect-pppoe.service"]);
+        assert!(!calls.iter().any(|x| x.contains("restart wificorrect-pppoe")), "{calls:?}");
+    }
+
+    #[test]
+    fn pppoe_uygula_gecersiz_ayar_hicbir_sey_degistirmez() {
+        let (cfg, y, _) = setup();
+        let eski = Ag { pppoe: Pppoe { acik: true, kullanici: "k1".into(), parola: "p1".into(), ..Pppoe::default() }, ..Ag::default() };
+        save(&y.ag, &eski).unwrap();
+        write_files(&cfg, &eski, &y).unwrap();
+        let ag_once = fs::read(&y.ag).unwrap();
+        let peers_once = fs::read(&y.peers).unwrap();
+        let (r, c) = sahte(&[]);
+        let dene = |p: Pppoe| pppoe_uygula(&cfg, &y, &p, &r);
+        let gecerli = || Pppoe { acik: true, kullanici: "k2".into(), parola: "p2".into(), ..Pppoe::default() };
+        // pppd dosyasına satır sokan kullanıcı adı / parola / AC adı, aralık dışı değerler
+        for kotu in [
+            Pppoe { kullanici: "k2\nconnect /bin/sh".into(), ..gecerli() },
+            Pppoe { parola: "p\"2".into(), ..gecerli() },
+            Pppoe { vlan: 4095, ..gecerli() },
+            Pppoe { mtu: 1500, ..gecerli() },
+            Pppoe { kimlik: "eap".into(), ..gecerli() },
+            Pppoe { ac_adi: "a b".into(), ..gecerli() },
+            Pppoe { kullanici: String::new(), ..gecerli() },
+        ] {
+            assert!(dene(kotu.clone()).is_err(), "{kotu:?}");
+        }
+        // açık ve parola hiç yok (ne gönderildi ne kayıtlı): boş parolayla açılmaz
+        save(&y.ag, &Ag::default()).unwrap();
+        let ag_bos = fs::read(&y.ag).unwrap();
+        assert_eq!(dene(Pppoe { parola: String::new(), ..gecerli() }), Err("PPPoE kullanıcı adı ve parolası boş olamaz.".to_string()));
+        assert_eq!(fs::read(&y.ag).unwrap(), ag_bos);
+        // ilk durumda ag.toml ve bağlantı dosyası da aynıydı: hiçbir şey değişmedi, komut çalışmadı
+        fs::write(&y.ag, &ag_once).unwrap();
+        assert!(dene(Pppoe { vlan: 5000, ..gecerli() }).is_err());
+        assert_eq!((fs::read(&y.ag).unwrap(), fs::read(&y.peers).unwrap()), (ag_once.clone(), peers_once));
+        assert!(c.lock().unwrap().is_empty(), "{:?}", c.lock().unwrap());
+        // onay bekleyen port değişikliği varken: geri alma yedeği Servis'in yazdığını ezerdi → reddedilir
+        ortak::mkdirs(&y.durum).unwrap();
+        write_600(&y.bekliyor(), "9999999999 wfc-ag-geri-al-x\n").unwrap();
+        let e = dene(gecerli()).unwrap_err();
+        assert!(e.contains("onay bekliyor"), "{e}");
+        assert_eq!(fs::read(&y.ag).unwrap(), ag_once);
+        assert!(c.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn pppoe_uygula_hatalari_listelenir() {
+        let (cfg, y, _) = setup();
+        save(&y.ag, &Ag::default()).unwrap();
+        let yeni = Pppoe { acik: true, kullanici: "k".into(), parola: "p".into(), ..Pppoe::default() };
+        // güvenlik duvarı yüklenemezse hata listede, birim yine de yönetilir (kapı kapalı kalır: kapalıyken güvenli)
+        let (r, c) = sahte(&["nft -f /etc/wificorrect/guvenlik.nft"]);
+        assert_eq!(pppoe_uygula(&cfg, &y, &yeni, &r), Ok(vec!["güvenlik duvarı yüklenemedi".to_string()]));
+        sirayla(&c.lock().unwrap(), &["nft -f /etc/wificorrect/hiz.nft", "systemctl restart wificorrect-pppoe.service"]);
+        // hız sayaçları yüklenemezse sessiz (switch gibi: yalnızca hız sütunları boş kalır)
+        let (r, _) = sahte(&["nft -f /etc/wificorrect/hiz.nft"]);
+        assert_eq!(pppoe_uygula(&cfg, &y, &yeni, &r), Ok(vec![]));
+        // birim başlamazsa
+        let (r, _) = sahte(&["systemctl restart"]);
+        assert_eq!(pppoe_uygula(&cfg, &y, &yeni, &r), Ok(vec!["PPPoE başlatılamadı".to_string()]));
     }
 }

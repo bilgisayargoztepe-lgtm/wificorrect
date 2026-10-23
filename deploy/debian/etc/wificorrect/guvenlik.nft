@@ -38,6 +38,10 @@ table inet wfc {
 
 	chain forward {
 		type filter hook forward priority filter; policy drop;
+		# MSS: iletilen TCP SYN ve SYN-ACK'in MSS'i çıkış rotasının MTU'suna indirilir (yalnızca küçültür). PPPoE hattında MTU 1492:
+		# yapılmazsa yol MTU keşfini engelleyen bazı siteler açılmaz. İlk kural olmalı: sonraki "ct state established" kuralı
+		# SYN-ACK'leri kabul edip değerlendirmeyi bitirir, MSS'e hiç sıra gelmezdi.
+		tcp flags syn / syn,rst tcp option maxseg size set rt mtu
 		ct state established,related accept
 		iifname "br-hotspot" oifname $WAN meta mark 0x5651 accept
 	}

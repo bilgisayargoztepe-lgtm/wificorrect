@@ -304,6 +304,8 @@ mod tests {
         assert!(!y.peers.exists()); // önceki işletmenin PPPoE kullanıcı adı ve parolası gitti
         let v = calls.lock().unwrap();
         assert!(v.iter().any(|x| x == "systemctl restart ifup@enp3s0.service") && v.iter().any(|x| x.starts_with("systemctl restart wificorrect-portal")));
+        // önceki işletmenin PPPoE oturumu da kapanır ve birim açılışta başlamaz (switch pppd birimini yönetir)
+        assert!(v.iter().any(|x| x == "systemctl disable --now wificorrect-pppoe.service") && !v.iter().any(|x| x.contains("restart wificorrect-pppoe")));
         // yeni işletmenin kaydı FABRIKA_AYARI ile başlar
         let denetim = std::fs::read_to_string(root.join("5651/gunluk/2026-10-03/denetim.csv")).unwrap();
         assert!(denetim.contains("FABRIKA_AYARI") && !denetim.contains("FABRIKA_IPTAL"));

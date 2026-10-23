@@ -1,0 +1,20 @@
+[Unit]
+Description=WifiCorrect PPPoE baglantisi (pppd)
+# Yalnızca PPPoE açılınca (panel → Portlar ya da giriş sayfasındaki Servis) çalışır: o zaman bağlantı dosyası üretilir;
+# kapalıyken dosya yoktur, birim başlamaz. Açık/kapalıyı paket değil program yönetir (ag::switch ve ag::pppoe_uygula →
+# systemctl enable / disable --now): postinst bu birimi etkinleştirmez.
+ConditionPathExists=/etc/ppp/peers/wificorrect
+After=network.target
+
+[Service]
+# VLAN varsa <internet portu>.<vlan> arayüzünü kurar; pppd'den sonra (ExecStopPost) kaldırılır
+ExecStartPre=/usr/local/bin/wificorrect ctl pppoe-hazirla
+ExecStart=/usr/sbin/pppd call wificorrect nodetach
+ExecStopPost=/usr/local/bin/wificorrect ctl pppoe-temizle
+Restart=always
+RestartSec=10
+# pppd SIGTERM alınca 5 koduyla çıkar (pppd(8) EXIT STATUS): durdurma/yeniden başlatma birimi "failed" yapmasın
+SuccessExitStatus=5
+
+[Install]
+WantedBy=multi-user.target

@@ -1,2 +1,2 @@
 # WifiCorrect üretir (ag.toml). guvenlik.nft bunu okur.
-define WAN = "enp3s0"
+define WAN = { "enp3s0", "wfcppp" }

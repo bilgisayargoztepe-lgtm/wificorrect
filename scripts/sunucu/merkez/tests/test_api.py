@@ -370,8 +370,9 @@ def test_saglik_cevabinda_ap_parola():
 
 def test_saglik_temizle_pppoe():
     """PPPoE (spec 2026-10-23 "Durum ve teşhis"): rapora wan_tur (dhcp|pppoe) ve pppoe (durum kodu) girer. İkisi de isteğe
-    bağlı (eski cihaz göndermez: eskisi gibi kabul), ama gelirse bilinen değerlerden biri olmalı (paket/guncelleme gibi:
-    bozuksa rapor reddedilir)."""
+    bağlı ve ileriye dönük uyumlu: eski cihaz göndermez (eskisi gibi kabul); bilinmeyen ya da bozuk değer (yeni bir cihaz
+    sürümünün yeni durum kodu dahil) RAPORU REDDETMEZ, yalnızca o alan atılır (reddedilseydi çalışan cihaz için "Rapor
+    gelmiyor" uyarısı/SMS'i çıkardı). Öteki alanlar katı kalır."""
     t = A.saglik_temizle(dict(RAPOR, wan_tur="pppoe", pppoe="bagli"))
     assert t == dict(RAPOR, wan_tur="pppoe", pppoe="bagli")
     eski = A.saglik_temizle(RAPOR)  # alanlar yok: eskisi gibi, anahtarlar da eklenmez
@@ -382,12 +383,21 @@ def test_saglik_temizle_pppoe():
         assert A.saglik_temizle(dict(RAPOR, pppoe=durum))["pppoe"] == durum
     assert "pppoe" not in A.saglik_temizle(dict(RAPOR, wan_tur="dhcp"))  # tek alan gelebilir
     assert "ek" not in A.saglik_temizle(dict(RAPOR, wan_tur="dhcp", pppoe="kapali", ek=1))  # bilinmeyen alan hâlâ atılır
+    # bilinmeyen / bozuk değer: rapor KABUL edilir, yalnızca o alan yoktur (öteki alanlar aynen)
     for kotu in ("x", "", "PPPoE", "pppoe ", "ppp", 5, None, True, ["pppoe"], {"pppoe": 1}):
-        assert A.saglik_temizle(dict(RAPOR, wan_tur=kotu)) is None, kotu
-    for kotu in ("?", "", "Bagli", "bagli ", "kablo yok", 5, None, False, ["bagli"], {"bagli": 1}):
-        assert A.saglik_temizle(dict(RAPOR, pppoe=kotu)) is None, kotu
-    assert A.saglik_temizle(dict(RAPOR, wan_tur="pppoe", pppoe="?")) is None  # biri geçerli, öteki bozuk
-    # uçtan uca: geçerli rapor saklanır, bozuk olan 400 ile reddedilir ve öncekinin üzerine yazmaz
+        assert A.saglik_temizle(dict(RAPOR, wan_tur=kotu)) == RAPOR, kotu
+    for kotu in ("?", "", "Bagli", "bagli ", "kablo yok", "yeni_durum", 5, None, False, ["bagli"], {"bagli": 1}):
+        assert A.saglik_temizle(dict(RAPOR, pppoe=kotu)) == RAPOR, kotu
+    # biri geçerli, öteki bozuk: geçerli olan saklanır, bozuk olan atılır (ikisi birden atılmaz)
+    assert A.saglik_temizle(dict(RAPOR, wan_tur="pppoe", pppoe="?")) == dict(RAPOR, wan_tur="pppoe")
+    assert A.saglik_temizle(dict(RAPOR, wan_tur="x", pppoe="bagli")) == dict(RAPOR, pppoe="bagli")
+    assert A.saglik_temizle(dict(RAPOR, wan_tur="x", pppoe="?")) == RAPOR
+    # öteki alanlar katı kalır: yeni alanlar geçerli olsa da bozuk bir alan raporu reddeder; yeni alanlar bozuk olsa da bozuk alan hâlâ red sebebi
+    assert A.saglik_temizle(dict(RAPOR, wan_tur="pppoe", pppoe="bagli", disk_yuzde=101)) is None
+    assert A.saglik_temizle(dict(RAPOR, wan_tur="x", pppoe="?", disk_yuzde=101)) is None
+    assert A.saglik_temizle(dict(RAPOR, wan_tur="x", paket=5)) is None
+    assert A.saglik_temizle({a: b for a, b in dict(RAPOR, wan_tur="pppoe", pppoe="bagli").items() if a != "wan"}) is None  # zorunlu alan eksik
+    # uçtan uca: geçerli rapor saklanır; yeni/bozuk değerli rapor 200 ile kabul edilir (Rapor gelmiyor çıkmaz) ve o alan olmadan saklanır
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
         api, v, q, _ = kur(tmp)
         n, pw = v.musteri_ekle()
@@ -398,11 +408,16 @@ def test_saglik_temizle_pppoe():
         assert rapor_yolla(api, k, wan_tur="pppoe", pppoe="bagli")[0] == 200
         r = v.saglik(cid)["rapor"]
         assert (r["wan_tur"], r["pppoe"]) == ("pppoe", "bagli")
-        for kotu in (dict(wan_tur="x", pppoe="bagli"), dict(wan_tur="pppoe", pppoe="?")):
-            d, h = rapor_yolla(api, k, **kotu)
-            assert d == 400 and h["kod"] == "gecersiz", kotu
-        r = v.saglik(cid)["rapor"]
-        assert (r["wan_tur"], r["pppoe"]) == ("pppoe", "bagli")  # reddedilen rapor yazılmadı
+        for tuhaf, beklenen in ((dict(wan_tur="pppoe", pppoe="yeni_durum"), dict(wan_tur="pppoe")),  # gelecekteki yeni durum kodu
+                                (dict(wan_tur="l2tp", pppoe="bagli"), dict(pppoe="bagli")),
+                                (dict(wan_tur=5, pppoe=None), {})):
+            d, h = rapor_yolla(api, k, **tuhaf)
+            assert d == 200 and h["tamam"] is True, tuhaf
+            assert v.saglik(cid)["rapor"] == dict(RAPOR, **beklenen), tuhaf  # yeni rapor kaydedildi; öncekinin alanı kalmaz
+        # başka bir alan bozuksa rapor hâlâ reddedilir ve öncekinin üzerine yazmaz
+        onceki = v.saglik(cid)["rapor"]
+        d, h = rapor_yolla(api, k, wan_tur="pppoe", pppoe="bagli", disk_yuzde=101)
+        assert d == 400 and h["kod"] == "gecersiz" and v.saglik(cid)["rapor"] == onceki
 
 
 def test_guncelleme_hedefi_kanal_lisans_ve_hemen():

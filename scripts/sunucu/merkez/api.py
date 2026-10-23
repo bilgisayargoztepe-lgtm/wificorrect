@@ -80,7 +80,8 @@ def _cihaz_ekleri(veri, m, eski=True):
 
 SAGLIK_SERVISLER = ("portal", "panel", "kaydedici", "dnsmasq", "guvenlik")
 SAGLIK_BOOL = ("kayit_boslugu_1s", "wan", "sms_sorunu", "hiz_hata")
-# PPPoE (spec 2026-10-23 "Durum ve teşhis"): internet portunun türü ve durumu; cihaz her raporda ikisini de gönderir
+# PPPoE (spec 2026-10-23 "Durum ve teşhis"): internet portunun türü ve durumu; cihaz her raporda ikisini de gönderir.
+# Bilinen değerler; başkası (ör. ileride eklenen bir durum kodu) raporu bozmaz, saglik_temizle yalnızca o alanı atar.
 SAGLIK_WAN_TURLERI = ("dhcp", "pppoe")
 SAGLIK_PPPOE_DURUMLARI = ("kapali", "kablo_yok", "dhcp_yok", "sunucu_yok", "kimlik_hatasi", "baglaniyor", "bagli")
 
@@ -106,7 +107,8 @@ def _guncelleme_sonucu(g):
 
 
 def saglik_temizle(r):
-    """Cihaz sağlık raporunu sıkı doğrular; yalnızca bilinen alanlarla yeni sözlük döner, bozuksa None."""
+    """Cihaz sağlık raporunu sıkı doğrular; yalnızca bilinen alanlarla yeni sözlük döner, bozuksa None. İstisna: isteğe bağlı
+    PPPoE alanları (wan_tur, pppoe) — bilinmeyen/bozuk değeri yalnızca o alanı atar, raporu reddetmez."""
     if not isinstance(r, dict):
         return None
     sv = r.get("servisler")
@@ -136,9 +138,9 @@ def saglik_temizle(r):
                 return None
         t["guncelleme"] = g
     for alan, izinli in (("wan_tur", SAGLIK_WAN_TURLERI), ("pppoe", SAGLIK_PPPOE_DURUMLARI)):
-        if alan in r:  # isteğe bağlı (eski cihaz göndermez); gelirse bilinen değerlerden biri olmalı, yoksa rapor reddedilir
-            if not (isinstance(r[alan], str) and r[alan] in izinli):
-                return None
+        # Yukarıdakilerden FARKLI olarak bilinmeyen/bozuk değer raporu reddetmez, yalnızca o alan atılır: yeni bir cihaz sürümü yeni
+        # bir durum kodu eklese bile eski merkez raporu kabul eder (reddetseydi çalışan cihaz için "Rapor gelmiyor" uyarısı/SMS'i çıkardı).
+        if isinstance(r.get(alan), str) and r[alan] in izinli:
             t[alan] = r[alan]
     return t
 

@@ -80,7 +80,6 @@ INTERNET_DURUMLARI = {
     "baglaniyor": ("PPPoE: bağlanıyor", False),
     "bagli": ("PPPoE bağlı", False),
 }
-INTERNET_TURLERI = {"dhcp": "Modem (DHCP)", "pppoe": "PPPoE"}  # durum kodu yokken yalnızca `wan_tur`
 SINIR_ARALIK = veri_modulu.UYARI_SINIR_ARALIK  # günlük SMS sınırı aralığı (yönetim formu)
 DENEME_METNI = "WifiCorrect deneme uyarısı"
 
@@ -111,15 +110,14 @@ def gecmis_sms_etiketleri(x, simdi):
 
 
 def internet_metni(r):
-    """Sağlık kartındaki "İnternet" satırı (HTML): raporun `pppoe` durum koduna göre; kod yoksa ya da bilinmiyorsa yalnızca
-    `wan_tur`; ikisi de yoksa (eski cihaz) ya da bozuksa "—". Sorunlu durumlar kötü işaretli. `r` cihazdan gelen veri: yalnızca
-    bilinen değerler gösterilir (bilinmeyen değer sayfaya hiç girmez)."""
-    durum, tur = r.get("pppoe"), r.get("wan_tur")
+    """Sağlık kartındaki "İnternet" satırı (HTML): yalnızca raporun `pppoe` durum koduna göre. Kod yoksa "—": eski cihaz
+    göndermemiştir ya da saglik_temizle bilinmeyen/bozuk değeri atmıştır (yeni bir cihaz sürümünün yeni durum kodu); `wan_tur`
+    tek başına gösterilmez, durumu okunamayan cihaz sağlam görünmesin. Sorunlu durumlar kötü işaretli. `r` cihazdan gelen
+    veri: yalnızca bilinen değerler gösterilir (bilinmeyen değer sayfaya hiç girmez)."""
+    durum = r.get("pppoe")
     if isinstance(durum, str) and durum in INTERNET_DURUMLARI:
         metin, sorunlu = INTERNET_DURUMLARI[durum]
         return f'<b class="kotu">{e(metin)}</b>' if sorunlu else e(metin)
-    if isinstance(tur, str) and tur in INTERNET_TURLERI:
-        return e(INTERNET_TURLERI[tur])
     return "—"
 
 
@@ -578,8 +576,9 @@ class Yonetim(web.Taban):
         ap_parola = (f'<span class="sir">{e(m["ap_parola"])}</span>'
                      f'<form method="post" action="/m/{n}/ap-parola" class="satir-ici"><input type="hidden" name="csrf" value="{cs}">'
                      '<button class="ikincil">Yenile</button></form><br><span class="alt">AP\'nin (modemin) yönetim parolası; panel '
-                     'parolasını AP\'ye yazmayın. Yenilenirse AP\'de elle değiştirilir; cihaza 5 dk içinde ulaşır (cihaz panelinde '
-                     'görünür). Cihaz çevrimdışıyken yenilerseniz cihaz yeniden bağlanana kadar eski parolayı kullanır.</span>')
+                     'parolasını AP\'ye yazmayın. Yenilenirse AP\'de elle değiştirilir; cihaza 5 dk içinde ulaşır (0.4.17\'den eski '
+                     'cihazlarda her gün 06:00\'da) ve cihaz panelinde görünür. Cihaz çevrimdışıyken yenilerseniz cihaz yeniden '
+                     'bağlanana kadar eski parolayı kullanır.</span>')
         bilgi = bilgi_tablosu([("Numara", str(n)), ("Parola", parola), ("AP yönetim parolası", ap_parola),
                                ("Lisans", f"{lisans_metni} · bitiş {e(common.tarih_goster(lbitis) or '—')}"),
                                ("Not", e(m["not_"] or "—")), ("Oluşturma", e(common.tarih_goster(m["olusturma"]))),

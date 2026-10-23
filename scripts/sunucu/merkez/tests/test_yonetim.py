@@ -9,6 +9,7 @@ os.environ["WC_TEST"] = "1"  # netgsm.gonder gerçek isteği reddeder (yanlışl
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import yardim as Y  # noqa: E402
+import api as A  # noqa: E402
 import kayitlar  # noqa: E402
 import yonetici  # noqa: E402
 import yonetim as YN  # noqa: E402
@@ -254,8 +255,9 @@ def test_ap_yonetim_parolasi_musteri_sayfasinda():
 
 
 def test_ap_parolasi_yenile_notu():
-    """PPPoE (spec 2026-10-23): AP yönetim parolası artık cihaza 5 dk içinde (sağlık cevabıyla) ulaşır; "Yenile"nin yanındaki
-    notta cihaz çevrimdışıyken yenilemenin sonucu söylenir. Eski "her gün 06:00" cümlesi kalmaz."""
+    """PPPoE (spec 2026-10-23): AP yönetim parolası yeni cihazlara 5 dk içinde (sağlık cevabıyla) ulaşır; 0.4.17'den eski
+    cihazlar onu yalnızca günlük 06:00 eşitlemesinde alır. "Yenile"nin yanındaki not ikisini de söyler ve cihaz çevrimdışıyken
+    yenilemenin sonucunu açıklar."""
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
         app, v, _, c, _ = kur(tmp)
         n, _ = v.musteri_ekle(parola="musteri-parola-1")
@@ -263,12 +265,13 @@ def test_ap_parolasi_yenile_notu():
         assert "Cihaz çevrimdışıyken yenilerseniz cihaz yeniden bağlanana kadar eski parolayı kullanır." in s
         hucre = re.search(r"<tr><th>AP yönetim parolası</th><td>(.*?)</td></tr>", s, re.S).group(1)
         assert f'action="/m/{n}/ap-parola"' in hucre and "Cihaz çevrimdışıyken yenilerseniz" in hucre  # Yenile ile aynı hücrede
-        assert "5 dk içinde" in hucre and "06:00" not in hucre  # günlük eşitlemeyi beklemez
+        assert "cihaza 5 dk içinde ulaşır (0.4.17'den eski cihazlarda her gün 06:00'da)" in hucre  # eski cihazlar için de doğru
 
 
 def test_cihaz_kartinda_internet():
-    """Müşteri sayfasındaki sağlık kartında "İnternet" satırı (spec 2026-10-23 "Durum ve teşhis"): raporun wan_tur/pppoe
-    alanlarından. Sorunlu durumlar kötü işaretli (kırmızı); alan yoksa (eski cihaz) "—"; değerler kaçırılır."""
+    """Müşteri sayfasındaki sağlık kartında "İnternet" satırı (spec 2026-10-23 "Durum ve teşhis"): raporun pppoe durum
+    kodundan. Sorunlu durumlar kötü işaretli (kırmızı); alan yoksa "—" (eski cihaz ya da saglik_temizle bilinmeyen/bozuk
+    değeri attı); yalnızca bilinen değerler sayfaya girer."""
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
         app, v, _, c, _ = kur(tmp)
         n, _ = v.musteri_ekle()
@@ -292,11 +295,15 @@ def test_cihaz_kartinda_internet():
         assert internet(_rapor(wan_tur="pppoe", pppoe="kablo_yok")) == kotu("kablo yok")
         assert internet(_rapor(wan_tur="dhcp", pppoe="kablo_yok")) == kotu("kablo yok")
         assert internet(_rapor(wan_tur="dhcp", pppoe="dhcp_yok")) == kotu("modemden adres alınamadı")
-        # tek alan geldiyse (durum yok): yalnızca tür; bilinmeyen/bozuk değer "—" ve sayfa çökmez
-        assert internet(_rapor(wan_tur="dhcp")) == "Modem (DHCP)" and internet(_rapor(wan_tur="pppoe")) == "PPPoE"
+        # durum alanı yok → "—": tür tek başına gösterilmez (durumu okunamayan cihaz sağlam görünmesin); tür atılmış olsa da durum gösterilir
+        assert internet(_rapor(wan_tur="dhcp")) == "—" and internet(_rapor(wan_tur="pppoe")) == "—"
         assert internet(_rapor(pppoe="bagli")) == "PPPoE bağlı"
-        for bozuk in ("x", "<b>", 5, None, ["bagli"], {"bagli": 1}):
+        for bozuk in ("x", "<b>", 5, None, ["bagli"], {"bagli": 1}):  # DB'deki bozuk değer sayfayı çökertmez, sayfaya sızmaz
             assert internet(_rapor(wan_tur=bozuk, pppoe=bozuk)) == "—", bozuk
+        # uçtan uca: yeni cihaz sürümünün bilinmeyen durum kodu saglik_temizle'den geçer (rapor kabul, alan atılır) → satır "—"
+        assert internet(A.saglik_temizle(_rapor(wan_tur="pppoe", pppoe="yeni_durum"))) == "—"
+        assert internet(A.saglik_temizle(_rapor(wan_tur="x", pppoe="bagli"))) == "PPPoE bağlı"
+        assert internet(A.saglik_temizle(_rapor(wan_tur="x", pppoe="?"))) == "—"
         # WAN satırı olduğu gibi kalır (adres var/yok); İnternet hemen ondan sonra gelir
         s = Y.al(app, f"/m/{n}", c)[2].decode()
         assert s.index("<th>WAN</th>") < s.index("<th>İnternet</th>") < s.index("<th>SMS</th>")

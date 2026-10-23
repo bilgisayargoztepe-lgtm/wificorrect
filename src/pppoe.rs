@@ -27,6 +27,12 @@ pub fn alt_arayuz(ag: &Ag) -> String {
 /// Kullanıcı adı ve parola tırnaklı yazılır; `ag::pppoe_dogrula` tırnak, ters eğik çizgi ve kontrol karakterini zaten reddeder
 /// (çağıran doğrulamalı). Sistemin ortak chap-secrets/pap-secrets dosyalarına dokunulmaz: kimlik bilgisi yalnızca bu dosyada.
 /// Eklentinin seçenekleri (`nic-…`, `pppoe-ac`, `pppoe-service`) `plugin` satırından sonra gelmeli: eklenti yüklenince tanınırlar.
+/// Yeniden deneme: `persist` bağlantı düşünce yeniden dener, `holdoff 10` denemeler arasında 10 sn bekletir. `maxfail 3`: arka arkaya
+/// 3 başarısız denemeden sonra pppd çıkar ve birim (`Restart=always`, `RestartSteps=5`, `RestartMaxDelaySec=300`) onu 10 sn'den
+/// 5 dk'ya çıkan gecikmeyle yeniden başlatır; yani deneme sınırsızdır ama başarısızken yavaşlar. Sınırsız (`maxfail 0`) olmaması
+/// şundandır; gerçek pppd 2.5.2 ile gözlendi (scripts/pppoe-deneme.sh): yanlış kimlik YÖNTEMİ seçilince (`pap`/`chap`, operatörün
+/// istediğinden farklı) LCP hiç kalkmaz, `holdoff` uygulanmaz ve pppd ~3,3 sn'de bir yeni oturum açar (saatte ~1000 deneme: operatörün
+/// hesabı kilitlemesine yol açabilir); yanlış parolada ise `holdoff` işler (~13 sn'de bir).
 pub fn peers_text(ag: &Ag) -> String {
     peers_text_nic(ag, &alt_arayuz(ag))
 }
@@ -39,7 +45,7 @@ pub fn peers_text_nic(ag: &Ag, nic: &str) -> String {
         "# WifiCorrect üretir (ag.toml [pppoe]); {BIRIM} bunu okur. Elle değiştirmeyin.\n\
          plugin pppoe.so\nnic-{nic}\nifname {ARAYUZ}\nuser \"{user}\"\npassword \"{pass}\"\n\
          noauth\nhide-password\nnoipdefault\ndefaultroute\ndefaultroute-metric {METRIK}\nusepeerdns\n\
-         persist\nmaxfail 0\nholdoff 10\nlcp-echo-interval 10\nlcp-echo-failure 6\nmtu {mtu}\nmru {mtu}\nnoipv6\n",
+         persist\nmaxfail 3\nholdoff 10\nlcp-echo-interval 10\nlcp-echo-failure 6\nmtu {mtu}\nmru {mtu}\nnoipv6\n",
         user = p.kullanici,
         pass = p.parola,
         mtu = p.mtu,
@@ -123,6 +129,25 @@ pub fn birim_uygula(ag: &Ag, runner: &Runner) -> Option<String> {
     } else {
         (!runner(&cmd(&["systemctl", "disable", "--now", BIRIM]))).then(|| "PPPoE durdurulamadı".into())
     }
+}
+
+/// Açılışta geri almada (`ag::geri_al("acilis")`) birimi ayara getirir. Onaylanmamış bir değişiklik PPPoE'yi kapatmış (`disable --now`)
+/// ve cihaz 3 dk dolmadan yeniden açılmışsa, geri yazılan eski ayarda PPPoE açıktır ama birimin etkinliği kalkmıştır: etkinleştirilmezse
+/// ve başlatılmazsa müşteri bir sonraki elle ayara kadar internetsiz kalır. Bu iş `wificorrect-ag-acilis.service`ten (oneshot, sysinit,
+/// `Before=networking.service`) çalışır: engelleyen bir `start`/`restart`, `After=network.target` olan pppd birimini bekler ve ağ bu iş
+/// bitmeden kalkmadığı için kilitlenir (oneshot'ın başlatma zaman aşımı kapalıdır, `TimeoutStartUSec=infinity`: açılış sonsuza dek
+/// takılırdı). Bu yüzden başlatma BEKLEMEDEN kuyruğa alınır (`--no-block`); ağ kalkınca birim kendiliğinden başlar. Kapalıysa
+/// dokunulmaz: bağlantı dosyası da silinmiştir, birim `ConditionPathExists` ile atlanır. Hata metni dönerse çağıran hata listesine ekler.
+pub fn birim_acilista(ag: &Ag, runner: &Runner) -> Option<String> {
+    if !ag.pppoe.acik {
+        return None;
+    }
+    let etkin = runner(&cmd(&["systemctl", "enable", BIRIM]));
+    if !runner(&cmd(&["systemctl", "start", "--no-block", BIRIM])) {
+        return Some("PPPoE başlatılamadı".into());
+    }
+    // başlayacak ama sonraki açılışlarda başlamayacak (etkinleştirilemedi): sessiz kalmasın
+    (!etkin).then(|| "PPPoE açılışta kendiliğinden başlamayabilir (birim etkinleştirilemedi)".into())
 }
 
 // ---------------------------------------------------------------- durum (spec "Durum ve teşhis")
@@ -299,7 +324,7 @@ mod tests {
             "defaultroute-metric 100",
             "usepeerdns",
             "persist",
-            "maxfail 0",
+            "maxfail 3", // 3 başarısız denemeden sonra pppd çıkar; birim artan gecikmeyle yeniden başlatır (sınırsız hızlı deneme yok)
             "holdoff 10",
             "lcp-echo-interval 10",
             "lcp-echo-failure 6",
@@ -309,6 +334,7 @@ mod tests {
         ] {
             assert!(l.contains(&beklenen), "{beklenen:?} satırı yok:\n{t}");
         }
+        assert!(!t.contains("maxfail 0"), "sınırsız hızlı yeniden deneme operatörün hesabı kilitlemesine yol açabilir:\n{t}");
         assert!(!t.contains("refuse-"), "kimlik otomatik: reddedilen yöntem olmamalı:\n{t}");
         assert!(!t.contains("pppoe-ac") && !t.contains("pppoe-service"), "AC/servis adı boşken satırı olmamalı:\n{t}");
         // eklenti önce yüklenir; arayüz seçeneği (eklentinin) ondan sonra gelir
@@ -489,6 +515,29 @@ mod tests {
         assert_eq!(birim_uygula(&ag(Pppoe::default()), &r), Some("PPPoE durdurulamadı".into()));
     }
 
+    #[test]
+    fn birim_acilista_beklemeden() {
+        // açık: açılışta başlasın diye etkinleştirilir, başlatma BEKLEMEDEN kuyruğa alınır (ağ-acilis networking'den önce çalışan bir
+        // oneshot; After=network.target olan birimi bekleyen start/restart onu sonsuza dek kilitler)
+        let (r, c) = sahte(&[]);
+        assert_eq!(birim_acilista(&ag(acik()), &r), None);
+        assert_eq!(cagrilar(&c), ["systemctl enable wificorrect-pppoe.service", "systemctl start --no-block wificorrect-pppoe.service"]);
+        // kapalı (bilgiler dolu olsa da): bağlantı dosyası yok, birim ConditionPathExists ile atlanır → hiçbir komut
+        let (r, c) = sahte(&[]);
+        assert_eq!(birim_acilista(&ag(Pppoe { acik: false, ..acik() }), &r), None);
+        assert_eq!(birim_acilista(&ag(Pppoe::default()), &r), None);
+        assert!(cagrilar(&c).is_empty());
+        // başlatma kuyruğa alınamazsa: hata (enable hatası start'ı engellemez)
+        let (r, c) = sahte(&["systemctl start"]);
+        assert_eq!(birim_acilista(&ag(acik()), &r), Some("PPPoE başlatılamadı".into()));
+        assert_eq!(cagrilar(&c).len(), 2);
+        let (r, _) = sahte(&["systemctl"]);
+        assert_eq!(birim_acilista(&ag(acik()), &r), Some("PPPoE başlatılamadı".into()));
+        // çalışacak ama açılışta başlamayacak: ayrı uyarı
+        let (r, _) = sahte(&["systemctl enable"]);
+        assert_eq!(birim_acilista(&ag(acik()), &r), Some("PPPoE açılışta kendiliğinden başlamayabilir (birim etkinleştirilemedi)".into()));
+    }
+
     // Birim dosyası ve güvenlik duvarı kuralı kodla birlikte değişmeli: test.sh bu iki dosyayı da cihaza gönderir.
     const BIRIM_DOSYASI: &str = include_str!("../deploy/debian/etc/systemd/system/wificorrect-pppoe.service");
     const GUVENLIK_NFT: &str = include_str!("../deploy/debian/etc/wificorrect/guvenlik.nft");
@@ -502,6 +551,9 @@ mod tests {
         assert!(satir(&format!("ExecStart=/usr/sbin/pppd call {} nodetach", peers.file_name().unwrap().to_str().unwrap())), "{BIRIM_DOSYASI}");
         assert!(satir("ExecStartPre=/usr/local/bin/wificorrect ctl pppoe-hazirla") && satir("ExecStopPost=/usr/local/bin/wificorrect ctl pppoe-temizle"));
         assert!(satir("Restart=always") && satir("RestartSec=10") && satir("After=network.target") && satir("WantedBy=multi-user.target"));
+        // pppd 3 başarısız denemeden sonra çıkar (maxfail 3); yeniden başlatma aralığı 10 sn'den 5 adımda 5 dk'ya çıkar
+        // (systemd 254+; Debian 13'te 257): yanlış kimlik bilgisiyle operatörü saniyede bir yoklayıp hesabı kilitletmeyelim
+        assert!(satir("RestartSteps=5") && satir("RestartMaxDelaySec=300"), "{BIRIM_DOSYASI}");
         assert!(satir("SuccessExitStatus=5")); // pppd SIGTERM'e 5 koduyla çıkar: durdurma birimi "failed" yapmasın
         assert!(!BIRIM_DOSYASI.contains("ProtectSystem") && !BIRIM_DOSYASI.contains("PrivateTmp")); // pppd /etc/ppp, /run/ppp ve çekirdeğe yazar
     }

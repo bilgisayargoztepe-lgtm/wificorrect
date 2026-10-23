@@ -12,7 +12,11 @@ ExecStartPre=/usr/local/bin/wificorrect ctl pppoe-hazirla
 ExecStart=/usr/sbin/pppd call wificorrect nodetach
 ExecStopPost=/usr/local/bin/wificorrect ctl pppoe-temizle
 Restart=always
+# pppd bağlantı dosyasındaki maxfail 3 ile 3 başarısız denemeden sonra çıkar; yeniden başlatma aralığı 10 sn'den başlayıp 5 adımda
+# 5 dk'ya çıkar (systemd 254+): yanlış kullanıcı adı/parola/kimlik yöntemiyle operatörü saniyede bir yoklayıp hesabı kilitletmeyelim
 RestartSec=10
+RestartSteps=5
+RestartMaxDelaySec=300
 # pppd SIGTERM alınca 5 koduyla çıkar (pppd(8) EXIT STATUS): durdurma/yeniden başlatma birimi "failed" yapmasın
 SuccessExitStatus=5
 

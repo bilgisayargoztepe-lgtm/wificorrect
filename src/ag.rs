@@ -518,9 +518,13 @@ pub fn gecis(cfg: &Config, y: &Yollar, new_path: &Path, now: f64, runner: &Runne
 /// eskisine döndürürdü. Boş parola = eskisi kalır (parola hiçbir yerde geri gösterilmez). Geçersiz ayar (ya da onay bekleyen bir
 /// port değişikliği: süresi dolunca geri alma yedeği bu ayarı ezerdi) `Err`, hiçbir şey değişmez. Dönen: kalan hatalar.
 /// Ağı yeniden kurmaz (`switch` değil): ag.toml, bağlantı dosyası, güvenlik duvarı kuralları, pppd birimi, tünel MTU'su.
+/// ag.toml yoksa da `Err` (hiçbir şey değişmez): hangi portun internet aldığı bilinmeden varsayılan portlar yazılıp üstüne PPPoE konmaz.
 pub fn pppoe_uygula(cfg: &Config, y: &Yollar, yeni: &Pppoe, runner: &Runner) -> Result<Vec<String>, String> {
     if pending(y).is_some() {
         return Err("Bir port değişikliği onay bekliyor (en çok 3 dakika); onaylanınca ya da geri alınınca yeniden deneyin.".into());
+    }
+    if !y.ag.exists() {
+        return Err("Ağ ayar dosyası yok; PPPoE ayarı uygulanmadı.".into());
     }
     let mut ag = load(&y.ag);
     let mut p = yeni.clone();
@@ -548,7 +552,8 @@ pub fn onayla(cfg: &Config, y: &Yollar, runner: &Runner) -> Result<(), String> {
     Ok(())
 }
 
-/// `ctl ag-geri-al <neden>`: yedekteki ayara dön ve ağı ona geçir. `acilis`: ağ henüz kalkmadı, yalnızca dosyalar.
+/// `ctl ag-geri-al <neden>`: yedekteki ayara dön ve ağı ona geçir. `acilis`: ağ henüz kalkmadı, yalnızca dosyalar (ve geri gelen
+/// ayarda PPPoE açıksa pppd birimi: onaylanmamış değişiklik onu kapatmış, etkinliğini kaldırmış olabilir).
 pub fn geri_al(cfg: &Config, y: &Yollar, neden: &str, runner: &Runner) -> Result<Vec<String>, String> {
     let Some((_, unit)) = pending(y) else { return Ok(vec![]) };
     let old = load(&y.yedek());
@@ -556,7 +561,13 @@ pub fn geri_al(cfg: &Config, y: &Yollar, neden: &str, runner: &Runner) -> Result
         runner(&cmd(&["systemctl", "stop", &format!("{unit}.timer")]));
     }
     save(&y.ag, &old)?;
-    let errs = if neden == "acilis" { write_files(cfg, &old, y).err().into_iter().collect() } else { switch(cfg, &old, y, runner) };
+    let errs = if neden == "acilis" {
+        let mut errs: Vec<String> = write_files(cfg, &old, y).err().into_iter().collect();
+        errs.extend(pppoe::birim_acilista(&old, runner));
+        errs
+    } else {
+        switch(cfg, &old, y, runner)
+    };
     let _ = fs::remove_file(y.bekliyor());
     let _ = fs::remove_file(y.yedek());
     audit(cfg, "AG_GERI_ALINDI", &format!("neden={neden}{}", if errs.is_empty() { String::new() } else { format!(" hata={}", errs.join(",")) }));
@@ -1027,6 +1038,52 @@ mod tests {
     }
 
     #[test]
+    fn acilista_geri_alinan_ayarda_pppoe_baslatilir() {
+        // Onaylanmamış değişiklik PPPoE'yi kapattı (birim durdu, etkinliği kalktı, bağlantı dosyası silindi); cihaz 3 dk dolmadan
+        // yeniden açıldı: wificorrect-ag-acilis eski ayarı (PPPoE açık) geri yazar. Birim yeniden etkinleştirilip başlatılmazsa
+        // PPPoE'li müşteri bir sonraki elle ayara kadar internetsiz kalır.
+        let (cfg, y, root) = setup();
+        let acik = Ag { pppoe: pppoe_acik(), ..Ag::default() };
+        let staged = root.join("yeni.toml");
+        // `once` ayarındayken `sonra`ya geçildi ve onay bekleniyor
+        let bekleyen = |once: &Ag, sonra: &Ag| {
+            save(&y.ag, once).unwrap();
+            save(&staged, sonra).unwrap();
+            assert_eq!(gecis(&cfg, &y, &staged, 1000.0, &sahte(&[]).0), Ok(vec![]));
+            assert!(pending(&y).is_some());
+        };
+        bekleyen(&acik, &Ag::default());
+        assert!(!y.peers.exists()); // kapatma bağlantı dosyasını sildi
+        let (r, c) = sahte(&[]);
+        assert_eq!(geri_al(&cfg, &y, "acilis", &r), Ok(vec![]));
+        assert_eq!(load(&y.ag), acik);
+        assert!(y.peers.exists());
+        let calls = c.lock().unwrap().clone();
+        // etkinleştirilir ve BEKLEMEDEN başlatılır: ağ-acilis, networking'den önce çalışan bir oneshot; engelleyen start/restart,
+        // After=network.target olan pppd birimini beklerken onu sonsuza dek kilitler (ağ bu iş bitmeden kalkmaz)
+        sirayla(&calls, &["systemctl enable wificorrect-pppoe.service", "systemctl start --no-block wificorrect-pppoe.service"]);
+        assert_eq!(calls.iter().filter(|x| x.contains("wificorrect-pppoe")).count(), 2, "{calls:?}");
+        // ağ komutu yok: yalnızca dosyalar geri yazılır (zamanlayıcı durdurma dışında başka systemctl işi de yok)
+        assert!(calls.iter().all(|x| !x.starts_with("if") && !x.starts_with("nft") && !x.contains("restart") && !x.contains("dnsmasq")), "{calls:?}");
+
+        // geri alınan ayarda PPPoE kapalıysa: pppd birimine dokunulmaz (bağlantı dosyası yok, birim ConditionPathExists ile atlanır)
+        bekleyen(&Ag::default(), &acik);
+        let (r, c) = sahte(&[]);
+        assert_eq!(geri_al(&cfg, &y, "acilis", &r), Ok(vec![]));
+        assert!(!y.peers.exists());
+        assert!(!c.lock().unwrap().iter().any(|x| x.contains("wificorrect-pppoe")), "{:?}", c.lock().unwrap());
+
+        // hatalar listelenir (ayar yine geri yazılmıştır)
+        bekleyen(&acik, &Ag::default());
+        let (r, _) = sahte(&["systemctl enable"]);
+        assert_eq!(geri_al(&cfg, &y, "acilis", &r), Ok(vec!["PPPoE açılışta kendiliğinden başlamayabilir (birim etkinleştirilemedi)".to_string()]));
+        assert_eq!(load(&y.ag), acik);
+        bekleyen(&acik, &Ag::default());
+        let (r, _) = sahte(&["systemctl start"]);
+        assert_eq!(geri_al(&cfg, &y, "acilis", &r), Ok(vec!["PPPoE başlatılamadı".to_string()]));
+    }
+
+    #[test]
     fn pppoe_uygula_bos_parola_korunur() {
         let (cfg, y, _) = setup();
         let eski = Ag { pppoe: Pppoe { acik: true, kullanici: "k1".into(), parola: "p1".into(), vlan: 35, mtu: 1400, kimlik: "chap".into(), ..Pppoe::default() }, ..Ag::default() };
@@ -1107,6 +1164,24 @@ mod tests {
         assert!(e.contains("onay bekliyor"), "{e}");
         assert_eq!(fs::read(&y.ag).unwrap(), ag_once);
         assert!(c.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn pppoe_uygula_ag_toml_yoksa_reddeder() {
+        // ag.toml yok (kurulum bitmemiş ya da silinmiş): hangi portun internet aldığı bilinmeden varsayılan portlar yazılıp üstüne
+        // PPPoE konmaz; ağ dosyaları, güvenlik duvarı ve pppd birimi kurulmaz
+        let (cfg, y, _) = setup();
+        let (r, c) = sahte(&[]);
+        let yok = "Ağ ayar dosyası yok; PPPoE ayarı uygulanmadı.".to_string();
+        let yeni = Pppoe { acik: true, kullanici: "k".into(), parola: "p".into(), ..Pppoe::default() };
+        assert_eq!(pppoe_uygula(&cfg, &y, &yeni, &r), Err(yok.clone()));
+        assert_eq!(pppoe_uygula(&cfg, &y, &Pppoe::default(), &r), Err(yok)); // kapatma isteği de
+        assert!(!y.ag.exists() && !y.peers.exists() && !y.interfaces.exists() && !y.nft.exists() && !y.hostapd.exists() && !y.issue.exists());
+        assert!(c.lock().unwrap().is_empty(), "{:?}", c.lock().unwrap());
+        // ag.toml varsa uygulanır
+        save(&y.ag, &Ag::default()).unwrap();
+        assert_eq!(pppoe_uygula(&cfg, &y, &yeni, &r), Ok(vec![]));
+        assert!(load(&y.ag).pppoe.acik && y.peers.exists());
     }
 
     #[test]

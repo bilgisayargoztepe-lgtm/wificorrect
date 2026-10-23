@@ -325,6 +325,22 @@ pub fn formdan(onceki: &Pppoe, alan: &dyn Fn(&str) -> String) -> Pppoe {
 /// Alanlar `p`nin kayıtlı değerleriyle dolu gelir ki "kapalı" gönderince kullanıcı adı ve ileri alanlar silinmesin; VLAN yokken boş.
 /// Parolanın değeri hiçbir zaman yazılmaz (alan boş; yalnızca kayıtlı parola varsa "aynı kalır" ipucu). Yazılan her değer kaçışlanır.
 pub fn form_html(p: &Pppoe) -> String {
+    alanlar_html(p, &p.kullanici, "")
+}
+
+/// Servis formunda kullanıcı adının altındaki not.
+const SERVIS_KULLANICI_NOTU: &str = "Boş bırakılırsa kayıtlı kullanıcı adı aynı kalır.";
+
+/// Giriş sayfasındaki Servis formu: `form_html`'in alanları, ama kayıtlı kullanıcı adı yazılmaz (sayfa misafire açık, parola
+/// doğrulanmadan açılır; ad çoğu kez abonenin telefon numarasıdır). Alana yalnızca `kullanici` (bu istekte yazılan; yoksa boş) gelir,
+/// hemen altında "boş = aynı kalır" notu: boş gönderilirse kayıtlı adı çağıran (parola doğrulandıktan sonra) birleştirir.
+pub fn servis_form_html(p: &Pppoe, kullanici: &str) -> String {
+    alanlar_html(p, kullanici, &format!("<p class=\"not kucuk\">{SERVIS_KULLANICI_NOTU}</p>"))
+}
+
+/// `form_html` ve `servis_form_html`'in ortak gövdesi: kullanıcı adı alanının değeri `kullanici` (kaçışlanır), hemen ardından
+/// `kullanici_notu` (güvenilir sabit HTML).
+fn alanlar_html(p: &Pppoe, kullanici: &str, kullanici_notu: &str) -> String {
     let d = Pppoe::default();
     let secim = |ad: &str, secenekler: &[(&str, &str)], mevcut: &str| {
         let o: String = secenekler.iter().map(|(k, l)| format!("<option value=\"{k}\"{}>{l}</option>", if *k == mevcut { " selected" } else { "" })).collect();
@@ -334,7 +350,7 @@ pub fn form_html(p: &Pppoe) -> String {
     let sayisal = " inputmode=\"numeric\" autocomplete=\"off\"";
     let adi = " maxlength=\"64\" autocomplete=\"off\" autocapitalize=\"none\" spellcheck=\"false\"";
     let acik = secim("pppoe_acik", &[("acik", "Açık"), ("kapali", "Kapalı")], if p.acik { "acik" } else { "kapali" });
-    let kullanici = metin("pppoe_kullanici", &p.kullanici, " placeholder=\"5321234567@turk.net\" maxlength=\"128\" autocomplete=\"off\" autocapitalize=\"none\" spellcheck=\"false\"");
+    let kullanici_alani = metin("pppoe_kullanici", kullanici, " placeholder=\"5321234567@turk.net\" maxlength=\"128\" autocomplete=\"off\" autocapitalize=\"none\" spellcheck=\"false\"");
     let parola_ipucu = if p.parola.is_empty() { "" } else { " placeholder=\"Kayıtlı parola aynı kalır\"" };
     let vlan = metin("pppoe_vlan", &if p.vlan == 0 { String::new() } else { p.vlan.to_string() }, &format!(" placeholder=\"yok\"{sayisal}"));
     let oncelik = metin("pppoe_oncelik", &p.oncelik.to_string(), sayisal);
@@ -345,7 +361,7 @@ pub fn form_html(p: &Pppoe) -> String {
     let ileri_acik = if (p.oncelik, p.mtu, &p.kimlik, &p.ac_adi, &p.servis_adi) != (d.oncelik, d.mtu, &d.kimlik, &d.ac_adi, &d.servis_adi) { " open" } else { "" };
     format!(
         "<label for=\"pppoe_acik\">PPPoE</label>{acik}\
-         <label for=\"pppoe_kullanici\">Kullanıcı adı</label>{kullanici}\
+         <label for=\"pppoe_kullanici\">Kullanıcı adı</label>{kullanici_alani}{kullanici_notu}\
          <label for=\"pppoe_parola\">Parola (yalnızca yazılır; boş = aynı kalır)</label>\
          <input type=\"password\" id=\"pppoe_parola\" name=\"pppoe_parola\" value=\"\"{parola_ipucu} maxlength=\"128\" autocomplete=\"new-password\">\
          <label for=\"pppoe_vlan\">VLAN (boş = yok)</label>{vlan}\
@@ -1074,6 +1090,23 @@ mod tests {
         let html = form_html(&Pppoe { kullanici: kotu.into(), ac_adi: kotu.into(), servis_adi: kotu.into(), ..Pppoe::default() });
         assert!(!html.contains("<script") && !html.contains("alert(1)</script>"), "{html}");
         assert_eq!(html.matches("value=\"&quot;&gt;&lt;script&gt;alert(1)&lt;/script&gt;&amp;&#x27;\"").count(), 3, "{html}");
+    }
+
+    #[test]
+    fn servis_form_html_kayitli_kullanici_adi_yok() {
+        // giriş sayfasındaki Servis formu (parola doğrulanmadan açılır): kayıtlı kullanıcı adı yazılmaz; alan boş ya da yalnızca bu
+        // istekte yazılan, hemen altında not; diğer alanlar panel formuyla aynı
+        const NOT: &str = "<p class=\"not kucuk\">Boş bırakılırsa kayıtlı kullanıcı adı aynı kalır.</p>";
+        let p = Pppoe { kullanici: "abone99@isp".into(), vlan: 35, mtu: 1400, ..acik() };
+        let html = servis_form_html(&p, "");
+        assert!(!html.contains("abone99@isp") && etiket(&html, "pppoe_kullanici").contains("value=\"\""), "{html}");
+        assert!(html.contains(&format!("{}{NOT}", etiket(&html, "pppoe_kullanici"))), "not alanın hemen altında olmalı: {html}");
+        assert_eq!(html.replace(NOT, ""), form_html(&Pppoe { kullanici: String::new(), ..p.clone() }));
+        // bu istekte yazılan ad geri yazılır (kaçışlı)
+        assert!(etiket(&servis_form_html(&p, "yeni\"<x"), "pppoe_kullanici").contains("value=\"yeni&quot;&lt;x\""));
+        // panel formu değişmedi: kayıtlı ad dolu, not yok
+        let panel = form_html(&p);
+        assert!(etiket(&panel, "pppoe_kullanici").contains("value=\"abone99@isp\"") && !panel.contains(NOT), "{panel}");
     }
 
     #[test]

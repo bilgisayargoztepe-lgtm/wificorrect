@@ -173,6 +173,9 @@ struct ServisSayac {
     /// cihaz geneli
     genel: VecDeque<f64>,
     genel_kilit: Option<f64>,
+    /// Denetime yazılmış kilitler: anahtar (cihaz geneli kilitte `cihaz`) → o kilidin bitişi. Kilitli istek kilit dönemi başına
+    /// bir kez yazılır (kilit sürerken gelen her istek ayrı satır olmasın).
+    bildirilen: HashMap<String, f64>,
 }
 
 /// Zamanı pencereye ekler, pencereden çıkanları atar; kalan sayı.
@@ -193,6 +196,17 @@ impl ServisSayac {
         self.kilitler.get(anahtar).is_some_and(|&b| now < b).then_some((SERVIS_SURE_SN / 60.0) as u64)
     }
 
+    /// Kilitli istek: (ekranda söylenecek dakika, denetime yazılsın mı). Yazma kilit dönemi başına bir kez: cihaz geneli kilitte
+    /// cihaz için, anahtar kilidinde o anahtar için. `kilit` gibi önce cihaz geneli; sayma ve kilit davranışı değişmez.
+    fn kilitli_istek(&mut self, anahtar: &str, now: f64) -> Option<(u64, bool)> {
+        let (kim, bitis, sure) = match self.genel_kilit.filter(|&b| now < b) {
+            Some(b) => ("cihaz", b, SERVIS_GENEL_SURE_SN),
+            None => (anahtar, self.kilitler.get(anahtar).copied().filter(|&b| now < b)?, SERVIS_SURE_SN),
+        };
+        let ilk = self.bildirilen.insert(kim.to_string(), bitis) != Some(bitis);
+        Some(((sure / 60.0) as u64, ilk))
+    }
+
     /// Yanlış parola: anahtara ve cihaz geneline sayılır; pencerede sınıra ulaşan kilitlenir.
     fn hata(&mut self, anahtar: &str, now: f64) {
         let q = self.hatalar.entry(anahtar.to_string()).or_default();
@@ -207,6 +221,7 @@ impl ServisSayac {
         // süresi geçenler atılır (cihaz geneli sınır saatte en çok ~20 yanlış sayar: tablolar küçük kalır)
         self.hatalar.retain(|_, q| q.back().is_some_and(|&t| t > now - SERVIS_SURE_SN));
         self.kilitler.retain(|_, b| *b > now);
+        self.bildirilen.retain(|_, b| *b > now);
     }
 
     /// Doğru parola: o anahtarın yanlışları silinir (cihaz geneli sayaç kalır).
@@ -467,6 +482,16 @@ fn internet_sistem(ag_toml: &Path) -> Option<Durum> {
     internet_coz(rota.as_deref(), || pppoe::durum(&ag::load(ag_toml), Path::new("/sys/class/net"), &komut))
 }
 
+/// Sayfanın altındaki uyarı (herkese), yalnızca internet yokken: neden (spec tablosundaki durum metni) + Servis bağlantısı.
+fn internet_uyarisi(durum: &Durum, d: Dil) -> String {
+    format!(
+        "<p class=\"uyari\"><b>{}</b><br>{}<br><a href=\"/servis\">{}</a></p>",
+        dil::m(d, "internet_yok"),
+        html_escape(&durum.metin()),
+        dil::m(d, "servis")
+    )
+}
+
 fn otp_code() -> String {
     loop {
         let mut b = [0u8; 4];
@@ -517,14 +542,15 @@ impl Portal {
     // --- sayfalar
     pub fn render(&self, page: &Page) -> String {
         let d = page.dil;
+        // internet yokken telefonun düşebileceği her sayfanın altında uyarı + Servis bağlantısı (giriş formu, kod, başarı, hata,
+        // misafir kodu); Servis sayfasının kendi durum satırı var. Durum önbellekten.
+        let internet_yok = if page.tpl == "servis" { None } else { self.internet_yok() };
         let mut values: HashMap<&str, String> = HashMap::new();
         values.insert("dil_kod", d.kod().into());
         values.insert("site", self.cfg.main.site_name.clone());
         // "Bocafe'ye", "Starbucks'a": ek ünlü uyumuyla, kesme işaretiyle ayrılır
         values.insert("site_ye", format!("{}'{}", self.cfg.main.site_name, ek(&self.cfg.main.site_name, 'y')));
         values.insert("portal", self.base_url.clone());
-        // giriş sayfasının altındaki "internet yok" uyarısı: her çizimde (hatalı form dahil), durum önbellekten
-        values.insert("internet_uyari_html", if page.tpl == "giris" { self.internet_uyarisi(d) } else { String::new() });
         for (k, v) in &page.ctx {
             values.insert(k, v.clone());
         }
@@ -534,7 +560,10 @@ impl Portal {
         let mut outer = HashMap::new();
         outer.insert("icerik_html", body);
         outer.insert("site", safe["site"].clone());
-        outer.insert("bas_html", safe.get("bas_html").cloned().unwrap_or_default());
+        // giriş yapmış telefonun başarı sayfası internet yokken yönlenmez: hedef açılmaz, uyarı ve Servis bağlantısı okunabilsin
+        let yonlenmez = page.tpl == "basarili" && internet_yok.is_some();
+        outer.insert("bas_html", if yonlenmez { String::new() } else { safe.get("bas_html").cloned().unwrap_or_default() });
+        outer.insert("internet_uyari_html", internet_yok.map_or_else(String::new, |durum| internet_uyarisi(&durum, d)));
         outer.insert("dil_kod", d.kod().into());
         outer.insert("dil_secim_html", self.dil_secimi(page));
         substitute(&yerel(template("_sayfa"), d), &outer)
@@ -1201,18 +1230,6 @@ impl Portal {
         d
     }
 
-    /// Giriş sayfasının altındaki uyarı (herkese), yalnızca internet yokken: neden (spec tablosundaki durum metni) + Servis bağlantısı.
-    fn internet_uyarisi(&self, d: Dil) -> String {
-        self.internet_yok().map_or_else(String::new, |durum| {
-            format!(
-                "<p class=\"uyari\"><b>{}</b><br>{}<br><a href=\"/servis\">{}</a></p>",
-                dil::m(d, "internet_yok"),
-                html_escape(&durum.metin()),
-                dil::m(d, "servis")
-            )
-        })
-    }
-
     /// Servis parolası = müşteriye özel AP yönetim parolası (`merkez.json` → `ap_parola`; merkeze sorulmaz). Yoksa (cihaz
     /// bağlanmamış ya da eski merkez) Servis kapalı; merkezin kuralından (8-64 karakter) kısa bir değer de parola sayılmaz.
     fn servis_parolasi(&self) -> Option<String> {
@@ -1234,8 +1251,9 @@ impl Portal {
         Page::new("servis", ctx, Dil::Tr)
     }
 
-    /// Tek form: Servis parolası + panelle aynı PPPoE alanları (`pppoe::form_html`: değerler kaçışlı, parola hiç yazılmaz).
-    fn servis_formu(&self, p: &ag::Pppoe) -> String {
+    /// Tek form: Servis parolası + panelle aynı PPPoE alanları (`pppoe::servis_form_html`: değerler kaçışlı, parola hiç yazılmaz,
+    /// kayıtlı kullanıcı adı hiç yazılmaz). `alanlar`: VLAN ve ileri alanların değerleri; `kullanici`: yalnızca bu istekte yazılan ad.
+    fn servis_formu(&self, alanlar: &ag::Pppoe, kullanici: &str) -> String {
         format!(
             "<form class=\"servis\" method=\"post\" action=\"{}/servis\">\
              <label for=\"servis_parola\">Servis parolası (AP yönetim parolası)</label>\
@@ -1244,14 +1262,16 @@ impl Portal {
              <p class=\"not\">Servis parolası her kayıtta yeniden yazılır. Kaydedince PPPoE yeniden bağlanır ve sayfa birkaç saniyede bir \
              yenilenip durumu gösterir; internet gelince giriş sayfası açılır.</p>",
             html_escape(&self.base_url),
-            pppoe::form_html(p)
+            pppoe::servis_form_html(alanlar, kullanici)
         )
     }
 
-    /// Hatayla form yeniden: girilen değerler geri gelir (parolalar hariç); parola ipucu kayıtlı parolaya göre (boş = aynı kalır).
+    /// Hatayla form yeniden: girilen değerler geri gelir (parolalar hariç; kullanıcı adı yalnızca bu istekte yazılan, kayıtlı ad
+    /// hiçbir zaman: parola doğrulandıktan sonraki hatalarda da). Parola ipucu kayıtlı parolaya göre (boş = aynı kalır).
     fn servis_hata(&self, durum: &Durum, hata: &str, girilen: Option<&ag::Pppoe>, kayitli: &ag::Pppoe) -> Page {
-        let p = girilen.map_or_else(|| kayitli.clone(), |g| ag::Pppoe { parola: kayitli.parola.clone(), ..g.clone() });
-        self.servis_page(Some(durum), hata, "", self.servis_formu(&p), false)
+        let alanlar = ag::Pppoe { parola: kayitli.parola.clone(), ..girilen.unwrap_or(kayitli).clone() };
+        let kullanici = girilen.map_or("", |g| g.kullanici.as_str());
+        self.servis_page(Some(durum), hata, "", self.servis_formu(&alanlar, kullanici), false)
     }
 
     /// İzleme sayfası: durum + ayarlara dönüş bağlantısı; birkaç saniyede bir kendini yeniler (internet gelince giriş sayfasına).
@@ -1268,16 +1288,18 @@ impl Portal {
             return Some(self.servis_izle(Some(&durum), "Bu sayfa birkaç saniyede bir yenilenir; internet gelince giriş sayfası açılır."));
         }
         Some(match self.servis_parolasi() {
-            // form kayıtlı değerlerle dolu (parola hariç): "kapalı" gönderilince kullanıcı adı ve ileri alanlar silinmesin
-            Some(_) => self.servis_page(Some(&durum), "", "", self.servis_formu(&ag::load(&self.ag_yollar.ag).pppoe), false),
+            // VLAN ve ileri alanlar kayıtlı değerlerle dolu ("kapalı" gönderilince silinmesin); kayıtlı kullanıcı adı (çoğu kez abone
+            // telefon numarası) parola doğrulanmadan gösterilmez: alan boş, boş gönderilirse kayıtlı ad kalır
+            Some(_) => self.servis_page(Some(&durum), "", "", self.servis_formu(&ag::load(&self.ag_yollar.ag).pppoe, ""), false),
             None => self.servis_page(Some(&durum), SERVIS_TANIMSIZ, "", String::new(), false),
         })
     }
 
     /// POST /servis. `None`: internet var (HTTP katmanı giriş sayfasına yönlendirir; form işlenmez, sayılmaz). Sıra: Servis parolası
-    /// tanımlı mı → kilit (kilitliyken parolaya bakılmaz) → form tam mı (eksikse ayar formdan okunmaz, sayılmaz) → parola (yanlışsa
-    /// sayılır) → ayarın doğrulaması (doğru paroladan sonraki hata sayılmaz) → hazırlık dosyası + `ctl pppoe-servis` işi.
-    /// Denetime yalnızca özet yazılır (MAC, IP; parolalar ve kullanıcı adı yazılmaz).
+    /// tanımlı mı → kilit (kilitliyken parolaya bakılmaz; denetime kilit dönemi başına bir satır) → form tam mı (eksikse ayar formdan
+    /// okunmaz, sayılmaz) → parola (yanlışsa sayılır) → boş kullanıcı adına kayıtlı ad → ayarın doğrulaması (doğru paroladan sonraki
+    /// hata sayılmaz) → hazırlık dosyası + `ctl pppoe-servis` işi. Kayıtlı kullanıcı adı hiçbir cevapta gösterilmez. Denetime yalnızca
+    /// özet yazılır (MAC, IP; parolalar ve kullanıcı adı yazılmaz).
     pub fn servis_kaydet(&self, ip: &str, mac: Option<&str>, form: &Form) -> Option<Page> {
         let durum = self.internet_yok()?;
         let Some(ap_parola) = self.servis_parolasi() else {
@@ -1291,31 +1313,36 @@ impl Portal {
         // MAC başına; MAC bilinmiyorsa IP başına
         let anahtar = mac.map_or_else(|| format!("ip:{ip}"), |m| format!("mac:{m}"));
         let now = (self.clock)();
-        let kilitli = |dakika: u64, g: Option<&ag::Pppoe>| {
-            self.audit("SERVIS_GIRIS", ip, mac_s, "", "sonuc=kilit");
+        let kilitli = |dakika: u64, ilk: bool, g: Option<&ag::Pppoe>| {
+            // kilit dönemi başına bir satır (kilit sürerken gelen her istek ayrı satır olmasın)
+            if ilk {
+                self.audit("SERVIS_GIRIS", ip, mac_s, "", "sonuc=kilit");
+            }
             Some(self.servis_hata(&durum, &servis_kilit_metni(dakika), g, &kayitli))
         };
         // kilitliyken parolaya bakılmaz (eksik form da kilit olarak söylenir)
-        if let Some(dakika) = lock(&self.servis_sayac).kilit(&anahtar, now) {
-            return kilitli(dakika, girilen.as_ref());
+        let kilit = lock(&self.servis_sayac).kilitli_istek(&anahtar, now);
+        if let Some((dakika, ilk)) = kilit {
+            return kilitli(dakika, ilk, girilen.as_ref());
         }
-        let Some(yeni) = girilen else {
+        // `girilen`: yalnızca bu istekte yazılanlar (hata cevaplarında forma bunlar döner, kayıtlı kullanıcı adı hiçbir zaman)
+        let Some(girilen) = girilen else {
             return Some(self.servis_hata(&durum, "Form eksik gönderildi; sayfayı yenileyip yeniden deneyin.", None, &kayitli));
         };
         let parola = get("servis_parola");
         if parola.is_empty() {
-            return Some(self.servis_hata(&durum, "Servis parolasını girin.", Some(&yeni), &kayitli));
+            return Some(self.servis_hata(&durum, "Servis parolasını girin.", Some(&girilen), &kayitli));
         }
         // kilit yeniden denetlenir; karşılaştırma ve sayma aynı kilit altında: aynı anda gelen denemeler sınırı aşamaz
         enum Sonuc {
             Dogru,
             Yanlis(Option<u64>),
-            Kilitli(u64),
+            Kilitli(u64, bool),
         }
         let sonuc = {
             let mut s = lock(&self.servis_sayac);
-            match s.kilit(&anahtar, now) {
-                Some(dakika) => Sonuc::Kilitli(dakika),
+            match s.kilitli_istek(&anahtar, now) {
+                Some((dakika, ilk)) => Sonuc::Kilitli(dakika, ilk),
                 None if servis_parolasi_dogru(parola, &ap_parola) => {
                     s.dogru(&anahtar);
                     Sonuc::Dogru
@@ -1328,24 +1355,30 @@ impl Portal {
         };
         match sonuc {
             Sonuc::Dogru => {}
-            Sonuc::Kilitli(dakika) => return kilitli(dakika, Some(&yeni)),
+            Sonuc::Kilitli(dakika, ilk) => return kilitli(dakika, ilk, Some(&girilen)),
             Sonuc::Yanlis(kilit) => {
                 self.audit("SERVIS_GIRIS", ip, mac_s, "", "sonuc=hatali");
                 let hata = kilit.map_or_else(|| "Servis parolası yanlış.".to_string(), servis_kilit_metni);
-                return Some(self.servis_hata(&durum, &hata, Some(&yeni), &kayitli));
+                return Some(self.servis_hata(&durum, &hata, Some(&girilen), &kayitli));
             }
         }
-        // boş PPPoE parolası = kayıtlı parola (`formdan` birleştirdi): doğrulama `ctl pppoe-servis`'teki gibi birleşik ayarla
+        // boş kullanıcı adı = kayıtlı ad: sayfada hiç gösterilmediği için parola doğrulandıktan sonra burada birleştirilir (ctl
+        // birleştirmez; açık/kapalı geçişi adı silmesin). Boş PPPoE parolası = kayıtlı parola (`formdan` birleştirdi). Doğrulama
+        // `ctl pppoe-servis`'teki gibi birleşik ayarla.
+        let mut yeni = girilen.clone();
+        if yeni.kullanici.is_empty() {
+            yeni.kullanici = kayitli.kullanici.clone();
+        }
         if let Err(e) = ag::pppoe_dogrula(&yeni) {
-            return Some(self.servis_hata(&durum, &e, Some(&yeni), &kayitli));
+            return Some(self.servis_hata(&durum, &e, Some(&girilen), &kayitli));
         }
         // `ctl pppoe-servis`'in reddedeceği durumlar burada söylenir (işin sonucu sayfaya dönmez)
         if !self.ag_yollar.ag.exists() {
-            return Some(self.servis_hata(&durum, "Ağ ayar dosyası yok; PPPoE ayarı uygulanamaz.", Some(&yeni), &kayitli));
+            return Some(self.servis_hata(&durum, "Ağ ayar dosyası yok; PPPoE ayarı uygulanamaz.", Some(&girilen), &kayitli));
         }
         if ag::pending(&self.ag_yollar).is_some() {
             let hata = "Panelden yapılan bir port değişikliği onay bekliyor (en çok 3 dakika); süre dolunca yeniden deneyin.";
-            return Some(self.servis_hata(&durum, hata, Some(&yeni), &kayitli));
+            return Some(self.servis_hata(&durum, hata, Some(&girilen), &kayitli));
         }
         let ozet = format!(
             "pppoe={} vlan={} kullanici_degisti={} parola_degisti={}",
@@ -1354,7 +1387,8 @@ impl Portal {
             u8::from(yeni.kullanici != kayitli.kullanici),
             u8::from(yeni.parola != kayitli.parola)
         );
-        // kayıtlı parola hazırlık dosyasına kopyalanmaz: alan boşsa boş gider, `ctl pppoe-servis` (ag::pppoe_uygula) birleştirir
+        // kayıtlı parola hazırlık dosyasına kopyalanmaz: alan boşsa boş gider, `ctl pppoe-servis` (ag::pppoe_uygula) birleştirir;
+        // kullanıcı adı yukarıda birleştirildi (dosyada kayıtlı ad)
         let mut hazir = yeni.clone();
         if get("pppoe_parola").is_empty() {
             hazir.parola.clear();
@@ -1366,7 +1400,7 @@ impl Portal {
             } else {
                 "Ayar kaydedilemedi; yeniden deneyin."
             };
-            return Some(self.servis_hata(&durum, hata, Some(&yeni), &kayitli));
+            return Some(self.servis_hata(&durum, hata, Some(&girilen), &kayitli));
         }
         self.audit("SERVIS_PPPOE", ip, mac_s, "", &ozet);
         // yeni durum hemen yoklansın: internet geldiyse izleme sayfası giriş sayfasına döner
@@ -2529,8 +2563,43 @@ mod tests {
         assert!(html.contains("This device has no internet connection right now") && html.contains(SERVIS_LINKI) && !html.contains(UYARI), "{html}");
         // giriş formu hatayla yeniden çizilince de (misafir "kod gönderilemiyor" ile birlikte nedeni görür)
         assert!(t.p.render(&t.p.send_code(IP, Some(MAC), &form(&[("ad", "A")]))).contains(UYARI));
-        // başka sayfalarda yok
-        assert!(!t.p.render(&t.p.home(IP, None, "")).contains(UYARI));
+    }
+
+    #[test]
+    fn uyari_her_sayfada() {
+        // telefonun internet yokken düşebileceği her sayfada (yalnızca giriş formunda değil) uyarı + Servis bağlantısı
+        let t = setup(otel("otel"));
+        assert_eq!(login(&t, MAC, IP, "5334553132").tpl, "basarili");
+        let kod = t.p.send_code("10.50.0.32", Some("aa:bb:cc:dd:ee:32"), &good("5321112233"));
+        assert_eq!(kod.tpl, "kod");
+        // internet varken giriş yapmış telefonun başarı sayfası bugünkü gibi: uyarı yok, istenen sayfaya yönlenir
+        let html = t.p.render(&t.p.home(IP, Some(MAC), ""));
+        assert!(html.contains("http-equiv=\"refresh\"") && !html.contains(UYARI) && !html.contains(SERVIS_LINKI), "{html}");
+        t.internet_yok(Some(Durum::DhcpYok));
+        t.advance(10.0);
+        // başarı sayfası: uyarı, neden, Servis; yönlendirme yok (hedef internetsiz açılmaz, bağlantıya dokunulabilsin)
+        let html = t.p.render(&t.p.home(IP, Some(MAC), ""));
+        assert!(html.contains("Bağlandınız") && html.contains(UYARI) && html.contains("Modemden adres alınamadı") && html.contains(SERVIS_LINKI), "{html}");
+        assert!(!html.contains("http-equiv=\"refresh\""), "{html}");
+        let html = t.p.render(&t.p.home_dil(IP, Some(MAC), "", Dil::En, false));
+        assert!(html.contains("This device has no internet connection right now") && html.contains(SERVIS_LINKI), "{html}");
+        // kod sayfası, misafir kodu sayfası, MAC tanınmadı (hata)
+        let misafir = t.p.misafir_sayfasi("10.50.0.33", Some("aa:bb:cc:dd:ee:33"), "", Dil::Tr).unwrap();
+        for pg in [kod, misafir, t.p.home(IP, None, "")] {
+            let html = t.p.render(&pg);
+            assert!(html.contains(UYARI) && html.contains(SERVIS_LINKI), "{}: {html}", pg.tpl);
+        }
+        // lisans kapalı (hata sayfası): Servis yine açık (internet gelmeden lisans da eşitlenemez)
+        let mut m = crate::merkez::oku(&t.p.merkez_path).unwrap();
+        m.lisans = "askida".into();
+        crate::merkez::kaydet(&t.p.merkez_path, &m).unwrap();
+        let pg = t.p.home(IP, Some(MAC), "");
+        assert_eq!(pg.tpl, "hata");
+        let html = t.p.render(&pg);
+        assert!(html.contains("internet hizmeti şu an kapalı") && html.contains(UYARI) && html.contains(SERVIS_LINKI), "{html}");
+        // Servis sayfasının kendisinde genel uyarı yok (kendi durum satırı var)
+        let html = t.servis_html(false);
+        assert!(!html.contains(UYARI) && html.contains("Durum: Modemden adres alınamadı"), "{html}");
     }
 
     #[test]
@@ -2626,6 +2695,7 @@ mod tests {
         assert!(c.starts_with("HTTP/1.1 200") && c.contains(UYARI) && c.contains(SERVIS_LINKI), "{c}");
         let c = http_istek(&t, &server, &get("/servis"));
         assert!(c.starts_with("HTTP/1.1 200") && c.contains("Kullanıcı adı ya da parola reddedildi") && c.contains("name=\"servis_parola\""), "{c}");
+        assert!(!c.contains("eski@isp"), "kayıtlı kullanıcı adı parola doğrulanmadan gösterilmez: {c}");
         let c = http_istek(&t, &server, &post);
         assert!(c.starts_with("HTTP/1.1 200") && c.contains(KAYDEDILDI) && !c.contains("yeni-parola-35") && !c.contains(AP_PAROLA), "{c}");
         assert_eq!(t.systemd_run().len(), 1);
@@ -2678,7 +2748,8 @@ mod tests {
         let a = t.audit_text();
         let giris: Vec<&str> = a.lines().filter(|l| l.contains(";SERVIS_GIRIS;")).collect();
         assert_eq!(giris.iter().filter(|l| l.ends_with(";sonuc=hatali")).count(), 5, "{a}");
-        assert_eq!(giris.iter().filter(|l| l.ends_with(";sonuc=kilit")).count(), 2, "{a}");
+        // kilit dönemi başına tek satır (aynı MAC'in ikinci kilitli isteği yazılmaz)
+        assert_eq!(giris.iter().filter(|l| l.ends_with(";sonuc=kilit")).count(), 1, "{a}");
         assert!(giris.iter().all(|l| l.contains(MAC)) && giris.iter().filter(|l| l.contains(IP)).count() == 6, "{a}");
         for gizli in ["yanlis-parola", AP_PAROLA, "yeni-parola-35", "yeni@isp", "eski-parola-77"] {
             assert!(!a.contains(gizli), "{gizli}: {a}");
@@ -2720,7 +2791,8 @@ mod tests {
         assert!(t.kaydet("10.50.0.250", None, &servis_form(AP_PAROLA, &YENI)).contains(KILIT));
         assert!(t.calls.lock().unwrap().is_empty() && !t.servis_dosyasi().exists());
         let a = t.audit_text();
-        assert_eq!((a.matches("sonuc=hatali").count(), a.matches("sonuc=kilit").count()), (20, 5), "{a}");
+        // cihaz geneli kilit: farklı MAC'lerden 5 kilitli istek, kilit dönemi başına tek satır
+        assert_eq!((a.matches("sonuc=hatali").count(), a.matches("sonuc=kilit").count()), (20, 1), "{a}");
         // 60 dk sonra açılır
         let (ip, mac) = cihaz(22);
         t.advance(3599.0);
@@ -2800,10 +2872,10 @@ mod tests {
         let pg = t.p.servis_sayfasi(false).unwrap();
         assert_eq!(pg.dil, Dil::Tr);
         let html = t.p.render(&pg);
-        // tek form: servis parolası + panelle aynı PPPoE alanları (pppoe::form_html, kayıtlı değerlerle) + Kaydet ve bağlan
+        // tek form: servis parolası + panelle aynı PPPoE alanları (kayıtlı değerlerle; kayıtlı kullanıcı adı hariç) + Kaydet ve bağlan
         assert_eq!(html.matches("<form").count(), 1, "{html}");
         assert!(html.contains(&format!("<form class=\"servis\" method=\"post\" action=\"{}/servis\">", t.p.base_url)), "{html}");
-        assert!(html.contains(&crate::pppoe::form_html(&kayitli)), "{html}");
+        assert!(html.contains(&crate::pppoe::servis_form_html(&kayitli, "")) && !html.contains("eski@isp"), "{html}");
         for ad in ["servis_parola", "pppoe_acik", "pppoe_kullanici", "pppoe_parola", "pppoe_vlan", "pppoe_oncelik", "pppoe_mtu", "pppoe_kimlik", "pppoe_ac_adi", "pppoe_servis_adi"] {
             assert_eq!(html.matches(&format!("name=\"{ad}\"")).count(), 1, "{ad}");
         }
@@ -2813,6 +2885,102 @@ mod tests {
         // durum satırı; yalnızca Türkçe (dil seçimi yok), JS yok, form sayfası kendini yenilemez
         assert!(html.contains("Durum: Kullanıcı adı ya da parola reddedildi"), "{html}");
         assert!(!html.contains("<nav class=\"dil\"") && !html.contains("<script") && !html.contains("http-equiv=\"refresh\""), "{html}");
+    }
+
+    #[test]
+    fn servis_kayitli_kullanici_adini_gostermez() {
+        // kayıtlı kullanıcı adı (çoğu kez abonenin telefon numarası) Servis sayfasında hiç görünmez: formda, hata ve kilit
+        // cevaplarında, parola doğrulandıktan sonraki hatalarda da yok; boş gönderilirse kayıtlı ad kalır (parola gibi)
+        const KAYITLI: &str = "eski@isp";
+        const NOT: &str = "Boş bırakılırsa kayıtlı kullanıcı adı aynı kalır.";
+        let mut t = setup(|_| {});
+        t.ap_parola(AP_PAROLA);
+        t.ag_kaydet(crate::ag::Pppoe { vlan: 35, mtu: 1400, ..eski_pppoe() });
+        t.internet_yok(Some(Durum::KimlikHatasi));
+        // form: kullanıcı adı boş + not; VLAN ve ileri alanlar kayıtlı değerlerle; durum satırı
+        let html = t.servis_html(false);
+        assert!(!html.contains(KAYITLI), "{html}");
+        assert!(html.contains("name=\"pppoe_kullanici\" value=\"\"") && html.contains(NOT), "{html}");
+        assert!(html.contains("name=\"pppoe_vlan\" value=\"35\"") && html.contains("name=\"pppoe_mtu\" value=\"1400\""), "{html}");
+        assert!(html.contains("Durum: Kullanıcı adı ya da parola reddedildi"), "{html}");
+        // hata cevapları: boş servis parolası, eksik form, doğru paroladan sonra doğrulama hatası, yanlış parola, kilit
+        let bos_ad = [("pppoe_acik", "acik"), ("pppoe_kullanici", ""), ("pppoe_vlan", "4095")];
+        let mut cevaplar = vec![
+            t.kaydet(IP, Some(MAC), &servis_form("", &bos_ad)),
+            t.kaydet(IP, Some(MAC), &servis_form("yanlis-parola", &[("pppoe_kullanici", "")])),
+            t.kaydet(IP, Some(MAC), &servis_form(AP_PAROLA, &bos_ad)),
+        ];
+        assert!(cevaplar[2].contains("VLAN 1-4094 arasında olmalı"), "{}", cevaplar[2]);
+        for _ in 0..5 {
+            cevaplar.push(t.kaydet(IP, Some(MAC), &servis_form("yanlis-parola", &bos_ad)));
+        }
+        cevaplar.push(t.kaydet(IP, Some(MAC), &servis_form(AP_PAROLA, &bos_ad)));
+        assert!(cevaplar.last().unwrap().contains("15 dakika sonra"));
+        for (i, c) in cevaplar.iter().enumerate() {
+            assert!(!c.contains(KAYITLI) && c.contains("<form") && c.contains(NOT), "{i}: {c}");
+        }
+        // başka cihazdan, doğru parolayla: bekleyen port değişikliği (doğrulamadan sonraki hata) de adı göstermez
+        let (ip2, mac2) = ("10.50.0.24", Some("aa:bb:cc:dd:ee:02"));
+        std::fs::create_dir_all(&t.p.ag_yollar.durum).unwrap();
+        let bekliyor = t.p.ag_yollar.durum.join("ag-bekliyor");
+        std::fs::write(&bekliyor, "1790705314 wfc-ag-geri-al-ab12\n").unwrap();
+        let c = t.kaydet(ip2, mac2, &servis_form(AP_PAROLA, &[("pppoe_acik", "acik"), ("pppoe_kullanici", "")]));
+        assert!(c.contains("onay bekliyor") && !c.contains(KAYITLI), "{c}");
+        std::fs::remove_file(&bekliyor).unwrap();
+        // boş (ya da boşluk) kullanıcı adı + doğru parola: kayıtlı ad hazırlık dosyasına girer; kullanici_degisti=0
+        let c = t.kaydet(ip2, mac2, &servis_form(AP_PAROLA, &[("pppoe_acik", "acik"), ("pppoe_kullanici", " "), ("pppoe_vlan", "7")]));
+        assert!(c.contains(KAYDEDILDI) && !c.contains(KAYITLI), "{c}");
+        let h = t.hazir();
+        assert!(h.acik && h.kullanici == KAYITLI && h.parola.is_empty() && h.vlan == 7);
+        let son = |t: &T| t.audit_text().lines().filter(|l| l.contains(";SERVIS_PPPOE;")).last().unwrap().to_string();
+        assert!(son(&t).ends_with(";pppoe=acik vlan=7 kullanici_degisti=0 parola_degisti=0"), "{}", son(&t));
+        // kapatırken de kayıtlı ad kalır (açık/kapalı geçişi kullanıcı adını silmez)
+        assert!(t.kaydet(ip2, mac2, &servis_form(AP_PAROLA, &[("pppoe_acik", "kapali")])).contains(KAYDEDILDI));
+        assert!(!t.hazir().acik && t.hazir().kullanici == KAYITLI);
+        // yazılan ad kayıtlıyı değiştirir
+        assert!(t.kaydet(ip2, mac2, &servis_form(AP_PAROLA, &[("pppoe_acik", "acik"), ("pppoe_kullanici", "yeni@isp")])).contains(KAYDEDILDI));
+        assert!(t.hazir().kullanici == "yeni@isp" && son(&t).contains("kullanici_degisti=1"));
+        // iş başlatılamadı (doğrulamadan sonraki hata): ad yine gösterilmez; denetimde hiçbir yerde yok
+        t.p.runner = Box::new(|c: &[String]| c[0] != "systemd-run");
+        let c = t.kaydet(ip2, mac2, &servis_form(AP_PAROLA, &[("pppoe_acik", "acik"), ("pppoe_kullanici", "")]));
+        assert!(c.contains("başlatılamadı") && !c.contains(KAYITLI), "{c}");
+        assert!(!t.audit_text().contains(KAYITLI));
+    }
+
+    #[test]
+    fn servis_kilit_denetime_donem_basina_bir_kez() {
+        let t = setup(|_| {});
+        t.ap_parola(AP_PAROLA);
+        t.ag_kaydet(eski_pppoe());
+        t.internet_yok(Some(Durum::SunucuYok));
+        let satir = |t: &T, sonuc: &str| t.audit_text().lines().filter(|l| l.contains(";SERVIS_GIRIS;") && l.ends_with(sonuc)).count();
+        let yanlis = servis_form("yanlis-parola", &YENI);
+        for _ in 0..5 {
+            t.kaydet(IP, Some(MAC), &yanlis);
+        }
+        // kilit sürerken gelen istekler (doğru, yanlış, eksik form; başka IP'den aynı MAC): tek satır; sayma ve kilit davranışı aynı
+        for (ip, f) in [(IP, servis_form(AP_PAROLA, &YENI)), (IP, yanlis.clone()), (IP, servis_form("", &[])), ("10.50.0.77", servis_form(AP_PAROLA, &YENI))] {
+            assert!(t.kaydet(ip, Some(MAC), &f).contains("15 dakika sonra"));
+        }
+        assert_eq!((satir(&t, ";sonuc=hatali"), satir(&t, ";sonuc=kilit")), (5, 1));
+        // yeni kilit dönemi: yeniden bir satır
+        t.advance(900.0);
+        for _ in 0..5 {
+            t.kaydet(IP, Some(MAC), &yanlis);
+        }
+        for _ in 0..3 {
+            assert!(t.kaydet(IP, Some(MAC), &yanlis).contains("15 dakika sonra"));
+        }
+        assert_eq!((satir(&t, ";sonuc=hatali"), satir(&t, ";sonuc=kilit")), (10, 2));
+        // cihaz geneli kilit (60 dk'da 20. yanlış): farklı MAC'lerden gelen kilitli istekler de dönem başına tek satır
+        for i in 0..10 {
+            t.kaydet(&format!("10.50.0.{}", 100 + i), Some(&format!("aa:bb:cc:dd:f2:{i:02}")), &yanlis);
+        }
+        for i in 10..14 {
+            assert!(t.kaydet(&format!("10.50.0.{}", 100 + i), Some(&format!("aa:bb:cc:dd:f2:{i:02}")), &servis_form(AP_PAROLA, &YENI)).contains("60 dakika sonra"));
+        }
+        assert_eq!((satir(&t, ";sonuc=hatali"), satir(&t, ";sonuc=kilit")), (20, 3));
+        assert!(t.calls.lock().unwrap().is_empty());
     }
 
     #[test]

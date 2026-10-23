@@ -104,6 +104,9 @@ const METINLER: &[(&str, &str, &str)] = &[
     ("cok_hatali", "Çok fazla hatalı deneme. Yeni kod isteyin.", "Too many incorrect attempts. Request a new code."),
     ("kod_hatali", "Kod hatalı. Kalan deneme hakkı: {0}", "Incorrect code. Attempts left: {0}"),
     ("baglanti_acilamadi", "Bağlantı açılamadı, lütfen tekrar deneyin.", "The connection could not be opened, please try again."),
+    // internet yokken giriş sayfasının altındaki uyarı (nedeni pppoe::Durum::metin, yalnızca Türkçe) ve Servis bağlantısı
+    ("internet_yok", "Bu cihazın internet bağlantısı şu an yok", "This device has no internet connection right now"),
+    ("servis", "Servis", "Service"),
     // misafir kodu ile giriş (otel / yurt)
     ("misafir_dugme_otel", "Otel misafiriyim", "Hotel guest"),
     ("misafir_dugme_yurt", "Yurt sakiniyim", "Dormitory resident"),

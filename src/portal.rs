@@ -1,13 +1,16 @@
 //! Müşteri giriş portalı (eski portal.py; docs/MASTER_ENGINEERING.md §11, RUST_YENIDEN_YAZIM.md A4).
 //! Akış: form → hız sınırları → SMS kodu → doğrulama → nft yetkisi + oturum + 5651 kayıtları.
 
+use crate::ag;
 use crate::ayar::Config;
 use crate::dil::{self, Dil};
 use crate::ortak::{self, Row, Runner, Session};
+use crate::pppoe::{self, Durum};
 use crate::sms::{self, Saglayici, Sonuc};
 use crate::{kimlik, misafir, ulkeler};
 use std::collections::{HashMap, VecDeque};
 use std::io::Read;
+use std::path::Path;
 use std::process::ExitCode;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -138,6 +141,84 @@ fn pencere_say(p: &mut HashMap<String, VecDeque<f64>>, key: &str, now: f64) -> u
 const MISAFIR_HATA_SINIRI: usize = 5;
 const MISAFIR_KILIT_SN: f64 = 15.0 * 60.0;
 
+/// Cihazın internet durumu (docs/superpowers/specs/2026-10-23-pppoe-design.md, "Giriş sayfası: internet yokken uyarı ve
+/// Servis"): `None` = varsayılan rota var; `Some(durum)` = yok, internet alan portun durumu. Girdi ag.toml'un yolu. Testte sahte.
+pub type InternetFn = dyn Fn(&Path) -> Option<Durum> + Send + Sync;
+
+/// İnternet durumu en çok bu kadar önbellekte: giriş sayfası her açılışta komut çalıştırmasın; internet gelince uyarı en geç bu
+/// kadar sonra kendiliğinden kalkar.
+const INTERNET_ONBELLEK_SN: f64 = 10.0;
+/// Servis parolası (AP yönetim parolası) yanlış deneme sınırları: MAC (bilinmiyorsa IP) başına 15 dk'da 5 yanlış → 15 dk kilit;
+/// cihaz genelinde 60 dk'da 20 yanlış → 60 dk kilit (MAC değiştirerek sınırsız deneme olmasın). Süre hem pencere hem kilit.
+const SERVIS_HATA_SINIRI: usize = 5;
+const SERVIS_SURE_SN: f64 = 15.0 * 60.0;
+const SERVIS_GENEL_HATA_SINIRI: usize = 20;
+const SERVIS_GENEL_SURE_SN: f64 = 60.0 * 60.0;
+/// Servis'in hazırladığı PPPoE ayarı (`ag::Yollar::durum`, sistemde /var/lib/wificorrect altında; `ctl pppoe-servis` okur okumaz
+/// siler) ve onu uygulayan geçici iş.
+const SERVIS_DOSYASI: &str = "pppoe-servis.toml";
+const SERVIS_BIRIMI: &str = "wfc-pppoe-servis";
+/// Kayıttan sonra durum sayfasının yenilenme aralığı (sn).
+const SERVIS_YENILE_SN: u32 = 5;
+const SERVIS_TANIMSIZ: &str = "Servis parolası tanımlı değil (AP yönetim parolası bu cihaza henüz gelmedi); Servis kullanılamıyor.";
+
+/// Servis parolası yanlış deneme sayaçları (bellekte; portal yeniden başlayınca sıfırlanır, misafir kodu sayaçları gibi).
+/// Yalnızca yanlış parola sayılır; sınıra ulaşan yanlış deneme kilidi başlatır, kilit süresi o andan sayılır.
+#[derive(Default)]
+struct ServisSayac {
+    /// `mac:<mac>` / `ip:<ip>` → pencere içindeki yanlış denemeler
+    hatalar: HashMap<String, VecDeque<f64>>,
+    /// anahtar → kilidin bittiği an
+    kilitler: HashMap<String, f64>,
+    /// cihaz geneli
+    genel: VecDeque<f64>,
+    genel_kilit: Option<f64>,
+}
+
+/// Zamanı pencereye ekler, pencereden çıkanları atar; kalan sayı.
+fn pencereye_ekle(q: &mut VecDeque<f64>, now: f64, pencere: f64) -> usize {
+    q.push_back(now);
+    while q.front().is_some_and(|&t| t <= now - pencere) {
+        q.pop_front();
+    }
+    q.len()
+}
+
+impl ServisSayac {
+    /// Kilitliyse ekranda söylenecek süre (dakika): önce cihaz geneli (uzun olan), sonra anahtarın kendisi.
+    fn kilit(&self, anahtar: &str, now: f64) -> Option<u64> {
+        if self.genel_kilit.is_some_and(|b| now < b) {
+            return Some((SERVIS_GENEL_SURE_SN / 60.0) as u64);
+        }
+        self.kilitler.get(anahtar).is_some_and(|&b| now < b).then_some((SERVIS_SURE_SN / 60.0) as u64)
+    }
+
+    /// Yanlış parola: anahtara ve cihaz geneline sayılır; pencerede sınıra ulaşan kilitlenir.
+    fn hata(&mut self, anahtar: &str, now: f64) {
+        let q = self.hatalar.entry(anahtar.to_string()).or_default();
+        if pencereye_ekle(q, now, SERVIS_SURE_SN) >= SERVIS_HATA_SINIRI {
+            q.clear();
+            self.kilitler.insert(anahtar.to_string(), now + SERVIS_SURE_SN);
+        }
+        if pencereye_ekle(&mut self.genel, now, SERVIS_GENEL_SURE_SN) >= SERVIS_GENEL_HATA_SINIRI {
+            self.genel.clear();
+            self.genel_kilit = Some(now + SERVIS_GENEL_SURE_SN);
+        }
+        // süresi geçenler atılır (cihaz geneli sınır saatte en çok ~20 yanlış sayar: tablolar küçük kalır)
+        self.hatalar.retain(|_, q| q.back().is_some_and(|&t| t > now - SERVIS_SURE_SN));
+        self.kilitler.retain(|_, b| *b > now);
+    }
+
+    /// Doğru parola: o anahtarın yanlışları silinir (cihaz geneli sayaç kalır).
+    fn dogru(&mut self, anahtar: &str) {
+        self.hatalar.remove(anahtar);
+    }
+}
+
+fn servis_kilit_metni(dakika: u64) -> String {
+    format!("Çok fazla yanlış deneme; {dakika} dakika sonra yeniden deneyin.")
+}
+
 pub struct Portal {
     pub cfg: Config,
     pending: Mutex<HashMap<String, Pending>>,
@@ -153,6 +234,18 @@ pub struct Portal {
     pub base_url: String,
     /// Yönetim merkezi bağı: bağlı değilse ya da lisans kapalıysa misafire internet verilmez (testte geçici)
     pub merkez_path: std::path::PathBuf,
+    /// İnternet durumu sağlayıcısı (giriş sayfasındaki uyarı ve Servis; testte sahte)
+    pub internet: Box<InternetFn>,
+    /// (yoklama anı, sonuç); en çok `INTERNET_ONBELLEK_SN` geçerli
+    internet_onbellek: Mutex<Option<(f64, Option<Durum>)>>,
+    /// Aynı anda tek yoklama: o sırada gelen istekler bekleyip sonucu paylaşır
+    internet_yoklama: Mutex<()>,
+    servis_sayac: Mutex<ServisSayac>,
+    /// Hazırlık dosyasının yazılması ve işin başlatılması sıraya girer (iki istek aynı dosyayı karıştırmasın)
+    servis_sira: Mutex<()>,
+    /// ag.toml (Servis formunun kayıtlı değerleri, bekleyen port değişikliği) ve /var/lib/wificorrect (Servis'in hazırladığı
+    /// dosya); testte geçici
+    pub ag_yollar: ag::Yollar,
 }
 
 fn template(name: &str) -> &'static str {
@@ -163,6 +256,7 @@ fn template(name: &str) -> &'static str {
         "basarili" => include_str!("sablon/basarili.html"),
         "hata" => include_str!("sablon/hata.html"),
         "misafir" => include_str!("sablon/misafir.html"),
+        "servis" => include_str!("sablon/servis.html"),
         _ => "",
     }
 }
@@ -348,6 +442,31 @@ fn ct_eq(a: &str, b: &str) -> bool {
     a.len() == b.len() && a.bytes().zip(b.bytes()).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
 }
 
+/// Servis parolası sabit sürede karşılaştırılır: iki taraf da SHA-256 özetine çevrilir (uzunluk farkı ve ilk farklı karakterin
+/// yeri süreye yansımaz).
+fn servis_parolasi_dogru(girilen: &str, beklenen: &str) -> bool {
+    use sha2::{Digest, Sha256};
+    let (a, b) = (Sha256::digest(girilen.as_bytes()), Sha256::digest(beklenen.as_bytes()));
+    a.iter().zip(b.iter()).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
+}
+
+/// `ip -o route show default` çıktısından karar (spec: internet yok = varsayılan rota yok). Çıktı yoksa (komut çalışmadı, zaman
+/// aşımı) internet var sayılır: emin olunamayınca misafire açık sayfada Servis açılmaz. Rota yoksa internet alan portun durumu
+/// (`durum` yalnızca o zaman okunur).
+fn internet_coz(rota: Option<&str>, durum: impl FnOnce() -> Durum) -> Option<Durum> {
+    match rota {
+        Some(r) if !ag::internet_var(r) => Some(durum()),
+        _ => None,
+    }
+}
+
+/// Sistemdeki sağlayıcı: varsayılan rota `ip`'ten, durum `pppoe::durum` ile (kablo, PPP adresi, pppd günlüğü); komutlar süre sınırlı.
+fn internet_sistem(ag_toml: &Path) -> Option<Durum> {
+    let komut = |c: &[&str]| ortak::capture_timeout(c, 5);
+    let rota = komut(&["ip", "-o", "route", "show", "default"]);
+    internet_coz(rota.as_deref(), || pppoe::durum(&ag::load(ag_toml), Path::new("/sys/class/net"), &komut))
+}
+
 fn otp_code() -> String {
     loop {
         let mut b = [0u8; 4];
@@ -377,6 +496,12 @@ impl Portal {
             check_sms,
             nonce: AtomicU64::new(1),
             merkez_path: crate::merkez::PATH.into(),
+            internet: Box::new(internet_sistem),
+            internet_onbellek: Mutex::default(),
+            internet_yoklama: Mutex::default(),
+            servis_sayac: Mutex::default(),
+            servis_sira: Mutex::default(),
+            ag_yollar: ag::Yollar::sistem(),
         }
     }
 
@@ -398,6 +523,8 @@ impl Portal {
         // "Bocafe'ye", "Starbucks'a": ek ünlü uyumuyla, kesme işaretiyle ayrılır
         values.insert("site_ye", format!("{}'{}", self.cfg.main.site_name, ek(&self.cfg.main.site_name, 'y')));
         values.insert("portal", self.base_url.clone());
+        // giriş sayfasının altındaki "internet yok" uyarısı: her çizimde (hatalı form dahil), durum önbellekten
+        values.insert("internet_uyari_html", if page.tpl == "giris" { self.internet_uyarisi(d) } else { String::new() });
         for (k, v) in &page.ctx {
             values.insert(k, v.clone());
         }
@@ -416,6 +543,9 @@ impl Portal {
     /// Sayfanın üstündeki "TR | EN": istenen adres (`dst`) korunur; kod sayfasındaysa `sayfa=kod` ile kod sayfası
     /// yeni dilde yeniden açılır (bekleyen kod bellekte).
     fn dil_secimi(&self, page: &Page) -> String {
+        if page.tpl == "servis" {
+            return String::new(); // Servis yalnızca Türkçe (teknisyen sayfası)
+        }
         let yol = if page.tpl == "misafir" { "/misafir" } else { "/" };
         let mut ek = String::new();
         if page.tpl == "kod" {
@@ -1049,6 +1179,229 @@ impl Portal {
         }
         Some(s)
     }
+
+    // --- internet yokken uyarı ve Servis (docs/superpowers/specs/2026-10-23-pppoe-design.md): teknisyen yerinde, internet ve SMS
+    // olmadan, müşteriye özel AP yönetim parolasıyla PPPoE bilgilerini girer. Yalnızca varsayılan rota yokken; varken /servis
+    // giriş sayfasına yönlenir (misafire açık sayfada internet varken hiçbir ayar yüzeyi yok).
+
+    /// Cihazın interneti yoksa internet alan portun durumu (`None`: internet var). En çok `INTERNET_ONBELLEK_SN` önbellekte.
+    fn internet_yok(&self) -> Option<Durum> {
+        let taze = |now: f64| lock(&self.internet_onbellek).as_ref().filter(|(t, _)| now - t < INTERNET_ONBELLEK_SN).map(|(_, d)| d.clone());
+        if let Some(d) = taze((self.clock)()) {
+            return d;
+        }
+        // tek yoklama: aynı anda gelen istekler bekleyip sonucu paylaşır (komutlar her istekte yeniden çalışmasın)
+        let _yoklama = lock(&self.internet_yoklama);
+        let now = (self.clock)();
+        if let Some(d) = taze(now) {
+            return d;
+        }
+        let d = (self.internet)(&self.ag_yollar.ag);
+        *lock(&self.internet_onbellek) = Some((now, d.clone()));
+        d
+    }
+
+    /// Giriş sayfasının altındaki uyarı (herkese), yalnızca internet yokken: neden (spec tablosundaki durum metni) + Servis bağlantısı.
+    fn internet_uyarisi(&self, d: Dil) -> String {
+        self.internet_yok().map_or_else(String::new, |durum| {
+            format!(
+                "<p class=\"uyari\"><b>{}</b><br>{}<br><a href=\"/servis\">{}</a></p>",
+                dil::m(d, "internet_yok"),
+                html_escape(&durum.metin()),
+                dil::m(d, "servis")
+            )
+        })
+    }
+
+    /// Servis parolası = müşteriye özel AP yönetim parolası (`merkez.json` → `ap_parola`; merkeze sorulmaz). Yoksa (cihaz
+    /// bağlanmamış ya da eski merkez) Servis kapalı; merkezin kuralından (8-64 karakter) kısa bir değer de parola sayılmaz.
+    fn servis_parolasi(&self) -> Option<String> {
+        crate::merkez::oku(&self.merkez_path).map(|m| m.ap_parola).filter(|p| p.len() >= 8)
+    }
+
+    /// Servis sayfası (yalnızca Türkçe, JS yok). `govde_html`: form ya da bağlantı; `yenile`: birkaç saniyede bir izleme sayfasına.
+    fn servis_page(&self, durum: Option<&Durum>, hata: &str, bilgi: &str, govde_html: String, yenile: bool) -> Page {
+        let mut ctx = vec![
+            ("durum", durum.map_or_else(String::new, |d| format!("Durum: {}", d.metin()))),
+            ("hata", hata.to_string()),
+            ("bilgi", bilgi.to_string()),
+            ("govde_html", govde_html),
+        ];
+        if yenile {
+            let hedef = format!("{}/servis?izle=1", html_escape(&self.base_url));
+            ctx.push(("bas_html", format!("<meta http-equiv=\"refresh\" content=\"{SERVIS_YENILE_SN};url={hedef}\">")));
+        }
+        Page::new("servis", ctx, Dil::Tr)
+    }
+
+    /// Tek form: Servis parolası + panelle aynı PPPoE alanları (`pppoe::form_html`: değerler kaçışlı, parola hiç yazılmaz).
+    fn servis_formu(&self, p: &ag::Pppoe) -> String {
+        format!(
+            "<form class=\"servis\" method=\"post\" action=\"{}/servis\">\
+             <label for=\"servis_parola\">Servis parolası (AP yönetim parolası)</label>\
+             <input type=\"password\" id=\"servis_parola\" name=\"servis_parola\" value=\"\" maxlength=\"64\" autocomplete=\"off\" required>\
+             {}<button type=\"submit\">Kaydet ve bağlan</button></form>\
+             <p class=\"not\">Servis parolası her kayıtta yeniden yazılır. Kaydedince PPPoE yeniden bağlanır ve sayfa birkaç saniyede bir \
+             yenilenip durumu gösterir; internet gelince giriş sayfası açılır.</p>",
+            html_escape(&self.base_url),
+            pppoe::form_html(p)
+        )
+    }
+
+    /// Hatayla form yeniden: girilen değerler geri gelir (parolalar hariç); parola ipucu kayıtlı parolaya göre (boş = aynı kalır).
+    fn servis_hata(&self, durum: &Durum, hata: &str, girilen: Option<&ag::Pppoe>, kayitli: &ag::Pppoe) -> Page {
+        let p = girilen.map_or_else(|| kayitli.clone(), |g| ag::Pppoe { parola: kayitli.parola.clone(), ..g.clone() });
+        self.servis_page(Some(durum), hata, "", self.servis_formu(&p), false)
+    }
+
+    /// İzleme sayfası: durum + ayarlara dönüş bağlantısı; birkaç saniyede bir kendini yeniler (internet gelince giriş sayfasına).
+    fn servis_izle(&self, durum: Option<&Durum>, bilgi: &str) -> Page {
+        let govde = format!("<p><a href=\"{}/servis\">Ayarları değiştir</a></p>", html_escape(&self.base_url));
+        self.servis_page(durum, "", bilgi, govde, true)
+    }
+
+    /// GET /servis (`izle`: yalnızca durum, birkaç saniyede bir yenilenir). `None`: internet var (HTTP katmanı giriş sayfasına
+    /// yönlendirir).
+    pub fn servis_sayfasi(&self, izle: bool) -> Option<Page> {
+        let durum = self.internet_yok()?;
+        if izle {
+            return Some(self.servis_izle(Some(&durum), "Bu sayfa birkaç saniyede bir yenilenir; internet gelince giriş sayfası açılır."));
+        }
+        Some(match self.servis_parolasi() {
+            // form kayıtlı değerlerle dolu (parola hariç): "kapalı" gönderilince kullanıcı adı ve ileri alanlar silinmesin
+            Some(_) => self.servis_page(Some(&durum), "", "", self.servis_formu(&ag::load(&self.ag_yollar.ag).pppoe), false),
+            None => self.servis_page(Some(&durum), SERVIS_TANIMSIZ, "", String::new(), false),
+        })
+    }
+
+    /// POST /servis. `None`: internet var (HTTP katmanı giriş sayfasına yönlendirir; form işlenmez, sayılmaz). Sıra: Servis parolası
+    /// tanımlı mı → kilit (kilitliyken parolaya bakılmaz) → form tam mı (eksikse ayar formdan okunmaz, sayılmaz) → parola (yanlışsa
+    /// sayılır) → ayarın doğrulaması (doğru paroladan sonraki hata sayılmaz) → hazırlık dosyası + `ctl pppoe-servis` işi.
+    /// Denetime yalnızca özet yazılır (MAC, IP; parolalar ve kullanıcı adı yazılmaz).
+    pub fn servis_kaydet(&self, ip: &str, mac: Option<&str>, form: &Form) -> Option<Page> {
+        let durum = self.internet_yok()?;
+        let Some(ap_parola) = self.servis_parolasi() else {
+            return Some(self.servis_page(Some(&durum), SERVIS_TANIMSIZ, "", String::new(), false));
+        };
+        let get = |k: &str| form.get(k).map(String::as_str).unwrap_or("");
+        let kayitli = ag::load(&self.ag_yollar.ag).pppoe;
+        // panelle ortak ayrıştırma; yalnızca form tamsa (eksik bir form kayıtlı ayarı varsayılanlara döndürmesin)
+        let girilen = form.contains_key("pppoe_acik").then(|| pppoe::formdan(&kayitli, &|k: &str| get(k).to_string()));
+        let mac_s = mac.unwrap_or("");
+        // MAC başına; MAC bilinmiyorsa IP başına
+        let anahtar = mac.map_or_else(|| format!("ip:{ip}"), |m| format!("mac:{m}"));
+        let now = (self.clock)();
+        let kilitli = |dakika: u64, g: Option<&ag::Pppoe>| {
+            self.audit("SERVIS_GIRIS", ip, mac_s, "", "sonuc=kilit");
+            Some(self.servis_hata(&durum, &servis_kilit_metni(dakika), g, &kayitli))
+        };
+        // kilitliyken parolaya bakılmaz (eksik form da kilit olarak söylenir)
+        if let Some(dakika) = lock(&self.servis_sayac).kilit(&anahtar, now) {
+            return kilitli(dakika, girilen.as_ref());
+        }
+        let Some(yeni) = girilen else {
+            return Some(self.servis_hata(&durum, "Form eksik gönderildi; sayfayı yenileyip yeniden deneyin.", None, &kayitli));
+        };
+        let parola = get("servis_parola");
+        if parola.is_empty() {
+            return Some(self.servis_hata(&durum, "Servis parolasını girin.", Some(&yeni), &kayitli));
+        }
+        // kilit yeniden denetlenir; karşılaştırma ve sayma aynı kilit altında: aynı anda gelen denemeler sınırı aşamaz
+        enum Sonuc {
+            Dogru,
+            Yanlis(Option<u64>),
+            Kilitli(u64),
+        }
+        let sonuc = {
+            let mut s = lock(&self.servis_sayac);
+            match s.kilit(&anahtar, now) {
+                Some(dakika) => Sonuc::Kilitli(dakika),
+                None if servis_parolasi_dogru(parola, &ap_parola) => {
+                    s.dogru(&anahtar);
+                    Sonuc::Dogru
+                }
+                None => {
+                    s.hata(&anahtar, now);
+                    Sonuc::Yanlis(s.kilit(&anahtar, now))
+                }
+            }
+        };
+        match sonuc {
+            Sonuc::Dogru => {}
+            Sonuc::Kilitli(dakika) => return kilitli(dakika, Some(&yeni)),
+            Sonuc::Yanlis(kilit) => {
+                self.audit("SERVIS_GIRIS", ip, mac_s, "", "sonuc=hatali");
+                let hata = kilit.map_or_else(|| "Servis parolası yanlış.".to_string(), servis_kilit_metni);
+                return Some(self.servis_hata(&durum, &hata, Some(&yeni), &kayitli));
+            }
+        }
+        // boş PPPoE parolası = kayıtlı parola (`formdan` birleştirdi): doğrulama `ctl pppoe-servis`'teki gibi birleşik ayarla
+        if let Err(e) = ag::pppoe_dogrula(&yeni) {
+            return Some(self.servis_hata(&durum, &e, Some(&yeni), &kayitli));
+        }
+        // `ctl pppoe-servis`'in reddedeceği durumlar burada söylenir (işin sonucu sayfaya dönmez)
+        if !self.ag_yollar.ag.exists() {
+            return Some(self.servis_hata(&durum, "Ağ ayar dosyası yok; PPPoE ayarı uygulanamaz.", Some(&yeni), &kayitli));
+        }
+        if ag::pending(&self.ag_yollar).is_some() {
+            let hata = "Panelden yapılan bir port değişikliği onay bekliyor (en çok 3 dakika); süre dolunca yeniden deneyin.";
+            return Some(self.servis_hata(&durum, hata, Some(&yeni), &kayitli));
+        }
+        let ozet = format!(
+            "pppoe={} vlan={} kullanici_degisti={} parola_degisti={}",
+            if yeni.acik { "acik" } else { "kapali" },
+            yeni.vlan,
+            u8::from(yeni.kullanici != kayitli.kullanici),
+            u8::from(yeni.parola != kayitli.parola)
+        );
+        // kayıtlı parola hazırlık dosyasına kopyalanmaz: alan boşsa boş gider, `ctl pppoe-servis` (ag::pppoe_uygula) birleştirir
+        let mut hazir = yeni.clone();
+        if get("pppoe_parola").is_empty() {
+            hazir.parola.clear();
+        }
+        if let Err(kod) = self.servis_baslat(&hazir) {
+            self.audit("SERVIS_PPPOE", ip, mac_s, "", &format!("{ozet} hata={kod}"));
+            let hata = if kod == "baslatilamadi" {
+                "Ayar uygulanamadı: iş başlatılamadı; birkaç saniye sonra yeniden deneyin."
+            } else {
+                "Ayar kaydedilemedi; yeniden deneyin."
+            };
+            return Some(self.servis_hata(&durum, hata, Some(&yeni), &kayitli));
+        }
+        self.audit("SERVIS_PPPOE", ip, mac_s, "", &ozet);
+        // yeni durum hemen yoklansın: internet geldiyse izleme sayfası giriş sayfasına döner
+        *lock(&self.internet_onbellek) = None;
+        Some(self.servis_izle(
+            None,
+            "Ayar kaydedildi; PPPoE yeniden bağlanıyor. Bu sayfa birkaç saniyede bir yenilenip durumu gösterir (güncel durumun gelmesi \
+             bir dakikayı bulabilir); internet gelince giriş sayfası açılır.",
+        ))
+    }
+
+    /// Hazırlık dosyası (600; ag.toml'daki adlarla `[pppoe]` tablosu) + `ctl pppoe-servis` ayrı bir işte: portal ProtectSystem=full
+    /// ile çalışır, /etc'ye yazamaz. İş beklenmez (sonuç durum sayfasında görünür); geri alma zamanlayıcısı yok (spec). İş
+    /// başlatılamazsa dosya (parola içerebilir) silinir. Hata: denetim kodu (`yazilamadi` | `baslatilamadi`); ayrıntı (dosya
+    /// içeriğini taşıyabilir) yazılmaz.
+    fn servis_baslat(&self, p: &ag::Pppoe) -> Result<(), &'static str> {
+        #[derive(serde::Serialize)]
+        struct Hazir<'a> {
+            pppoe: &'a ag::Pppoe,
+        }
+        let _sira = lock(&self.servis_sira);
+        let dosya = self.ag_yollar.durum.join(SERVIS_DOSYASI);
+        let metin = toml::to_string(&Hazir { pppoe: p }).map_err(|_| "yazilamadi")?;
+        ortak::write_atomic(&dosya, metin.as_bytes()).map_err(|_| "yazilamadi")?;
+        let komut: Vec<String> = ["systemd-run", "--collect", "--unit", SERVIS_BIRIMI, "/usr/local/bin/wificorrect", "ctl", "pppoe-servis"]
+            .iter()
+            .map(|s| s.to_string())
+            .chain([dosya.to_string_lossy().into_owned()])
+            .collect();
+        if !(self.runner)(&komut) {
+            let _ = std::fs::remove_file(&dosya);
+            return Err("baslatilamadi");
+        }
+        Ok(())
+    }
 }
 
 // ---------------------------------------------------------------- HTTP
@@ -1171,6 +1524,11 @@ fn handle(p: &Portal, per_ip: &RateLimiter, mut req: tiny_http::Request) {
                     None => return git(req, format!("{base}/")),
                 }
             }
+            // yalnızca internet yokken; varken giriş sayfasına
+            "/servis" => match p.servis_sayfasi(q.get("izle").is_some_and(|v| v == "1")) {
+                Some(pg) => pg,
+                None => return git(req, format!("{base}/")),
+            },
             _ => return git(req, format!("{base}/")),
         },
         tiny_http::Method::Post => {
@@ -1189,6 +1547,11 @@ fn handle(p: &Portal, per_ip: &RateLimiter, mut req: tiny_http::Request) {
                 "/dogrula" => p.verify(&ip, mac, &form),
                 "/tekrar-gonder" => p.resend_dil(&ip, mac, d),
                 "/misafir/dogrula" => match p.misafir_dogrula(&ip, mac, &form) {
+                    Some(pg) => pg,
+                    None => return git(req, format!("{base}/")),
+                },
+                // yalnızca internet yokken; varken form işlenmeden giriş sayfasına
+                "/servis" => match p.servis_kaydet(&ip, mac, &form) {
                     Some(pg) => pg,
                     None => return git(req, format!("{base}/")),
                 },
@@ -1267,6 +1630,10 @@ mod tests {
         onayli: Arc<Mutex<String>>,
         ag: Arc<Mutex<bool>>,
         root: std::path::PathBuf,
+        /// sahte durum sağlayıcı: `None` internet var (varsayılan), `Some(durum)` yok
+        internet: Arc<Mutex<Option<Durum>>>,
+        /// sağlayıcı kaç kez çağrıldı (önbellek)
+        yoklama: Arc<AtomicUsize>,
     }
 
     const MAC: &str = "aa:bb:cc:dd:ee:01";
@@ -1323,7 +1690,26 @@ mod tests {
         p.merkez_path = root.join("merkez.json");
         std::fs::create_dir_all(&root).unwrap();
         crate::merkez::kaydet(&p.merkez_path, &crate::merkez::Merkez { numara: "4511643".into(), ..Default::default() }).unwrap();
-        T { p, mono, wall, calls, sms: sms_log, cevap, kontrol, onayli, ag, root }
+        // internet durumu: testler gerçek `ip` / `journalctl` çalıştırmaz; ag.toml ve hazırlık dosyası geçici klasörde
+        let (internet, yoklama): (Arc<Mutex<Option<Durum>>>, Arc<AtomicUsize>) = Default::default();
+        let (i2, y2) = (internet.clone(), yoklama.clone());
+        p.internet = Box::new(move |_: &std::path::Path| {
+            y2.fetch_add(1, Ordering::SeqCst);
+            i2.lock().unwrap().clone()
+        });
+        p.ag_yollar = crate::ag::Yollar {
+            ag: root.join("etc/ag.toml"),
+            interfaces: root.join("etc/interfaces"),
+            nft: root.join("etc/arayuzler.nft"),
+            hostapd: root.join("etc/hostapd.conf"),
+            issue: root.join("etc/issue"),
+            peers: root.join("etc/peers"),
+            durum: root.join("var"),
+            hiz_uygulanan: root.join("var/hiz-uygulanan"),
+            uzak_key: root.join("etc/wg.key"),
+            uzak_conf: root.join("etc/wfc.conf"),
+        };
+        T { p, mono, wall, calls, sms: sms_log, cevap, kontrol, onayli, ag, root, internet, yoklama }
     }
 
     impl T {
@@ -2066,5 +2452,447 @@ mod tests {
         let t = setup(|c| c.portal.aydinlatma = String::new());
         assert!(t.p.render(&t.p.home_dil(IP, Some(MAC), "", Dil::En, false)).contains("This text has not been added yet."));
         assert!(t.p.render(&t.p.home(IP, Some(MAC), "")).contains("Metin henüz eklenmedi."));
+    }
+
+    // --- internet yokken uyarı ve Servis (docs/superpowers/specs/2026-10-23-pppoe-design.md)
+    const AP_PAROLA: &str = "Kp7mQx2Rtz4W";
+    const UYARI: &str = "Bu cihazın internet bağlantısı şu an yok";
+    const SERVIS_LINKI: &str = "href=\"/servis\"";
+    const KAYDEDILDI: &str = "Ayar kaydedildi";
+    /// Geçerli yeni PPPoE bilgileri (Servis formunun alanları panelle aynı)
+    const YENI: [(&str, &str); 4] = [("pppoe_acik", "acik"), ("pppoe_kullanici", "yeni@isp"), ("pppoe_parola", "yeni-parola-35"), ("pppoe_vlan", "35")];
+
+    impl T {
+        /// `None`: internet var; `Some(durum)`: yok. Durum önbellekte en çok 10 sn: yeni değer en geç 10 sn sonra görünür.
+        fn internet_yok(&self, d: Option<Durum>) {
+            *self.internet.lock().unwrap() = d;
+        }
+        fn ap_parola(&self, parola: &str) {
+            let mut m = crate::merkez::oku(&self.p.merkez_path).unwrap();
+            m.ap_parola = parola.into();
+            crate::merkez::kaydet(&self.p.merkez_path, &m).unwrap();
+        }
+        fn ag_kaydet(&self, p: crate::ag::Pppoe) {
+            crate::ag::save(&self.p.ag_yollar.ag, &crate::ag::Ag { pppoe: p, ..crate::ag::Ag::default() }).unwrap();
+        }
+        fn servis_dosyasi(&self) -> std::path::PathBuf {
+            self.p.ag_yollar.durum.join("pppoe-servis.toml")
+        }
+        /// Hazırlık dosyasındaki `[pppoe]` (`ctl pppoe-servis`'in okuduğu biçim)
+        fn hazir(&self) -> crate::ag::Pppoe {
+            #[derive(serde::Deserialize)]
+            struct Hazir {
+                pppoe: crate::ag::Pppoe,
+            }
+            toml::from_str::<Hazir>(&std::fs::read_to_string(self.servis_dosyasi()).unwrap()).unwrap().pppoe
+        }
+        fn systemd_run(&self) -> Vec<Vec<String>> {
+            self.calls.lock().unwrap().iter().filter(|c| c[0] == "systemd-run").cloned().collect()
+        }
+        /// POST /servis'in sayfası (internet yokken)
+        fn kaydet(&self, ip: &str, mac: Option<&str>, f: &Form) -> String {
+            self.p.render(&self.p.servis_kaydet(ip, mac, f).expect("internet yok: Servis sayfası"))
+        }
+        /// GET /servis (internet yokken)
+        fn servis_html(&self, izle: bool) -> String {
+            self.p.render(&self.p.servis_sayfasi(izle).expect("internet yok: Servis sayfası"))
+        }
+    }
+
+    fn servis_form(parola: &str, alanlar: &[(&str, &str)]) -> Form {
+        let mut f = form(alanlar);
+        f.insert("servis_parola".into(), parola.into());
+        f
+    }
+
+    /// Kayıtlı (eski) PPPoE bilgileri
+    fn eski_pppoe() -> crate::ag::Pppoe {
+        crate::ag::Pppoe { acik: true, kullanici: "eski@isp".into(), parola: "eski-parola-77".into(), ..Default::default() }
+    }
+
+    #[test]
+    fn uyari_yalnizca_internet_yokken() {
+        // internet var: giriş sayfası bugünkü gibi (uyarı ve Servis bağlantısı yok)
+        let t = setup(|_| {});
+        let html = t.p.render(&t.p.home(IP, Some(MAC), ""));
+        assert!(!html.contains(UYARI) && !html.contains(SERVIS_LINKI), "{html}");
+        // internet yok: sayfanın altında (formdan sonra) uyarı, neden (spec tablosundaki durum metni) ve Servis bağlantısı
+        let t = setup(|_| {});
+        t.internet_yok(Some(Durum::SunucuYok));
+        let html = t.p.render(&t.p.home(IP, Some(MAC), ""));
+        let uyari = html.find(UYARI).unwrap_or_else(|| panic!("{html}"));
+        assert!(uyari > html.find("</form>").unwrap(), "uyarı sayfanın altında olmalı");
+        let alt = &html[uyari..];
+        assert!(alt.contains("PPPoE sunucusu yanıt vermiyor (kablo doğru porta mı, VLAN gerekli mi?)") && alt.contains(SERVIS_LINKI), "{html}");
+        // İngilizce sayfada da
+        let html = t.p.render(&t.p.home_dil(IP, Some(MAC), "", Dil::En, false));
+        assert!(html.contains("This device has no internet connection right now") && html.contains(SERVIS_LINKI) && !html.contains(UYARI), "{html}");
+        // giriş formu hatayla yeniden çizilince de (misafir "kod gönderilemiyor" ile birlikte nedeni görür)
+        assert!(t.p.render(&t.p.send_code(IP, Some(MAC), &form(&[("ad", "A")]))).contains(UYARI));
+        // başka sayfalarda yok
+        assert!(!t.p.render(&t.p.home(IP, None, "")).contains(UYARI));
+    }
+
+    #[test]
+    fn uyari_kendiliginden_kalkar() {
+        let t = setup(|_| {});
+        t.internet_yok(Some(Durum::KabloYok));
+        assert!(t.p.render(&t.p.home(IP, Some(MAC), "")).contains("Kablo takılı değil"));
+        let n = t.yoklama.load(Ordering::SeqCst);
+        // internet geldi: durum en çok 10 sn önbellekte; o sürede sağlayıcı yeniden çağrılmaz
+        t.internet_yok(None);
+        t.advance(9.0);
+        assert!(t.p.render(&t.p.home(IP, Some(MAC), "")).contains(UYARI));
+        assert!(t.p.servis_sayfasi(false).is_some());
+        assert_eq!(t.yoklama.load(Ordering::SeqCst), n, "önbellekteyken yeniden yoklandı");
+        t.advance(1.0);
+        let html = t.p.render(&t.p.home(IP, Some(MAC), ""));
+        assert!(!html.contains(UYARI) && !html.contains(SERVIS_LINKI), "{html}");
+        assert_eq!(t.yoklama.load(Ordering::SeqCst), n + 1);
+        // Servis de kapandı
+        assert!(t.p.servis_sayfasi(false).is_none() && t.p.servis_sayfasi(true).is_none());
+    }
+
+    #[test]
+    fn servis_internet_varken_yonlendirir() {
+        let t = setup(|_| {});
+        t.ap_parola(AP_PAROLA);
+        t.ag_kaydet(eski_pppoe());
+        // internet var: GET (form ve izleme) ve POST giriş sayfasına yönlenir (HTTP katmanı 302 → /); form işlenmez
+        assert!(t.p.servis_sayfasi(false).is_none() && t.p.servis_sayfasi(true).is_none());
+        assert!(t.p.servis_kaydet(IP, Some(MAC), &servis_form(AP_PAROLA, &YENI)).is_none());
+        for _ in 0..25 {
+            assert!(t.p.servis_kaydet(IP, Some(MAC), &servis_form("yanlis-parola", &YENI)).is_none());
+        }
+        assert!(t.calls.lock().unwrap().is_empty() && !t.servis_dosyasi().exists());
+        assert!(!t.audit_text().contains("SERVIS_"));
+        // internet gidince: varken gelen yanlış denemeler sayılmamış (ne MAC ne cihaz kilidi), doğru parola uygular
+        t.internet_yok(Some(Durum::SunucuYok));
+        t.advance(10.0);
+        assert!(t.kaydet(IP, Some(MAC), &servis_form(AP_PAROLA, &YENI)).contains(KAYDEDILDI));
+        assert_eq!(t.systemd_run().len(), 1);
+    }
+
+    /// Gerçek HTTP katmanı (`handle`) üzerinden tek istek: portal 127.0.0.1'de dinler, istemci aynı makineden bağlanır.
+    fn http_istek(t: &T, server: &tiny_http::Server, istek: &str) -> String {
+        use std::io::Write;
+        let port = server.server_addr().to_ip().unwrap().port();
+        let istek = istek.replace("{host}", &format!("127.0.0.1:{port}"));
+        let istemci = std::thread::spawn(move || {
+            let mut s = std::net::TcpStream::connect(("127.0.0.1", port)).unwrap();
+            s.write_all(istek.as_bytes()).unwrap();
+            let mut cevap = String::new();
+            let _ = s.read_to_string(&mut cevap);
+            cevap
+        });
+        handle(&t.p, &RateLimiter::default(), server.recv().unwrap());
+        istemci.join().unwrap()
+    }
+
+    #[test]
+    fn servis_http_yonlendirme() {
+        let server = tiny_http::Server::http("127.0.0.1:0").unwrap();
+        let port = server.server_addr().to_ip().unwrap().port();
+        let mut t = setup(|c| {
+            c.main.router_ip = "127.0.0.1".into();
+            c.main.portal_port = port;
+            c.main.subnet = "127.0.0.0/8".into();
+        });
+        // istemcinin MAC'i kira dosyasından (127.0.0.1 → MAC)
+        let kiralar = t.root.join("dnsmasq.leases");
+        std::fs::write(&kiralar, format!("4102444800 {MAC} 127.0.0.1 telefon *\n")).unwrap();
+        t.p.cfg.main.leases_file = kiralar.to_string_lossy().into();
+        t.ap_parola(AP_PAROLA);
+        t.ag_kaydet(eski_pppoe());
+        let get = |yol: &str| format!("GET {yol} HTTP/1.1\r\nHost: {{host}}\r\nConnection: close\r\n\r\n");
+        let govde = format!("servis_parola={AP_PAROLA}&pppoe_acik=acik&pppoe_kullanici=yeni%40isp&pppoe_parola=yeni-parola-35&pppoe_vlan=35");
+        let post = format!(
+            "POST /servis HTTP/1.1\r\nHost: {{host}}\r\nConnection: close\r\nContent-Type: application/x-www-form-urlencoded\r\nContent-Length: {}\r\n\r\n{govde}",
+            govde.len()
+        );
+        // internet var: /servis (GET, izleme, POST) giriş sayfasına yönlenir; form işlenmez, giriş sayfası bugünkü gibi
+        let ana = format!("Location: http://127.0.0.1:{port}/\r\n");
+        for istek in [get("/servis"), get("/servis?izle=1"), post.clone()] {
+            let c = http_istek(&t, &server, &istek);
+            assert!(c.starts_with("HTTP/1.1 302") && c.contains(&ana), "{c}");
+        }
+        let c = http_istek(&t, &server, &get("/"));
+        assert!(c.starts_with("HTTP/1.1 200") && !c.contains(UYARI) && !c.contains(SERVIS_LINKI), "{c}");
+        assert!(t.calls.lock().unwrap().is_empty() && !t.servis_dosyasi().exists() && !t.audit_text().contains("SERVIS_"));
+        // internet yok: giriş sayfasında uyarı + Servis bağlantısı; /servis formu verir; POST uygular
+        t.internet_yok(Some(Durum::KimlikHatasi));
+        t.advance(10.0);
+        let c = http_istek(&t, &server, &get("/"));
+        assert!(c.starts_with("HTTP/1.1 200") && c.contains(UYARI) && c.contains(SERVIS_LINKI), "{c}");
+        let c = http_istek(&t, &server, &get("/servis"));
+        assert!(c.starts_with("HTTP/1.1 200") && c.contains("Kullanıcı adı ya da parola reddedildi") && c.contains("name=\"servis_parola\""), "{c}");
+        let c = http_istek(&t, &server, &post);
+        assert!(c.starts_with("HTTP/1.1 200") && c.contains(KAYDEDILDI) && !c.contains("yeni-parola-35") && !c.contains(AP_PAROLA), "{c}");
+        assert_eq!(t.systemd_run().len(), 1);
+        let h = t.hazir();
+        assert!(h.acik && h.vlan == 35 && h.kullanici == "yeni@isp" && h.parola == "yeni-parola-35");
+        assert!(t.audit_text().lines().any(|l| l.contains(";SERVIS_PPPOE;") && l.contains(MAC) && l.contains("127.0.0.1")));
+    }
+
+    #[test]
+    fn servis_parolasi_yoksa_form_yok() {
+        let t = setup(|_| {}); // merkez.json'da ap_parola yok (eski merkez ya da parola henüz gelmedi)
+        t.ag_kaydet(eski_pppoe());
+        t.internet_yok(Some(Durum::SunucuYok));
+        let html = t.servis_html(false);
+        assert!(html.contains("Servis parolası tanımlı değil") && !html.contains("<form"), "{html}");
+        assert!(html.contains("PPPoE sunucusu yanıt vermiyor"), "durum yine görünür: {html}");
+        // gönderilse de hiçbir şey olmaz (boş parola eşleşmez), sayılmaz, yazılmaz
+        for parola in ["", "x", "yanlis-parola"] {
+            let html = t.kaydet(IP, Some(MAC), &servis_form(parola, &YENI));
+            assert!(html.contains("Servis parolası tanımlı değil") && !html.contains("<form"), "{html}");
+        }
+        // cihaz hiç bağlanmamış (merkez.json yok) ya da merkezin kuralından (8-64 karakter) kısa parola: aynı
+        crate::merkez::sil(&t.p.merkez_path);
+        assert!(t.servis_html(false).contains("Servis parolası tanımlı değil"));
+        let kisa = crate::merkez::Merkez { numara: "4511643".into(), ap_parola: "kisa".into(), ..Default::default() };
+        crate::merkez::kaydet(&t.p.merkez_path, &kisa).unwrap();
+        assert!(!t.servis_html(false).contains("<form"));
+        assert!(t.kaydet(IP, Some(MAC), &servis_form("kisa", &YENI)).contains("Servis parolası tanımlı değil"));
+        assert!(t.calls.lock().unwrap().is_empty() && !t.servis_dosyasi().exists());
+        assert!(!t.audit_text().contains("SERVIS_"));
+    }
+
+    #[test]
+    fn servis_yanlis_parola_kilit() {
+        let t = setup(|_| {});
+        t.ap_parola(AP_PAROLA);
+        t.ag_kaydet(eski_pppoe());
+        t.internet_yok(Some(Durum::KimlikHatasi));
+        const KILIT: &str = "Çok fazla yanlış deneme; 15 dakika sonra yeniden deneyin.";
+        // aynı MAC'ten 5 yanlış: 5.'si kilidi başlatır; form parolalar boş olarak yeniden gelir
+        for i in 1..=5 {
+            let html = t.kaydet(IP, Some(MAC), &servis_form("yanlis-parola", &YENI));
+            assert!(html.contains(if i < 5 { "Servis parolası yanlış." } else { KILIT }), "{i}: {html}");
+            assert!(html.contains("<form") && !html.contains("yeni-parola-35") && !html.contains("yanlis-parola"), "{i}: {html}");
+        }
+        // 6. deneme doğru parolayla da kilitli (parolaya bakılmaz); aynı MAC başka IP'den gelse de
+        assert!(t.kaydet(IP, Some(MAC), &servis_form(AP_PAROLA, &YENI)).contains(KILIT));
+        assert!(t.kaydet("10.50.0.77", Some(MAC), &servis_form(AP_PAROLA, &YENI)).contains(KILIT));
+        assert!(t.calls.lock().unwrap().is_empty() && !t.servis_dosyasi().exists());
+        let a = t.audit_text();
+        let giris: Vec<&str> = a.lines().filter(|l| l.contains(";SERVIS_GIRIS;")).collect();
+        assert_eq!(giris.iter().filter(|l| l.ends_with(";sonuc=hatali")).count(), 5, "{a}");
+        assert_eq!(giris.iter().filter(|l| l.ends_with(";sonuc=kilit")).count(), 2, "{a}");
+        assert!(giris.iter().all(|l| l.contains(MAC)) && giris.iter().filter(|l| l.contains(IP)).count() == 6, "{a}");
+        for gizli in ["yanlis-parola", AP_PAROLA, "yeni-parola-35", "yeni@isp", "eski-parola-77"] {
+            assert!(!a.contains(gizli), "{gizli}: {a}");
+        }
+        // başka cihaz kilitli değil (MAC başına); MAC'i bilinmeyen istemci IP'siyle sayılır
+        assert!(t.kaydet("10.50.0.24", Some("aa:bb:cc:dd:ee:02"), &servis_form(AP_PAROLA, &YENI)).contains(KAYDEDILDI));
+        for _ in 0..5 {
+            t.kaydet("10.50.0.30", None, &servis_form("yanlis-parola", &YENI));
+        }
+        assert!(t.kaydet("10.50.0.30", None, &servis_form(AP_PAROLA, &YENI)).contains(KILIT));
+        assert!(t.kaydet("10.50.0.30", Some("aa:bb:cc:dd:ee:03"), &servis_form(AP_PAROLA, &YENI)).contains(KAYDEDILDI));
+        // 15 dk sonra açılır
+        t.advance(899.0);
+        assert!(t.kaydet(IP, Some(MAC), &servis_form(AP_PAROLA, &YENI)).contains(KILIT));
+        t.advance(1.0);
+        assert!(t.kaydet(IP, Some(MAC), &servis_form(AP_PAROLA, &YENI)).contains(KAYDEDILDI));
+        assert_eq!(t.systemd_run().len(), 3);
+    }
+
+    #[test]
+    fn servis_cihaz_geneli_kilit() {
+        let t = setup(|_| {});
+        t.ap_parola(AP_PAROLA);
+        t.ag_kaydet(eski_pppoe());
+        t.internet_yok(Some(Durum::SunucuYok));
+        const KILIT: &str = "Çok fazla yanlış deneme; 60 dakika sonra yeniden deneyin.";
+        let cihaz = |i: usize| (format!("10.50.0.{}", 100 + i), format!("aa:bb:cc:dd:f1:{i:02}"));
+        // MAC değiştirerek 20 yanlış (her MAC'ten bir: MAC başına sınıra takılmaz); 20.'si cihaz kilidini başlatır
+        for i in 0..20 {
+            let (ip, mac) = cihaz(i);
+            let html = t.kaydet(&ip, Some(&mac), &servis_form("yanlis-parola", &YENI));
+            assert!(html.contains(if i < 19 { "Servis parolası yanlış." } else { KILIT }), "{i}: {html}");
+        }
+        // 21. deneme her MAC'te (eskisi ya da yenisi; MAC'i bilinmeyen de) kilitli, doğru parolayla da
+        for i in [0, 19, 20, 21] {
+            let (ip, mac) = cihaz(i);
+            assert!(t.kaydet(&ip, Some(&mac), &servis_form(AP_PAROLA, &YENI)).contains(KILIT), "{i}");
+        }
+        assert!(t.kaydet("10.50.0.250", None, &servis_form(AP_PAROLA, &YENI)).contains(KILIT));
+        assert!(t.calls.lock().unwrap().is_empty() && !t.servis_dosyasi().exists());
+        let a = t.audit_text();
+        assert_eq!((a.matches("sonuc=hatali").count(), a.matches("sonuc=kilit").count()), (20, 5), "{a}");
+        // 60 dk sonra açılır
+        let (ip, mac) = cihaz(22);
+        t.advance(3599.0);
+        assert!(t.kaydet(&ip, Some(&mac), &servis_form(AP_PAROLA, &YENI)).contains(KILIT));
+        t.advance(1.0);
+        assert!(t.kaydet(&ip, Some(&mac), &servis_form(AP_PAROLA, &YENI)).contains(KAYDEDILDI));
+    }
+
+    #[test]
+    fn servis_dogru_parola_uygular() {
+        use std::os::unix::fs::PermissionsExt;
+        let t = setup(|_| {});
+        t.ap_parola(AP_PAROLA);
+        t.ag_kaydet(crate::ag::Pppoe { acik: false, ..eski_pppoe() });
+        t.internet_yok(Some(Durum::DhcpYok));
+        let f = servis_form(AP_PAROLA, &[("pppoe_acik", "1"), ("pppoe_kullanici", " 5321234567@turk.net "), ("pppoe_parola", "yeni-parola-35"), ("pppoe_vlan", "35")]);
+        let pg = t.p.servis_kaydet(IP, Some(MAC), &f).expect("internet yok: sayfa");
+        // hazırlık dosyası 600, `[pppoe]` tablosu: ctl pppoe-servis'in okuduğu biçim (kullanıcı adı kırpılmış)
+        let dosya = t.servis_dosyasi();
+        assert_eq!(std::fs::metadata(&dosya).unwrap().permissions().mode() & 0o777, 0o600);
+        let h = t.hazir();
+        assert!(h.acik && h.kullanici == "5321234567@turk.net" && h.parola == "yeni-parola-35" && h.vlan == 35);
+        assert!(h.oncelik == 0 && h.mtu == 1492 && h.kimlik == "otomatik" && h.ac_adi.is_empty() && h.servis_adi.is_empty());
+        // ctl pppoe-servis ayrı bir işte (portal /etc'ye yazamaz); geri alma zamanlayıcısı yok
+        let beklenen: Vec<String> = ["systemd-run", "--collect", "--unit", "wfc-pppoe-servis", "/usr/local/bin/wificorrect", "ctl", "pppoe-servis"]
+            .iter()
+            .map(|s| s.to_string())
+            .chain([dosya.to_string_lossy().to_string()])
+            .collect();
+        assert_eq!(t.systemd_run(), vec![beklenen]);
+        // denetimde yalnızca özet (MAC, IP); kullanıcı adı ve parola yok
+        let a = t.audit_text();
+        let satir = a.lines().find(|l| l.contains(";SERVIS_PPPOE;")).unwrap_or_else(|| panic!("{a}"));
+        assert!(satir.contains(MAC) && satir.contains(IP) && satir.ends_with(";pppoe=acik vlan=35 kullanici_degisti=1 parola_degisti=1"), "{satir}");
+        // cevap: 5 sn'de bir yenilenen durum sayfası; parolalar ve kullanıcı adı cevapta ve denetimde yok
+        let html = t.p.render(&pg);
+        assert!(html.contains(KAYDEDILDI) && !html.contains("<form"), "{html}");
+        assert!(html.contains(&format!("<meta http-equiv=\"refresh\" content=\"5;url={}/servis?izle=1\">", t.p.base_url)), "{html}");
+        for gizli in ["yeni-parola-35", "eski-parola-77", AP_PAROLA, "5321234567"] {
+            assert!(!html.contains(gizli) && !a.contains(gizli), "{gizli}");
+        }
+        // boş PPPoE parolası = kayıtlı parola kalır: kayıtlı parola dosyaya kopyalanmaz (ctl birleştirir), parola_degisti=0
+        t.ag_kaydet(eski_pppoe());
+        let f = servis_form(AP_PAROLA, &[("pppoe_acik", "acik"), ("pppoe_kullanici", "eski@isp"), ("pppoe_parola", ""), ("pppoe_vlan", "7")]);
+        assert!(t.kaydet(IP, Some(MAC), &f).contains(KAYDEDILDI));
+        let h = t.hazir();
+        assert!(h.parola.is_empty() && h.kullanici == "eski@isp" && h.vlan == 7);
+        let a = t.audit_text();
+        let son = a.lines().filter(|l| l.contains(";SERVIS_PPPOE;")).last().unwrap();
+        assert!(son.ends_with(";pppoe=acik vlan=7 kullanici_degisti=0 parola_degisti=0"), "{son}");
+        assert!(!a.contains("eski-parola-77"));
+        // PPPoE'yi kapatma da Servis'ten (kullanıcı adı korunur)
+        let f = servis_form(AP_PAROLA, &[("pppoe_acik", "kapali"), ("pppoe_kullanici", "eski@isp")]);
+        assert!(t.kaydet(IP, Some(MAC), &f).contains(KAYDEDILDI));
+        assert!(!t.hazir().acik && t.hazir().kullanici == "eski@isp");
+        assert!(t.audit_text().lines().filter(|l| l.contains(";SERVIS_PPPOE;")).last().unwrap().ends_with(";pppoe=kapali vlan=0 kullanici_degisti=0 parola_degisti=0"));
+    }
+
+    #[test]
+    fn servis_izleme_sayfasi() {
+        let t = setup(|_| {});
+        t.internet_yok(Some(Durum::Baglaniyor));
+        // izleme: durum, 5 sn'de bir kendini yeniler, form yok (yalnızca durum: parola tanımlı olmasa da açılır)
+        let html = t.servis_html(true);
+        assert!(html.contains("Durum: Bağlanıyor\u{2026}") && !html.contains("<form"), "{html}");
+        assert!(html.contains(&format!("<meta http-equiv=\"refresh\" content=\"5;url={}/servis?izle=1\">", t.p.base_url)), "{html}");
+        assert!(html.contains(&format!("href=\"{}/servis\"", t.p.base_url)), "ayarları değiştir bağlantısı: {html}");
+    }
+
+    #[test]
+    fn servis_formu_kayitli_ayarla_dolu() {
+        let t = setup(|_| {});
+        t.ap_parola(AP_PAROLA);
+        let kayitli = crate::ag::Pppoe { vlan: 35, mtu: 1400, ..eski_pppoe() };
+        t.ag_kaydet(kayitli.clone());
+        t.internet_yok(Some(Durum::KimlikHatasi));
+        let pg = t.p.servis_sayfasi(false).unwrap();
+        assert_eq!(pg.dil, Dil::Tr);
+        let html = t.p.render(&pg);
+        // tek form: servis parolası + panelle aynı PPPoE alanları (pppoe::form_html, kayıtlı değerlerle) + Kaydet ve bağlan
+        assert_eq!(html.matches("<form").count(), 1, "{html}");
+        assert!(html.contains(&format!("<form class=\"servis\" method=\"post\" action=\"{}/servis\">", t.p.base_url)), "{html}");
+        assert!(html.contains(&crate::pppoe::form_html(&kayitli)), "{html}");
+        for ad in ["servis_parola", "pppoe_acik", "pppoe_kullanici", "pppoe_parola", "pppoe_vlan", "pppoe_oncelik", "pppoe_mtu", "pppoe_kimlik", "pppoe_ac_adi", "pppoe_servis_adi"] {
+            assert_eq!(html.matches(&format!("name=\"{ad}\"")).count(), 1, "{ad}");
+        }
+        assert!(html.contains("<input type=\"password\" id=\"servis_parola\" name=\"servis_parola\" value=\"\"") && html.contains(">Kaydet ve bağlan</button>"), "{html}");
+        // parolalar (PPPoE ve servis) sayfada yok
+        assert!(!html.contains("eski-parola-77") && !html.contains(AP_PAROLA), "{html}");
+        // durum satırı; yalnızca Türkçe (dil seçimi yok), JS yok, form sayfası kendini yenilemez
+        assert!(html.contains("Durum: Kullanıcı adı ya da parola reddedildi"), "{html}");
+        assert!(!html.contains("<nav class=\"dil\"") && !html.contains("<script") && !html.contains("http-equiv=\"refresh\""), "{html}");
+    }
+
+    #[test]
+    fn servis_gecersiz_ayar() {
+        let t = setup(|_| {});
+        t.ap_parola(AP_PAROLA);
+        t.ag_kaydet(crate::ag::Pppoe::default()); // kayıtlı bilgi yok
+        t.internet_yok(Some(Durum::KabloYok));
+        // doğru parola + açık + boş kullanıcı: doğrulama hatası; dosya yok, iş yok, deneme sayılmaz (MAC ve cihaz sınırını aşacak kadar)
+        let bos = servis_form(AP_PAROLA, &[("pppoe_acik", "acik"), ("pppoe_kullanici", " "), ("pppoe_parola", "p"), ("pppoe_vlan", "35")]);
+        for _ in 0..21 {
+            let html = t.kaydet(IP, Some(MAC), &bos);
+            assert!(html.contains("PPPoE kullanıcı adı ve parolası boş olamaz.") && html.contains("<form"), "{html}");
+            assert!(html.contains("name=\"pppoe_vlan\" value=\"35\""), "girilen değerler forma geri gelir: {html}");
+        }
+        // biçimsiz değerler de: VLAN aralık dışı, pppd dosyasına satır sokan kullanıcı adı
+        let vlan = servis_form(AP_PAROLA, &[("pppoe_acik", "acik"), ("pppoe_kullanici", "k@isp"), ("pppoe_parola", "p"), ("pppoe_vlan", "4095")]);
+        assert!(t.kaydet(IP, Some(MAC), &vlan).contains("VLAN 1-4094 arasında olmalı"));
+        let satir = servis_form(AP_PAROLA, &[("pppoe_acik", "acik"), ("pppoe_kullanici", "k\nconnect /bin/sh"), ("pppoe_parola", "p")]);
+        assert!(t.kaydet(IP, Some(MAC), &satir).contains("tırnak, ters eğik çizgi ve kontrol karakteri içeremez"));
+        // eksik form (pppoe_acik yok): ayar formdan okunmaz, parola denenmez, sayılmaz
+        for _ in 0..21 {
+            let html = t.kaydet(IP, Some(MAC), &servis_form("yanlis-parola", &[("pppoe_kullanici", "k@isp")]));
+            assert!(html.contains("Form eksik") && !html.contains("Servis parolası yanlış."), "{html}");
+        }
+        // boş servis parolası: sorulur, sayılmaz
+        for _ in 0..21 {
+            assert!(t.kaydet(IP, Some(MAC), &servis_form("", &YENI)).contains("Servis parolasını girin."));
+        }
+        assert!(t.calls.lock().unwrap().is_empty() && !t.servis_dosyasi().exists());
+        assert!(!t.audit_text().contains("SERVIS_"));
+        // hâlâ kilit yok: geçerli ayar uygulanır
+        assert!(t.kaydet(IP, Some(MAC), &servis_form(AP_PAROLA, &YENI)).contains(KAYDEDILDI));
+        assert_eq!(t.systemd_run().len(), 1);
+    }
+
+    #[test]
+    fn servis_uygulanamayan_durumlar() {
+        let mut t = setup(|_| {});
+        t.ap_parola(AP_PAROLA);
+        t.internet_yok(Some(Durum::SunucuYok));
+        let f = servis_form(AP_PAROLA, &YENI);
+        // ag.toml yok: hangi portun internet aldığı bilinmeden PPPoE konmaz
+        assert!(t.kaydet(IP, Some(MAC), &f).contains("Ağ ayar dosyası yok"));
+        // panelden yapılmış, onay bekleyen port değişikliği (en çok 3 dk): ctl de reddederdi, sayfa hemen söyler
+        t.ag_kaydet(eski_pppoe());
+        std::fs::create_dir_all(&t.p.ag_yollar.durum).unwrap();
+        let bekliyor = t.p.ag_yollar.durum.join("ag-bekliyor");
+        std::fs::write(&bekliyor, "1790705314 wfc-ag-geri-al-ab12\n").unwrap();
+        assert!(t.kaydet(IP, Some(MAC), &f).contains("onay bekliyor"));
+        std::fs::remove_file(&bekliyor).unwrap();
+        assert!(t.calls.lock().unwrap().is_empty() && !t.servis_dosyasi().exists());
+        // iş başlatılamadı: hazırlık dosyası (parola içerir) silinir, denetimde hata
+        t.p.runner = Box::new(|c: &[String]| c[0] != "systemd-run");
+        let html = t.kaydet(IP, Some(MAC), &f);
+        assert!(html.contains("başlatılamadı") && html.contains("<form"), "{html}");
+        assert!(!t.servis_dosyasi().exists());
+        let a = t.audit_text();
+        assert!(a.lines().any(|l| l.contains(";SERVIS_PPPOE;") && l.ends_with(" hata=baslatilamadi")), "{a}");
+        assert!(!a.contains("yeni-parola-35"));
+    }
+
+    #[test]
+    fn servis_parolasi_sabit_surede() {
+        assert!(servis_parolasi_dogru(AP_PAROLA, AP_PAROLA));
+        for yanlis in ["", "Kp7mQx2Rtz4", "Kp7mQx2Rtz4WW", "kp7mQx2Rtz4W", " Kp7mQx2Rtz4W"] {
+            assert!(!servis_parolasi_dogru(yanlis, AP_PAROLA), "{yanlis:?}");
+        }
+    }
+
+    #[test]
+    fn internet_cozumu() {
+        // varsayılan rota yoksa internet yok; neden internet alan portun durumu
+        assert_eq!(internet_coz(Some(""), || Durum::KabloYok), Some(Durum::KabloYok));
+        assert_eq!(internet_coz(Some("blackhole default metric 1\n"), || Durum::DhcpYok), Some(Durum::DhcpYok));
+        // rota varsa (DHCP ya da PPPoE) internet var; durum hiç okunmaz
+        for rota in ["default via 192.168.1.1 dev enp3s0 proto dhcp src 192.168.1.110 metric 1002 \n", "default dev wfcppp scope link metric 100 \n"] {
+            assert_eq!(internet_coz(Some(rota), || panic!("durum okunmamalı")), None, "{rota}");
+        }
+        // `ip` çalışmadı / zaman aşımı: internet var sayılır (emin olunamayınca misafire açık sayfada Servis açılmaz)
+        assert_eq!(internet_coz(None, || panic!("durum okunmamalı")), None);
     }
 }

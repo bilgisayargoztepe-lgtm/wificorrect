@@ -457,15 +457,15 @@ impl Kaydedici {
     }
 
     /// tc kökleri dışarıdan gittiyse (arayüz yeniden kuruldu, elle silindi) plan izi silinir: sonraki uzlaştırma yeniden kurar.
-    /// Plan her zaman HTB kökü kurduğundan iki arayüzde de (köprü ve `cikis`: trafiğin çıktığı arayüz) `htb 1:` beklenir. PPPoE'de
-    /// `wfcppp` her yeniden bağlanmada yeniden doğar ve kökü kaybolur; bu denetim onu da yeniden kurdurur.
-    fn kok_denetle(&mut self, cikis: &str) {
-        if !self.uygulanan_yolu.exists() {
-            return;
-        }
-        let lan = self.cfg.main.iface.clone();
+    /// **Yalnızca uygulanmış planın arayüzlerine bakılır** (izdeki `tc … dev X`: köprü ve o günkü çıkış arayüzü); plan her zaman HTB
+    /// kökü kurduğundan hepsinde `htb 1:` beklenir. Yeni çıkış arayüzü (PPPoE bağlandı: taze `wfcppp`) henüz planda değildir ve kökü
+    /// yoktur: ona bakılsaydı iz silinir, `hiz::uygula` önceki planı (izden okur) bilemez ve eski çıkışın kökünü silemezdi — çıkışın
+    /// değiştiği tur denetim turuna ya da `hiz_hata` beklemesine denk gelince bu olurdu. PPPoE'de `wfcppp` her yeniden bağlanmada yeniden
+    /// doğar ve kökü kaybolur; `wfcppp` uygulanmış plandayken bu denetim onu da yeniden kurdurur.
+    fn kok_denetle(&mut self) {
+        let Ok(iz) = std::fs::read_to_string(&self.uygulanan_yolu) else { return };
         // okunamayan (asılı/süresi dolan) tc yok sayılır: sağlam kökler boşuna yeniden kurulmasın
-        if [lan.as_str(), cikis].iter().any(|d| (self.capture)(&["tc", "qdisc", "show", "dev", d, "root"]).is_some_and(|o| !o.contains("htb 1:"))) {
+        if hiz::plan_arayuzleri(&iz).iter().any(|d| (self.capture)(&["tc", "qdisc", "show", "dev", d.as_str(), "root"]).is_some_and(|o| !o.contains("htb 1:"))) {
             let _ = std::fs::remove_file(&self.uygulanan_yolu);
         }
     }
@@ -485,7 +485,7 @@ impl Kaydedici {
                 let cikis = crate::ag::etkin_cikis(&crate::ag::load(&self.ag_path), &rota);
                 if now - self.kok_son >= 30.0 {
                     self.kok_son = now;
-                    self.kok_denetle(&cikis);
+                    self.kok_denetle();
                 }
                 if self.hiz_hata.is_none() || now - self.hiz_hata_zaman >= 60.0 {
                     if self.hiz_adimi(&cikis).is_err() {
@@ -1361,10 +1361,45 @@ mod tests {
     fn tc_koku_okunamazsa_plan_izi_kalir() {
         let (mut k, root, _) = setup();
         hiz_kur(&mut k, &root);
-        std::fs::write(&k.uygulanan_yolu, "plan").unwrap();
+        // uygulanmış plan (köprü + internet portu): denetlenecek arayüzler izden gelir
+        std::fs::write(&k.uygulanan_yolu, crate::hiz::parmak_izi(&crate::hiz::plan("br-hotspot", "enp3s0", &[]))).unwrap();
         k.capture = Box::new(|_: &[&str]| None); // tc asıldı, süre doldu
-        k.kok_denetle("enp3s0");
+        k.kok_denetle();
         assert!(k.uygulanan_yolu.exists());
+        // kontrol: aynı izle kök okunabiliyor ve HTB değilse iz silinir
+        k.capture = Box::new(|_: &[&str]| Some("qdisc fq_codel 0: root refcnt 2".into()));
+        k.kok_denetle();
+        assert!(!k.uygulanan_yolu.exists());
+    }
+
+    #[test]
+    fn kok_denetimi_yalniz_uygulanan_plandaki_arayuzlere_bakar() {
+        let (mut k, root, _) = setup();
+        hiz_kur(&mut k, &root);
+        let (_, kokler) = rota_kur(&mut k);
+        let iz = crate::hiz::parmak_izi(&crate::hiz::plan("br-hotspot", "enp3s0", &[("10.50.0.23".to_string(), 5)]));
+        let yaz = |k: &Kaydedici| std::fs::write(&k.uygulanan_yolu, &iz).unwrap();
+        let kok_yok = "qdisc noqueue 0: root refcnt 2";
+        // planda olmayan arayüzün (yeni doğan wfcppp) kökü yok: iz kalır
+        yaz(&k);
+        kokler.lock().unwrap().insert("wfcppp".into(), kok_yok.into());
+        k.kok_denetle();
+        assert!(k.uygulanan_yolu.exists());
+        // planın çıkış arayüzünün kökü gitti: iz silinir
+        kokler.lock().unwrap().insert("enp3s0".into(), kok_yok.into());
+        k.kok_denetle();
+        assert!(!k.uygulanan_yolu.exists());
+        // planın köprüsünün kökü gitti: iz silinir
+        kokler.lock().unwrap().remove("enp3s0");
+        yaz(&k);
+        k.kok_denetle();
+        assert!(k.uygulanan_yolu.exists());
+        kokler.lock().unwrap().insert("br-hotspot".into(), kok_yok.into());
+        k.kok_denetle();
+        assert!(!k.uygulanan_yolu.exists());
+        // iz yoksa tc'ye hiç sorulmaz
+        k.capture = Box::new(|c: &[&str]| panic!("iz yokken sorulmamalı: {c:?}"));
+        k.kok_denetle();
     }
 
     // ---------------------------------------------------------------- yavaşlatma etkin çıkış arayüzünde (PPPoE, spec 2026-10-23)
@@ -1439,7 +1474,7 @@ mod tests {
         assert_eq!(tc.iter().filter(|c| c.contains("dev enp3s0")).collect::<Vec<_>>(), ["tc qdisc del dev enp3s0 root"], "{tc:?}");
         assert!(plan(&k).contains("oifname \"wfcppp\""));
 
-        // etkin çıkış değilken internet portunun kökü denetlenmez; etkin çıkışın (wfcppp) kökü denetlenir
+        // uygulanmış planda olmayan arayüzün (internet portu) kökü denetlenmez; plandaki wfcppp'nin kökü denetlenir
         kokler.lock().unwrap().insert("enp3s0".into(), "qdisc fq_codel 0: root refcnt 2".into());
         k.hiz_turu(T + 51.0);
         assert!(tc_cagrilari(&calls).is_empty());
@@ -1475,6 +1510,53 @@ mod tests {
         *rota.lock().unwrap() = Some(PPP_ROTA.into());
         k.hiz_turu(T + 45.0);
         assert!(tc_cagrilari(&calls).iter().any(|c| c == "tc qdisc replace dev wfcppp root handle 1: htb default 1"));
+    }
+
+    #[test]
+    fn yavaslatma_egress_kok_denetimi_turunda_degisince_eski_kok_silinir() {
+        // Çıkış arayüzü tam 30 sn'lik kök denetimi turunda değişir (PPPoE'nin bağlandığı an, her PPPoE açılışında olabilir). Yeni doğan
+        // wfcppp'nin HTB kökü yoktur; denetim yalnızca uygulanmış plandaki arayüzlere baktığından izi silmez ve hiz::uygula eski çıkışın
+        // (enp3s0) kökünü siler. (İz silinseydi önceki plan bilinmez, eski kök sonsuza kadar kalırdı.)
+        let (mut k, root, _) = setup();
+        let (_, calls, _) = hiz_kur(&mut k, &root);
+        let (rota, kokler) = rota_kur(&mut k);
+        *rota.lock().unwrap() = Some(DHCP_ROTA.into());
+        k.hiz_turu(T); // plan internet portuna (enp3s0); denetim turu T
+        assert!(std::fs::read_to_string(&k.uygulanan_yolu).unwrap().contains("oifname \"enp3s0\""));
+        tc_cagrilari(&calls);
+        // PPP bağlandı: wfcppp yeni doğdu (kök yok); bu tur T'den 30 sn sonraki denetim turu
+        kokler.lock().unwrap().insert("wfcppp".into(), "qdisc noqueue 0: root refcnt 2".into());
+        *rota.lock().unwrap() = Some(format!("{PPP_ROTA}{DHCP_ROTA}"));
+        k.hiz_turu(T + 30.0);
+        let tc = tc_cagrilari(&calls);
+        assert!(tc.contains(&"tc qdisc replace dev wfcppp root handle 1: htb default 1".to_string()), "{tc:?}");
+        assert_eq!(tc.iter().filter(|c| c.contains("dev enp3s0")).collect::<Vec<_>>(), ["tc qdisc del dev enp3s0 root"], "{tc:?}");
+        assert!(std::fs::read_to_string(&k.uygulanan_yolu).unwrap().contains("oifname \"wfcppp\""));
+    }
+
+    #[test]
+    fn yavaslatma_egress_hata_beklemesinde_degisince_eski_kok_silinir() {
+        // Kaydedicinin uzlaştırması hata beklemesinde (60 sn) iken plan izi duruyor (ör. panel `ctl hiz-uygula` ile başarıyla uyguladı).
+        // Çıkış arayüzü bu sırada değişir ve araya bir kök denetimi turu girer: denetim izi bozmaz; bekleme bitince eski çıkışın kökü silinir.
+        let (mut k, root, _) = setup();
+        let (_, calls, _) = hiz_kur(&mut k, &root);
+        let (rota, kokler) = rota_kur(&mut k);
+        *rota.lock().unwrap() = Some(DHCP_ROTA.into());
+        k.hiz_turu(T); // plan enp3s0'da, iz yazıldı; denetim turu T
+        tc_cagrilari(&calls);
+        k.hiz_hata = Some("Yavaşlatma uygulanamadı: tc qdisc replace dev enp3s0 root handle 1: htb default 1".into());
+        k.hiz_hata_zaman = T + 20.0; // bekleme T + 80'e kadar
+        kokler.lock().unwrap().insert("wfcppp".into(), "qdisc noqueue 0: root refcnt 2".into());
+        *rota.lock().unwrap() = Some(format!("{PPP_ROTA}{DHCP_ROTA}"));
+        k.hiz_turu(T + 25.0); // PPP bağlandı; bekleme sürüyor
+        k.hiz_turu(T + 35.0); // denetim turu (30 sn geçti); bekleme sürüyor
+        assert!(tc_cagrilari(&calls).is_empty());
+        assert!(std::fs::read_to_string(&k.uygulanan_yolu).unwrap().contains("oifname \"enp3s0\""), "iz bozulmamalı");
+        k.hiz_turu(T + 85.0); // bekleme bitti
+        let tc = tc_cagrilari(&calls);
+        assert!(tc.contains(&"tc qdisc replace dev wfcppp root handle 1: htb default 1".to_string()), "{tc:?}");
+        assert_eq!(tc.iter().filter(|c| c.contains("dev enp3s0")).collect::<Vec<_>>(), ["tc qdisc del dev enp3s0 root"], "{tc:?}");
+        assert_eq!(k.hiz_hata, None);
     }
 
     #[test]

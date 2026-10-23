@@ -107,9 +107,10 @@ fn arayuz_adi(ad: &str) -> bool {
     (1..=15).contains(&ad.len()) && !ad.starts_with('-') && ad.bytes().all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b'-'))
 }
 
-/// Önceki planın (uygulanmış parmak izinin) tc komutlarındaki arayüzler: `tc … dev <ad> …`, sırayla ve tekrarsız. Arayüz adı biçimine
-/// uymayan değer (bozuk ya da başka bir sürümün yazdığı dosya) atlanır.
-fn plan_arayuzleri(iz: &str) -> Vec<String> {
+/// Bir planın (uygulanmış parmak izinin) tc komutlarındaki arayüzler: `tc … dev <ad> …`, sırayla ve tekrarsız. Arayüz adı biçimine
+/// uymayan değer (bozuk ya da başka bir sürümün yazdığı dosya) atlanır. `uygula` önceki planın, kaydedicinin kök denetimi uygulanmış
+/// planın arayüzlerini bulmak için kullanır.
+pub(crate) fn plan_arayuzleri(iz: &str) -> Vec<String> {
     let mut arayuzler: Vec<String> = Vec::new();
     for satir in iz.lines().filter(|l| l.starts_with("tc ")) {
         let mut it = satir.split_whitespace();

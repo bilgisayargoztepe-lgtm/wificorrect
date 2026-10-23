@@ -1,0 +1,9 @@
+PPP session is 1
+Connected to 02:57:46:43:00:01 via interface wfccpe0
+Using interface wfcppp
+Connect: wfcppp <--> wfccpe0
+CHAP authentication succeeded: Access granted
+CHAP authentication succeeded
+peer from calling number 02:57:46:43:00:01 authorized
+local  IP address 203.0.113.10
+remote IP address 198.51.100.1

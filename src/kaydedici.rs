@@ -1420,7 +1420,8 @@ mod tests {
         k.hiz_turu(T + 10.0);
         let tc = tc_cagrilari(&calls);
         assert!(tc.contains(&"tc qdisc replace dev enp3s0 root handle 1: htb default 1".to_string()), "{tc:?}");
-        assert!(tc.iter().all(|c| !c.contains("wfcppp")), "{tc:?}");
+        // wfcppp artık çıkış değil: üzerine hiçbir şey kurulmaz, yalnızca eski kökü silinir (arayüz gitmiş olabilir: hata önemsiz)
+        assert_eq!(tc.iter().filter(|c| c.contains("wfcppp")).collect::<Vec<_>>(), ["tc qdisc del dev wfcppp root"], "{tc:?}");
         assert!(plan(&k).contains("oifname \"enp3s0\" ip saddr 10.50.0.23 ") && !plan(&k).contains("wfcppp"), "{}", plan(&k));
 
         // rota hiç yok (internet yok): internet portu, bugünkü davranış
@@ -1434,6 +1435,8 @@ mod tests {
         k.hiz_turu(T + 20.0);
         let tc = tc_cagrilari(&calls);
         assert!(tc.contains(&"tc qdisc replace dev wfcppp root handle 1: htb default 1".to_string()), "{tc:?}");
+        // internet portundaki eski kök silinir: PPPoE çerçeveleri skb önceliğini korur, eski sınıflar yeni planla uyuşmaz
+        assert_eq!(tc.iter().filter(|c| c.contains("dev enp3s0")).collect::<Vec<_>>(), ["tc qdisc del dev enp3s0 root"], "{tc:?}");
         assert!(plan(&k).contains("oifname \"wfcppp\""));
 
         // etkin çıkış değilken internet portunun kökü denetlenmez; etkin çıkışın (wfcppp) kökü denetlenir

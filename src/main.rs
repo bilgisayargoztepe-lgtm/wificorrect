@@ -23,6 +23,7 @@ mod muhur;
 mod ortak;
 mod panel;
 mod portal;
+mod pppoe;
 mod saglik;
 mod sms;
 mod trafik;

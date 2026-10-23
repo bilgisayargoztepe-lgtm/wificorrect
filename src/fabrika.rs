@@ -210,10 +210,19 @@ mod tests {
             nft: root.join("arayuzler.nft"),
             hostapd: root.join("hostapd.conf"),
             issue: root.join("issue"),
+            peers: root.join("peers"),
             durum: root.join("durum"),
             hiz_uygulanan: root.join("hiz_uygulanan"),
         };
-        ag::save(&y.ag, &Ag { wan: "enp1s0".into(), lan: vec!["enp3s0".into()], ..Ag::default() }).unwrap();
+        // önceki işletme PPPoE'li bir hatta: kullanıcı adı ve parola ag.toml'da ve pppd bağlantı dosyasında
+        let eski = Ag {
+            wan: "enp1s0".into(),
+            lan: vec!["enp3s0".into()],
+            pppoe: ag::Pppoe { acik: true, kullanici: "eski@isp".into(), parola: "eski-parola".into(), ..Default::default() },
+            ..Ag::default()
+        };
+        ag::save(&y.ag, &eski).unwrap();
+        std::fs::write(&y.peers, crate::pppoe::peers_text(&eski)).unwrap();
         // hazır liste: önceki işletmenin istisnası (bets10) birleşik dosyadan çıkarmış
         let hl = crate::liste::Yollar { dizin: root.join("liste"), conf: root.join("hazir-liste.conf") };
         std::fs::create_dir_all(&hl.dizin).unwrap();
@@ -252,6 +261,7 @@ mod tests {
         assert!(r.unwrap_err().contains("gönderilemedi"));
         assert!(root.join("5651/gunluk/2026-10-01").exists() && h.load().unwrap().len() == 1 && mp.exists() && bildirimler.lock().unwrap().is_empty());
         assert_eq!(Config::load(&cfg_path.to_string_lossy()).unwrap().main.site_name, "Bocafe");
+        assert!(y.peers.exists() && y.ag.exists()); // iptalde PPPoE bilgisi de yerinde
         // AP yan odası misafirler düşürülürken kapanır (teslim edilecek kayda yazılır; iptalde de geri gelmez)
         assert!(!apy.gecici.exists() && !apy.hedef.exists() && !apy.bul.exists());
         let muhurlu = {
@@ -291,6 +301,7 @@ mod tests {
         assert!(std::fs::read_to_string(&hl.conf).unwrap().contains("server=/bets10.com/"));
         // portlar varsayılan, ağ yeniden kuruldu
         assert!(std::fs::read_to_string(&y.nft).unwrap().contains("\"enp3s0\"") && !y.ag.exists());
+        assert!(!y.peers.exists()); // önceki işletmenin PPPoE kullanıcı adı ve parolası gitti
         let v = calls.lock().unwrap();
         assert!(v.iter().any(|x| x == "systemctl restart ifup@enp3s0.service") && v.iter().any(|x| x.starts_with("systemctl restart wificorrect-portal")));
         // yeni işletmenin kaydı FABRIKA_AYARI ile başlar
@@ -333,6 +344,7 @@ mod tests {
             nft: root.join("arayuzler.nft"),
             hostapd: root.join("hostapd.conf"),
             issue: root.join("issue"),
+            peers: root.join("peers"),
             durum: root.join("durum"),
             hiz_uygulanan: root.join("hiz_uygulanan"),
         };

@@ -2,9 +2,11 @@
 //! Tek kaynak `/etc/wificorrect/ag.toml`; ağ dosyaları ondan üretilir (ifupdown, nft WAN adı, hostapd, konsol yazısı).
 //! Değişiklik: geri alma zamanlayıcısı (3 dk) kurulur, sonra ağ değişir; panelden "Onayla" denmezse eski ayar döner.
 //! Bekleyen değişiklik varken cihaz yeniden açılırsa açılışta eski ayar geri yüklenir (fişi çekmek de kurtarır).
+//! İnternet alan portun PPPoE ayarı da burada (`[pppoe]`); pppd bağlantı dosyası ondan üretilir (src/pppoe.rs).
 
 use crate::ayar::Config;
 use crate::ortak::{self, Row, Runner};
+use crate::pppoe;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -30,6 +32,46 @@ impl Default for Wifi {
     }
 }
 
+/// İnternet alan portta PPPoE (docs/superpowers/specs/2026-10-23-pppoe-design.md). DHCP hep açık kalır; açıksa yanında pppd
+/// çalışır ve PPPoE rotası öne geçer. Kapalı (varsayılan) cihazda ve `[pppoe]` bölümü olmayan eski ag.toml'da PPPoE yoktur.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[serde(default)]
+pub struct Pppoe {
+    pub acik: bool,
+    /// Tek alan: modemlerdeki "kullanıcı adı @ alan" birlikte yazılır (ör. 5321234567@turk.net)
+    pub kullanici: String,
+    /// Yalnızca yazılır: panelde ve servis sayfasında geri gösterilmez, boş gönderilirse eskisi kalır
+    pub parola: String,
+    /// 0: VLAN yok; 1-4094
+    pub vlan: u16,
+    /// VLAN 802.1p önceliği 0-7 (yalnızca VLAN varken anlamlı)
+    pub oncelik: u8,
+    /// MTU ve MRU, 1280-1492
+    pub mtu: u16,
+    /// otomatik | pap | chap
+    pub kimlik: String,
+    /// Boş: herhangi bir erişim yoğunlaştırıcı (AC)
+    pub ac_adi: String,
+    /// Boş: herhangi bir servis
+    pub servis_adi: String,
+}
+
+impl Default for Pppoe {
+    fn default() -> Self {
+        Pppoe {
+            acik: false,
+            kullanici: String::new(),
+            parola: String::new(),
+            vlan: 0,
+            oncelik: 0,
+            mtu: pppoe::MTU as u16,
+            kimlik: "otomatik".into(),
+            ac_adi: String::new(),
+            servis_adi: String::new(),
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 #[serde(default)]
 pub struct Ag {
@@ -42,12 +84,14 @@ pub struct Ag {
     /// Sağ/sol etiketi cihazla ters çıkarsa
     pub etiket_ters: bool,
     pub wifi: Wifi,
+    /// İnternet alan portta PPPoE (kapalı: yalnızca DHCP)
+    pub pppoe: Pppoe,
 }
 
 impl Default for Ag {
     fn default() -> Self {
         // ponytail: aynı donanım (J1900, sağ port enp3s0, sol port enp1s0); farklı kutuda kurulum sihirbazı belirleyecek
-        Ag { wan: "enp3s0".into(), lan: vec!["enp1s0".into()], wan_mac: String::new(), etiket_ters: false, wifi: Wifi::default() }
+        Ag { wan: "enp3s0".into(), lan: vec!["enp1s0".into()], wan_mac: String::new(), etiket_ters: false, wifi: Wifi::default(), pppoe: Pppoe::default() }
     }
 }
 
@@ -58,6 +102,8 @@ pub struct Yollar {
     pub nft: PathBuf,
     pub hostapd: PathBuf,
     pub issue: PathBuf,
+    /// pppd bağlantı dosyası (kullanıcı adı ve parola içerir, 600); PPPoE kapalıyken bulunmaz
+    pub peers: PathBuf,
     /// Kalıcı bekleme durumu (yeniden açılışta da geri alınabilsin)
     pub durum: PathBuf,
     /// Yavaşlatmanın uygulanmış plan izi: arayüzler yeniden kurulunca silinir (tc kökleri gitti)
@@ -72,6 +118,7 @@ impl Yollar {
             nft: "/etc/wificorrect/arayuzler.nft".into(),
             hostapd: "/etc/wificorrect/hostapd.conf".into(),
             issue: "/etc/issue.d/wificorrect.issue".into(),
+            peers: "/etc/ppp/peers/wificorrect".into(),
             durum: "/var/lib/wificorrect".into(),
             hiz_uygulanan: crate::hiz::UYGULANAN_YOLU.into(),
         }
@@ -160,6 +207,40 @@ pub fn validate(ag: &Ag, eths: &[String]) -> Result<(), String> {
     if w.iface.is_empty() || !w.iface.bytes().all(|b| b.is_ascii_alphanumeric()) {
         return Err("Wi-Fi arayüzü geçersiz.".into());
     }
+    pppoe_dogrula(&ag.pppoe)
+}
+
+/// PPPoE ayarının doğrulaması. Kullanıcı adı ve parola pppd seçenek dosyasına tırnak içinde yazılır: dosyaya satır sokulamasın
+/// diye kontrol karakteri, tırnak ve ters eğik çizgi reddedilir. Boş bilgi yalnızca açıkken hatadır; yazılmış bilgi kapalıyken
+/// de biçimli olmalı (ag.toml'a bozuk değer girmesin).
+pub fn pppoe_dogrula(p: &Pppoe) -> Result<(), String> {
+    if p.acik && (p.kullanici.is_empty() || p.parola.is_empty()) {
+        return Err("PPPoE kullanıcı adı ve parolası boş olamaz.".into());
+    }
+    let temiz = |s: &str| s.len() <= 128 && !s.chars().any(|c| c.is_control() || c == '"' || c == '\\');
+    if !temiz(&p.kullanici) || !temiz(&p.parola) {
+        return Err("PPPoE kullanıcı adı ve parolası en çok 128 karakter olmalı; tırnak, ters eğik çizgi ve kontrol karakteri içeremez.".into());
+    }
+    if p.vlan > 4094 {
+        return Err("VLAN 1-4094 arasında olmalı (boş: VLAN yok).".into());
+    }
+    if p.oncelik > 7 {
+        return Err("VLAN önceliği 0-7 arasında olmalı.".into());
+    }
+    if !(1280..=pppoe::MTU).contains(&u32::from(p.mtu)) {
+        return Err(format!("PPPoE MTU değeri 1280-{} arasında olmalı.", pppoe::MTU));
+    }
+    if !["otomatik", "pap", "chap"].contains(&p.kimlik.as_str()) {
+        return Err("Kimlik doğrulama yöntemi otomatik, PAP ya da CHAP olmalı.".into());
+    }
+    // AC ve servis adı pppd'ye bir seçenek değeri olarak gider: boş ya da en çok 64 karakter A-Z a-z 0-9 . _ -
+    let ad_gecerli = |s: &str| s.len() <= 64 && s.bytes().all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b'-'));
+    if !ad_gecerli(&p.ac_adi) {
+        return Err("PPPoE AC adı en çok 64 karakter olmalı ve yalnızca harf, rakam, nokta, alt çizgi ve tire içerebilir.".into());
+    }
+    if !ad_gecerli(&p.servis_adi) {
+        return Err("PPPoE servis adı en çok 64 karakter olmalı ve yalnızca harf, rakam, nokta, alt çizgi ve tire içerebilir.".into());
+    }
     Ok(())
 }
 
@@ -185,8 +266,10 @@ pub fn interfaces_text(cfg: &Config, ag: &Ag) -> String {
     s
 }
 
+/// WAN bir küme: internet alan Ethernet ve pppd'nin arayüzü. PPPoE kapalıyken de yazılır (olmayan arayüz adı eşleşmez, zararsız);
+/// böylece guvenlik.nft'teki yönetim, iletim ve masquerade kuralları ile hiz.nft sayaçları değişmeden ikisini de kapsar.
 pub fn nft_text(ag: &Ag) -> String {
-    format!("# WifiCorrect üretir (ag.toml). guvenlik.nft bunu okur.\ndefine WAN = \"{}\"\n", ag.wan)
+    format!("# WifiCorrect üretir (ag.toml). guvenlik.nft bunu okur.\ndefine WAN = {{ \"{}\", \"{}\" }}\n", ag.wan, pppoe::ARAYUZ)
 }
 
 pub fn issue_text(ag: &Ag) -> String {
@@ -215,18 +298,32 @@ fn write_600(path: &Path, text: &str) -> Result<(), String> {
     ortak::write_atomic(path, text.as_bytes()).map_err(|e| format!("{} yazılamadı: {e}", path.display()))
 }
 
+/// Dosyayı siler; zaten yoksa hata değildir.
+fn sil(path: &Path) -> Result<(), String> {
+    match fs::remove_file(path) {
+        Err(e) if e.kind() != std::io::ErrorKind::NotFound => Err(format!("{} silinemedi: {e}", path.display())),
+        _ => Ok(()),
+    }
+}
+
 pub fn write_files(cfg: &Config, ag: &Ag, y: &Yollar) -> Result<(), String> {
+    // pppd seçenek dosyasındaki her satır root'a bir seçenek verir: geçersiz (satır sokan) bilgi hiçbir dosya yazılmadan reddedilir
+    if ag.pppoe.acik {
+        pppoe_dogrula(&ag.pppoe)?;
+    }
     write_600(&y.interfaces, &interfaces_text(cfg, ag))?;
     let _ = fs::set_permissions(&y.interfaces, std::os::unix::fs::PermissionsExt::from_mode(0o644));
     write_600(&y.nft, &nft_text(ag))?;
     write_600(&y.issue, &issue_text(ag))?;
     let _ = fs::set_permissions(&y.issue, std::os::unix::fs::PermissionsExt::from_mode(0o644));
     match hostapd_text(ag) {
-        Some(t) => write_600(&y.hostapd, &t), // Wi-Fi şifresi içerir: 600
-        None => match fs::remove_file(&y.hostapd) {
-            Err(e) if e.kind() != std::io::ErrorKind::NotFound => Err(e.to_string()),
-            _ => Ok(()),
-        },
+        Some(t) => write_600(&y.hostapd, &t)?, // Wi-Fi şifresi içerir: 600
+        None => sil(&y.hostapd)?,
+    }
+    if ag.pppoe.acik {
+        write_600(&y.peers, &pppoe::peers_text(ag)) // kullanıcı adı ve parola içerir: 600
+    } else {
+        sil(&y.peers) // kapalıyken dosya hiç bulunmaz (pppd birimi başlamaz)
     }
 }
 
@@ -381,7 +478,15 @@ pub fn describe(ag: &Ag, eths: &[String]) -> String {
         format!("{} {r}", label(ag, eths, e))
     };
     let wifi = if ag.wifi.acik { format!("Wi-Fi verir ({}{})", ag.wifi.ssid, if ag.wifi.sifre.is_empty() { ", şifresiz" } else { "" }) } else { "Wi-Fi kapalı".into() };
-    eths.iter().map(role).chain(std::iter::once(wifi)).collect::<Vec<_>>().join(", ")
+    let mut s = eths.iter().map(role).chain(std::iter::once(wifi)).collect::<Vec<_>>().join(", ");
+    if ag.pppoe.acik {
+        // kullanıcı adı ve parola denetime yazılmaz
+        s.push_str(&match ag.pppoe.vlan {
+            0 => ", PPPoE açık".to_string(),
+            v => format!(", PPPoE açık (VLAN {v})"),
+        });
+    }
+    s
 }
 
 #[cfg(test)]
@@ -402,6 +507,7 @@ mod tests {
             nft: root.join("arayuzler.nft"),
             hostapd: root.join("hostapd.conf"),
             issue: root.join("issue"),
+            peers: root.join("peers"),
             durum: root.join("durum"),
             hiz_uygulanan: root.join("hiz_uygulanan"),
         };
@@ -453,7 +559,7 @@ mod tests {
         let t = interfaces_text(&cfg, &ag);
         assert!(t.contains("allow-hotplug enp1s0\niface enp1s0 inet dhcp\n\thwaddress ether 00:0e:c4:ce:a0:9b"));
         assert!(t.contains("address 10.50.0.1/24\n\tbridge_ports enp3s0\n") && t.contains("net.ipv6.conf.enp3s0.disable_ipv6=1"));
-        assert_eq!(nft_text(&ag), "# WifiCorrect üretir (ag.toml). guvenlik.nft bunu okur.\ndefine WAN = \"enp1s0\"\n");
+        assert_eq!(nft_text(&ag), "# WifiCorrect üretir (ag.toml). guvenlik.nft bunu okur.\ndefine WAN = { \"enp1s0\", \"wfcppp\" }\n");
         assert!(issue_text(&ag).starts_with("WifiCorrect panel: https://panel.wificorrect.com (eslestirme: https://\\4{enp1s0}:8443)"));
         assert!(hostapd_text(&ag).is_none());
         ag.lan.clear();
@@ -535,7 +641,7 @@ mod tests {
 
     impl Yollar {
         fn test(d: &Path) -> Yollar {
-            Yollar { ag: d.join("ag.toml"), interfaces: d.join("interfaces"), nft: d.join("arayuzler.nft"), hostapd: d.join("hostapd.conf"), issue: d.join("issue"), durum: d.join("durum"), hiz_uygulanan: d.join("hiz_uygulanan") }
+            Yollar { ag: d.join("ag.toml"), interfaces: d.join("interfaces"), nft: d.join("arayuzler.nft"), hostapd: d.join("hostapd.conf"), issue: d.join("issue"), peers: d.join("peers"), durum: d.join("durum"), hiz_uygulanan: d.join("hiz_uygulanan") }
         }
     }
 
@@ -594,5 +700,157 @@ mod tests {
         let y2 = Yollar::test(&d2);
         assert!(ilk(&cfg, &y2, &d.join("net"), Some("br-hotspot")).unwrap());
         assert_eq!(load(&y2.ag).wan, "enp2s0");
+    }
+
+    // ---------------------------------------------------------------- PPPoE (docs/superpowers/specs/2026-10-23-pppoe-design.md)
+    fn pppoe_acik() -> Pppoe {
+        Pppoe { acik: true, kullanici: "kullanici1".into(), parola: "parola1".into(), vlan: 35, ..Pppoe::default() }
+    }
+
+    #[test]
+    fn eski_ag_toml_pppoe_kapali() {
+        let (_, y, _) = setup();
+        // 0.4.16'nın yazdığı ag.toml: [pppoe] bölümü yok
+        fs::write(&y.ag, "wan = \"enp1s0\"\nlan = [\"enp3s0\"]\nwan_mac = \"\"\netiket_ters = false\n\n[wifi]\nacik = false\niface = \"wlp2s0\"\nssid = \"\"\nsifre = \"\"\nkanal = 6\n").unwrap();
+        let ag = load(&y.ag);
+        assert_eq!(ag.wan, "enp1s0"); // dosya okundu (varsayılana düşmedi)
+        assert_eq!(ag.pppoe, Pppoe::default());
+        assert!(!ag.pppoe.acik && ag.pppoe.mtu == 1492 && ag.pppoe.kimlik == "otomatik" && ag.pppoe.vlan == 0 && ag.pppoe.oncelik == 0);
+        // yeniden yazılınca bölüm varsayılanlarla eklenir
+        save(&y.ag, &ag).unwrap();
+        let t = fs::read_to_string(&y.ag).unwrap();
+        let bolum = t.split("[pppoe]").nth(1).unwrap_or_else(|| panic!("[pppoe] bölümü yazılmadı:\n{t}"));
+        assert!(bolum.contains("acik = false") && bolum.contains("mtu = 1492") && bolum.contains("kimlik = \"otomatik\""), "{t}");
+        assert_eq!(load(&y.ag), ag);
+        // bölüm kısmi yazılmışsa yazılmayan alanlar varsayılan kalır
+        let k: Ag = toml::from_str("[pppoe]\nacik = true\nkullanici = \"k\"\nparola = \"p\"\n").unwrap();
+        assert!(k.pppoe.acik && k.pppoe.mtu == 1492 && k.pppoe.kimlik == "otomatik" && k.pppoe.vlan == 0 && k.wan == "enp3s0");
+    }
+
+    #[test]
+    fn pppoe_dogrulama() {
+        let e = eths();
+        let dene = |p: Pppoe| validate(&Ag { pppoe: p, ..Ag::default() }, &e);
+        let gecerli = || Pppoe { acik: true, kullanici: "5321234567@turk.net".into(), parola: "parola-1".into(), ..Pppoe::default() };
+        assert_eq!(dene(gecerli()), Ok(()));
+        assert_eq!(dene(Pppoe { vlan: 35, oncelik: 0, mtu: 1492, kimlik: "pap".into(), ..gecerli() }), Ok(()));
+        // kapalıyken boş bilgiler sorun değil (varsayılan hâl)
+        assert_eq!(dene(Pppoe::default()), Ok(()));
+
+        // açıkken kullanıcı adı ve parola boş olamaz
+        let bos = "PPPoE kullanıcı adı ve parolası boş olamaz.";
+        assert_eq!(dene(Pppoe { kullanici: String::new(), ..gecerli() }), Err(bos.into()));
+        assert_eq!(dene(Pppoe { parola: String::new(), ..gecerli() }), Err(bos.into()));
+
+        // en çok 128 bayt; tırnak, ters eğik çizgi ve kontrol karakteri yok (pppd seçenek dosyasına satır sokulamaz)
+        let karakter = "PPPoE kullanıcı adı ve parolası en çok 128 karakter olmalı; tırnak, ters eğik çizgi ve kontrol karakteri içeremez.";
+        assert_eq!(dene(Pppoe { kullanici: "k".repeat(128), parola: "p".repeat(128), ..gecerli() }), Ok(()));
+        assert_eq!(dene(Pppoe { parola: "p".repeat(129), ..gecerli() }), Err(karakter.into()));
+        assert_eq!(dene(Pppoe { kullanici: "k".repeat(129), ..gecerli() }), Err(karakter.into()));
+        assert_eq!(dene(Pppoe { kullanici: "ş".repeat(65), ..gecerli() }), Err(karakter.into())); // 130 bayt
+        for kotu in ["a\"b", "a\\b", "a\nb", "a\rb", "a\tb", "a\0b", "a\u{7f}b", "\"", "\\"] {
+            assert_eq!(dene(Pppoe { kullanici: kotu.into(), ..gecerli() }), Err(karakter.into()), "kullanıcı {kotu:?}");
+            assert_eq!(dene(Pppoe { parola: kotu.into(), ..gecerli() }), Err(karakter.into()), "parola {kotu:?}");
+        }
+        assert_eq!(dene(Pppoe { kullanici: "ş@alan çok.net".into(), parola: "boşluk # ve 'tek tırnak' olur".into(), ..gecerli() }), Ok(()));
+        // kapalıyken boş bilgi serbest, ama yazılmış bilgi yine de biçimli olmalı (ag.toml'a bozuk değer girmez)
+        assert_eq!(dene(Pppoe { acik: false, kullanici: "a\"b".into(), ..Pppoe::default() }), Err(karakter.into()));
+
+        // VLAN: 0 (yok) ya da 1-4094
+        let vlan = "VLAN 1-4094 arasında olmalı (boş: VLAN yok).";
+        for v in [0, 1, 35, 4094] {
+            assert_eq!(dene(Pppoe { vlan: v, ..gecerli() }), Ok(()), "vlan {v}");
+        }
+        for v in [4095, 5000, u16::MAX] {
+            assert_eq!(dene(Pppoe { vlan: v, ..gecerli() }), Err(vlan.into()), "vlan {v}");
+        }
+        // 802.1p önceliği 0-7
+        assert_eq!(dene(Pppoe { vlan: 35, oncelik: 7, ..gecerli() }), Ok(()));
+        assert_eq!(dene(Pppoe { vlan: 35, oncelik: 8, ..gecerli() }), Err("VLAN önceliği 0-7 arasında olmalı.".into()));
+        // MTU 1280-1492
+        let mtu = "PPPoE MTU değeri 1280-1492 arasında olmalı.";
+        for m in [1280, 1400, 1492] {
+            assert_eq!(dene(Pppoe { mtu: m, ..gecerli() }), Ok(()), "mtu {m}");
+        }
+        for m in [0, 1279, 1493, 1500] {
+            assert_eq!(dene(Pppoe { mtu: m, ..gecerli() }), Err(mtu.into()), "mtu {m}");
+        }
+        // kimlik doğrulama: otomatik | pap | chap
+        for k in ["otomatik", "pap", "chap"] {
+            assert_eq!(dene(Pppoe { kimlik: k.into(), ..gecerli() }), Ok(()), "kimlik {k}");
+        }
+        for k in ["mschap", "PAP", "", "eap"] {
+            assert_eq!(dene(Pppoe { kimlik: k.into(), ..gecerli() }), Err("Kimlik doğrulama yöntemi otomatik, PAP ya da CHAP olmalı.".into()), "kimlik {k:?}");
+        }
+        // AC adı ve servis adı: boş ya da en çok 64 karakter A-Z a-z 0-9 . _ -
+        let ac = "PPPoE AC adı en çok 64 karakter olmalı ve yalnızca harf, rakam, nokta, alt çizgi ve tire içerebilir.";
+        let servis = "PPPoE servis adı en çok 64 karakter olmalı ve yalnızca harf, rakam, nokta, alt çizgi ve tire içerebilir.";
+        assert_eq!(dene(Pppoe { ac_adi: "AC-1.x_y".into(), servis_adi: "internet".into(), ..gecerli() }), Ok(()));
+        assert_eq!(dene(Pppoe { ac_adi: "a".repeat(64), servis_adi: "s".repeat(64), ..gecerli() }), Ok(()));
+        assert_eq!(dene(Pppoe { ac_adi: "a".repeat(65), ..gecerli() }), Err(ac.into()));
+        assert_eq!(dene(Pppoe { servis_adi: "s".repeat(65), ..gecerli() }), Err(servis.into()));
+        for kotu in ["a b", "a\"b", "a\nb", "ağ", "a/b", "a;b", "a#b"] {
+            assert_eq!(dene(Pppoe { ac_adi: kotu.into(), ..gecerli() }), Err(ac.into()), "ac {kotu:?}");
+            assert_eq!(dene(Pppoe { servis_adi: kotu.into(), ..gecerli() }), Err(servis.into()), "servis {kotu:?}");
+        }
+    }
+
+    #[test]
+    fn nft_wan_kumesi() {
+        // PPPoE kapalıyken de küme: olmayan arayüz adı eşleşmez, zararsız (guvenlik.nft ve hiz.nft değişmeden iki arayüzü kapsar)
+        assert_eq!(nft_text(&Ag::default()), "# WifiCorrect üretir (ag.toml). guvenlik.nft bunu okur.\ndefine WAN = { \"enp3s0\", \"wfcppp\" }\n");
+        let acik = Ag { wan: "eno1".into(), pppoe: pppoe_acik(), ..Ag::default() };
+        assert_eq!(nft_text(&acik), "# WifiCorrect üretir (ag.toml). guvenlik.nft bunu okur.\ndefine WAN = { \"eno1\", \"wfcppp\" }\n");
+    }
+
+    #[test]
+    fn peers_dosyasi_yalniz_acikken() {
+        use std::os::unix::fs::PermissionsExt;
+        let (cfg, y, _) = setup();
+        let mut ag = Ag { pppoe: pppoe_acik(), ..Ag::default() };
+        write_files(&cfg, &ag, &y).unwrap();
+        assert_eq!(fs::metadata(&y.peers).unwrap().permissions().mode() & 0o777, 0o600); // parola içerir
+        let t = fs::read_to_string(&y.peers).unwrap();
+        assert_eq!(t, crate::pppoe::peers_text(&ag));
+        assert!(t.contains("password \"parola1\"\n") && t.contains("nic-enp3s0.35\n"));
+        assert!(y.interfaces.exists() && y.nft.exists()); // diğer dosyalar yine yazılır
+        // ayar değişince dosya yeniden yazılır
+        ag.pppoe.vlan = 0;
+        write_files(&cfg, &ag, &y).unwrap();
+        assert!(fs::read_to_string(&y.peers).unwrap().contains("nic-enp3s0\n"));
+        // kapatınca dosya silinir; zaten yokken de hata vermez
+        ag.pppoe.acik = false;
+        write_files(&cfg, &ag, &y).unwrap();
+        assert!(!y.peers.exists());
+        write_files(&cfg, &ag, &y).unwrap();
+        assert!(!y.peers.exists());
+        // PPPoE hiç açılmamış cihaz: dosya yok, hata yok
+        let (cfg2, y2, _) = setup();
+        write_files(&cfg2, &Ag::default(), &y2).unwrap();
+        assert!(!y2.peers.exists());
+    }
+
+    #[test]
+    fn peers_dosyasina_gecersiz_ayar_yazilmaz() {
+        // pppd seçenek dosyasındaki her satır root'a bir seçenek verir: geçersiz (satır sokan) bilgi dosyaya hiç girmemeli
+        let (cfg, y, _) = setup();
+        let kotu = Ag { pppoe: Pppoe { kullanici: "kullanici1\nconnect /bin/sh".into(), ..pppoe_acik() }, ..Ag::default() };
+        assert!(write_files(&cfg, &kotu, &y).is_err());
+        assert!(!y.peers.exists() && !y.interfaces.exists()); // hiçbir dosya yazılmadan reddedilir
+    }
+
+    #[test]
+    fn describe_pppoe() {
+        let e = eths();
+        let kapali = describe(&Ag::default(), &e);
+        assert!(!kapali.contains("PPPoE"), "{kapali}");
+        let ag = Ag { pppoe: Pppoe { kullanici: "5321234567@turk.net".into(), parola: "gizli-parola".into(), ..pppoe_acik() }, ..Ag::default() };
+        let d = describe(&ag, &e);
+        assert_eq!(d, format!("{kapali}, PPPoE açık (VLAN 35)"));
+        assert!(!d.contains("turk.net") && !d.contains("gizli-parola")); // kullanıcı adı ve parola denetime yazılmaz
+        // VLAN yoksa yalnızca "PPPoE açık"
+        assert_eq!(describe(&Ag { pppoe: Pppoe { vlan: 0, ..pppoe_acik() }, ..Ag::default() }, &e), format!("{kapali}, PPPoE açık"));
+        // kapalıyken (bilgiler dolu olsa da) çıktı değişmez
+        assert_eq!(describe(&Ag { pppoe: Pppoe { acik: false, ..pppoe_acik() }, ..Ag::default() }, &e), kapali);
     }
 }

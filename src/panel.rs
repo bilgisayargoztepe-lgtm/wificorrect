@@ -3097,6 +3097,7 @@ mod tests {
             nft: e.root.join("arayuzler.nft"),
             hostapd: e.root.join("hostapd.conf"),
             issue: e.root.join("issue"),
+            peers: e.root.join("peers"),
             durum: e.root.join("durum"),
             hiz_uygulanan: e.root.join("hiz_uygulanan"),
         };

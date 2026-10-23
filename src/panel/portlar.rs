@@ -1,11 +1,23 @@
 //! Panel 8c: Portlar ve Wi-Fi (iki rol de görür). Uygulama ayrı bir systemd işinde, 3 dk onay süresiyle (src/ag.rs).
+//! İnternet alan portun PPPoE kutusu da burada (alanlar ve form `pppoe::form_html` / `pppoe::formdan`: giriş sayfasındaki Servis ile ortak).
 
 use super::*;
 use crate::ag::{self, Ag};
+use crate::pppoe::{self, Durum};
 
 fn rol_secim(name: &str, cur: &str, opts: &[(&str, &str)]) -> String {
     let o: String = opts.iter().map(|(k, l)| format!("<option value=\"{k}\"{}>{l}</option>", if *k == cur { " selected" } else { "" })).collect();
     format!("<select name=\"{name}\" aria-label=\"Görev\">{o}</select>")
+}
+
+/// İnternet alan portun durum satırı: bağlı ve kapalı (modemden DHCP) yeşil nokta, bağlanma sürerken düz metin, sorunlar kırmızı.
+fn pppoe_durum_html(d: &Durum) -> String {
+    let metin = h(&d.metin());
+    match d {
+        Durum::Kapali | Durum::Bagli(_) => format!("<span class=\"durum\">{metin}</span>"),
+        Durum::Baglaniyor => format!("<span>{metin}</span>"),
+        _ => format!("<span class=\"durum kotu\">{metin}</span>"),
+    }
 }
 
 impl Panel {
@@ -43,9 +55,16 @@ impl Panel {
         let w = &cur.wifi;
         let has_card = self.sys.join(&w.iface).exists();
         let kanal: String = (1..=13u8).map(|k| format!("<option value=\"{k}\"{}>{k}</option>", if k == w.kanal { " selected" } else { "" })).collect();
+        // internet alan portun PPPoE'si: durum (kayıtlı ayara göre canlı), dükkân notu, form (parola hiç yazılmaz)
+        let pppoe_kutu = format!(
+            "<section class=\"kart grup\"><h2>PPPoE</h2><div><p>Durum: {}</p>\
+             <p class=\"not\">Dükkânda PPPoE bağlanmaz; ONT'ye takılınca bağlanır.</p>{}</div></section>",
+            pppoe_durum_html(&pppoe::durum(&cur, &self.sys, &*self.komut)),
+            pppoe::form_html(&cur.pppoe)
+        );
         let body = format!(
             "{banner}<form method=\"post\" action=\"/portlar\">{}\
-             <section class=\"kart\"><h2>Ethernet portları</h2>{}</section>\
+             <section class=\"kart\"><h2>Ethernet portları</h2>{}</section>{pppoe_kutu}\
              <section class=\"kart grup\"><h2>Wi-Fi</h2><div>{}\
              <label for=\"wifi\">Görev</label>{}\
              <label for=\"ssid\">Ağ adı</label><input type=\"text\" id=\"ssid\" name=\"ssid\" value=\"{}\" maxlength=\"32\" autocomplete=\"off\">\
@@ -89,6 +108,8 @@ impl Panel {
         new.wifi.ssid = f("ssid").trim().to_string();
         new.wifi.sifre = f("sifre").to_string();
         new.wifi.kanal = f("kanal").parse().unwrap_or(0);
+        // PPPoE: boş parola = eskisi (ag::gecis birleştirmez; hazırlanan dosyaya eski parola burada yazılır), boş VLAN = yok
+        new.pppoe = pppoe::formdan(&cur.pppoe, &|k: &str| f(k).to_string());
         if new.wan != cur.wan && new.wan_mac.is_empty() {
             // modemdeki IP rezervasyonu korunsun: eski internet portunun MAC'i yeni porta yazılır
             new.wan_mac = ortak::norm_mac(&ag::link(&self.sys, &cur.wan).2).unwrap_or_default();
@@ -119,7 +140,15 @@ impl Panel {
             let _ = std::fs::remove_file(&staged);
             return redirect("/portlar", Some(("Değişiklik başlatılamadı.", true)));
         }
-        self.audit(cfg, req, Some(o), "PANEL_PORT", &ag::describe(&new, &eths));
+        // kullanıcı adı ve parola denetime yazılmaz: yalnızca açık/kapalı, VLAN ve değişip değişmedikleri
+        let pppoe_ozet = format!(
+            "pppoe={} vlan={} kullanici_degisti={} parola_degisti={}",
+            if new.pppoe.acik { "acik" } else { "kapali" },
+            new.pppoe.vlan,
+            u8::from(new.pppoe.kullanici != cur.pppoe.kullanici),
+            u8::from(new.pppoe.parola != cur.pppoe.parola)
+        );
+        self.audit(cfg, req, Some(o), "PANEL_PORT", &format!("{} {pppoe_ozet}", ag::describe(&new, &eths)));
         redirect("/portlar", Some(("Uygulanıyor. Birkaç saniye sonra bu sayfayı yenileyip 3 dakika içinde onaylayın.", false)))
     }
 

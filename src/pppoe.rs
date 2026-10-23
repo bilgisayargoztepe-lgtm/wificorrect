@@ -2,8 +2,9 @@
 //! DHCP hep açık kalır; PPPoE açıksa yanında pppd çalışır (`wificorrect-pppoe.service`) ve PPPoE rotası öne geçer.
 //! Ayar `ag.toml` `[pppoe]` (src/ag.rs); pppd bağlantı dosyası (`/etc/ppp/peers/wificorrect`, 600) ondan üretilir.
 
-use crate::ag::Ag;
+use crate::ag::{Ag, Pppoe};
 use crate::ortak::Runner;
+use crate::portal::html_escape as h;
 use std::path::Path;
 
 /// pppd'nin açtığı PPP arayüzünün sabit adı (güvenlik duvarı `define WAN` kümesi, yavaşlatma ve durum bunu bilir).
@@ -277,6 +278,85 @@ pub fn durum(ag: &Ag, sys: &Path, komut: &dyn Fn(&[&str]) -> Option<String>) -> 
         String::new()
     };
     durum_coz(acik, kablo, ppp_ip.as_deref(), dhcp_adres, &gunluk)
+}
+
+// ---------------------------------------------------------------- form (panel → Portlar, giriş sayfası → Servis)
+
+/// Sayı alanı: boş → `bos`; sayı değilse (ya da türe sığmıyorsa) `gecersiz`, yani `ag::pppoe_dogrula`nın reddedeceği aralık dışı bir değer.
+fn sayi<T: std::str::FromStr>(s: &str, bos: T, gecersiz: T) -> T {
+    if s.is_empty() {
+        bos
+    } else {
+        s.parse().unwrap_or(gecersiz)
+    }
+}
+
+/// Formdan PPPoE ayarı. Panel (Portlar) ve giriş sayfasındaki Servis aynı alan adlarını kullanır: `pppoe_acik`, `pppoe_kullanici`,
+/// `pppoe_parola`, `pppoe_vlan`, `pppoe_oncelik`, `pppoe_mtu`, `pppoe_kimlik`, `pppoe_ac_adi`, `pppoe_servis_adi`.
+/// `alan`: alan adı → gönderilen değer (alan hiç gelmediyse boş). Ayar burada doğrulanmaz: çağıran `ag::pppoe_dogrula` ile denetler.
+/// - Açık yalnızca `pppoe_acik=acik` (`form_html`'in seçim kutusu) ya da `1` (panelin onay kutusu geleneği: başka bir form ya da
+///   betik öyle gönderirse "kapalı" sayılıp sessizce kaydedilmesin) ise. Kullanıcı adı, AC adı ve servis adı baştan/sondan kırpılır;
+///   parola olduğu gibi alınır (boşluk parolanın parçası olabilir).
+/// - Boş parola = `onceki.parola`: parola hiçbir yerde geri gösterilmez, boş bırakmak "aynı kalsın" demektir. `ag::gecis` boş
+///   parolayı birleştirmez; Portlar'da hazırlanan dosyaya eski parola buradan girer. Kullanıcı adı ve ileri alanlar `form_html`
+///   ile kayıtlı değerlerle dolu gelir, "kapalı" gönderilince de korunur.
+/// - Boş VLAN/öncelik = 0, boş MTU = 1492, boş kimlik = otomatik. Sayı olmayan ya da sığmayan değer doğrulamanın reddedeceği bir
+///   değere çevrilir (VLAN 65535, öncelik 255, MTU 0): sessizce varsayılana dönüp yanlış ayar kaydetmez.
+pub fn formdan(onceki: &Pppoe, alan: &dyn Fn(&str) -> String) -> Pppoe {
+    let d = Pppoe::default();
+    let metin = |k: &str| alan(k).trim().to_string();
+    let parola = alan("pppoe_parola");
+    let kimlik = metin("pppoe_kimlik");
+    Pppoe {
+        acik: matches!(metin("pppoe_acik").as_str(), "acik" | "1"),
+        kullanici: metin("pppoe_kullanici"),
+        parola: if parola.is_empty() { onceki.parola.clone() } else { parola },
+        vlan: sayi(&metin("pppoe_vlan"), d.vlan, u16::MAX),
+        oncelik: sayi(&metin("pppoe_oncelik"), d.oncelik, u8::MAX),
+        mtu: sayi(&metin("pppoe_mtu"), d.mtu, 0),
+        kimlik: if kimlik.is_empty() { d.kimlik } else { kimlik },
+        ac_adi: metin("pppoe_ac_adi"),
+        servis_adi: metin("pppoe_servis_adi"),
+    }
+}
+
+/// Form alanlarının HTML'i: `<label>` + giriş çiftleri; ileri ayarlar `<details class="gelismis">` içinde (varsayılandan farklı bir
+/// değer varsa açık gelir: gizli kalıp sessizce uygulanmasın). Form etiketi, CSRF, düğme, durum satırı ve notlar çağıranın.
+/// Alanlar `p`nin kayıtlı değerleriyle dolu gelir ki "kapalı" gönderince kullanıcı adı ve ileri alanlar silinmesin; VLAN yokken boş.
+/// Parolanın değeri hiçbir zaman yazılmaz (alan boş; yalnızca kayıtlı parola varsa "aynı kalır" ipucu). Yazılan her değer kaçışlanır.
+pub fn form_html(p: &Pppoe) -> String {
+    let d = Pppoe::default();
+    let secim = |ad: &str, secenekler: &[(&str, &str)], mevcut: &str| {
+        let o: String = secenekler.iter().map(|(k, l)| format!("<option value=\"{k}\"{}>{l}</option>", if *k == mevcut { " selected" } else { "" })).collect();
+        format!("<select id=\"{ad}\" name=\"{ad}\">{o}</select>")
+    };
+    let metin = |ad: &str, deger: &str, ek: &str| format!("<input type=\"text\" id=\"{ad}\" name=\"{ad}\" value=\"{}\"{ek}>", h(deger));
+    let sayisal = " inputmode=\"numeric\" autocomplete=\"off\"";
+    let adi = " maxlength=\"64\" autocomplete=\"off\" autocapitalize=\"none\" spellcheck=\"false\"";
+    let acik = secim("pppoe_acik", &[("acik", "Açık"), ("kapali", "Kapalı")], if p.acik { "acik" } else { "kapali" });
+    let kullanici = metin("pppoe_kullanici", &p.kullanici, " placeholder=\"5321234567@turk.net\" maxlength=\"128\" autocomplete=\"off\" autocapitalize=\"none\" spellcheck=\"false\"");
+    let parola_ipucu = if p.parola.is_empty() { "" } else { " placeholder=\"Kayıtlı parola aynı kalır\"" };
+    let vlan = metin("pppoe_vlan", &if p.vlan == 0 { String::new() } else { p.vlan.to_string() }, &format!(" placeholder=\"yok\"{sayisal}"));
+    let oncelik = metin("pppoe_oncelik", &p.oncelik.to_string(), sayisal);
+    let mtu = metin("pppoe_mtu", &p.mtu.to_string(), sayisal);
+    let kimlik = secim("pppoe_kimlik", &[("otomatik", "Otomatik"), ("pap", "PAP"), ("chap", "CHAP")], &p.kimlik);
+    let ac_adi = metin("pppoe_ac_adi", &p.ac_adi, adi);
+    let servis_adi = metin("pppoe_servis_adi", &p.servis_adi, adi);
+    let ileri_acik = if (p.oncelik, p.mtu, &p.kimlik, &p.ac_adi, &p.servis_adi) != (d.oncelik, d.mtu, &d.kimlik, &d.ac_adi, &d.servis_adi) { " open" } else { "" };
+    format!(
+        "<label for=\"pppoe_acik\">PPPoE</label>{acik}\
+         <label for=\"pppoe_kullanici\">Kullanıcı adı</label>{kullanici}\
+         <label for=\"pppoe_parola\">Parola (yalnızca yazılır; boş = aynı kalır)</label>\
+         <input type=\"password\" id=\"pppoe_parola\" name=\"pppoe_parola\" value=\"\"{parola_ipucu} maxlength=\"128\" autocomplete=\"new-password\">\
+         <label for=\"pppoe_vlan\">VLAN (boş = yok)</label>{vlan}\
+         <details class=\"gelismis\"{ileri_acik}><summary>Gelişmiş</summary>\
+         <label for=\"pppoe_oncelik\">VLAN önceliği (802.1p, 0-7)</label>{oncelik}\
+         <label for=\"pppoe_mtu\">MTU (1280-1492)</label>{mtu}\
+         <label for=\"pppoe_kimlik\">Kimlik doğrulama</label>{kimlik}\
+         <label for=\"pppoe_ac_adi\">AC adı (çoğu hatta boş bırakılır)</label>{ac_adi}\
+         <label for=\"pppoe_servis_adi\">Servis adı (çoğu hatta boş bırakılır)</label>{servis_adi}\
+         </details>"
+    )
 }
 
 #[cfg(test)]
@@ -815,5 +895,201 @@ mod tests {
         std::fs::write(sys.join("enp1s0").join("carrier"), "1\n").unwrap();
         let (d, c) = durum_dene(&b, &sys, &[("ip -4 -o addr show dev enp1s0", DHCP_ADRES)]);
         assert_eq!((d, c), (Durum::Kapali, vec!["ip -4 -o addr show dev enp1s0".to_string()]));
+    }
+
+    // ---------------------------------------------------------------- form (Portlar ve Servis aynı alanları kullanır)
+
+    /// Sahte form: verilen çiftler dışındaki alanlar boş gelir
+    fn form_alani<'a>(f: &'a [(&'a str, &'a str)]) -> impl Fn(&str) -> String + 'a {
+        move |k: &str| f.iter().find(|(a, _)| *a == k).map(|(_, v)| v.to_string()).unwrap_or_default()
+    }
+
+    /// `name="…"` taşıyan etiket (`<input …>` ya da `<select …>` açılışı)
+    fn etiket<'a>(html: &'a str, ad: &str) -> &'a str {
+        let i = html.find(&format!("name=\"{ad}\"")).unwrap_or_else(|| panic!("{ad} alanı yok:\n{html}"));
+        let bas = html[..i].rfind('<').unwrap();
+        &html[bas..i + html[i..].find('>').unwrap() + 1]
+    }
+
+    /// Alanın tarayıcıda görünen değeri (ham HTML'den): giriş → value, seçim → seçili seçeneğin değeri
+    fn gorunen(html: &str, ad: &str) -> String {
+        let i = html.find(&format!("name=\"{ad}\"")).unwrap_or_else(|| panic!("{ad} alanı yok"));
+        let bas = html[..i].rfind('<').unwrap();
+        if html[bas..].starts_with("<select") {
+            let secenekler = &html[i..i + html[i..].find("</select>").unwrap()];
+            let j = secenekler.find("\" selected>").unwrap_or_else(|| panic!("{ad}: seçili seçenek yok"));
+            secenekler[secenekler[..j].rfind("value=\"").unwrap() + 7..j].to_string()
+        } else {
+            let tag = &html[bas..i + html[i..].find('>').unwrap()];
+            let v = tag.find(" value=\"").unwrap() + 8;
+            tag[v..v + tag[v..].find('"').unwrap()].to_string()
+        }
+    }
+
+    #[test]
+    fn formdan_bos_alanlar() {
+        // hiçbir alan gelmedi: kapalı, bilgiler boş, varsayılanlar; parola yalnızca önceki varsa kalır
+        let onceki = Pppoe { parola: "eski".into(), ..acik() };
+        assert_eq!(formdan(&onceki, &form_alani(&[])), Pppoe { parola: "eski".into(), ..Pppoe::default() });
+        // boş VLAN/öncelik → 0, boş MTU → 1492, boş kimlik → otomatik; kayıtlı (varsayılandan farklı) değerler korunmaz
+        let onceki = Pppoe { oncelik: 3, mtu: 1400, kimlik: "pap".into(), ac_adi: "AC1".into(), servis_adi: "s".into(), ..acik() };
+        let f = [
+            ("pppoe_acik", "acik"),
+            ("pppoe_kullanici", "k"),
+            ("pppoe_parola", "p"),
+            ("pppoe_vlan", ""),
+            ("pppoe_oncelik", " "),
+            ("pppoe_mtu", ""),
+            ("pppoe_kimlik", ""),
+            ("pppoe_ac_adi", ""),
+            ("pppoe_servis_adi", ""),
+        ];
+        assert_eq!(formdan(&onceki, &form_alani(&f)), Pppoe { acik: true, kullanici: "k".into(), parola: "p".into(), ..Pppoe::default() });
+    }
+
+    #[test]
+    fn formdan_degerler_ve_kirpma() {
+        let f = [
+            ("pppoe_acik", " acik "),
+            ("pppoe_kullanici", "  5321234567@turk.net \t"),
+            ("pppoe_parola", " bir parola "),
+            ("pppoe_vlan", " 35 "),
+            ("pppoe_oncelik", "7"),
+            ("pppoe_mtu", "1280"),
+            ("pppoe_kimlik", "chap"),
+            ("pppoe_ac_adi", " AC-1 "),
+            ("pppoe_servis_adi", "srv.2_x"),
+        ];
+        let p = formdan(&Pppoe::default(), &form_alani(&f));
+        // kullanıcı adı, AC adı ve servis adı kırpılır; parola olduğu gibi (boşluk parolanın parçası)
+        assert_eq!(p.kullanici, "5321234567@turk.net");
+        assert_eq!(p.parola, " bir parola ");
+        assert_eq!((p.acik, p.vlan, p.oncelik, p.mtu, p.kimlik.as_str()), (true, 35, 7, 1280, "chap"));
+        assert_eq!((p.ac_adi.as_str(), p.servis_adi.as_str()), ("AC-1", "srv.2_x"));
+        assert_eq!(crate::ag::pppoe_dogrula(&p), Ok(()));
+        // açık yalnızca "acik" (seçim kutusu) ve "1" (onay kutusu geleneği); başka her değer kapalı
+        for v in ["acik", "1"] {
+            assert!(formdan(&Pppoe::default(), &form_alani(&[("pppoe_acik", v)])).acik, "{v:?}");
+        }
+        for v in ["", "kapali", "0", "evet", "on", "true", "ACIK"] {
+            assert!(!formdan(&Pppoe::default(), &form_alani(&[("pppoe_acik", v)])).acik, "{v:?}");
+        }
+    }
+
+    #[test]
+    fn formdan_parola_bos_eskisi() {
+        let onceki = Pppoe { parola: "eski-parola".into(), ..acik() };
+        assert_eq!(formdan(&onceki, &form_alani(&[("pppoe_parola", "")])).parola, "eski-parola");
+        assert_eq!(formdan(&onceki, &form_alani(&[])).parola, "eski-parola"); // alan hiç gelmedi
+        assert_eq!(formdan(&onceki, &form_alani(&[("pppoe_parola", "yeni")])).parola, "yeni");
+        assert_eq!(formdan(&onceki, &form_alani(&[("pppoe_parola", " ")])).parola, " "); // yalnızca boşluk da yazılmış parola
+        assert_eq!(formdan(&Pppoe::default(), &form_alani(&[])).parola, ""); // eskisi de yoksa boş (açıkken doğrulama reddeder)
+    }
+
+    #[test]
+    fn formdan_sayilar_dogrulamayla_yakalanir() {
+        let dene = |alan: &str, deger: &str| {
+            let p = formdan(&acik(), &form_alani(&[("pppoe_acik", "acik"), ("pppoe_kullanici", "k"), ("pppoe_parola", "p"), (alan, deger)]));
+            crate::ag::pppoe_dogrula(&p)
+        };
+        // sınır değerleri geçerli
+        for (alan, deger) in [("pppoe_vlan", "1"), ("pppoe_vlan", "4094"), ("pppoe_vlan", "0"), ("pppoe_oncelik", "0"), ("pppoe_oncelik", "7"), ("pppoe_mtu", "1280"), ("pppoe_mtu", "1492")] {
+            assert_eq!(dene(alan, deger), Ok(()), "{alan}={deger}");
+        }
+        // sayı olmayan, aralık dışı ve türe sığmayan değerler doğrulamada reddedilir (sessizce varsayılana dönmez)
+        for (alan, deger) in [
+            ("pppoe_vlan", "abc"),
+            ("pppoe_vlan", "-1"),
+            ("pppoe_vlan", "4095"),
+            ("pppoe_vlan", "70000"),
+            ("pppoe_vlan", "3.5"),
+            ("pppoe_vlan", "3 5"),
+            ("pppoe_oncelik", "8"),
+            ("pppoe_oncelik", "-1"),
+            ("pppoe_oncelik", "300"),
+            ("pppoe_oncelik", "x"),
+            ("pppoe_mtu", "1279"),
+            ("pppoe_mtu", "1493"),
+            ("pppoe_mtu", "abc"),
+            ("pppoe_mtu", "70000"),
+            ("pppoe_mtu", "-5"),
+        ] {
+            assert!(dene(alan, deger).is_err(), "{alan}={deger:?} geçerli sayılmış");
+        }
+    }
+
+    #[test]
+    fn form_html_alanlar_ve_parola() {
+        let html = form_html(&Pppoe { kullanici: "5321234567@turk.net".into(), parola: "gizli-parola-9".into(), ..acik() });
+        for ad in ["pppoe_acik", "pppoe_kullanici", "pppoe_parola", "pppoe_vlan", "pppoe_oncelik", "pppoe_mtu", "pppoe_kimlik", "pppoe_ac_adi", "pppoe_servis_adi"] {
+            assert_eq!(html.matches(&format!("name=\"{ad}\"")).count(), 1, "{ad}");
+            assert!(html.contains(&format!("<label for=\"{ad}\">")) && html.contains(&format!("id=\"{ad}\"")), "{ad}: etiket ve kimlik");
+        }
+        // parola: türü parola, değeri boş; kayıtlı parola hiçbir yerde yok, yalnızca "aynı kalır" ipucu
+        let parola = etiket(&html, "pppoe_parola");
+        assert!(parola.contains("type=\"password\"") && parola.contains("value=\"\"") && parola.contains("autocomplete=\"new-password\""), "{parola}");
+        assert!(parola.contains("placeholder=\"Kayıtlı parola aynı kalır\"") && !html.contains("gizli-parola-9"));
+        assert!(!etiket(&form_html(&Pppoe::default()), "pppoe_parola").contains("placeholder"), "kayıtlı parola yokken ipucu olmaz");
+        // kullanıcı adı: örnek yer tutucu + kayıtlı değer
+        let kullanici = etiket(&html, "pppoe_kullanici");
+        assert!(kullanici.contains("placeholder=\"5321234567@turk.net\"") && kullanici.contains("value=\"5321234567@turk.net\""), "{kullanici}");
+        // yalnızca kimlik doğrulama seçeneklerinin üçü
+        let kimlik = &html[html.find("<select id=\"pppoe_kimlik\"").unwrap()..];
+        assert!(kimlik.contains("<option value=\"otomatik\" selected>Otomatik</option><option value=\"pap\">PAP</option><option value=\"chap\">CHAP</option></select>"), "{kimlik}");
+        // ileri ayarlar Gelişmiş'in altında, temel alanlar üstünde
+        let (once, sonra) = html.split_once("<summary>Gelişmiş</summary>").unwrap();
+        for ad in ["pppoe_acik", "pppoe_kullanici", "pppoe_parola", "pppoe_vlan"] {
+            assert!(once.contains(&format!("name=\"{ad}\"")) && !sonra.contains(&format!("name=\"{ad}\"")), "{ad}");
+        }
+        for ad in ["pppoe_oncelik", "pppoe_mtu", "pppoe_kimlik", "pppoe_ac_adi", "pppoe_servis_adi"] {
+            assert!(sonra.contains(&format!("name=\"{ad}\"")) && !once.contains(&format!("name=\"{ad}\"")), "{ad}");
+        }
+    }
+
+    #[test]
+    fn form_html_varsayilan_ve_ileri_ayarlar() {
+        // varsayılan ayar: kapalı, VLAN boş (yok), öncelik 0, MTU 1492, otomatik; Gelişmiş kapalı gelir
+        let html = form_html(&Pppoe::default());
+        assert_eq!(gorunen(&html, "pppoe_acik"), "kapali");
+        assert_eq!((gorunen(&html, "pppoe_vlan").as_str(), gorunen(&html, "pppoe_oncelik").as_str(), gorunen(&html, "pppoe_mtu").as_str()), ("", "0", "1492"));
+        assert_eq!(gorunen(&html, "pppoe_kimlik"), "otomatik");
+        assert!(html.contains("<details class=\"gelismis\"><summary>Gelişmiş</summary>"), "{html}");
+        // varsayılandan farklı bir ileri değer varsa Gelişmiş açık gelir (gizli kalıp sessizce uygulanmasın)
+        for p in [
+            Pppoe { oncelik: 1, ..Pppoe::default() },
+            Pppoe { mtu: 1400, ..Pppoe::default() },
+            Pppoe { kimlik: "pap".into(), ..Pppoe::default() },
+            Pppoe { ac_adi: "AC".into(), ..Pppoe::default() },
+            Pppoe { servis_adi: "S".into(), ..Pppoe::default() },
+        ] {
+            assert!(form_html(&p).contains("<details class=\"gelismis\" open><summary>"));
+        }
+        // kullanıcı adı, parola ve VLAN ileri ayar değildir
+        assert!(form_html(&acik()).contains("<details class=\"gelismis\"><summary>"));
+    }
+
+    #[test]
+    fn form_html_kacislar() {
+        let kotu = "\"><script>alert(1)</script>&'";
+        let html = form_html(&Pppoe { kullanici: kotu.into(), ac_adi: kotu.into(), servis_adi: kotu.into(), ..Pppoe::default() });
+        assert!(!html.contains("<script") && !html.contains("alert(1)</script>"), "{html}");
+        assert_eq!(html.matches("value=\"&quot;&gt;&lt;script&gt;alert(1)&lt;/script&gt;&amp;&#x27;\"").count(), 3, "{html}");
+    }
+
+    #[test]
+    fn form_html_formdan_gidis_donus() {
+        // form kayıtlı değerlerle dolu gelir ve parola alanı hep boştur: olduğu gibi gönderilince ayar (parola dahil) değişmez.
+        // "Değişiklik yok" kararı ve "kapalı" gönderince kullanıcı adının silinmemesi buna dayanır.
+        for p in [
+            Pppoe::default(),
+            acik(),
+            Pppoe { acik: false, ..acik() },
+            Pppoe { vlan: 0, oncelik: 5, mtu: 1280, kimlik: "chap".into(), ac_adi: "AC.1".into(), servis_adi: "s_2-x".into(), ..acik() },
+            Pppoe { vlan: 4094, kimlik: "pap".into(), ..acik() },
+        ] {
+            let html = form_html(&p);
+            let alan = |k: &str| if k == "pppoe_parola" { String::new() } else { gorunen(&html, k) };
+            assert!(formdan(&p, &alan) == p, "form kendi değerlerini geri vermedi (VLAN {})", p.vlan);
+        }
     }
 }

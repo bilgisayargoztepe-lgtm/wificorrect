@@ -226,7 +226,7 @@ def test_saglik_raporu_kaydedilir():
         _, j = giris(api, n, pw)
         c = v.bagli_cihaz(n)
         d, r = post(api, "/api/saglik", {"cihaz_anahtari": j["cihaz_anahtari"], "rapor": dict(RAPOR, ad="Ali", telefon="5551112233")})
-        assert d == 200 and r == {"tamam": True, "sms_etkin_mock": True, "listeler": {}}
+        assert d == 200 and r == {"tamam": True, "sms_etkin_mock": True, "listeler": {}, "ap_parola": v.musteri(n)["ap_parola"]}
         assert v.saglik(c["id"])["rapor"] == RAPOR  # bilinmeyen alanlar atıldı
         assert post(api, "/api/saglik", {"cihaz_anahtari": j["cihaz_anahtari"], "rapor": dict(RAPOR, son_muhur="", bagli=0)})[0] == 200
         assert v.saglik(c["id"])["rapor"]["son_muhur"] == "" and v.saglik(c["id"])["rapor"]["bagli"] == 0
@@ -332,11 +332,85 @@ def test_rapor_paket_ve_guncelleme_alanlari():
         assert rapor_yolla(api, k, paket="", guncelleme=None)[0] == 200
 
 
+def test_saglik_cevabinda_ap_parola():
+    """PPPoE (spec 2026-10-23, "AP yönetim parolası cihaza 5 dk içinde ulaşır"): müşterinin AP yönetim parolası bağlı cihazın
+    5 dk'lık sağlık cevabında da gider (yönetimde "Yenile"den sonra cihaz günlük 06:00 eşitlemesini beklemez); müşteride parola
+    boşsa alan hiç yok. Bırakılan cihaza ve tanınmayan anahtara gitmez; parola hareket satırına yazılmaz."""
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        api, v, q, _ = kur(tmp)
+        n, pw = v.musteri_ekle()
+        _, j = giris(api, n, pw)
+        k = j["cihaz_anahtari"]
+        ap = v.musteri(n)["ap_parola"]
+        assert ap and ap != pw
+        d, r = rapor_yolla(api, k)
+        assert d == 200 and r["ap_parola"] == ap
+        yeni = v.ap_parolasi_yenile(n)  # yönetimde "Yenile": sonraki rapor cevabında iner
+        assert yeni != ap and rapor_yolla(api, k)[1]["ap_parola"] == yeni
+        # hizmet (lisans/üyelik) kapalı olsa da /api/eslesme gibi gider: cihazın bildiği parola merkezle aynı kalsın
+        v.askiya_al(n, True)
+        assert rapor_yolla(api, k)[1]["ap_parola"] == yeni
+        v.askiya_al(n, False)
+        # müşteride parola yok: alan hiç gönderilmez (boş dize de değil)
+        v.db.execute("UPDATE musteri SET ap_parola = '' WHERE numara = ?", (n,))
+        d, r = rapor_yolla(api, k)
+        assert d == 200 and "ap_parola" not in r and r["tamam"] is True
+        v.db.execute("UPDATE musteri SET ap_parola = ? WHERE numara = ?", (yeni, n))
+        # parola hareket satırlarına ve kayıtlı rapora yazılmaz
+        assert all(yeni not in (h["ayrinti"] or "") and ap not in (h["ayrinti"] or "") for h in v.hareketler())
+        assert yeni not in json.dumps(v.saglik(v.bagli_cihaz(n)["id"])["rapor"])
+        # tanınmayan anahtar: 401, parola yok
+        d, h = post(api, "/api/saglik", {"cihaz_anahtari": "yanlis", "rapor": RAPOR})
+        assert d == 401 and "ap_parola" not in h
+        # bırakılan cihaz (bağlı değil): 200 ama parola gitmez
+        v.serbest_birak(n)
+        d, r = rapor_yolla(api, k)
+        assert d == 200 and "ap_parola" not in r
+
+
+def test_saglik_temizle_pppoe():
+    """PPPoE (spec 2026-10-23 "Durum ve teşhis"): rapora wan_tur (dhcp|pppoe) ve pppoe (durum kodu) girer. İkisi de isteğe
+    bağlı (eski cihaz göndermez: eskisi gibi kabul), ama gelirse bilinen değerlerden biri olmalı (paket/guncelleme gibi:
+    bozuksa rapor reddedilir)."""
+    t = A.saglik_temizle(dict(RAPOR, wan_tur="pppoe", pppoe="bagli"))
+    assert t == dict(RAPOR, wan_tur="pppoe", pppoe="bagli")
+    eski = A.saglik_temizle(RAPOR)  # alanlar yok: eskisi gibi, anahtarlar da eklenmez
+    assert eski == RAPOR and "wan_tur" not in eski and "pppoe" not in eski
+    for tur in ("dhcp", "pppoe"):
+        assert A.saglik_temizle(dict(RAPOR, wan_tur=tur))["wan_tur"] == tur
+    for durum in ("kapali", "kablo_yok", "dhcp_yok", "sunucu_yok", "kimlik_hatasi", "baglaniyor", "bagli"):
+        assert A.saglik_temizle(dict(RAPOR, pppoe=durum))["pppoe"] == durum
+    assert "pppoe" not in A.saglik_temizle(dict(RAPOR, wan_tur="dhcp"))  # tek alan gelebilir
+    assert "ek" not in A.saglik_temizle(dict(RAPOR, wan_tur="dhcp", pppoe="kapali", ek=1))  # bilinmeyen alan hâlâ atılır
+    for kotu in ("x", "", "PPPoE", "pppoe ", "ppp", 5, None, True, ["pppoe"], {"pppoe": 1}):
+        assert A.saglik_temizle(dict(RAPOR, wan_tur=kotu)) is None, kotu
+    for kotu in ("?", "", "Bagli", "bagli ", "kablo yok", 5, None, False, ["bagli"], {"bagli": 1}):
+        assert A.saglik_temizle(dict(RAPOR, pppoe=kotu)) is None, kotu
+    assert A.saglik_temizle(dict(RAPOR, wan_tur="pppoe", pppoe="?")) is None  # biri geçerli, öteki bozuk
+    # uçtan uca: geçerli rapor saklanır, bozuk olan 400 ile reddedilir ve öncekinin üzerine yazmaz
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        api, v, q, _ = kur(tmp)
+        n, pw = v.musteri_ekle()
+        k = giris(api, n, pw)[1]["cihaz_anahtari"]
+        cid = v.bagli_cihaz(n)["id"]
+        assert rapor_yolla(api, k)[0] == 200
+        assert "wan_tur" not in v.saglik(cid)["rapor"] and "pppoe" not in v.saglik(cid)["rapor"]
+        assert rapor_yolla(api, k, wan_tur="pppoe", pppoe="bagli")[0] == 200
+        r = v.saglik(cid)["rapor"]
+        assert (r["wan_tur"], r["pppoe"]) == ("pppoe", "bagli")
+        for kotu in (dict(wan_tur="x", pppoe="bagli"), dict(wan_tur="pppoe", pppoe="?")):
+            d, h = rapor_yolla(api, k, **kotu)
+            assert d == 400 and h["kod"] == "gecersiz", kotu
+        r = v.saglik(cid)["rapor"]
+        assert (r["wan_tur"], r["pppoe"]) == ("pppoe", "bagli")  # reddedilen rapor yazılmadı
+
+
 def test_guncelleme_hedefi_kanal_lisans_ve_hemen():
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
         api, v, n, k, saat = _surumlu(tmp)
         d, r = rapor_yolla(api, k)
-        assert r == {"tamam": True, "sms_etkin_mock": True, "listeler": {}, "guncelleme": {"surum": "0.4.1", "sha256": "ab" * 32, "boyut": 9, "hemen": False}}
+        assert r == {"tamam": True, "sms_etkin_mock": True, "listeler": {}, "ap_parola": v.musteri(n)["ap_parola"],
+                     "guncelleme": {"surum": "0.4.1", "sha256": "ab" * 32, "boyut": 9, "hemen": False}}
         v.guncelleme_hemen_koy(n, 100, "0.4.1")
         assert rapor_yolla(api, k)[1]["guncelleme"]["hemen"] is True
         assert rapor_yolla(api, k, guncelleme={"surum": "0.4.1", "sonuc": "hata", "zaman": 50})[1]["guncelleme"]["hemen"] is True

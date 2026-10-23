@@ -253,6 +253,55 @@ def test_ap_yonetim_parolasi_musteri_sayfasinda():
         assert (h["olay"], h["kim"]) == ("AP_PAROLASI_YENILENDI", "admin") and yeni not in h["ayrinti"] and ap not in h["ayrinti"]
 
 
+def test_ap_parolasi_yenile_notu():
+    """PPPoE (spec 2026-10-23): AP yönetim parolası artık cihaza 5 dk içinde (sağlık cevabıyla) ulaşır; "Yenile"nin yanındaki
+    notta cihaz çevrimdışıyken yenilemenin sonucu söylenir. Eski "her gün 06:00" cümlesi kalmaz."""
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        app, v, _, c, _ = kur(tmp)
+        n, _ = v.musteri_ekle(parola="musteri-parola-1")
+        s = Y.al(app, f"/m/{n}", c)[2].decode()
+        assert "Cihaz çevrimdışıyken yenilerseniz cihaz yeniden bağlanana kadar eski parolayı kullanır." in s
+        hucre = re.search(r"<tr><th>AP yönetim parolası</th><td>(.*?)</td></tr>", s, re.S).group(1)
+        assert f'action="/m/{n}/ap-parola"' in hucre and "Cihaz çevrimdışıyken yenilerseniz" in hucre  # Yenile ile aynı hücrede
+        assert "5 dk içinde" in hucre and "06:00" not in hucre  # günlük eşitlemeyi beklemez
+
+
+def test_cihaz_kartinda_internet():
+    """Müşteri sayfasındaki sağlık kartında "İnternet" satırı (spec 2026-10-23 "Durum ve teşhis"): raporun wan_tur/pppoe
+    alanlarından. Sorunlu durumlar kötü işaretli (kırmızı); alan yoksa (eski cihaz) "—"; değerler kaçırılır."""
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        app, v, _, c, _ = kur(tmp)
+        n, _ = v.musteri_ekle()
+        cid, _ = v.cihaz_bagla(n, WG, SSH, "Kafe")
+
+        def internet(rapor):
+            v.saglik_kaydet(cid, rapor)
+            s = Y.al(app, f"/m/{n}", c)[2].decode()
+            return re.search(r"<tr><th>İnternet</th><td>(.*?)</td></tr>", s, re.S).group(1)
+
+        def kotu(metin):
+            return f'<b class="kotu">{metin}</b>'
+        # spec örneği: parola reddedildi → kötü işaretli
+        assert internet(_rapor(wan_tur="pppoe", pppoe="kimlik_hatasi")) == kotu("PPPoE: parola reddedildi")
+        assert internet(_rapor(wan_tur="dhcp", pppoe="kapali")) == "Modem (DHCP)"
+        assert internet(_rapor()) == "—"  # eski cihaz: alan yok
+        # öteki durumlar (plandaki kart metinleri birebir)
+        assert internet(_rapor(wan_tur="pppoe", pppoe="bagli")) == "PPPoE bağlı"
+        assert internet(_rapor(wan_tur="pppoe", pppoe="baglaniyor")) == "PPPoE: bağlanıyor"
+        assert internet(_rapor(wan_tur="pppoe", pppoe="sunucu_yok")) == kotu("PPPoE: sunucu yanıt vermiyor")
+        assert internet(_rapor(wan_tur="pppoe", pppoe="kablo_yok")) == kotu("kablo yok")
+        assert internet(_rapor(wan_tur="dhcp", pppoe="kablo_yok")) == kotu("kablo yok")
+        assert internet(_rapor(wan_tur="dhcp", pppoe="dhcp_yok")) == kotu("modemden adres alınamadı")
+        # tek alan geldiyse (durum yok): yalnızca tür; bilinmeyen/bozuk değer "—" ve sayfa çökmez
+        assert internet(_rapor(wan_tur="dhcp")) == "Modem (DHCP)" and internet(_rapor(wan_tur="pppoe")) == "PPPoE"
+        assert internet(_rapor(pppoe="bagli")) == "PPPoE bağlı"
+        for bozuk in ("x", "<b>", 5, None, ["bagli"], {"bagli": 1}):
+            assert internet(_rapor(wan_tur=bozuk, pppoe=bozuk)) == "—", bozuk
+        # WAN satırı olduğu gibi kalır (adres var/yok); İnternet hemen ondan sonra gelir
+        s = Y.al(app, f"/m/{n}", c)[2].decode()
+        assert s.index("<th>WAN</th>") < s.index("<th>İnternet</th>") < s.index("<th>SMS</th>")
+
+
 def test_tek_admin_parolasi_sayfasi():
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
         app, v, _, c, _ = kur(tmp)

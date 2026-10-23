@@ -70,6 +70,17 @@ def parola_formdan(form):
 SMS_ETIKET = {"gonderildi": "SMS gitti", "mock": "deneme modu", "sinir": "günlük SMS sınırı",
               "yok": "SMS gönderilmedi (uyarılar kapalı)"}
 ONEM_ETIKET = {"kritik": "kritik", "uyari": "uyarı", "bilgi": "bilgi"}
+# Sağlık kartındaki "İnternet" satırı (PPPoE, spec 2026-10-23 "Durum ve teşhis"): raporun `pppoe` durum kodu → (metin, sorunlu mu)
+INTERNET_DURUMLARI = {
+    "kapali": ("Modem (DHCP)", False),
+    "kablo_yok": ("kablo yok", True),
+    "dhcp_yok": ("modemden adres alınamadı", True),
+    "sunucu_yok": ("PPPoE: sunucu yanıt vermiyor", True),
+    "kimlik_hatasi": ("PPPoE: parola reddedildi", True),
+    "baglaniyor": ("PPPoE: bağlanıyor", False),
+    "bagli": ("PPPoE bağlı", False),
+}
+INTERNET_TURLERI = {"dhcp": "Modem (DHCP)", "pppoe": "PPPoE"}  # durum kodu yokken yalnızca `wan_tur`
 SINIR_ARALIK = veri_modulu.UYARI_SINIR_ARALIK  # günlük SMS sınırı aralığı (yönetim formu)
 DENEME_METNI = "WifiCorrect deneme uyarısı"
 
@@ -97,6 +108,19 @@ def gecmis_sms_etiketleri(x, simdi):
             and simdi - (_epoch(x["kapanis"]) or 0) < TEKRAR_SN):
         return acilis, "düzeldi bekletiliyor"
     return acilis, "—"
+
+
+def internet_metni(r):
+    """Sağlık kartındaki "İnternet" satırı (HTML): raporun `pppoe` durum koduna göre; kod yoksa ya da bilinmiyorsa yalnızca
+    `wan_tur`; ikisi de yoksa (eski cihaz) ya da bozuksa "—". Sorunlu durumlar kötü işaretli. `r` cihazdan gelen veri: yalnızca
+    bilinen değerler gösterilir (bilinmeyen değer sayfaya hiç girmez)."""
+    durum, tur = r.get("pppoe"), r.get("wan_tur")
+    if isinstance(durum, str) and durum in INTERNET_DURUMLARI:
+        metin, sorunlu = INTERNET_DURUMLARI[durum]
+        return f'<b class="kotu">{e(metin)}</b>' if sorunlu else e(metin)
+    if isinstance(tur, str) and tur in INTERNET_TURLERI:
+        return e(INTERNET_TURLERI[tur])
+    return "—"
 
 
 def once(sn):
@@ -554,8 +578,8 @@ class Yonetim(web.Taban):
         ap_parola = (f'<span class="sir">{e(m["ap_parola"])}</span>'
                      f'<form method="post" action="/m/{n}/ap-parola" class="satir-ici"><input type="hidden" name="csrf" value="{cs}">'
                      '<button class="ikincil">Yenile</button></form><br><span class="alt">AP\'nin (modemin) yönetim parolası; panel '
-                     'parolasını AP\'ye yazmayın. Yenilenirse AP\'de elle değiştirilir; cihaz panelinde sonraki eşitlemeden '
-                     '(her gün 06:00) sonra görünür.</span>')
+                     'parolasını AP\'ye yazmayın. Yenilenirse AP\'de elle değiştirilir; cihaza 5 dk içinde ulaşır (cihaz panelinde '
+                     'görünür). Cihaz çevrimdışıyken yenilerseniz cihaz yeniden bağlanana kadar eski parolayı kullanır.</span>')
         bilgi = bilgi_tablosu([("Numara", str(n)), ("Parola", parola), ("AP yönetim parolası", ap_parola),
                                ("Lisans", f"{lisans_metni} · bitiş {e(common.tarih_goster(lbitis) or '—')}"),
                                ("Not", e(m["not_"] or "—")), ("Oluşturma", e(common.tarih_goster(m["olusturma"]))),
@@ -628,7 +652,7 @@ class Yonetim(web.Taban):
         return bilgi_tablosu([
             ("Son rapor", zaman), ("Sürüm", e(r.get("surum", "—"))), ("Açık kalma", acik), ("Servisler", servis),
             ("Disk", f'%{e(r["disk_yuzde"])}' if "disk_yuzde" in r else "—"), ("Son mühür", e(common.tarih_goster(r.get("son_muhur")) or "—")),
-            ("WAN", durum(r.get("wan"), True)), ("SMS", durum(r.get("sms_sorunu"), False)),
+            ("WAN", durum(r.get("wan"), True)), ("İnternet", internet_metni(r)), ("SMS", durum(r.get("sms_sorunu"), False)),
             ("Bağlı cihaz", e(r.get("bagli", "—")))])
 
     def _sorun_gecmisi(self, n):

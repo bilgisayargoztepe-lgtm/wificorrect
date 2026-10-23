@@ -69,7 +69,8 @@ modellerde yedek yol Windows betiğidir (4. bölüm). Tasarım: `docs/superpower
    sahibinin panel parolasını AP'ye yazmayın:** o parola panel.wificorrect.com'da bütün 5651 kayıtlarını açar; bütün
    AP'ler aynı adreste açıldığı için tarayıcının sakladığı AP parolası başka müşterinin AP'sine gidebilir, ucuz AP'ler
    parolayı zayıf saklayabilir ya da şifresiz HTTP'den gönderebilir. AP parolası yönetimde **Yenile** ile değişirse AP'de
-   elle değiştirilir (cihaz panelinde sonraki eşitlemeden — her gün 06:00 — sonra görünür).
+   elle değiştirilir (cihaza 5 dk içinde ulaşır ve cihaz panelinde görünür; 0.4.17'den eski cihazlarda sonraki eşitlemeden
+   — her gün 06:00 — sonra). Aynı parola cihazın giriş sayfasındaki **Servis** için de anahtardır (aşağıda, 5. bölüm).
 7. **Yönetim adresi:** sabit `10.50.0.2/24` (birden çok AP'de .3, .4 …; DHCP havuzu .20–.249 dışında), ağ geçidi
    ve DNS `10.50.0.1`. Kaydedince bağlantı kopar: panelde **AP adresleri** kutusuna `10.50.0.2` yazıp **AP açıkken**
    kaydedin — cihaz o anki MAC'i (ör. `10.50.0.2 (MAC 70:4f:57:dd:7a:e8)`) sabitler ve panel bu adrese yalnızca bu
@@ -145,6 +146,11 @@ scripts\ap-ac.cmd -Adres 192.168.1.1 -Tunel 10.99.0.11 -Kuru     (yalnızca yön
    buradadır. Başka porttaki misafirlerden AP'ye giden trafik cihazın köprü yalıtımıyla zaten düşer; ayrı güvenlik
    duvarı kuralı yoktur.
 4. Kontrol: telefonla SSID'ye bağlanın, giriş sayfası açılıyor mu; panelde "Ağdaki cihazlar"da AP `10.50.0.2` görünüyor mu.
+5. **İnternet yoksa** (PPPoE'li hatta ONT'ye takılı cihaz bağlanamıyorsa ya da modem arızalıysa): telefonla misafir Wi-Fi'ına bağlanın
+   ("internet yok" uyarısına rağmen bağlı kalın), tarayıcıya **`10.50.0.1:8080/servis`** yazın → **Servis** (parola: bu müşterinin
+   AP yönetim parolası, 3.6). PPPoE kullanıcı adını, parolayı ve gerekirse VLAN'ı girip **Kaydet ve bağlan**; sayfa birkaç saniyede bir
+   durumu gösterir, internet gelince giriş sayfası açılır. Servis yalnızca cihazın interneti yokken açılır; yanlış parola 5 denemeden sonra
+   15 dakika kilitler. Ayrıntı: `docs/KURULUM_GUNLUGU.md` "PPPoE".
 
 ## Bilinen tuzaklar
 
@@ -173,3 +179,6 @@ scripts\ap-ac.cmd -Adres 192.168.1.1 -Tunel 10.99.0.11 -Kuru     (yalnızca yön
   "Bağlan" deyin.
 - AP yönetim parolası müşterinin panel parolasından bağımsızdır (panel parolası değişince AP'ye dokunulmaz); yönetimde
   yenilenirse AP'de elle güncellenir.
+- **Servis'e yazılan AP yönetim parolası şifresiz Wi-Fi'dan (HTTP) gider:** yakındaki biri yakalayabilir. Servis'i kullandıktan sonra
+  yönetimde bu müşterinin AP yönetim parolasını **Yenile** deyip AP'ye de elle yazın (cihaz çevrimdışıyken yenilerseniz cihaz yeniden
+  bağlanana kadar eski parolayı kullanır).

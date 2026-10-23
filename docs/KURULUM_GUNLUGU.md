@@ -721,8 +721,8 @@ Dal `ap-arayuz`; tasarım `docs/superpowers/specs/2026-10-16-ap-arayuz-design.md
     zehirlemesine karşı tam koruma değildir (AP açıkken iki cihaz aynı adresi kullanırsa komşu kaydı değişebilir).
   - **Hedef dosyası yarışı** (final review M1): hedefi yazan işlemler (git, şema/port değişimi, MAC'te kapatma, kapat)
     süreç içi kilitle sıraya girer; okunamayan hedef dosyası `Yok` sayılır ama silinmez.
-  - **AP yönetim parolası:** merkezden gelir (`merkez.json` `ap_parola`, bağlanırken ve her eşitlemede), panel → AP kurulumu
-    → Takılan cihaz'da gösterilir ("henüz gelmedi" notuyla); yanında gizli pencere notu.
+  - **AP yönetim parolası:** merkezden gelir (`merkez.json` `ap_parola`, bağlanırken ve her eşitlemede; 0.4.17'den itibaren 5 dk'lık
+    sağlık cevabında da, bkz. "PPPoE"), panel → AP kurulumu → Takılan cihaz'da gösterilir ("henüz gelmedi" notuyla); yanında gizli pencere notu.
   - İstek: AP'ye HTTP/1.0, `Connection: close`, `Accept-Encoding: identity`; Host / Origin / Referer AP'nin kendi
     adresine (Origin/Referer yalnızca `https://<gelen Host>` ile başlıyorsa; başkası gitmez); X-WFC-*, X-Forwarded-*,
     Forwarded, Via, Proxy-*, koşullu istek başlıkları (If-*), Cookie'de wca/wcc/wfc ve merkezin `_` yaptığı parçalar
@@ -780,3 +780,254 @@ Dal `ap-arayuz`; tasarım `docs/superpowers/specs/2026-10-16-ap-arayuz-design.md
   - **Eski kuralla kurulmuş AP'ler** (2026-10-16'ya kadar AP parolası = işletme sahibinin panel parolası): Göztepe'nin
     TP-Link'i ve önceden kurulmuş her AP'nin yönetim parolası yeni **AP yönetim parolası**na çevrilmeli; panel parolası bir
     AP'ye yazıldıysa (betikle ya da ap.wificorrect.com üzerinden) o müşterinin panel parolası da yenilenmeli.
+
+## PPPoE (2026-10-23, 0.4.17)
+Dal `pppoe`; tasarım `docs/superpowers/specs/2026-10-23-pppoe-design.md`, plan `docs/superpowers/plans/2026-10-23-pppoe.md`. Sürüm
+**0.4.17**. Bazı işletmelerde araya modem girmeyecek: internet alan Ethernet portuna doğrudan ONT'den ya da binanın merkezinden
+gelen kablo takılır ve hat adresi DHCP ile değil **PPPoE** ile (operatörün verdiği kullanıcı adı ve parolayla) verir. Kapsam
+yalnızca **internet alan portta PPPoE** (işletme ağı, personel Wi-Fi'ı, ONT'nin yerine geçmek ve PPPoE üzerinden IPv6 yok). Kod
+hazır, cihazda sahte operatörle denendi; **henüz yayınlanmadı** (`v0.4.17` etiketi yok) ve gerçek bir PPPoE hattında denenmedi
+(aşağıda "Canlı kabul listesi").
+- **Akış:** (1) *Dükkânda hazırlık:* cihaz modemle (DHCP) çalışırken panel → Ayarlar → Portlar → **PPPoE** kutusunda Açık, operatörün
+  kullanıcı adı (ör. `5321234567@turk.net`), parola, gerekirse VLAN (Türk Telekom altyapısındaki hatlarda genelde 35) → Uygula → 3 dk
+  içinde Onayla (mevcut port değişikliği akışı). Dükkânda PPPoE sunucusu olmadığı için durum "PPPoE sunucusu yanıt vermiyor" görünür,
+  cihaz DHCP ile çalışmaya devam eder (kutuda not: "Dükkânda PPPoE bağlanmaz; ONT'ye takılınca bağlanır."). (2) *Müşteride:* internet
+  portu ONT'ye / bina kablosuna takılır; PPPoE bağlanır, tünel ve merkez gelir, panelde "PPPoE bağlı (dış IP …)". (3) *Bağlanamazsa:*
+  teknisyen müşteride, internet ve SMS olmadan, telefonla misafir Wi-Fi'ına bağlanıp giriş sayfasındaki **Servis** ile düzeltir
+  (aşağıda). **DHCP hep açık kalır** (dhcpcd ve WAN DHCP bekçisi bugünkü gibi): hangisi bağlıysa o kullanılır, ikisi de bağlıysa
+  PPPoE'nin varsayılan rotası (metrik **100**) DHCP'ninkinin (1000+) önünde kalır; aynı cihaz iki hatta da ayar değiştirmeden çalışır.
+- **Ayar** (`/etc/wificorrect/ag.toml`, 600, root; yeni `[pppoe]` bölümü): `acik` (false), `kullanici` (tek alan: modemlerdeki "kullanıcı
+  adı @ alan" birlikte), `parola` (yalnızca yazılır), `vlan` (0 = yok, 1-4094), `oncelik` (VLAN 802.1p, 0-7; yalnızca VLAN varken
+  anlamlı), `mtu` (1492; 1280-1492, modemlerdeki "MRU"), `kimlik` (`otomatik` | `pap` | `chap`), `ac_adi`, `servis_adi` (boş =
+  herhangi biri). Bölümü olmayan eski ag.toml'da PPPoE kapalıdır; 0.4.17'nin yazdığı ag.toml 0.4.16'da da yüklenir (bilinmeyen
+  tablo yok sayılır: uzaktan güncellemenin geri dönüşü bozulmaz). Doğrulama (`ag::pppoe_dogrula`; panel, Servis ve `write_files`
+  kullanır): açıkken kullanıcı adı ve parola boş olamaz; ikisi en çok 128 bayt, kontrol karakteri, `"` ve `\` içermez (pppd dosyasına
+  satır sokulamasın); VLAN, öncelik ve MTU aralıkları; kimlik üç değerden biri; AC ve servis adı boş ya da en çok 64 karakter
+  `A-Z a-z 0-9 . _ -`. `write_files` PPPoE açıkken önce doğrular: geçersiz bilgi hiçbir dosya yazılmadan reddedilir (pppd seçenek
+  dosyasındaki her satır root'a bir seçenek verir). Dükkândaki modemin "Ethernet WAN" sayfasındaki seçeneklerden bilerek **olmayanlar:**
+  bağlantı türü (hep sürekli), varsayılan rota ve NAT (hep açık), IP protokolü (yalnız IPv4), köprü ve port eşleştirme, MAC klon
+  (Portlar'daki "internet portu MAC'i" ayarı), 1492'den büyük MRU. `Ag`/`Pppoe` hiçbir yerde `{:?}` ile biçimlenmez (türetilmiş
+  `Debug` parolayı içerir).
+- **Birim ve dosyalar:** pppd ayrı bir systemd biriminde, `wificorrect-pppoe.service`: `ConditionPathExists=/etc/ppp/peers/wificorrect`,
+  `After=network.target`, `ExecStartPre=/usr/local/bin/wificorrect ctl pppoe-hazirla`, `ExecStart=/usr/sbin/pppd call wificorrect
+  nodetach`, `ExecStopPost=… ctl pppoe-temizle`, `Restart=always`, `RestartSec=10`, `RestartSteps=5`, `RestartMaxDelaySec=300`,
+  `SuccessExitStatus=5` (pppd SIGTERM'de 5 ile çıkar; durdurma birimi "failed" yapmasın). Geçici bir systemd işinde değil, ayrı birimde
+  (2026-10-03 dersi: geçici işte başlatılan süreç iş bitince ölür). `ProtectSystem`/`PrivateTmp` bilerek yok: pppd `/etc/resolv.conf` ve
+  `/run/ppp`'ye yazar. **Postinst birimi etkinleştirmez**; açık/kapalıyı program yönetir (`pppoe::birim_uygula`: açıkken `systemctl
+  enable` + `restart`, kapalıyken `disable --now`) ve `switch` (panel geçişi, geri alma, fabrika dönüşü) ile `pppoe_uygula` (Servis)
+  ikisi de çağırır. **Bağlantı dosyası** `/etc/ppp/peers/wificorrect` (600; yalnızca PPPoE açıkken var, kapanınca ve fabrika dönüşünde
+  silinir) ag.toml'dan üretilir: `plugin pppoe.so`, `nic-<arayüz>`, `ifname wfcppp`, `user "…"`, `password "…"`, `noauth`, `hide-password`,
+  `noipdefault`, `defaultroute`, `defaultroute-metric 100`, `usepeerdns`, `persist`, `maxfail 3`, `holdoff 10`, `lcp-echo-interval 10`,
+  `lcp-echo-failure 6`, `mtu N`, `mru N`, `noipv6`; `kimlik=pap` → `refuse-chap/-mschap/-mschap-v2/-eap`, `chap` → `refuse-pap/-eap`;
+  AC/servis adı doluysa `pppoe-ac "…"` ve `pppoe-service "…"` (eklenti seçenekleri, `plugin` satırından sonra; `pppoe-ac-name` diye bir
+  seçenek **yok**: pppd 2.5.2 eklenti kaynağından, gerçek pppd ikisini de sahte operatörde kabul etti, yanlış değerle bağlanmadı). Sistemin
+  ortak `chap-secrets`/`pap-secrets` dosyalarına dokunulmaz. pppd 2.5.2 dosyanın her satırını Debian'ın `/etc/ppp/options`'u (`auth`,
+  `lock`, `crtscts`, `modem` …) ile birlikte kabul etti ve her seçenek etkisiyle doğrulandı (ör. `noauth` o `auth`'u ezer). **DNS:**
+  operatörün DNS'i `usepeerdns` ile gelir (Debian'ın ppp kancası `/etc/resolv.conf`'u yazar, dnsmasq yukarı akış olarak onu okur; DHCP
+  de bağlıysa son yazan geçerli, ikisi de çalışan DNS'tir) — gerçek hatta doğrulanmadı (sahte operatör denemesi `usepeerdns`i kaldırır).
+- **Yeniden deneme sınırsızdır ama başarısızken yavaşlar:** pppd arka arkaya 3 başarısız denemeden sonra çıkar (`maxfail 3`); birim onu
+  10 sn'den başlayıp 5 adımda 5 dk'ya çıkan gecikmeyle yeniden başlatır (`RestartSec`/`RestartSteps`/`RestartMaxDelaySec`; systemd 257'de
+  birim sözdizimi `systemd-analyze verify` ile doğrulandı). Düşen bağlantıyı `persist` yeniden kurar (operatör oturumu kapatırsa pppd hemen
+  yeniden keşfe başlar; kimlik reddinde `holdoff 10` araya girer). Neden, sahte operatörde ölçüldü: yanlış parolada `holdoff` işler (~13
+  sn'de bir deneme), ama yanlış kimlik **yöntemi** seçilince (kimlik=pap ya da chap, operatör öbürünü ister) LCP hiç kalkmaz, `holdoff`
+  uygulanmaz ve pppd ~3,3 sn'de bir yeni oturum açar (saatte ~1000 deneme; bazı operatörler hesabı kilitler). `maxfail 3` ile yanlış
+  parolada pppd üç redden (3,1 / 16,3 / 29,5 sn) sonra ~31 sn'de kendiliğinden çıktı. Bedeli: uzun bir operatör kesintisinden sonra yeniden bağlanma 5 dk'ya kadar sürebilir. İlk taslak "sınırsız
+  yeniden deneme" (`maxfail 0`) diyordu.
+- **VLAN:** `vlan > 0` ise birim başlarken (`pppoe-hazirla`) internet portu açılır, `<wan>.<vlan>` kurulur (`ip link add link <wan> name
+  <wan>.<vlan> type vlan id <vlan>`; `oncelik > 0` ise `egress-qos-map 0:<oncelik>`: giden çerçevelere 802.1p önceliği) ve açılır; pppd
+  `nic-<wan>.<vlan>` kullanır. Birim durunca (`ExecStopPost`) `pppoe-temizle` internet portunun `<wan>.<rakam>@<wan>` adlı bütün VLAN
+  arayüzlerini siler: ayardaki VLAN'a değil adın biçimine bakar (VLAN değişince ya da PPPoE kapanınca eskisi kalmasın), başka portların
+  VLAN'larına dokunmaz. Arayüz kurulamazsa birim başlamaz (systemd 10 sn sonra yeniden dener).
+- **Güvenlik duvarı, NAT, MSS:** `arayuzler.nft` artık bir küme: `define WAN = { "<internet portu>", "wfcppp" }` (PPPoE kapalıyken de;
+  olmayan arayüz adı eşleşmez, zararsız). Böylece `guvenlik.nft`'teki yönetim, iletim (`oifname $WAN … mark 0x5651`) ve masquerade
+  kuralları ile `hiz.nft` sayaçları değişmeden iki arayüzü de kapsar. **Yönetim:** PPPoE'de cihaz genel IP alır; yönetim kuralı yalnızca
+  özel kaynak adreslerini kabul ettiği için internetten panel ve SSH kapalı kalır (bugünkü "genel IP alırsa yönetim kapalı"); yönetim
+  tünelden. **MSS düzeltmesi:** `chain forward`'ın **ilk** kuralı `tcp flags syn / syn,rst tcp option maxseg size set rt mtu` (sonraki
+  `ct state established,related accept` SYN-ACK'leri kabul edip değerlendirmeyi bitirirdi, MSS'e sıra gelmezdi): SYN ve SYN-ACK'in MSS'i
+  çıkış rotasının MTU'suna indirilir, yalnızca küçültür. Cihazda üç ad alanıyla ölçüldü: çıkış MTU 1400 → MSS 1360, 1492 → 1452, 1500'de
+  değişmez (yani bugünkü DHCP cihazlarında etkisiz); sahte operatör denemesinde (`mss`) kuralsız 1460, kurallı 1452. 5651'de NAT
+  kaydındaki `nat_ip`/`nat_port` artık doğrudan operatörün gördüğü adres (modemin ikinci NAT'ı yok); şema aynı. **Yükseltme nft'yi
+  yeniden yüklemez** (postinst dokunmaz): MSS kuralı bir sonraki açılışta, WAN kümesi (`arayuzler.nft` pakette yok, program yazar) ilk
+  PPPoE ayarında ya da bir port değişikliğinde devreye girer; PPPoE ayarını uygulayan iki yol da (panel geçişi `switch`, Servis
+  `pppoe_uygula`) ortak sonda (`ag::ortak_kuyruk`) `nft -f guvenlik.nft` ve `hiz.nft`'yi yeniden yükler — yoksa yükseltilmiş cihazda
+  çekirdekteki eski tek adlı WAN ile `wfcppp` trafiği iletilmez ve NAT'lanmazdı. Yeniden yükleme kapı tablolarına (`inet hotspot`,
+  oturum setleri) dokunmaz.
+- **Yavaşlatma (HTB):** yükleme yönündeki kök trafiğin gerçekten çıktığı arayüze kurulur: `ag::etkin_cikis` en düşük metrikli varsayılan
+  rota `wfcppp` ise `wfcppp`, yalnız DHCP rotası varsa ya da rota yoksa internet alan Ethernet (`ip -o route show default`; arayüzsüz
+  `blackhole default` gibi rotalar sayılmaz). Kaydedici (5 sn) ve panelin anında uygulaması (`ctl hiz-uygula`) aynı kuralı kullanır; rota
+  okunamazsa (asılı/süresi dolan `ip`) kaydedici o tur uzlaştırmaz. `wfcppp` her yeniden bağlanmada yeniden doğar ve kökü kaybolur: 30 sn'lik
+  kök denetimi yeniden kurdurur. **Çıkış değişince** (`enp3s0` ↔ `wfcppp`) önceki planın izindeki (`/run/wificorrect/hiz_uygulanan`) yeni
+  plana girmeyen arayüzlerin kökü silinir (`tc qdisc del dev X root`; yoksa eski çıkışta kalan sınıflar sonraki hız değişikliklerinde
+  misafiri ikinci kez yavaşlatırdı); kök denetimi yalnızca uygulanmış plandaki arayüzlere bakar (taze doğan `wfcppp`'nin kökü yoktur ama
+  henüz planda değildir, izi silmemeli — silseydi eski kök temizlenemezdi). Küçük açık: başka bir olay (nft tablosunun yeniden yüklenmesi,
+  port değişikliği, fabrika) izi zaten silmişse eski çıkıştaki kök temizlenmez (yeniden başlatmaya kadar).
+- **Tünel MTU'su:** PPPoE açıkken WireGuard yapılandırmasına `MTU = <mtu − 80>` yazılır (varsayılanda 1412; elle bozulmuş ag.toml'daki
+  1280-1492 dışı değer aralığa çekilir); kapalıyken satır yoktur ve dosya bugünküyle birebir aynıdır (yükseltme PPPoE'siz cihazlarda
+  tüneli yeniden yazdırmaz). `uzak::mtu_esitle`, `switch` ve `pppoe_uygula`'nın ortak sonunda (güvenlik duvarı → hız sayaçları → pppd birimi
+  → tünel) dosyadaki MTU istenenden farklıysa yazar ve `wg-quick@wfc`'i yeniden başlatır: tünel birkaç sn düşer (DNS yavaşsa 15 sn'ye
+  kadar), uzak yöneticinin bağlantısı kısa süre kesilir. Sonuç yalnızca `UZAK_ERISIM` denetimine yazılır (sonu `(MTU 1412)` / `(MTU otomatik)`);
+  başarısızlığı ağ hatası sayılmaz (tünel gözcüsü eksik tüneli dosyadan kurar). Uzak erişim kapalıysa dokunulmaz. Açılışta geri alma
+  (ağ henüz kalkmadı) tünel MTU'sunu ayarlamaz; sonraki ayar uygulamasında düzelir.
+- **Durum** (`pppoe::durum`; panel Portlar, sağlık raporu ve giriş sayfası uyarısı aynı yerden): `kapali` "PPPoE kapalı (modemden DHCP)" ·
+  `kablo_yok` "Kablo takılı değil" · `dhcp_yok` "Modemden adres alınamadı (modem kapalı ya da kablo yanlış porta takılı)" · `sunucu_yok`
+  "PPPoE sunucusu yanıt vermiyor (kablo doğru porta mı, VLAN gerekli mi?)" · `kimlik_hatasi` "Kullanıcı adı ya da parola reddedildi" ·
+  `baglaniyor` "Bağlanıyor…" · `bagli` "PPPoE bağlı (dış IP …)". **Çözüm sırası** (`durum_coz`): internet portunda kablo yoksa her şeyden önce
+  `kablo_yok` (pppd kablo çekilince eski adresi ~70 sn daha tutar); PPPoE kapalıysa DHCP adresi varsa `kapali`, yoksa `dhcp_yok`; açıkken
+  `wfcppp`'de adres varsa `bagli` (günlükteki eski hatalar geçersiz); yoksa pppd birim günlüğünün son 10 dk'sı (`journalctl -u
+  wificorrect-pppoe.service --since -10min -o cat`) sondan taranır ve kararı veren ilk iz belirler: `authentication failed` ya da `refused to
+  authenticate` (yanlış kimlik yöntemi) → `kimlik_hatasi`; `timeout waiting for pado` ya da `unable to complete pppoe discovery` →
+  `sunucu_yok`; `authentication succeeded` taramayı bitirir (oturum düşmüş, pppd yeniden deniyor); iz yoksa `baglaniyor`. Satırlar küçük
+  harfe çevrilip alt dizgiyle eşlenir: systemd altında pppd satırları çift (syslog + stdout) ve birimin başlangıç satırlarıyla gelebilir,
+  tekrar sonucu değiştirmez. 169.254/16 (dhcpcd'nin IPv4LL'i), loopback ve 0.0.0.0 adres sayılmaz. Okumalar tembeldir (kapalıyken günlük,
+  bağlıyken DHCP adresi okunmaz) ve komut başına 5 sn sınırlıdır. Gerçek pppd 2.5.2 satırları (sahte operatörden, parola ve kullanıcı adı
+  içermez): `tests/fixtures/pppoe/{bagli,kimlik_hatasi,kimlik_hatasi_pap,sunucu_yok}.log`. **Gecikmeler:** ayar değişince önceki sonuç
+  yenisi gelene kadar gösterilir (`sunucu_yok` ≤ ~35 sn, `kimlik_hatasi` ≤ ~13 sn); birim hiç başlayamazsa (`ExecStartPre` hatası, ör. VLAN
+  arayüzü kurulamadı) günlükte pppd satırı olmaz → `baglaniyor` kalır; ölü hat ~70 sn (LCP yankı 10 sn × 6) + 6 sn sonra fark edilir, bu
+  sürede `bagli` görünür; bir komut zaman aşımına uğrarsa durum "okunamadı" yerine bir ağ durumu gibi görünebilir (sonraki okumada düzelir).
+- **Panel → Ayarlar → Portlar** (sahip ve hizmet sağlayıcı): internet alan portun altında **PPPoE** kutusu: durum satırı (kapalı/bağlı yeşil
+  nokta, sorunlar kırmızı, "Bağlanıyor…" düz), dükkân notu ve form (`pppoe::form_html`; giriş sayfasındaki Servis aynı alan adlarını ve
+  ayrıştırmayı kullanır): Açık/Kapalı seçimi (`pppoe_acik` = `acik`|`kapali`; `formdan` `1`'i de açık sayar), Kullanıcı adı, Parola, VLAN (boş =
+  yok) ve **Gelişmiş** (VLAN önceliği, MTU, Kimlik doğrulama, AC adı, Servis adı; varsayılandan farklı değer varsa bölüm açık gelir). Form
+  parola dışında kayıtlı değerlerle dolu gelir: "Kapalı" gönderince kullanıcı adı ve ileri alanlar silinmez. **Parola yalnızca yazılır:** hiçbir
+  sayfaya, denetime ya da mesaja geri yazılmaz; boş gönderilirse kayıtlı parola kalır, yani **kayıtlı bir PPPoE parolası panelden silinemez**
+  (yalnızca yenisiyle değiştirilir; PPPoE'yi kapatınca dosyada kalır, fabrika dönüşü siler). Kullanıcı adı, AC ve servis adı baştan/sondan
+  kırpılır, parola olduğu gibi alınır. Kaydetme **mevcut port değişikliği akışından** geçer (hazırlanan `ag-yeni.toml` → geri alma
+  zamanlayıcısı → `ag::gecis` → `switch` → 3 dk içinde "Çalışıyor, onayla"; onaylanmazsa ya da açılışta onay yoksa eski ayarla PPPoE da
+  geri gelir); `ag::gecis` boş parolayı birleştirmez, panel kayıtlı parolayı hazırlanan dosyaya kendisi yazar. Geçersiz ayar doğrulama
+  mesajıyla `/portlar`'a döner, hiçbir şey hazırlanmaz. Bir PPPoE değişikliği de ağı yeniden kurar (misafirler birkaç sn düşer, açık AP
+  yan odası kapanır). Panel `/portlar` ve `/ayarlar` açılışında 1-2 kısa komut çalıştırır (`ip`; PPPoE açık ve bağlı değilse `journalctl`), her biri
+  en çok 5 sn.
+- **Giriş sayfası: internet yokken uyarı ve Servis** (`src/portal.rs`, `src/sablon/servis.html`): koşul cihazın **varsayılan rotasının
+  olmaması** (`ip -o route show default` boş: ne DHCP ne PPPoE), PPPoE açık da kapalı da olsa (bütün cihazlarda; modem arızasında da).
+  Sonuç 10 sn önbellekte, tek yoklama; `ip` çalışmazsa ya da süresi dolarsa internet var sayılır (emin olunamayınca Servis açılmaz); rota
+  yokken internet alan portun durumu `pppoe::durum` ile okunur (internet varken `journalctl` çalışmaz). Misafire açık sayfada **internet
+  varken hiçbir ayar yüzeyi yoktur:** `/servis`, `/servis?izle=1` ve POST `/servis` giriş sayfasına yönlenir, form işlenmez ve sayılmaz.
+  - **Uyarı:** sayfanın altında "Bu cihazın internet bağlantısı şu an yok" + neden (yukarıdaki durum metni) + **Servis** bağlantısı; **her
+    sayfa türünde** (giriş formu, hatalı yeniden çizimi dahil; kod sayfası; misafir kodu; oturumu açık telefonun "Bağlandınız" sayfası; lisans
+    kapalı ve MAC tanınmadı hata sayfaları), yalnızca Servis'in kendisinde yok. İngilizce sayfada başlık ve bağlantı İngilizce ("This device has
+    no internet connection right now" / "Service"), neden Türkçe. "Bağlandınız" sayfasının 1 sn'lik yönlendirmesi internet yokken atlanır (hedef
+    yüklenemez, uyarı kaybolmasın). **Teknisyen adresi `10.50.0.1:8080`** ya da doğrudan **`10.50.0.1:8080/servis`:** internet yokken DNS hiçbir
+    adı çözemez ve telefon "ağda oturum açın" penceresini açmaz, bu yüzden adres elle ve IP ile yazılır (internet yokken DNS'in her adı yanıtlaması
+    reddedildi: her kesintide bütün misafirlerin davranışını ve 5651 DNS kaydını değiştirirdi).
+  - **Servis sayfası** (yalnızca Türkçe, JS yok): durum satırı + tek form: **Servis parolası** (= AP yönetim parolası) + PPPoE alanları
+    (`pppoe::servis_form_html`) → **Kaydet ve bağlan**. Parola her gönderimde birlikte yazılır (oturum ve çerez yok). **Kayıtlı kullanıcı adı
+    hiçbir sayfada gösterilmez** (çoğu kez abonenin telefon numarasıdır, sayfa parola doğrulanmadan misafire açıktır): alan boş gelir, altında
+    "Boş bırakılırsa kayıtlı kullanıcı adı aynı kalır."; boş gönderilirse parola doğrulandıktan sonra kayıtlı ad kullanılır (`kullanici_degisti=0`),
+    hata sayfalarında forma yalnızca o istekte yazılan ad döner. VLAN ve ileri alanlar kayıtlı değerlerle dolu gelir; PPPoE parolası alanı hep
+    boştur (boş = kayıtlı parola kalır, ipucu "Kayıtlı parola aynı kalır").
+  - **Servis parolası** `merkez.json` → `ap_parola`'dır; merkeze sorulmaz, cihazda SHA-256 özetleri üzerinden sabit sürede karşılaştırılır.
+    Yoksa ya da 8 karakterden kısaysa (cihaz bağlanmamış ya da parola eski merkez yüzünden hiç gelmemiş): "Servis parolası tanımlı değil (AP
+    yönetim parolası bu cihaza henüz gelmedi); Servis kullanılamıyor." ve form yok.
+  - **Deneme sınırı** (bellekte; portal yeniden başlayınca ya da cihaz açılınca sıfırlanır): MAC başına (MAC bilinmiyorsa IP başına) 15 dk'da
+    5 yanlış → 15 dk kilit; cihaz genelinde 60 dk'da 20 yanlış → 60 dk kilit (MAC değiştirerek sınırsız deneme olmasın; parola 12 rastgele
+    karakter). Kilit sürerken parolaya bakılmaz ("Çok fazla yanlış deneme; N dakika sonra yeniden deneyin."). Yalnızca yanlış Servis parolası
+    sayılır: boş parola, eksik form ve doğru paroladan sonraki doğrulama hataları sayılmaz; doğru parola o anahtarın yanlışlarını siler (cihaz
+    geneli sayaç kalır). Kontrol, karşılaştırma ve sayma tek kilit altındadır (aynı anda gelen denemeler sınırı aşamaz).
+  - **Uygulama:** doğrulanan ayar `/var/lib/wificorrect/pppoe-servis.toml` olarak (600; ag.toml'daki adlarla `[pppoe]` tablosu; **boş PPPoE
+    parolası dosyaya boş yazılır**, kayıtlı parola kopyalanmaz) hazırlanır ve `systemd-run --collect --unit wfc-pppoe-servis
+    /usr/local/bin/wificorrect ctl pppoe-servis <dosya>` ile ayrı işte uygulanır (portal `ProtectSystem=full`, `/etc`'ye yazamaz; iş
+    beklenmez). `ctl pppoe-servis` dosyayı okur okumaz **siler** (sonuç ne olursa olsun; ayrıştırma hatasının metni gösterilmez, parola
+    taşıyabilir) ve `ag::pppoe_uygula`'yı çağırır: onay bekleyen bir port değişikliği (`ag-bekliyor`) ya da ag.toml yoksa reddeder; boş
+    parolayı kayıtlıyla birleştirir; doğrular; ag.toml'u kaydeder, dosyaları yazar, `nft -f guvenlik.nft` + `hiz.nft`, pppd birimi, tünel MTU'su.
+    Ağı yeniden kurmaz (`switch` değil) ve **geri alma zamanlayıcısı kurmaz** (cihaz zaten çevrimdışı; geri almak teknisyenin düzelttiği bilgiyi
+    yanlış eskisine döndürürdü). Kayıttan sonra sayfa `/servis?izle=1` durum sayfasına geçer (5 sn'de bir meta yenileme, "Ayarları değiştir"
+    bağlantısı); internet gelince giriş sayfasına döner. Önceki iş sürerken yeniden kaydetmek "iş başlatılamadı; birkaç saniye sonra yeniden
+    deneyin" der; ag.toml yoksa ya da port değişikliği onay bekliyorsa sayfa bunu hemen söyler.
+- **AP yönetim parolası cihaza 5 dk içinde ulaşır (≥ 0.4.17):** Servis'in parolası yönetimdeki "Yenile"yle değişebilir, o yüzden merkez onu
+  5 dk'lık sağlık cevabında da gönderir (`/api/saglik` cevabında `ap_parola`; yalnızca bağlı cihaza ve müşterinin parolası doluysa; `/api/eslesme`
+  gibi lisans/askı durumuna bakmaz) ve cihaz (`ctl saglik`) değiştiyse `merkez.json`'a yazar. Cihaz tarafı değeri `merkez::ap_parola_oku` kuralıyla
+  doğrular (8-64 yazdırılabilir ASCII, boşluksuz); geçersiz değer ya da alanı olmayan eski merkez → dokunulmaz; `merkez.json` yoksa (bağlı
+  değil, fabrika dönüşü) dosya oluşturulmaz; aynıysa yazılmaz. Böylece "Yenile"den 5 dk sonra cihaz yeni parolayı bilir ve Servis onu ister.
+  ≤ 0.4.16 cihazlar ile çevrimdışı cihazlar eski parolayı, yeniden bağlanana (ya da günlük 06:00 eşitlemesine) kadar kullanır; yönetimde "Yenile"
+  yanındaki not buna göre güncellendi.
+- **Sağlık raporu ve merkez:** cihaz 12 anahtarlı raporda (`/api/saglik`, 5 dk) iki yeni alan yollar: `wan_tur` (`dhcp` | `pppoe`; ag.toml'da PPPoE
+  açık mı, bağlı olması gerekmez) ve `pppoe` (yukarıdaki durum kodu; DHCP'li cihaz da `kapali`/`dhcp_yok`/`kablo_yok` gönderir). `wan` artık
+  "internet portunun IPv4 adresi var" demektir: Ethernet'te (DHCP) **ya da** yalnızca PPPoE açıkken `wfcppp`'de (PPPoE'de Ethernet'te adres olmaz;
+  PPPoE bağlanamasa da modem hâlâ DHCP veriyorsa `wan=true`, `pppoe` yine hatayı gösterir; kapalıyken `wfcppp` kalıntısı sayılmaz). Merkez
+  (`api.py`) iki alanı bağımsız ve isteğe bağlı doğrular: **bilinmeyen ya da bozuk değer raporu reddetmez, yalnızca o alanı atar** (ileride
+  eklenecek bir durum kodu eski merkezde "Rapor gelmiyor" uyarısı/SMS'i doğurmasın; öteki alanlar yine sıkı doğrulanır, bilinmeyen anahtarlar
+  zaten atılır). Yönetim → müşteri sayfası sağlık kartında "WAN"dan sonra, "SMS"ten önce **"İnternet"** satırı, yalnızca `pppoe` koduna bakar:
+  Modem (DHCP) · kablo yok · modemden adres alınamadı · PPPoE: sunucu yanıt vermiyor · PPPoE: parola reddedildi · PPPoE: bağlanıyor · PPPoE bağlı;
+  sorunlular (kablo yok, adres yok, sunucu yok, parola reddedildi) kırmızı; kod yoksa "—" (eski cihaz ya da atılmış değer). **Yeni sağlık kuralı
+  yok:** PPPoE bağlanamayan cihaz zaten "ulaşılamıyor" olur ve mevcut uyarı SMS'i gider.
+- **Denetim olayları:** `PANEL_PORT` satırı `ag::describe` metnine (`… , PPPoE açık (VLAN 35)`) ek olarak ` pppoe=acik|kapali vlan=N
+  kullanici_degisti=0|1 parola_degisti=0|1` taşır (kullanıcı adı ve parola yazılmaz); Servis: `SERVIS_GIRIS` ek `sonuc=hatali|kilit` (MAC, IP;
+  `kilit` her kilit dönemi için bir kez), `SERVIS_PPPOE` ek `pppoe=acik|kapali vlan=N kullanici_degisti=0|1 parola_degisti=0|1` (MAC, IP; iş
+  başlatılamazsa sonuna ` hata=yazilamadi|baslatilamadi`), uygulayan komut `PPPOE_SERVIS_UYGULANDI` ek `pppoe=acik|kapali vlan=N[ hata=…]`;
+  tünel MTU'su `UZAK_ERISIM`; AP parolası `AP_PAROLA_MERKEZ` ek `kaynak=saglik` (değer yazılmaz), yazılamazsa `MERKEZ_EK_HATA` (`ap_parola: …`). Mevcut
+  `AG_UYGULANDI` / `AG_ONAYLANDI` / `AG_GERI_ALINDI` aynen. Hiçbir olay, sayfa ya da hata metni PPPoE kullanıcı adını, PPPoE parolasını ya da Servis
+  parolasını taşımaz (testlerle sabitlendi).
+- **Sahte operatör denemesi** (`scripts/pppoe-deneme.sh`, cihazda root; `ppp` ve **yalnızca bu deneme için** `pppoe` Debian paketleri kurulu
+  olmalı, `pppoe` Depends'e girmez): `scp scripts/pppoe-deneme.sh wificorrect:/root/ && ssh wificorrect bash /root/pppoe-deneme.sh` (~4,5 dk;
+  kurulu sürümde `ctl pppoe-peers` yoksa başa `WFC=/root/rza/target/debug/wificorrect`; belirli senaryolar `bash /root/pppoe-deneme.sh bagli vlan`;
+  yarıda kalanın artıkları `--temizle`; çıkış kodu: hepsi PASS 0, en az bir FAIL 1, kurulum hatası 2; günlükler `/root/pppoe-deneme/`). Cihazın kendi
+  içinde üç ağ ad alanı (`wfc-isp` operatör, `wfc-cpe` cihaz, `wfc-lan` MSS için misafir) ve ad alanının içinde doğan sanal kablolar: operatör
+  tarafı `pppoe-server`, cihaz tarafı **gerçek `pppd call wificorrect nodetach`** (bağlantı dosyasını `ctl pppoe-peers <ag.toml> <arayüz>` üretir). `/etc/ppp`,
+  `/etc/resolv.conf` ve `/run` iki tarafta da yalıtılır (`/etc/netns/…`, ad alanına özel tmpfs): sistemin `/etc/ppp`'si ve kancaları kullanılmaz, kök
+  `/run`'a hiçbir şey yazılmaz; yalnızca kendi süreçleri durdurulur (`pkill` yok; 2026-10-03 dersi: netns süreçleri ayırmaz, cihazın kendi `dhcpcd`'si de
+  ölürdü); başta ve sonda kök ad alanı (ip addr/route/rule/link, nft kuralları, `resolv.conf`, `/etc/ppp`, `ip_forward`) karşılaştırılır. **18 kontrol:**
+  `bagli` (IP 15 sn içinde, rota `metric 100`, MTU 1492), `kimlik_hatasi` (CHAP) ve `kimlik_hatasi_pap`, `sunucu_yok`, `vlan_gerekli` (olumsuz: VLAN'sız
+  istemci VLAN'lı operatöre bağlanmaz) ve `vlan` (`egress-qos-map`), `ac_yanlis` + `servis_yanlis` (olumsuz) ve `ac_servis`, `kimlik_pap` / `kimlik_chap` ve
+  `kimlik_chap_red` / `kimlik_pap_red` (`refuse-*` satırları yanlış yöntemi gerçekten engelliyor), `yeniden_baglanma` (operatör durup gelince),
+  `hat_kopmasi` (iki yönde paket düşürme; cihazın kendi LCP yankı algılaması), `mss`, `parola_gizli` (hiçbir çıktıda parola yok), `kok_ad_alani`. **Canlı Göztepe'de
+  2026-10-23: 18 PASS, 0 FAIL (254,5 sn); kök ad alanı (adres, rota, nft, `resolv.conf`) denemeden önce ve sonra aynı;** dört tam turun hepsi 18/18. Ölçülen
+  süreler: oturum 3,3 sn; yanlış parolada yeni deneme 13 sn sonra (`holdoff` işliyor); yanlış yöntemde ~3,3 sn'de bir (`holdoff` yok); operatör yokken bir
+  keşif turu 35 sn; operatör kapanıp gelince yeniden bağlanma ~5 sn; hat kopması ~70 sn (+6 sn) sonra fark edilir, hat gelince ~9 sn. Hat kopması iki
+  yönde paket düşürülerek taklit edildi (arayüzler ayakta kalır); gerçek kablo çekme denenmedi (çekirdeğin PPPoE sürücüsü taşıyıcı değişiminde oturumu
+  bırakmaz diye değerlendirildi, kaynak okumasına dayanır) → canlı kabulde.
+- **Testler (2026-10-24, sürüm 0.4.17):** cihazda `bash scripts/test.sh wificorrect` → 443 birim testi geçti; merkez `sh
+  scripts/sunucu/merkez/tests/hepsi.sh py` → 22/22 dosya `TUM TESTLER GECTI`. Cihaz birim testleri pppd gerektirmez (sahte `/sys`, sahte komut
+  çalıştırıcı, gerçek pppd günlük örnekleri); testler `ag::Yollar`'a geçici dizin verir (canlı `/etc/ppp` ve `/etc/wireguard` yolları yerine).
+- **Paket ve kurulum sırası:** `paket/control.in` Depends'e **`ppp`** (Debian 13: 2.5.2, PPPoE eklentisi içinde); uzaktan güncelleme `apt-get install
+  ./paket.deb` ile bağımlılığı Debian deposundan çeker (cihazın internet erişimi gerekir; iki canlı cihazda `ppp` Debian deposundan kurulabildiği
+  doğrulandı). Birim pakette ama postinst etkinleştirmez (`scripts/paket-test.sh` bunu denetler: birim pakette, `multi-user.target.wants`'ta bağlantı
+  yok, `/usr/sbin/pppd` kurulu; yalnızca CI'da çalışır, bu makinede çalıştırılamadı). PPPoE kapalı cihazlarda yükseltmeden sonra görünen fark: yeni
+  (devre dışı) birim, internet yokken giriş sayfasındaki uyarı ve Servis, sağlık raporunda iki yeni alan ve sağlık cevabıyla gelen AP yönetim parolası;
+  güvenlik duvarı değişiklikleri yukarıdaki gibi sonra devreye girer. **Merkez ile cihaz güncelleme sırası önemsizdir:** eski merkez yeni cihazın
+  raporundaki bilinmeyen anahtarları atar (raporu reddetmez), eski cihaz cevaptaki `ap_parola`'yı yok sayar; yeni merkez + eski cihazda "İnternet"
+  satırı "—" ve Servis yoktur. Servis'in AP parolasını 5 dk'da alması için ikisi de 0.4.17 olmalıdır. Merkez: `scripts/sunucu/merkez-guncelle.sh`
+  (kullanıcı, sudo). Cihazlar: `v0.4.17` etiketi → release → Yönetim → Sürümler → kanal hedefi (docs/DEVAM.md "Dallar ve durum").
+- **Bilinen sınırlar ve riskler:**
+  - *Operatörün hesabı kilitlemesi:* yanlış kullanıcı adı/parola/kimlik yöntemiyle cihaz yoklamayı sürdürür (yukarıdaki geri çekilmeyle: 3 denemelik
+    turlar, tur arası bekleme 10 sn'den 5 dk'ya); bazı operatörler yine de kilitleyebilir, teknisyen yanlış bilgiyi hemen düzeltmelidir. systemd'in
+    `RestartSteps` sayacı sağlıklı bir çalışmadan sonra sıfırlanıyor mu **doğrulanmadı** (sıfırlanmıyorsa en kötü durum: beşinci kesintiden sonra her
+    kesintide 5 dk'ya kadar gecikme, elle yeniden başlatmaya ya da açılışa kadar).
+  - *Servis parolası şifresiz ağdan gider:* giriş sayfası HTTP, Wi-Fi şifresiz; yakındaki biri o anki AP yönetim parolasını yakalayabilir (bu parola o
+    müşterinin AP'sini de korur). Etki o müşteriyle sınırlı; Servis yalnızca cihaz çevrimdışıyken vardır. Servis kullanıldıktan sonra yönetimde AP
+    yönetim parolasını **Yenile** deyip AP'ye de yazın. (Ortak admin parolası bilerek Servis'te kullanılmaz.)
+  - *Cihaz geneli kilit* kesinti sırasında bir misafirce tetiklenebilir (20 yanlış deneme → 60 dk); portal yeniden başlayınca/cihaz açılınca kalkar.
+  - *Operatörün tek oturum sınırı:* bazı operatörler aynı hesapla tek PPPoE oturumuna izin verir; müşterinin eski modemi de bağlıysa biri düşer
+    (kurulumda eski modem sökülür). VLAN bilinmezse cihaz `sunucu_yok`'ta kalır (operatörden sorulup Servis'ten girilir).
+  - *Bayat/yanlış görünüm:* durum sayfası ayar sonrası ~35 sn geriden gelebilir; ölü hat ~76 sn boyunca `bagli` görünür; sağlık raporundaki `wan`
+    169.254/16 adresini de sayar (ONT köprü kipinde DHCP vermezse dhcpcd Ethernet'e IPv4LL atar: `wan=true` ama `pppoe=sunucu_yok`; durum ve internet
+    koşulu IPv4LL'i saymaz — yalnızca görünüm).
+  - *Servis kayıt yarışı:* kayıttan hemen sonra (iş dosyayı okumadan) ikinci kayıt aynı hazırlık dosyasının üzerine yazabilir ya da silebilir; sonucu durum
+    sayfasında görüp gerekirse yeniden kaydedin.
+  - *Küçükler:* USB Ethernet gibi uzun adlı (`enx…`) internet portlarında `<port>.<vlan>` adı Linux'un 15 karakter sınırını aşabilir (J1900'ün
+    `enp1s0`/`enp3s0`'unda sorun yok); `pppoe-hazirla` tekrar çalıştırılabilir değildir (VLAN arayüzü zaten varsa kurulum başarısız olur; her durdurma
+    `pppoe-temizle` çalıştırdığı için normal akışta olmaz); internet portu başka porta geçerken eski portun `<port>.<vlan>` arayüzü yeniden başlatmaya
+    kadar artık kalabilir; PPPoE'li müşteride de ekransız açılış için sahte ekran fişi ve BIOS "Restore on AC Power Loss" gerekir (ayrı konu, docs/DEVAM.md).
+- **Canlı kabul listesi** (henüz yapılmadı; ilk PPPoE'li müşteride, **yanında yedek modemle**; cihazlar 0.4.17, merkez güncel):
+  - *Dükkânda (DHCP):* panelde PPPoE kutusu görünüyor mu; uydurma bilgiyle Açık → Uygula → Onayla: durum "PPPoE sunucusu yanıt vermiyor (…)", DHCP
+    internet ve tünel sürüyor (kopmuyor), kapatınca `/etc/ppp/peers/wificorrect` siliniyor, VLAN arayüzü gidiyor, tünel yapılandırmasındaki `MTU` satırı kalkıyor.
+    Cihazın AP yönetim parolası geldi mi (panel → AP kurulumu → Takılan cihaz; yönetimdekiyle aynı olmalı: cihaz çevrimdışı kalınca Servis'in tek anahtarı).
+  - *ONT'ye takınca:* PPPoE bağlanıyor mu; `ip -o route show default` → `default dev wfcppp scope link metric 100`; panelde "PPPoE bağlı (dış IP …)"; Yönetim →
+    müşteri → sağlık kartı "İnternet: PPPoE bağlı"; tünel kalkıyor (`ip link show wfc` MTU 1412, el sıkışma) ve merkez bağlantısı geliyor.
+  - **Bir kez `journalctl -u wificorrect-pppoe.service -o cat` bakın** (pppd'nin systemd altındaki gerçek çıktısı sahte operatörde gözlenmedi: satırlar çift mi
+    geliyor, hangi başlangıç satırları var; durum çözümleyici alt dizgiyle eşler, ama kimlik/PADO/`local  IP address` satırları gerçek operatörde beklenen
+    biçimde mi) ve panel durumunun doğru olup olmadığını karşılaştırın.
+  - *Misafir:* SMS ile giriş (gerçek SMS yalnızca kullanıcının onayıyla), büyük sayfalar ve HTTPS siteler açılıyor mu (MSS), misafir DNS çözümü ve
+    `/etc/resolv.conf` (operatör DNS'i; DHCP ile birlikteyken son yazan), 5651 `trafik.csv`'de `nat_ip` operatörün verdiği dış IP.
+  - *Yavaşlatma:* bir cihazı yavaşlat (ör. 2 Mb/sn) → `tc -s class show dev wfcppp` sınıf sayaçları artıyor mu; **PPPoE'yi düşürüp/kabloyu çekip geri gelince
+    (çıkış arayüzü değişti)** yine `tc -s class show dev wfcppp` (sınıflar yeniden kuruldu mu, sayaçlar işliyor mu) ve eski çıkış `tc qdisc show dev enp3s0 root`
+    (HTB kalmamış olmalı).
+  - *Kopma:* kabloyu çekip takın (ya da ONT'yi kısa süre kapatın): kablo çekilince `kablo_yok` hemen görünür; kablo gelince kendiliğinden yeniden
+    bağlanma; kablo takılıyken hat ölürse (ONT kapanınca) ~70 sn'de fark edilmesi ve durum satırı.
+  - *Geri çekilme:* yanlış parolayla bırakıp `journalctl` zaman damgalarından yeniden deneme aralıklarının 10 sn'den 5 dk'ya çıktığını görün; sağlıklı
+    bağlandıktan sonraki bir kesintide aralığın 10 sn'den yeniden başladığını (`RestartSteps` sıfırlanması) doğrulayın (şimdilik doğrulanmadı).
+  - *Servis:* panelden bilerek yanlış parola (ya da bu hattın VLAN'ı yanlış) → durum "Kullanıcı adı ya da parola reddedildi"; telefonla misafir Wi-Fi'ına bağlanın:
+    telefon "internet yok" uyarısına rağmen Wi-Fi'da kalıyor mu (iOS ve Android), `10.50.0.1:8080` ve `10.50.0.1:8080/servis` açılıyor mu, uyarı + Servis bağlantısı
+    görünüyor mu; AP yönetim parolasıyla doğru bilgiyi yazın → izleme sayfası → bağlanma → giriş sayfasına dönüş; yanlış Servis parolası 5 kez → kilit mesajı ve
+    `SERVIS_GIRIS` satırları; kayıtlı kullanıcı adı hiçbir Servis sayfasında görünmüyor.
+  - *Yükseltme:* PPPoE kapalı Göztepe ve Visavis'te güncelleme sonrası misafir girişi, tünel ve `nft` kuralları eskisi gibi; `dpkg -s ppp` kurulu; sağlık kartında
+    "İnternet: Modem (DHCP)" ve yönetimde "Yenile"den 5 dk sonra cihazda yeni AP parolası.

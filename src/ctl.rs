@@ -531,6 +531,23 @@ fn sms_sonucu_kaydet(sms: Result<bool, String>, yeni: &Config, cfg_path: &str, d
     }
 }
 
+/// Sağlık cevabıyla gelen AP yönetim parolası (spec 2026-10-23): merkezde "Yenile"den sonra cihaza 5 dk içinde inmesi için
+/// `merkez.json`'a yazılır (Servis sayfasının parolası bu; bağlanırken ve her eşitlemede de gelir). Parola yalnızca dosyadakinden
+/// FARKLIYSA yazılır (aynıysa dosyaya dokunulmaz: 5 dk'da bir boşuna yazım olmasın), dosya yazmadan hemen önce yeniden okunur
+/// (cevap beklenirken başka bir yazım olduysa onun üzerine yazılmasın) ve dosya yoksa (cihaz bağlı değil, fabrika dönüşü) bağ
+/// oluşturulmaz. Denetime parola yazılmaz: yalnızca kaynağı (`AP_PAROLA_MERKEZ kaynak=saglik`); yazılamazsa `MERKEZ_EK_HATA`.
+fn ap_parola_kaydet(merkez_path: &std::path::Path, yeni: &str, denetim: &dyn Fn(&str, String)) {
+    let Some(mut m) = crate::merkez::oku(merkez_path) else { return };
+    if m.ap_parola == yeni {
+        return;
+    }
+    m.ap_parola = yeni.to_string();
+    match crate::merkez::kaydet(merkez_path, &m) {
+        Ok(()) => denetim("AP_PAROLA_MERKEZ", "kaynak=saglik".into()),
+        Err(e) => denetim("MERKEZ_EK_HATA", format!("ap_parola: {e}")),
+    }
+}
+
 /// `ayar::Config::eski_sirlari_temizle` (postinst ve açılış): hata tek satır, çıkış etkilenmez.
 fn eski_sirlari_temizle() {
     let cfg_path = std::env::var("WFC_AYAR").unwrap_or_else(|_| crate::ayar::PATH.to_string());
@@ -676,14 +693,18 @@ pub fn run(cfg: Config, args: &[String]) -> ExitCode {
             let mut liste_isi = false;
             match crate::saglik::calistir(&cfg, std::path::Path::new(crate::merkez::PATH), &k, &http, now) {
                 Ok(cevap) => {
+                    let denetim = |olay: &str, ek: String| ortak::audit(&cfg.main.log_root, Row::new(olay, &ortak::now_iso(now)).set("ek", ek));
                     // merkezin etkin deneme modu (Özet uyarısı, sms_sorunu): yalnızca değiştiyse kaydedilir
                     if cevap.sms_mock.is_some() {
                         let cfg_path = std::env::var("WFC_AYAR").unwrap_or_else(|_| crate::ayar::PATH.to_string());
                         let mut yeni = cfg.clone();
                         let ek = crate::merkez::Ek { admin: None, sms_mock: cevap.sms_mock };
                         let (_, sms) = crate::merkez::ek_uygula(&mut yeni, &crate::hesap::Hesaplar::new(crate::hesap::PATH), &ek);
-                        let denetim = |olay: &str, ek: String| ortak::audit(&cfg.main.log_root, Row::new(olay, &ortak::now_iso(now)).set("ek", ek));
                         sms_sonucu_kaydet(sms, &yeni, &cfg_path, &denetim);
+                    }
+                    // AP yönetim parolası (Servis sayfası): merkezde yenilendiyse 06:00'ı beklemeden bu turda iner
+                    if let Some(parola) = cevap.ap_parola.as_deref() {
+                        ap_parola_kaydet(std::path::Path::new(crate::merkez::PATH), parola, &denetim);
                     }
                     if let Some(h) = cevap.hedef {
                         // karar Kur ise hedef.json yazılır ve güncelleme ayrı systemd işinde başlar (birim varsa systemd reddeder)
@@ -1304,6 +1325,66 @@ mod tests {
         let hata_runner = |x: &[String]| !x.join(" ").starts_with("systemctl restart");
         assert_eq!(kod(pppoe_servis(&c, &y, &dosya, &hata_runner, NOW + 5.0)), kod(ExitCode::from(1)));
         assert!(denetim().contains("hata=PPPoE başlatılamadı"));
+    }
+
+    #[test]
+    fn saglik_cevabindaki_ap_parola_merkez_jsona_yazilir() {
+        use std::os::unix::fs::PermissionsExt;
+        let (c, root) = cfg();
+        std::fs::create_dir_all(&root).unwrap();
+        let p = root.join("merkez.json");
+        let denetim = |olay: &str, ek: String| ortak::audit(&c.main.log_root, Row::new(olay, &ortak::now_iso(NOW)).set("ek", ek));
+        let dosya = || std::fs::read_to_string(ortak::day_file(&c.main.log_root, ortak::day_of(&ortak::now_iso(NOW)), "denetim.csv")).unwrap_or_default();
+        let satirlar = |olay: &str| dosya().lines().filter(|l| l.split(';').nth(1) == Some(olay)).map(String::from).collect::<Vec<_>>();
+
+        // cihaz merkeze bağlı değil (merkez.json yok): bağ oluşturulmaz, denetim yok
+        ap_parola_kaydet(&p, "Kp7mQx2Rtz4W", &denetim);
+        assert!(!p.exists() && dosya().is_empty());
+
+        // cevaptaki parola dosyadakinden farklı: yalnızca ap_parola değişir (öteki alanlar aynen), dosya 600, denetimde yalnızca kaynak
+        let m = crate::merkez::Merkez {
+            numara: "4511643".into(),
+            tuz: "t".into(),
+            ozet: "o".into(),
+            yineleme: 120_000,
+            cihaz_anahtari: "gizli-anahtar".into(),
+            son_eslesme: 5.0,
+            ap_parola: "Eski2345Abcd".into(),
+            ..Default::default()
+        };
+        crate::merkez::kaydet(&p, &m).unwrap();
+        ap_parola_kaydet(&p, "Kp7mQx2Rtz4W", &denetim);
+        assert_eq!(crate::merkez::oku(&p).unwrap(), crate::merkez::Merkez { ap_parola: "Kp7mQx2Rtz4W".into(), ..m.clone() });
+        assert_eq!(std::fs::metadata(&p).unwrap().permissions().mode() & 0o777, 0o600);
+        let s = satirlar("AP_PAROLA_MERKEZ");
+        assert_eq!(s.len(), 1, "{}", dosya());
+        assert!(s[0].ends_with(";kaynak=saglik"), "{}", s[0]);
+        assert!(!dosya().contains("Kp7mQx2Rtz4W") && !dosya().contains("Eski2345Abcd") && !dosya().contains("gizli-anahtar"), "{}", dosya());
+
+        // aynı parola: dosyaya dokunulmaz (bayt bayt aynı; kaydet() girintili yazar, elle sıkışık yazılan dosya yeniden yazılsaydı değişirdi), denetim yok
+        let sikisik = serde_json::to_vec(&crate::merkez::oku(&p).unwrap()).unwrap();
+        std::fs::write(&p, &sikisik).unwrap();
+        ap_parola_kaydet(&p, "Kp7mQx2Rtz4W", &denetim);
+        assert_eq!(std::fs::read(&p).unwrap(), sikisik);
+        assert_eq!(satirlar("AP_PAROLA_MERKEZ").len(), 1);
+
+        // dosyada hiç parola yok (alan yazılmaz: eski bağ ya da merkez henüz göndermemişti): gelen yazılır
+        crate::merkez::kaydet(&p, &crate::merkez::Merkez { ap_parola: String::new(), ..m.clone() }).unwrap();
+        assert!(!std::fs::read_to_string(&p).unwrap().contains("ap_parola"));
+        ap_parola_kaydet(&p, "Yeni2345Abcd", &denetim);
+        assert_eq!(crate::merkez::oku(&p).unwrap().ap_parola, "Yeni2345Abcd");
+        assert_eq!(satirlar("AP_PAROLA_MERKEZ").len(), 2);
+
+        // yazılamazsa (geçici dosya adı bir dizin): dosya aynı kalır, hata denetime düşer ama parola ve anahtar düşmez
+        std::fs::create_dir(root.join("merkez.tmp")).unwrap();
+        let once = std::fs::read(&p).unwrap();
+        ap_parola_kaydet(&p, "Baska2345Abcd", &denetim);
+        assert_eq!(std::fs::read(&p).unwrap(), once);
+        assert_eq!(satirlar("AP_PAROLA_MERKEZ").len(), 2);
+        let hata = satirlar("MERKEZ_EK_HATA");
+        assert_eq!(hata.len(), 1, "{}", dosya());
+        assert!(hata[0].contains("ap_parola"), "{}", hata[0]);
+        assert!(!dosya().contains("Baska2345Abcd") && !dosya().contains("Yeni2345Abcd") && !dosya().contains("gizli-anahtar"), "{}", dosya());
     }
 
     #[test]

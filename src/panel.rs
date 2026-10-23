@@ -3100,6 +3100,8 @@ mod tests {
             peers: e.root.join("peers"),
             durum: e.root.join("durum"),
             hiz_uygulanan: e.root.join("hiz_uygulanan"),
+            uzak_key: e.root.join("wg.key"),
+            uzak_conf: e.root.join("wireguard/wfc.conf"),
         };
         let (tok, csrf) = setup_and_login(&e, "mudur", "sahip-parola-12"); // kafe sahibi de port değiştirebilir
         let page = e.p.handle(&req("GET", "/portlar", &[], Some(&tok))).body;

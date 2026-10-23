@@ -7,6 +7,7 @@
 use crate::ayar::Config;
 use crate::ortak::{self, Row, Runner};
 use crate::pppoe;
+use crate::uzak;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -108,6 +109,10 @@ pub struct Yollar {
     pub durum: PathBuf,
     /// Yavaşlatmanın uygulanmış plan izi: arayüzler yeniden kurulunca silinir (tc kökleri gitti)
     pub hiz_uygulanan: PathBuf,
+    /// WireGuard tünelinin gizli anahtarı ve yapılandırması: PPPoE açılıp kapanınca tünel MTU'su buradan eşitlenir (src/uzak.rs).
+    /// Yollarda durur ki testler (panel, ctl, fabrika dahil) gerçek tünele ve `/etc/wireguard/wfc.conf`a dokunmasın.
+    pub uzak_key: PathBuf,
+    pub uzak_conf: PathBuf,
 }
 
 impl Yollar {
@@ -121,6 +126,8 @@ impl Yollar {
             peers: "/etc/ppp/peers/wificorrect".into(),
             durum: "/var/lib/wificorrect".into(),
             hiz_uygulanan: crate::hiz::UYGULANAN_YOLU.into(),
+            uzak_key: uzak::KEY.into(),
+            uzak_conf: uzak::CONF.into(),
         }
     }
     fn yedek(&self) -> PathBuf {
@@ -434,12 +441,7 @@ pub fn switch(cfg: &Config, ag: &Ag, y: &Yollar, runner: &Runner) -> Vec<String>
     // WAN (allow-hotplug; ifup -a getirmez) kendi biriminde: dhcpcd buradan (geçici bir systemd işinden) başlatılsaydı
     // iş bitince systemd onu da öldürürdü ve IP kira sonunda (modemde 1 saat) düşerdi (2026-10-03'te yaşandı)
     runner(&cmd(&["systemctl", "restart", &wan_unit(&ag.wan)]));
-    if !runner(&cmd(&["nft", "-f", "/etc/wificorrect/guvenlik.nft"])) {
-        errs.push("güvenlik duvarı yüklenemedi".into());
-    }
-    // Hız sayaçları WAN adını yükleme anında alır → yeniden yükle (idempotent, sayaçlar kalır); köprü yeniden kurulduğu için
-    // tc kökleri gitti → plan izi silinir, kaydedici sonraki turda yavaşlatmaları yeniden kurar. Hata ağ geçişini durdurmaz.
-    runner(&cmd(&["nft", "-f", "/etc/wificorrect/hiz.nft"]));
+    // Köprü yeniden kurulduğu için tc kökleri gitti → plan izi silinir, kaydedici sonraki turda yavaşlatmaları yeniden kurar.
     let _ = fs::remove_file(&y.hiz_uygulanan);
     if !runner(&cmd(&["systemctl", "restart", "dnsmasq"])) {
         errs.push("dnsmasq başlatılamadı".into());
@@ -448,9 +450,32 @@ pub fn switch(cfg: &Config, ag: &Ag, y: &Yollar, runner: &Runner) -> Vec<String>
     if !runner(&cmd(&["systemctl", wifi, "wificorrect-wifi"])) && ag.wifi.acik {
         errs.push("Wi-Fi yayını başlatılamadı".into());
     }
+    // switch'i kullanan her yol (panel geçişi, geri alma, fabrika dönüşü) güvenlik duvarını, pppd'yi ve tüneli de ayara getirir
+    errs.extend(ortak_kuyruk(cfg, ag, y, runner));
+    errs
+}
+
+/// `switch` (ağ geçişi) ile `pppoe_uygula`'nın (Servis) ortak sonu: yeni ag.toml'a göre güvenlik duvarı, hız sayaçları, pppd birimi
+/// ve WireGuard tünelinin MTU'su ayara getirilir. İki yol aynı sonla bitsin, yeni bir adım yalnızca birine eklenip öbürü unutulmasın
+/// diye tek yerde durur. Yavaş adımlar (birim ve tünel yeniden başlatma) sondadır: `switch`te dnsmasq ve Wi-Fi onları beklemez.
+/// Dönen: kalan hatalar.
+fn ortak_kuyruk(cfg: &Config, ag: &Ag, y: &Yollar, runner: &Runner) -> Vec<String> {
+    let mut errs = vec![];
+    // Çekirdeğe yüklü kurallar WAN adını yükleme anında alır: yükseltilmiş cihazda eski tek adlı WAN ile kuruludur (arayuzler.nft
+    // ancak şimdi küme oldu) ve yeniden yüklenmezse wfcppp'den gelen/giden trafik iletilmez ve NAT'lanmaz; WAN başka porta
+    // geçtiyse de eski ad kalırdı.
+    if !runner(&cmd(&["nft", "-f", "/etc/wificorrect/guvenlik.nft"])) {
+        errs.push("güvenlik duvarı yüklenemedi".into());
+    }
+    // Hız sayaçları da WAN adını yükleme anında alır → yeniden yükle (idempotent, sayaçlar kalır). Hata ağ geçişini durdurmaz.
+    runner(&cmd(&["nft", "-f", "/etc/wificorrect/hiz.nft"]));
     // PPPoE: pppd ayrı birimde. Açıksa yeni bağlantı dosyasıyla yeniden başlar; kapalıysa durur ve açılışta başlamaz.
-    // switch'i kullanan her yol (panel geçişi, geri alma, fabrika dönüşü) pppd'yi de ayara getirir.
     errs.extend(pppoe::birim_uygula(ag, runner));
+    // Tünel MTU'su hattı izler (PPPoE açıkken hat MTU'su − 80, kapalıyken satır yok). Sonuç yalnızca denetime yazılır: başarısız
+    // yeniden başlatma ağ/PPPoE hatası değildir, tünel gözcüsü (kaydedici) arayüz yoksa tüneli dosyadaki MTU ile yeniden kurar.
+    if let Some(r) = uzak::mtu_esitle(cfg, &y.uzak_key, &y.uzak_conf, uzak::tunel_mtu(ag), runner) {
+        uzak::audit(cfg, ortak::wall(), &r);
+    }
     errs
 }
 
@@ -492,7 +517,7 @@ pub fn gecis(cfg: &Config, y: &Yollar, new_path: &Path, now: f64, runner: &Runne
 /// **Geri alma zamanlayıcısı kurulmaz**: Servis cihaz internetsizken kullanılır; geri almak teknisyenin düzelttiği bilgiyi yanlış
 /// eskisine döndürürdü. Boş parola = eskisi kalır (parola hiçbir yerde geri gösterilmez). Geçersiz ayar (ya da onay bekleyen bir
 /// port değişikliği: süresi dolunca geri alma yedeği bu ayarı ezerdi) `Err`, hiçbir şey değişmez. Dönen: kalan hatalar.
-/// Ağı yeniden kurmaz (`switch` değil): ag.toml, bağlantı dosyası, güvenlik duvarı kuralları, pppd birimi.
+/// Ağı yeniden kurmaz (`switch` değil): ag.toml, bağlantı dosyası, güvenlik duvarı kuralları, pppd birimi, tünel MTU'su.
 pub fn pppoe_uygula(cfg: &Config, y: &Yollar, yeni: &Pppoe, runner: &Runner) -> Result<Vec<String>, String> {
     if pending(y).is_some() {
         return Err("Bir port değişikliği onay bekliyor (en çok 3 dakika); onaylanınca ya da geri alınınca yeniden deneyin.".into());
@@ -509,13 +534,7 @@ pub fn pppoe_uygula(cfg: &Config, y: &Yollar, yeni: &Pppoe, runner: &Runner) -> 
     if let Err(e) = write_files(cfg, &ag, y) {
         errs.push(e);
     }
-    // Yükseltilmiş cihazda çekirdeğe yüklü kurallar eski tek adlı WAN ile kuruldu (arayuzler.nft ancak şimdi küme oldu): yeniden
-    // yüklenmezse wfcppp'den gelen/giden trafik iletilmez ve NAT'lanmaz (switch ile aynı yükleme; hız sayaçları da WAN adını alır)
-    if !runner(&cmd(&["nft", "-f", "/etc/wificorrect/guvenlik.nft"])) {
-        errs.push("güvenlik duvarı yüklenemedi".into());
-    }
-    runner(&cmd(&["nft", "-f", "/etc/wificorrect/hiz.nft"]));
-    errs.extend(pppoe::birim_uygula(&ag, runner));
+    errs.extend(ortak_kuyruk(cfg, &ag, y, runner));
     Ok(errs)
 }
 
@@ -583,6 +602,8 @@ mod tests {
             peers: root.join("peers"),
             durum: root.join("durum"),
             hiz_uygulanan: root.join("hiz_uygulanan"),
+            uzak_key: root.join("wg.key"),
+            uzak_conf: root.join("wireguard/wfc.conf"),
         };
         (cfg, y, root)
     }
@@ -714,7 +735,18 @@ mod tests {
 
     impl Yollar {
         fn test(d: &Path) -> Yollar {
-            Yollar { ag: d.join("ag.toml"), interfaces: d.join("interfaces"), nft: d.join("arayuzler.nft"), hostapd: d.join("hostapd.conf"), issue: d.join("issue"), peers: d.join("peers"), durum: d.join("durum"), hiz_uygulanan: d.join("hiz_uygulanan") }
+            Yollar {
+                ag: d.join("ag.toml"),
+                interfaces: d.join("interfaces"),
+                nft: d.join("arayuzler.nft"),
+                hostapd: d.join("hostapd.conf"),
+                issue: d.join("issue"),
+                peers: d.join("peers"),
+                durum: d.join("durum"),
+                hiz_uygulanan: d.join("hiz_uygulanan"),
+                uzak_key: d.join("wg.key"),
+                uzak_conf: d.join("wireguard/wfc.conf"),
+            }
         }
     }
 
@@ -1092,6 +1124,88 @@ mod tests {
         // birim başlamazsa
         let (r, _) = sahte(&["systemctl restart"]);
         assert_eq!(pppoe_uygula(&cfg, &y, &yeni, &r), Ok(vec!["PPPoE başlatılamadı".to_string()]));
+    }
+
+    // ---------------------------------------------------------------- tünel MTU'su (ortak kuyruk: switch ve pppoe_uygula)
+    const UZAK_ANAHTAR: &str = "aBcDeFgHiJkLmNoPqRsTuVwXyZ0123456789+/abcdE=";
+
+    /// Uzak erişimi açık ayar. Gizli anahtar ve yapılandırma yolları `Yollar`dan gelir (testte geçici klasör): gerçek tünele,
+    /// `/etc/wireguard/wfc.conf`a ve `/etc/wificorrect/wg.key`e dokunulmaz.
+    fn uzak_acik(root: &Path, y: &Yollar) -> Config {
+        fs::write(&y.uzak_key, format!("{UZAK_ANAHTAR}\n")).unwrap();
+        Config::parse(&format!(
+            "[main]\nlog_root = '{0}/5651'\nstate_root = '{0}/state'\n[uzak]\nenabled = true\nsunucu = 'vpn.wificorrect.com:51820'\nsunucu_anahtar = '{UZAK_ANAHTAR}'\nadres = '10.99.0.17'\n",
+            root.display()
+        ))
+        .unwrap()
+    }
+
+    #[test]
+    fn tunel_mtusu_switch_ve_servis_yolunda_esitlenir() {
+        let (_, y, root) = setup();
+        let cfg = uzak_acik(&root, &y);
+        // PPPoE'siz cihazın bugünkü tüneli: MTU satırı yok
+        uzak::uygula(&cfg, &y.uzak_key, &y.uzak_conf, None, &sahte(&[]).0).unwrap();
+        save(&y.ag, &Ag::default()).unwrap();
+        let conf = || fs::read_to_string(&y.uzak_conf).unwrap();
+        let tunel = |c: &Arc<Mutex<Vec<String>>>| c.lock().unwrap().iter().filter(|x| x.contains("wg-quick@wfc")).count();
+        let denetim = || fs::read_to_string(ortak::day_file(&cfg.main.log_root, ortak::day_of(&ortak::now_iso(ortak::wall())), "denetim.csv")).unwrap_or_default();
+
+        // PPPoE'siz ayarı yeniden uygulamak tünele dokunmaz (yükseltilen cihazlarda tünel kesilmez, denetim gürültüsü olmaz)
+        let (r, c) = sahte(&[]);
+        assert_eq!(switch(&cfg, &Ag::default(), &y, &r), Vec::<String>::new());
+        assert_eq!(pppoe_uygula(&cfg, &y, &Pppoe::default(), &r), Ok(vec![]));
+        assert_eq!((tunel(&c), conf().contains("MTU")), (0, false));
+        assert!(!denetim().contains("UZAK_ERISIM"), "{}", denetim());
+
+        // Servis yolu: PPPoE açılınca tünel MTU'su 1412 olur; tünel, pppd birimi yeniden başladıktan SONRA yeniden başlar
+        let (r, c) = sahte(&[]);
+        assert_eq!(pppoe_uygula(&cfg, &y, &pppoe_acik(), &r), Ok(vec![]));
+        assert!(conf().contains("Address = 10.99.0.17/24\nMTU = 1412\n"), "{}", conf());
+        sirayla(&c.lock().unwrap(), &["systemctl restart wificorrect-pppoe.service", "systemctl restart wg-quick@wfc.service"]);
+        assert!(denetim().lines().any(|l| l.contains("UZAK_ERISIM") && l.contains("MTU 1412")), "{}", denetim());
+        // aynı ayarı yeniden uygulamak tüneli yeniden başlatmaz
+        let (r, c) = sahte(&[]);
+        assert_eq!(pppoe_uygula(&cfg, &y, &pppoe_acik(), &r), Ok(vec![]));
+        assert_eq!(tunel(&c), 0);
+        // hattın MTU'su 1400 olunca tünel 1320
+        let (r, c) = sahte(&[]);
+        assert_eq!(pppoe_uygula(&cfg, &y, &Pppoe { mtu: 1400, ..pppoe_acik() }, &r), Ok(vec![]));
+        assert!(conf().contains("\nMTU = 1320\n") && !conf().contains("1412"), "{}", conf());
+        sirayla(&c.lock().unwrap(), &["systemctl restart wificorrect-pppoe.service", "systemctl restart wg-quick@wfc.service"]);
+        // PPPoE kapanınca satır kalkar
+        let (r, c) = sahte(&[]);
+        assert_eq!(pppoe_uygula(&cfg, &y, &Pppoe { acik: false, ..Pppoe::default() }, &r), Ok(vec![]));
+        assert!(!conf().contains("MTU"), "{}", conf());
+        sirayla(&c.lock().unwrap(), &["systemctl disable --now wificorrect-pppoe.service", "systemctl restart wg-quick@wfc.service"]);
+
+        // switch yolu (panel geçişi, geri alma, fabrika dönüşü): ağ adımlarından sonra aynı eşitleme
+        let acik = Ag { pppoe: pppoe_acik(), ..Ag::default() };
+        let (r, c) = sahte(&[]);
+        assert_eq!(switch(&cfg, &acik, &y, &r), Vec::<String>::new());
+        assert!(conf().contains("Address = 10.99.0.17/24\nMTU = 1412\n"), "{}", conf());
+        sirayla(&c.lock().unwrap(), &["systemctl restart dnsmasq", "systemctl restart wificorrect-pppoe.service", "systemctl restart wg-quick@wfc.service"]);
+        let (r, c) = sahte(&[]);
+        assert_eq!(switch(&cfg, &Ag::default(), &y, &r), Vec::<String>::new());
+        assert!(!conf().contains("MTU"), "{}", conf());
+        sirayla(&c.lock().unwrap(), &["systemctl disable --now wificorrect-pppoe.service", "systemctl restart wg-quick@wfc.service"]);
+
+        // tünel yeniden başlatılamazsa: ağ/PPPoE hatası sayılmaz (tünel gözcüsü yeniden dener), denetime yazılır; dosya yine güncel
+        let (r, _) = sahte(&["systemctl restart wg-quick"]);
+        assert_eq!(pppoe_uygula(&cfg, &y, &pppoe_acik(), &r), Ok(vec![]));
+        assert!(conf().contains("\nMTU = 1412\n"));
+        assert!(denetim().lines().any(|l| l.contains("UZAK_ERISIM") && l.contains("hata=tünel başlatılamadı")), "{}", denetim());
+    }
+
+    #[test]
+    fn tunel_mtusu_uzak_kapaliysa_dokunulmaz() {
+        let (cfg, y, _) = setup(); // uzak erişim kapalı
+        save(&y.ag, &Ag::default()).unwrap();
+        let (r, c) = sahte(&[]);
+        assert_eq!(pppoe_uygula(&cfg, &y, &pppoe_acik(), &r), Ok(vec![]));
+        assert_eq!(switch(&cfg, &Ag { pppoe: pppoe_acik(), ..Ag::default() }, &y, &r), Vec::<String>::new());
+        assert!(!c.lock().unwrap().iter().any(|x| x.contains("wg-quick")), "{:?}", c.lock().unwrap());
+        assert!(!y.uzak_conf.exists() && !y.uzak_key.exists());
     }
 
     // `ip -o route show default` çıktıları (cihazdaki gerçek biçim: satır sonunda boşluk; DHCP metriği cihaza göre 1002-1003)

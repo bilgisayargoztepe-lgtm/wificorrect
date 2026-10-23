@@ -304,6 +304,24 @@ fn ap_dhcp_denetle(cfg: &Config) -> ExitCode {
     }
 }
 
+/// `ctl uzak-uygula`: tüneli ayara getirir. PPPoE açıksa tünel MTU'su hattan küçülür (`uzak::tunel_mtu`, ag.toml'dan); ag.toml okunamazsa
+/// ya da yoksa PPPoE kapalı sayılır (tünel MTU satırsız kurulur: bugünkü davranış). Sonuç `UZAK_ERISIM` olarak denetime yazılır.
+fn uzak_uygula(cfg: &Config, ag_yolu: &std::path::Path, key: &std::path::Path, conf: &std::path::Path, runner: &Runner, now: f64) -> ExitCode {
+    let mtu = crate::uzak::tunel_mtu(&crate::ag::load(ag_yolu));
+    let r = crate::uzak::uygula(cfg, key, conf, mtu, runner);
+    crate::uzak::audit(cfg, now, &r);
+    match r {
+        Ok(m) => {
+            println!("{m}");
+            ExitCode::SUCCESS
+        }
+        Err(e) => {
+            eprintln!("{e}");
+            ExitCode::from(1)
+        }
+    }
+}
+
 /// `ctl pppoe-peers AG.TOML ARAYUZ` (ağ ad alanındaki sahte operatör denemesi, `scripts/pppoe-deneme.sh`): AG.TOML'daki PPPoE
 /// ayarından pppd bağlantı dosyasının metnini üretir; yalnızca Ethernet arayüzü ARAYUZ'dür (VLAN soneki eklenmez). Dosya yazmaz.
 /// Üretilen dosya kullanılabilir olmalı: ayar açıkmış gibi doğrulanır (boş / satır sokan kullanıcı adı ve parola reddedilir).
@@ -754,21 +772,15 @@ pub fn run(cfg: Config, args: &[String]) -> ExitCode {
                 }
             }
         }
-        // Panel → Admin ayarları → Uzak erişim kaydedilince (ayrı systemd işinde)
-        Some("uzak-uygula") => {
-            let r = crate::uzak::uygula(&cfg, std::path::Path::new(crate::uzak::KEY), std::path::Path::new(crate::uzak::CONF), &runner);
-            crate::uzak::audit(&cfg, now, &r);
-            match r {
-                Ok(m) => {
-                    println!("{m}");
-                    ExitCode::SUCCESS
-                }
-                Err(e) => {
-                    eprintln!("{e}");
-                    ExitCode::from(1)
-                }
-            }
-        }
+        // Panel → Admin ayarları → Uzak erişim kaydedilince ve merkez bağlanınca (ayrı systemd işinde)
+        Some("uzak-uygula") => uzak_uygula(
+            &cfg,
+            &crate::ag::Yollar::sistem().ag,
+            std::path::Path::new(crate::uzak::KEY),
+            std::path::Path::new(crate::uzak::CONF),
+            &runner,
+            now,
+        ),
         // Panel → Bağlı kullanıcılar → Yavaşlat / Yavaşlatmayı kaldır
         Some("hiz-uygula") => {
             // kaydedici ile aynı seçim (yoksa ikisi planı sırayla farklı arayüzlere kurup birbirini bozar): trafiğin gerçekten çıktığı
@@ -1130,7 +1142,52 @@ mod tests {
             peers: root.join("peers"),
             durum: root.join("durum"),
             hiz_uygulanan: root.join("hiz_uygulanan"),
+            uzak_key: root.join("wg.key"),
+            uzak_conf: root.join("wireguard/wfc.conf"),
         }
+    }
+
+    #[test]
+    fn uzak_uygula_tunel_mtusunu_ag_tomlundan_alir() {
+        // `ctl uzak-uygula` (panel → Uzak erişim, merkez bağlama): PPPoE açıksa tünel MTU'su hattan küçülür
+        let (mut c, root) = cfg();
+        std::fs::create_dir_all(&root).unwrap();
+        c.uzak = crate::ayar::Uzak {
+            enabled: true,
+            sunucu: "vpn.wificorrect.com:51820".into(),
+            sunucu_anahtar: "aBcDeFgHiJkLmNoPqRsTuVwXyZ0123456789+/abcdE=".into(),
+            adres: "10.99.0.17".into(),
+        };
+        let (ag_yolu, key, conf) = (root.join("ag.toml"), root.join("wg.key"), root.join("wireguard/wfc.conf"));
+        std::fs::write(&key, "aBcDeFgHiJkLmNoPqRsTuVwXyZ0123456789+/abcdE=\n").unwrap();
+        let calls = Arc::new(Mutex::new(Vec::<String>::new()));
+        let c2 = calls.clone();
+        let runner = move |x: &[String]| {
+            c2.lock().unwrap().push(x.join(" "));
+            true
+        };
+        let kod = |k: ExitCode| format!("{k:?}");
+        let denetim = || std::fs::read_to_string(ortak::day_file(&c.main.log_root, ortak::day_of(&ortak::now_iso(NOW)), "denetim.csv")).unwrap_or_default();
+        let ag = |acik: bool, mtu: u16| crate::ag::Ag { pppoe: crate::ag::Pppoe { acik, mtu, ..Default::default() }, ..Default::default() };
+
+        // ag.toml yok: PPPoE yok sayılır, tünel MTU satırsız kurulur (bugünkü davranış)
+        assert_eq!(kod(uzak_uygula(&c, &ag_yolu, &key, &conf, &runner, NOW)), kod(ExitCode::SUCCESS));
+        assert!(!std::fs::read_to_string(&conf).unwrap().contains("MTU"));
+        // PPPoE açık (hat MTU'su 1400): tünel 1320
+        crate::ag::save(&ag_yolu, &ag(true, 1400)).unwrap();
+        assert_eq!(kod(uzak_uygula(&c, &ag_yolu, &key, &conf, &runner, NOW + 1.0)), kod(ExitCode::SUCCESS));
+        assert!(std::fs::read_to_string(&conf).unwrap().contains("Address = 10.99.0.17/24\nMTU = 1320\n"));
+        assert!(calls.lock().unwrap().iter().any(|x| x == "systemctl restart wg-quick@wfc.service"));
+        // PPPoE kapalı (kullanıcı adı ve MTU ag.toml'da dursa da): satır yok
+        crate::ag::save(&ag_yolu, &ag(false, 1400)).unwrap();
+        assert_eq!(kod(uzak_uygula(&c, &ag_yolu, &key, &conf, &runner, NOW + 2.0)), kod(ExitCode::SUCCESS));
+        assert!(!std::fs::read_to_string(&conf).unwrap().contains("MTU"));
+        // sonuç denetime yazılır; ayar eksikse çıkış 1 ve dosyaya dokunulmaz
+        assert_eq!(denetim().matches("UZAK_ERISIM").count(), 3, "{}", denetim());
+        let once = std::fs::read(&conf).unwrap();
+        c.uzak.sunucu.clear();
+        assert_eq!(kod(uzak_uygula(&c, &ag_yolu, &key, &conf, &runner, NOW + 3.0)), kod(ExitCode::from(1)));
+        assert_eq!(std::fs::read(&conf).unwrap(), once);
     }
 
     #[test]

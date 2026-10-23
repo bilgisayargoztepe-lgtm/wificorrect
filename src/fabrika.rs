@@ -213,6 +213,8 @@ mod tests {
             peers: root.join("peers"),
             durum: root.join("durum"),
             hiz_uygulanan: root.join("hiz_uygulanan"),
+            uzak_key: root.join("wg.key"),
+            uzak_conf: root.join("wireguard/wfc.conf"),
         };
         // önceki işletme PPPoE'li bir hatta: kullanıcı adı ve parola ag.toml'da ve pppd bağlantı dosyasında
         let eski = Ag {
@@ -349,6 +351,8 @@ mod tests {
             peers: root.join("peers"),
             durum: root.join("durum"),
             hiz_uygulanan: root.join("hiz_uygulanan"),
+            uzak_key: root.join("wg.key"),
+            uzak_conf: root.join("wireguard/wfc.conf"),
         };
         let hl = crate::liste::Yollar { dizin: root.join("liste"), conf: root.join("hazir-liste.conf") };
         let apy = crate::ap::Yollar::kok(&root);

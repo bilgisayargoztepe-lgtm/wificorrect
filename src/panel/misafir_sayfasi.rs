@@ -400,7 +400,7 @@ impl Panel {
             "<style>.fis{{max-width:26rem;border:1px dashed var(--cizgi2);padding:20px 24px;margin:8px 0 20px}}\
              .fis .isletme{{font-weight:700;font-size:1.0625rem;margin-bottom:12px}}.fis .etiket{{font-size:.8125rem;color:var(--soluk);margin-top:14px}}\
              .fis .kod{{font:700 2.75rem/1.15 var(--es);letter-spacing:.18em}}.fis p{{margin:14px 0 0;font-size:.875rem}}\
-             @media print{{.ust,.yan,h1,.mesaj,.menu-dugme,.yazdirma-disi{{display:none !important}}.kabuk,main{{display:block !important;margin:0 !important;padding:0 !important;max-width:none !important}}\
+             @media print{{.ust-mobil,.yan,h1,.mesaj,.menu-dugme,.yazdirma-disi{{display:none !important}}.kabuk,main{{display:block !important;margin:0 !important;padding:0 !important;max-width:none !important}}\
              .fis{{border:1px solid #000;margin:0}}}}</style>\
              {dolmus}<p class=\"not yazdirma-disi\">Yazdırmak için Ctrl+P. <a href=\"{YOL}\">Misafir kodlarına dön</a></p>\
              <div class=\"fis\"><div class=\"isletme\">{}</div>\

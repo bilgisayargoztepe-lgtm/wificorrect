@@ -1176,10 +1176,17 @@ gerekmez): wificorrect_ = "wifi" Nunito ExtraBold dik + "correct_" Nunito ExtraB
 - **Sayfaya gömülür:** satır içi SVG + `data:` sekme simgesi (32 px PNG önce, SVG sonra). Cihaz panelinin CSP'si ve Caddy'nin
   cihaz bloğundaki CSP (`img-src data:`) dosya sunmaya izin vermez; gömünce CSP, Caddyfile ve yeni yol gerekmez, cihaz ile merkez
   hangi sırayla güncellenirse güncellensin logo görünür.
-- **Cihaz paneli** (`src/logo.rs`, `panel.html` `.ust`/`.wc-logo`; kullanıcı isteği): üst şerit üç sütun (yan sütunlar eşit):
-  solda işletme adı, **tam ortada** yazılı logo (20 px; telefonda, ≤ 600 px, W_ işareti), sağda Çıkış. Müşteri numarası ve rol
-  ("1537344 · İşletme sahibi") artık gösterilmez; şeritte ve sekme başlığında yalnızca işletme adı (eskiden "… Yönetim").
-  Bağlanmamış cihazda şeritte ad yok (yalnız logo), sekme başlığı "… · WifiCorrect".
+- **Cihaz paneli** (`src/logo.rs`, `panel.html`; kullanıcı isteği): 0.4.19'da üst şerit üç sütundu (solda işletme adı, tam ortada
+  logo, telefonda W_ işareti, sağda Çıkış). Müşteri numarası ve rol ("1537344 · İşletme sahibi") artık gösterilmez; sekme
+  başlığında yalnızca işletme adı (eskiden "… Yönetim"), bağlanmamış cihazda "… · WifiCorrect".
+- **Cihaz paneli yönetim gibi** (dal `cihaz-yan-menu`, kullanıcı isteği; 0.4.19'dan sonraki sürüm): üst şerit kalktı. Solda
+  lacivert menü (`#1d2330`, 220 px, ekran boyunda, sayfayla kaymaz): üstte koyu zemin logosu (Özet'e bağlantı), menü yalnızca yazı
+  (simge yok, seçili sayfa mavi `#0a6ebd`), en altta işletme adı (yalnızca bağlı cihazda) ve beyaz hap biçimli Çıkış. Renkler
+  yönetiminkiler: vurgu kırmızıdan maviye (düğmeler, bağlantılar, bölüm başlıkları, rapor çubukları), gri tonlar yönetimin soğuk
+  grileri, hata `#a4262c`, başarı `#1e6b34`; içerik zemini beyaz kaldı. Telefonda (≤ 820 px) ince lacivert şerit: menü düğmesi +
+  logo; menü onay kutusuyla açılır (betik yok), logo şeritte olduğu için menüde gizli, işletme adı ve Çıkış menünün sonunda.
+  Oturumsuz sayfalar (bağlama, yerel not) yönetimin giriş sayfası gibi: beyaz şerit, solda açık zemin logosu, gri zemin, beyaz
+  kart. W_ işareti (`w-koyu.svg`) cihazda kullanılmıyor (merkez testi iki kopyayı karşılaştırdığı için klasörde duruyor).
 - **Merkez** (`web._cerceve`): yönetimde sol menünün başında ve telefondaki üst şeritte koyu logo; müşteri paneli, giriş sayfaları ve
   AP geçidinin sade sayfalarında (beyaz şerit) açık logo. Logo dosyası okunamazsa "WifiCorrect" yazısı.
 - Misafirlerin giriş sayfası (işletmenin sayfası) değişmedi. Testler: cihazda `src/logo.rs` + panel testleri, merkezde `test_logo.py`.

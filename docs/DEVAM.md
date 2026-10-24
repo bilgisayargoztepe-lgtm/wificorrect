@@ -80,7 +80,7 @@ yalnızca `g["surum"] == m["guncelleme_hemen_surum"]` ise tüket (+ test). Sür�
 müşteri, Bekleyen cihazlar) · Kayıtlar (Hareketler, Eski arşivler) · Ayarlar (Engel listeleri, SMS ayarları, Uyarı ayarları,
 Sürümler, Hesabım) · Çıkış; gruplar ok işaretiyle aşağı açılır (açık sayfanın grubu açık), telefonda menü gizli, üst şeritteki ☰ düğmesi açar (cihaz paneli gibi). Bütün cihazların admin parolası Hesabım'da
 (`/admin-parolasi` yalnızca kaydeder; açılınca Hesabım'a yönlenir). Müşteri paneli (panel.wificorrect.com) üst şeritte kaldı.
-**Logo (2026-10-24, dal `logo`):** yeni wificorrect_ logosu (kullanıcının kiti `Desktop/logo`) cihaz panelinde üst şeridin tam ortasında (telefonda W_ işareti; müşteri numarası artık yok, şeritte yalnızca işletme adı), yönetimde sol menünün başında, müşteri panelinde ve giriş sayfalarında; sekme simgesi W_ ikonu. Sayfaya gömülü (CSP/Caddy değişmedi); cihaz tarafı bir sonraki cihaz sürümüyle gelir. Ayrıntı KURULUM_GUNLUGU "Logo ve sekme simgesi".
+**Logo (2026-10-24, dal `logo`):** yeni wificorrect_ logosu (kullanıcının kiti `Desktop/logo`) yönetimde sol menünün başında, müşteri panelinde ve giriş sayfalarında; sekme simgesi W_ ikonu (sonra büyütüldü, PR #33). Cihaz panelinde 0.4.19'da üst şeridin ortasında (müşteri numarası yok); **dal `cihaz-yan-menu`** (kullanıcı isteği) cihaz panelini yönetim gibi yapar: üst şerit yok, lacivert sol menü (üstte logo, en altta işletme adı + Çıkış), mavi vurgu, menüde simge yok; sonraki cihaz sürümüyle gelir. Sayfaya gömülü (CSP/Caddy değişmedi). Ayrıntı KURULUM_GUNLUGU "Logo ve sekme simgesi".
 **DNS (2026-10-24):** `*.ap.wificorrect.com` joker A kaydı eklendi (Güzel Hosting, merkezin dış IP'si; `ap` ile aynı). Müşteri başına
 AP adresi (ör. `k7f3q9.ap.wificorrect.com`) işi için; kullanıcı kararı: `wificorrect.com` altında kalınacak, ayrı alan adı yok. Kod
 henüz yok (tasarım bekliyor; KURULUM_GUNLUGU "AP arayüzü — merkez" → "Bilinen risk").
@@ -97,8 +97,9 @@ Bitenler (canlıda):
 - ISO (Debian netinst + preseed + .deb), GitHub'da QEMU duman testi (`iso.yml`), `release.yml` yalnızca `v*` etiketinde.
 - Parolalar: müşteri parolasını yönetici yazar; tek admin parolası (merkezden bütün cihazlara).
 - Uzak panel (spec 2026-10-08): giriş yalnızca panel.wificorrect.com'dan → `cihaz.wificorrect.com`; telefondan denendi, çalışıyor.
-- **Panel görünümü** (örnek görsel: koyu üst şerit + koyu sol menü, kırmızı vurgu): menü Özet, Kullanıcılar, Kayıtlar,
-  Ayarlar, Admin; grup sayfalarında simgeli kutucuklar + kırmızı başlıklı bölüm kutuları. **Özet**: kısayollar (Bağlı
+- **Panel görünümü** (2026-10-24'ten yönetim gibi: üst şerit yok, lacivert sol menü, mavi vurgu; önce örnek görseldeki koyu üst
+  şerit + kırmızı vurgu): menü Özet, Kullanıcılar, (Misafir kodları), Kayıtlar, Ayarlar (Admin Ayarlar'ın içinde); grup
+  sayfalarında simgeli kutucuklar + başlıklı bölüm kutuları. **Özet**: kısayollar (Bağlı
   kullanıcılar, Site/IP ara, Yasaklı siteler), Bağlı Kullanıcılar, sayılar, Bugün Yeni Üyeler, SMS ve Disk halkaları
   (telefon/MAC yok; her bakış `PANEL_OZET` denetimi).
 - **Hız ve yavaşlatma** (spec `docs/superpowers/specs/2026-10-10-hiz-ve-kullanim-design.md`): nft `inet wfc_hiz` IP başına

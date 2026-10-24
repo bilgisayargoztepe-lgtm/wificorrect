@@ -509,30 +509,18 @@ fn menu_grubu(path: &str) -> &'static str {
         .map_or("/", |(g, ..)| g)
 }
 
-// çizgi simgeleri (24×24, stroke): menü ve Özet kısayolları
-const SIMGE_EV: &str = "M3 11 12 3l9 8M5 9.5V21h5v-6h4v6h5V9.5";
+// çizgi simgeleri (24×24, stroke): telefondaki menü düğmesi ve grup sayfalarının kutucukları (sol menüde simge yok:
+// yönetimdeki gibi yalnızca yazı; 2026-10-24)
 const SIMGE_WIFI: &str = "M2 8.5a15 15 0 0 1 20 0M5 12a10 10 0 0 1 14 0M8.5 15.5a5 5 0 0 1 7 0M12 19h.01";
 const SIMGE_KAYIT: &str = "M6 2h9l5 5v15H6zM14 2v6h6M9 13h8M9 17h8";
 const SIMGE_AYAR: &str = "M4 6h16M4 12h16M4 18h16M9 4v4M15 10v4M7 16v4";
 const SIMGE_KILIT: &str = "M6 11h12v10H6zM8 11V7a4 4 0 0 1 8 0v4";
 const SIMGE_ARA: &str = "M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zM16 16l5 5";
 const SIMGE_YASAK: &str = "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM5.6 5.6l12.8 12.8";
-const SIMGE_BILET: &str = "M3 7h18v3a2 2 0 0 0 0 4v3H3v-3a2 2 0 0 0 0-4zM9 7v10";
 const SIMGE_MENU: &str = "M3 6h18M3 12h18M3 18h18";
 
 fn simge(d: &str) -> String {
     format!("<svg class=\"simge\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"{d}\"/></svg>")
-}
-
-fn menu_simgesi(yol: &str) -> &'static str {
-    match yol {
-        "/" => SIMGE_EV,
-        "/cihazlar" => SIMGE_WIFI,
-        "/kayitlar" => SIMGE_KAYIT,
-        "/ayarlar" => SIMGE_AYAR,
-        "/misafir-kodlari" => SIMGE_BILET,
-        _ => SIMGE_KILIT,
-    }
 }
 
 const SIMGE_TAMAM: &str = "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM8 12l3 3 5-6";
@@ -645,7 +633,13 @@ impl Panel {
         if PARCA.with(std::cell::Cell::get) {
             return Resp { status: 200, body: body.into(), headers: vec![], file: None };
         }
-        let (menu, ust) = match o {
+        // cihaz bir müşteriye bağlanmadan işletme adı yok (eski/örnek ayardaki ad görünmesin): sekme başlığında "WifiCorrect",
+        // menünün altında ad yok
+        let bagli = crate::merkez::oku(&self.merkez_path).is_some();
+        // yönetimdeki gibi (2026-10-24, kullanıcı isteği): üst şerit yok; sol menüde üstte logo, en altta işletme adı ve çıkış
+        // (müşteri numarası gösterilmez). Telefonda menü gizli, ince üst şeritteki düğme açar/kapatır: betik yok (CSP), gizli
+        // onay kutusu + etiket (kutu, şeritten ve .kabuk'tan önce gelmeli). Oturumsuz sayfada beyaz şeritte logo, menü yok.
+        let (dugme, ust, yan) = match o {
             Some(o) => {
                 let grup = match menu_grubu(&req.path) {
                     ADMIN_YOLU => "/ayarlar",
@@ -656,28 +650,28 @@ impl Panel {
                     .filter(|(p, _)| *p != "/misafir-kodlari" || crate::ayar::misafir_kodu_acik(cfg))
                     .map(|(p, l)| {
                         let act = if *p == grup { " class=\"aktif\" aria-current=\"page\"" } else { "" };
-                        format!("<a href=\"{p}\"{act}>{}{}</a>", simge(menu_simgesi(p)), h(l))
+                        format!("<a href=\"{p}\"{act}>{}</a>", h(l))
                     })
                     .collect();
+                let isletme = if bagli && !cfg.main.site_name.trim().is_empty() {
+                    format!("<div class=\"yan-isletme\">{}</div>", h(&cfg.main.site_name))
+                } else {
+                    String::new()
+                };
+                let logo = crate::logo::marka_koyu();
                 (
-                    format!("<nav aria-label=\"Menü\">{links}</nav>"),
-                    // şeridin sağında yalnızca çıkış; müşteri numarası gösterilmez, logo ortada (2026-10-24, kullanıcı isteği)
+                    "<input type=\"checkbox\" id=\"menu-ac\" class=\"gizli\">".to_string(),
                     format!(
-                        "<div class=\"ust-sag\"><form method=\"post\" action=\"/cikis\">{}<button class=\"ikincil\">Çıkış</button></form></div>",
+                        "<div class=\"ust-mobil\"><label for=\"menu-ac\" class=\"menu-dugme\" title=\"Menü\"><span class=\"gizli\">Menüyü aç/kapat</span>{}</label>{logo}</div>",
+                        simge(SIMGE_MENU)
+                    ),
+                    format!(
+                        "<aside class=\"yan\">{logo}<nav aria-label=\"Menü\">{links}</nav><div class=\"yan-alt\">{isletme}<form method=\"post\" action=\"/cikis\">{}<button class=\"ikincil\">Çıkış</button></form></div></aside>\n",
                         csrf_input(o)
                     ),
                 )
             }
-            None => (String::new(), "<div class=\"ust-sag\"></div>".to_string()),
-        };
-        // telefonda menü: betik yok (CSP), gizli onay kutusu + etiket açar/kapatır
-        let (dugme, etiket) = if o.is_some() {
-            (
-                "<input type=\"checkbox\" id=\"menu-ac\" class=\"gizli\">".to_string(),
-                format!("<label for=\"menu-ac\" class=\"menu-dugme\" title=\"Menü\"><span class=\"gizli\">Menüyü aç/kapat</span>{}</label>", simge(SIMGE_MENU)),
-            )
-        } else {
-            (String::new(), String::new())
+            None => (String::new(), format!("<header class=\"ust-acik\">{}</header>", crate::logo::marka_acik()), String::new()),
         };
         let msg = req.query.get("m").map(|m| {
             let cls = if req.query.get("e").is_some_and(|e| e == "1") { "mesaj hata" } else { "mesaj" };
@@ -687,17 +681,11 @@ impl Panel {
         v.insert("baslik", h(title));
         v.insert("favicon_html", crate::logo::favicon_html().to_string());
         v.insert("bas_ek", if o.is_some() { yenile_meta(req) + bas } else { bas.to_string() });
-        // cihaz bir müşteriye bağlanmadan işletme adı yok (eski/örnek ayardaki ad görünmesin): sekme başlığında "WifiCorrect",
-        // şeritte ad yok (ortadaki logo yeter)
-        let bagli = crate::merkez::oku(&self.merkez_path).is_some();
         v.insert("site", h(if bagli { &cfg.main.site_name } else { "WifiCorrect" }));
-        v.insert("marka", if bagli { h(&cfg.main.site_name) } else { String::new() });
-        v.insert("logo_html", crate::logo::ust_logo().to_string());
         v.insert("govde", if o.is_some() { String::new() } else { "yalin".into() });
-        v.insert("menu_html", menu);
-        v.insert("ust_html", ust);
         v.insert("menu_dugme_html", dugme);
-        v.insert("menu_etiket_html", etiket);
+        v.insert("ust_html", ust);
+        v.insert("yan_html", yan);
         let mut uyari = String::new();
         if o.is_some() {
             let now = (self.clock)();
@@ -2199,8 +2187,9 @@ mod tests {
         // bağlı değil: yerelden yalnızca eşleştirme (giriş) ekranı
         let g = e.p.handle(&req("GET", "/giris", &[], None)).body;
         assert!(g.contains("action=\"/giris\"") && g.contains("Müşteri numarası"));
-        // oturumsuz sayfada da üst şeritte logo (müşteri numarası yok) ve sekme simgesi
-        assert!(g.contains("<div class=\"marka\"></div></div>\n<span class=\"wc-logo\"") && g.contains("<link rel=\"icon\""), "{g}");
+        // oturumsuz sayfa yönetimin giriş sayfası gibi: beyaz üst şeritte açık zemin logosu, menü ve menü düğmesi yok; sekme simgesi
+        assert!(g.contains(&format!("<header class=\"ust-acik\">{}</header>", crate::logo::marka_acik())) && g.contains("<link rel=\"icon\""), "{g}");
+        assert!(!g.contains("<aside") && !g.contains("id=\"menu-ac\"") && !g.contains("Çıkış"), "{g}");
         assert!(g.contains(" · WifiCorrect</title>"), "bağlanmamış cihazda sekme başlığı: {g}");
         assert_eq!(loc(&e.p.handle(&req("GET", "/cihazlar", &[], None))), "/giris");
         setup_and_login(&e, "mudur", "sahip-parola-12");
@@ -2664,14 +2653,20 @@ mod tests {
         assert!(!s.contains("905334553132") && !s.contains("aa:bb:cc"), "özette telefon ve MAC yok");
         // sade özet: kısayol kutuları ve SMS/Disk halkaları yok (menüde zaten var)
         assert!(!s.contains("aria-label=\"Kısayollar\"") && !s.contains("SMS ve Disk") && !s.contains("class=\"halka"), "{s}");
-        assert!(s.contains("for=\"menu-ac\""));
-        // wificorrect_ logosu üst şeritte müşteri numarasının yanında, sekme simgesi başta (2026-10-24)
-        let ust = s.split("<header class=\"ust\">").nth(1).unwrap().split("</header>").next().unwrap();
-        let (sol, logo, sag) = (ust.find("<div class=\"ust-sol\">").unwrap(), ust.find("<span class=\"wc-logo\"").unwrap(), ust.find("<div class=\"ust-sag\">").unwrap());
-        assert!(sol < logo && logo < sag && ust[sag..].contains("Çıkış"), "solda ad, ortada logo, sağda çıkış: {ust}");
-        assert!(!s.contains("class=\"kim\"") && !ust.contains("mudur") && !ust.contains("İşletme sahibi"), "müşteri numarası/hesap gösterilmez: {ust}");
-        // şeritte ve sekme başlığında yalnızca işletme adı ("Yönetim" eki yok; 2026-10-24, kullanıcı isteği)
-        assert!(ust.contains("<div class=\"marka\">") && !ust.contains("Yönetim") && !s.contains("Yönetim</title>"), "{ust}");
+        // yönetimdeki gibi (2026-10-24, kullanıcı isteği): üst şerit yok; sol menüde üstte logo, sonra menü, en altta işletme adı
+        // ve çıkış; telefondaki ince şeritte menü düğmesi ve logo
+        assert!(!s.contains("<header") && !s.contains("wc-logo"), "üst şerit yok: {s}");
+        let yan = s.split("<aside class=\"yan\">").nth(1).unwrap().split("</aside>").next().unwrap();
+        let sira = [crate::logo::marka_koyu(), "<nav aria-label=\"Menü\">", "<div class=\"yan-isletme\">Bocafe Göztepe</div>", "<button class=\"ikincil\">Çıkış</button>"]
+            .map(|p| yan.find(p).unwrap_or_else(|| panic!("{p} yok: {yan}")));
+        assert!(sira.is_sorted() && yan.ends_with("</form></div>"), "üstte logo, sonra menü, en altta işletme adı ve çıkış: {yan}");
+        assert!(!yan.contains("<svg class=\"simge\""), "sol menüde simge yok (yönetimdeki gibi yalnızca yazı): {yan}");
+        let mobil = s.split("<div class=\"ust-mobil\">").nth(1).unwrap().split("</div>").next().unwrap();
+        assert!(mobil.contains("for=\"menu-ac\"") && mobil.contains(crate::logo::marka_koyu()), "{mobil}");
+        assert!(s.find("id=\"menu-ac\"").unwrap() < s.find("<div class=\"ust-mobil\">").unwrap(), "onay kutusu şeritten önce");
+        assert!(!s.contains("class=\"kim\"") && !yan.contains("mudur") && !yan.contains("İşletme sahibi") && !yan.contains(MUSTERI), "müşteri numarası/hesap gösterilmez: {yan}");
+        // menüde ve sekme başlığında yalnızca işletme adı ("Yönetim" eki yok; 2026-10-24, kullanıcı isteği)
+        assert!(!yan.contains("Yönetim") && !s.contains("Yönetim</title>") && s.contains("<title>Özet · Bocafe Göztepe</title>"), "{yan}");
         let bas = s.split("</head>").next().unwrap();
         assert!(bas.contains("<link rel=\"icon\" type=\"image/svg+xml\" href=\"data:image/svg+xml;base64,"), "{bas}");
         let audit = std::fs::read_to_string(e.root.join("5651/gunluk/2026-09-29/denetim.csv")).unwrap();

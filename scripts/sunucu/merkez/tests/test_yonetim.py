@@ -339,8 +339,8 @@ def test_tek_admin_parolasi_hesabimda():
 
 
 def test_yonetim_sol_menu():
-    """Yönetim menüsü solda ve gruplu (2026-10-24 kullanıcı kararı): Müşteriler (liste, yeni, bekleyen) · Sürümler ·
-    Kayıtlar (hareketler, eski arşivler) · Ayarlar (engel listeleri, SMS, uyarı, Hesabım) · Çıkış; açık sayfa seçili.
+    """Yönetim menüsü solda ve gruplu (2026-10-24 kullanıcı kararı): Müşteriler (liste, yeni, bekleyen) · Kayıtlar
+    (hareketler, eski arşivler) · Ayarlar (engel listeleri, SMS, uyarı, Sürümler, Hesabım) · Çıkış; açık sayfa seçili.
     Gruplar ok işaretiyle aşağı açılır (<details>): açık sayfanın grubu açık, diğerleri kapalı gelir."""
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
         app, v, _, c, _ = kur(tmp)
@@ -351,8 +351,8 @@ def test_yonetim_sol_menu():
         assert s.index('<input type="checkbox" id="menu-ac"') < s.index('<div class="ust-mobil">') < s.index('<div class="yerlesim">')
         assert '<label for="menu-ac" class="menu-dugme"' in s and "#menu-ac:checked~.yerlesim nav.yan{display:block}" in s
         menu = s[s.index('<nav class="yan">'):s.index("</nav>")]
-        sira = [">Müşteriler<", ">Müşteri listesi<", ">Yeni müşteri<", ">Bekleyen cihazlar<", ">Sürümler<", ">Kayıtlar<",
-                ">Hareketler<", ">Eski arşivler<", ">Ayarlar<", ">Engel listeleri<", ">SMS ayarları<", ">Uyarı ayarları<",
+        sira = [">Müşteriler<", ">Müşteri listesi<", ">Yeni müşteri<", ">Bekleyen cihazlar<", ">Kayıtlar<", ">Hareketler<",
+                ">Eski arşivler<", ">Ayarlar<", ">Engel listeleri<", ">SMS ayarları<", ">Uyarı ayarları<", ">Sürümler<",
                 ">Hesabım<", 'action="/cikis"']
         konum = [menu.index(x) for x in sira]
         assert konum == sorted(konum), konum
@@ -373,8 +373,9 @@ def test_yonetim_sol_menu():
         assert gruplar("/") == [(" open", "Müşteriler"), ("", "Kayıtlar"), ("", "Ayarlar")]
         assert gruplar(f"/m/{n}") == gruplar("/bekleyen") == gruplar("/")
         assert gruplar("/eski-arsivler") == [("", "Müşteriler"), (" open", "Kayıtlar"), ("", "Ayarlar")]
-        assert gruplar("/sms") == gruplar("/hesabim") == [("", "Müşteriler"), ("", "Kayıtlar"), (" open", "Ayarlar")]
-        assert all(not acik for acik, _ in gruplar("/surumler"))  # tek bağlantı: hiçbir grup açılmaz
+        assert gruplar("/sms") == gruplar("/hesabim") == gruplar("/surumler") == [("", "Müşteriler"), ("", "Kayıtlar"),
+                                                                                (" open", "Ayarlar")]
+        assert 'class="grup tek"' not in Y.al(app, "/", c)[2].decode()  # başlıksız grup kalmadı
 
 
 def test_sms_ayarlari_sayfasi():

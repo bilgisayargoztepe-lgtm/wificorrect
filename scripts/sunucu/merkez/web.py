@@ -32,7 +32,7 @@ td.cubuk span{-webkit-print-color-adjust:exact;print-color-adjust:exact}
 .yerlesim{display:flex;align-items:stretch;min-height:100vh}.yerlesim main{flex:1;min-width:0}
 nav.yan{display:block;flex:0 0 220px;background:#1d2330;padding:16px 0 24px}nav.yan .marka{display:block;color:#fff;font-size:18px;font-weight:700;padding:0 16px 12px}
 nav.yan details{border:0;border-radius:0;margin:0;background:none}nav.yan summary::-webkit-details-marker{display:none}
-nav.yan summary,nav.yan .tek a{display:flex;justify-content:space-between;align-items:center;list-style:none;padding:9px 16px;color:#fff;font-weight:600;font-size:15px;text-decoration:none}
+nav.yan summary{display:flex;justify-content:space-between;align-items:center;list-style:none;padding:9px 16px;color:#fff;font-weight:600;font-size:15px;text-decoration:none}
 nav.yan summary::after{content:"";width:7px;height:7px;border-right:2px solid #8a93a6;border-bottom:2px solid #8a93a6;transform:rotate(45deg);margin:-4px 2px 0 8px}
 nav.yan details[open]>summary::after{transform:rotate(-135deg);margin-top:4px}
 nav.yan a{display:block;padding:7px 16px 7px 28px;color:#e3e7ee;text-decoration:none;font-size:15px}

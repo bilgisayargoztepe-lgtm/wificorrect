@@ -28,12 +28,12 @@ ESLESME_GECIKME_SN = 26 * 3600
 GECIKME_GUN = 2
 TEKRAR_SN = 600  # saglik.py: kapanan sorun bu kadar temiz kalmadan "düzeldi" denmez (SMS bekletilir)
 IZLEME_BAYAT_SN = 900  # wc-saglik 5 dk'da bir; son turu bundan eskiyse izleme çalışmıyor olabilir
-# Sol menü (2026-10-24 kullanıcı kararı): grup başlığı (None = başlıksız tek bağlantı) ve bağlantıları. Admin parolası Hesabım'da.
+# Sol menü (2026-10-24 kullanıcı kararı): grup başlığı ve bağlantıları. Admin parolası Hesabım'da, Sürümler Ayarlar'da.
 MENU = (
     ("Müşteriler", (("/", "Müşteri listesi"), ("/yeni", "Yeni müşteri"), ("/bekleyen", "Bekleyen cihazlar"))),
-    (None, (("/surumler", "Sürümler"),)),
     ("Kayıtlar", (("/hareketler", "Hareketler"), ("/eski-arsivler", "Eski arşivler"))),
-    ("Ayarlar", (("/listeler", "Engel listeleri"), ("/sms", "SMS ayarları"), ("/uyari", "Uyarı ayarları"), ("/hesabim", "Hesabım"))),
+    ("Ayarlar", (("/listeler", "Engel listeleri"), ("/sms", "SMS ayarları"), ("/uyari", "Uyarı ayarları"), ("/surumler", "Sürümler"),
+                 ("/hesabim", "Hesabım"))),
 )
 
 
@@ -202,11 +202,8 @@ class Yonetim(web.Taban):
         for baslik, baglantilar in MENU:
             ic = "".join(f'<a href="{h}"' + (' class="secili" aria-current="page"' if h == secili else "") + f">{e(ad)}</a>"
                          for h, ad in baglantilar)
-            if baslik:
-                acik = " open" if any(h == secili for h, _ in baglantilar) else ""
-                gruplar.append(f'<details class="grup"{acik}><summary>{e(baslik)}</summary>{ic}</details>')
-            else:
-                gruplar.append(f'<div class="grup tek">{ic}</div>')
+            acik = " open" if any(h == secili for h, _ in baglantilar) else ""
+            gruplar.append(f'<details class="grup"{acik}><summary>{e(baslik)}</summary>{ic}</details>')
         return "".join(gruplar)
 
     # --- yardımcılar ---

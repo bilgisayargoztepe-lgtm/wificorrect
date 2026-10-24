@@ -528,9 +528,22 @@ pub fn capture(cmd: &[&str]) -> String {
     Command::new(prog).args(args).stderr(Stdio::null()).output().map(|o| String::from_utf8_lossy(&o.stdout).into_owned()).unwrap_or_default()
 }
 
-/// `capture`, süre sınırlı: komut `secs` içinde bitmezse öldürülür → `None` (çalıştırılamadı da `None`).
-/// Çıktı ayrı iş parçacığında okunur (büyük çıktı boruyu doldurup komutu bekletmesin).
+/// `capture`, süre sınırlı: komut `secs` içinde bitmezse öldürülür → `None` (çalıştırılamadı da `None`). Çıkış koduna bakmaz
+/// (hata koduyla biten komutun çıktısı da döner); bakması gerekene `capture_timeout_basarili`.
 pub fn capture_timeout(cmd: &[&str], secs: u64) -> Option<String> {
+    capture_timeout_durum(cmd, secs).map(|(_, cikti)| cikti)
+}
+
+/// `capture_timeout`, ama komut sıfırdan farklı kodla çıkarsa da `None`: "çalıştı ama sonuç alınamadı" ile "çıktı boş" ayrılsın.
+/// Ör. `ip -o route show default` netlink hatasında boş çıktı ve hata koduyla biter; bu "varsayılan rota yok" sayılmamalı
+/// (giriş sayfası internet varken Servis'i açardı).
+pub fn capture_timeout_basarili(cmd: &[&str], secs: u64) -> Option<String> {
+    capture_timeout_durum(cmd, secs).and_then(|(basarili, cikti)| basarili.then_some(cikti))
+}
+
+/// İkisinin ortak gövdesi: (çıkış kodu 0 mı, standart çıktı). Çıktı ayrı iş parçacığında okunur (büyük çıktı boruyu doldurup
+/// komutu bekletmesin).
+fn capture_timeout_durum(cmd: &[&str], secs: u64) -> Option<(bool, String)> {
     use std::io::Read;
     let (prog, args) = cmd.split_first()?;
     let mut child = Command::new(prog).args(args).stdout(Stdio::piped()).stderr(Stdio::null()).spawn().ok()?;
@@ -541,9 +554,9 @@ pub fn capture_timeout(cmd: &[&str], secs: u64) -> Option<String> {
         b
     });
     let deadline = Instant::now() + Duration::from_secs(secs);
-    loop {
+    let basarili = loop {
         match child.try_wait() {
-            Ok(Some(_)) => break,
+            Ok(Some(durum)) => break durum.success(),
             Ok(None) if Instant::now() < deadline => std::thread::sleep(Duration::from_millis(20)),
             _ => {
                 let _ = child.kill();
@@ -552,8 +565,8 @@ pub fn capture_timeout(cmd: &[&str], secs: u64) -> Option<String> {
                 return None;
             }
         }
-    }
-    okuyucu.join().ok().map(|b| String::from_utf8_lossy(&b).into_owned())
+    };
+    okuyucu.join().ok().map(|b| (basarili, String::from_utf8_lossy(&b).into_owned()))
 }
 
 pub fn run_timeout(cmd: &[String], secs: u64) -> bool {
@@ -847,5 +860,24 @@ mod tests {
         assert!(t0.elapsed() < Duration::from_millis(2500), "{:?}", t0.elapsed());
         assert_eq!(capture_timeout(&["echo", "merhaba"], 5).as_deref(), Some("merhaba\n"));
         assert_eq!(capture_timeout(&["/yok/komut"], 5), None);
+        // çıkış koduna bakmaz (öbür çağıranlar için davranış aynı): hata koduyla biten komutun çıktısı da döner
+        assert_eq!(capture_timeout(&["sh", "-c", "echo yarim; exit 2"], 5).as_deref(), Some("yarim\n"));
+        assert_eq!(capture_timeout(&["sh", "-c", "exit 1"], 5).as_deref(), Some(""));
+    }
+
+    #[test]
+    fn capture_timeout_basarili_hata_kodunda_none() {
+        // çalıştı ama hata koduyla bitti (ör. netlink hatasında `ip`: boş çıktı, kod 2): sonuç yok, "çıktı boş" sayılmaz
+        assert_eq!(capture_timeout_basarili(&["sh", "-c", "exit 2"], 5), None);
+        assert_eq!(capture_timeout_basarili(&["sh", "-c", "echo 'default dev wfcppp scope link metric 100'; exit 1"], 5), None);
+        assert_eq!(capture_timeout_basarili(&["false"], 5), None);
+        // başarılı: boş çıktı da bir sonuçtur
+        assert_eq!(capture_timeout_basarili(&["true"], 5).as_deref(), Some(""));
+        assert_eq!(capture_timeout_basarili(&["echo", "merhaba"], 5).as_deref(), Some("merhaba\n"));
+        // çalıştırılamadı / süresi doldu
+        assert_eq!(capture_timeout_basarili(&["/yok/komut"], 5), None);
+        let t0 = Instant::now();
+        assert_eq!(capture_timeout_basarili(&["sleep", "3"], 1), None);
+        assert!(t0.elapsed() < Duration::from_millis(2500), "{:?}", t0.elapsed());
     }
 }

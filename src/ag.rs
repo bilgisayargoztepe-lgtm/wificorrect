@@ -347,6 +347,11 @@ pub fn rota_arayuzu(ip_route: &str) -> Option<String> {
 
 /// `ip -o route show default` satırları: (arayüz, metrik). Yalnızca `default` ile başlayan ve bir `dev` taşıyan satırlar sayılır
 /// (arayüzsüz `blackhole` gibi rotalar kullanılamaz); `ip` metrik 0'ı yazmaz, metriksiz satır 0'dır.
+/// **dhcpcd'nin IPv4LL rotası sayılmaz:** DHCP sunucusu olmayan hatta (ONT, bina kablosu; PPPoE hattı ya da arızalı modem)
+/// dhcpcd internet portuna 169.254/16 adresi verir ve DHCP'den gelmiş bir varsayılan rota yoksa o adresle bir varsayılan rota da
+/// kurar: `default dev enp3s0 proto dhcp scope link src 169.254.x.y metric 1001002` (arayüz metriği + 1000000). Bu rota internete
+/// çıkmaz; sayılsaydı PPPoE bağlanamayan cihazda "internet yok" uyarısı ve Servis hiç görünmezdi. Kural kaynak adrese (`src`)
+/// bakar, `via` yokluğuna değil: PPPoE rotası (`default dev wfcppp scope link metric 100`) de `via`sızdır ama `src`'si yoktur.
 fn varsayilan_rotalar(ip_route: &str) -> Vec<(String, u32)> {
     ip_route
         .lines()
@@ -355,27 +360,33 @@ fn varsayilan_rotalar(ip_route: &str) -> Vec<(String, u32)> {
             if it.next()? != "default" {
                 return None;
             }
-            let (mut arayuz, mut metrik) = (None, 0);
+            let (mut arayuz, mut metrik, mut kaynak) = (None, 0, None);
             while let Some(w) = it.next() {
                 match w {
                     "dev" => arayuz = it.next().map(String::from),
                     "metric" => metrik = it.next().and_then(|m| m.parse().ok()).unwrap_or(0),
+                    "src" => kaynak = it.next().and_then(|s| s.parse::<std::net::Ipv4Addr>().ok()),
                     _ => {}
                 }
+            }
+            if kaynak.is_some_and(|k| k.is_link_local()) {
+                return None; // IPv4LL (169.254/16): internete çıkmaz
             }
             arayuz.map(|a| (a, metrik))
         })
         .collect()
 }
 
-/// İnternet koşulu: cihazın varsayılan rotası var (DHCP ya da PPPoE). `ip -o route show default` çıktısı boşsa internet yoktur;
-/// giriş sayfasındaki "internet bağlantısı yok" uyarısı ve Servis buna bakar.
+/// İnternet koşulu: cihazın kullanılabilir bir varsayılan rotası var (DHCP ya da PPPoE; dhcpcd'nin IPv4LL rotası sayılmaz,
+/// `varsayilan_rotalar`). `ip -o route show default` çıktısında böyle bir satır yoksa internet yoktur; giriş sayfasındaki "internet
+/// bağlantısı yok" uyarısı ve Servis buna bakar.
 pub fn internet_var(ip_route_default: &str) -> bool {
     !varsayilan_rotalar(ip_route_default).is_empty()
 }
 
 /// Trafiğin gerçekten çıktığı arayüz: çekirdek en düşük metrikli varsayılan rotayı kullanır, PPPoE rotası (metrik 100) DHCP'ninkinin
-/// (1000+) önündedir. Bu rota `wfcppp` ise `wfcppp`; yalnız DHCP rotası varsa ya da rota yoksa internet alan Ethernet.
+/// (1000+) önündedir. Bu rota `wfcppp` ise `wfcppp`; yalnız DHCP rotası varsa ya da rota yoksa internet alan Ethernet. dhcpcd'nin
+/// IPv4LL rotası (metrik 1000000+, hep internet portunda) sayılmasa da sonuç aynıdır: ya PPPoE rotası öndedir ya internet portu çıkar.
 /// Yavaşlatma (HTB + sınıf kuralları) bu arayüze kurulur.
 pub fn etkin_cikis(ag: &Ag, ip_route_default: &str) -> String {
     match varsayilan_rotalar(ip_route_default).into_iter().min_by_key(|(_, metrik)| *metrik) {
@@ -1286,20 +1297,44 @@ mod tests {
     // `ip -o route show default` çıktıları (cihazdaki gerçek biçim: satır sonunda boşluk; DHCP metriği cihaza göre 1002-1003)
     const DHCP_ROTA: &str = "default via 192.168.1.1 dev enp3s0 proto dhcp src 192.168.1.110 metric 1003 \n";
     const PPP_ROTA: &str = "default dev wfcppp scope link metric 100 \n";
+    // dhcpcd'nin IPv4LL varsayılan rotası (DHCP sunucusu olmayan hat: ONT, bina kablosu): ağ geçidi yok, kaynak 169.254/16,
+    // metrik = arayüz metriği (1000 + arayüz sırası) + 1000000. dhcpcd 10 rotalarına `proto dhcp` yazar (DHCP_ROTA gibi);
+    // `proto`suz yazım (eski dhcpcd, elle kurulmuş rota) da aynı sayılır.
+    const IPV4LL_ROTA: &str = "default dev enp3s0 proto dhcp scope link src 169.254.37.120 metric 1001003 \n";
+    const IPV4LL_ROTA_PROTOSUZ: &str = "default dev enp3s0 scope link src 169.254.37.120 metric 1001003\n";
 
     #[test]
     fn internet_kosulu() {
         assert!(!internet_var(""));
         assert!(!internet_var("\n"));
         assert!(internet_var("default via 192.168.1.1 dev enp3s0 proto dhcp metric 1002"));
-        assert!(internet_var(DHCP_ROTA));
-        assert!(internet_var(PPP_ROTA)); // yalnız PPPoE
+        assert!(internet_var(DHCP_ROTA)); // DHCP, ağ geçidi üzerinden
+        assert!(internet_var(PPP_ROTA)); // yalnız PPPoE (ağ geçidi yok, kaynak yok: sayılır)
         assert!(internet_var(&format!("{PPP_ROTA}{DHCP_ROTA}")));
         // varsayılan olmayan ya da arayüzü olmayan satır internet sayılmaz
         assert!(!internet_var("10.99.0.0/24 dev wfc scope link\n"));
         assert!(!internet_var("blackhole default metric 1\n"));
         assert!(!internet_var("default via 192.168.1.1\n"));
         assert!(!internet_var("RTNETLINK answers: Operation not permitted\n"));
+    }
+
+    #[test]
+    fn ipv4ll_rotasi_internet_sayilmaz() {
+        // PPPoE hattında PPPoE bağlanamadı (ya da modemin DHCP'si arızalı): tek rota dhcpcd'nin IPv4LL rotası → internet yok,
+        // giriş sayfasında uyarı ve Servis görünür
+        assert!(!internet_var(IPV4LL_ROTA));
+        assert!(!internet_var(IPV4LL_ROTA_PROTOSUZ));
+        assert!(!internet_var("default dev enp1s0 scope link src 169.254.0.1\n")); // metriksiz, başka port
+        assert!(!internet_var("default dev enp3s0 proto dhcp scope link src 169.254.255.254 metric 1001002\n"));
+        // IPv4LL + PPPoE (dhcpcd yalnızca kendi rotalarına bakar, pppd'nin rotası varken de IPv4LL rotasını kurar): internet var
+        assert!(internet_var(&format!("{PPP_ROTA}{IPV4LL_ROTA}")));
+        assert!(internet_var(&format!("{IPV4LL_ROTA_PROTOSUZ}{PPP_ROTA}")));
+        // IPv4LL + DHCP (geçiş anı): DHCP rotası sayılır
+        assert!(internet_var(&format!("{IPV4LL_ROTA}{DHCP_ROTA}")));
+        // 169.254/16 dışındaki kaynak adresler (özel, genel, 169.255…) sayılır; okunamayan kaynak da (kural yalnızca IPv4LL'i eler)
+        assert!(internet_var("default dev enp3s0 scope link src 10.0.0.5 metric 1003\n"));
+        assert!(internet_var("default dev enp3s0 scope link src 169.255.1.1 metric 1003\n"));
+        assert!(internet_var("default dev enp3s0 scope link src bozuk metric 1003\n"));
     }
 
     #[test]
@@ -1327,5 +1362,9 @@ mod tests {
         assert_eq!(etkin_cikis(&ag, "default via 10.0.0.1 dev eno9 metric 100\n"), "enp3s0");
         // varsayılan olmayan satırlar (başka hedef ağ) yok sayılır
         assert_eq!(etkin_cikis(&ag, &format!("10.99.0.0/24 dev wfcppp scope link metric 1\n{DHCP_ROTA}")), "enp3s0");
+        // dhcpcd'nin IPv4LL rotası (internet portunda, metrik 1000000+) sonucu değiştirmez: PPPoE varken PPPoE, yokken internet portu
+        assert_eq!(etkin_cikis(&ag, &format!("{IPV4LL_ROTA}{PPP_ROTA}")), "wfcppp");
+        assert_eq!(etkin_cikis(&ag, IPV4LL_ROTA), "enp3s0");
+        assert_eq!(etkin_cikis(&b, "default dev enp1s0 proto dhcp scope link src 169.254.9.9 metric 1001002\n"), "enp1s0");
     }
 }

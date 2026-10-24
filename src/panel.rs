@@ -3283,6 +3283,9 @@ mod tests {
             // iyi durumlar yeşil nokta
             (false, "1", sahte("", DHCP, ""), "<span class=\"durum\">PPPoE kapalı (modemden DHCP)</span>"),
             (true, "1", sahte(PPP, DHCP, ""), "<span class=\"durum\">PPPoE bağlı (dış IP 203.0.113.10)</span>"),
+            // PPPoE açık, modemde (sunucu yok ya da deneme sürüyor) ama internet modemden geliyor: sorun değil
+            (true, "1", sahte("", DHCP, "Timeout waiting for PADO packets\nUnable to complete PPPoE Discovery phase 1\n"), "<span class=\"durum\">Modemden bağlı (DHCP); PPPoE ONT&#x27;ye takılınca bağlanır</span>"),
+            (true, "1", sahte("", DHCP, ""), "<span class=\"durum\">Modemden bağlı (DHCP); PPPoE ONT&#x27;ye takılınca bağlanır</span>"),
             // bağlanma sürerken düz metin
             (true, "1", hicbiri, "<span>Bağlanıyor\u{2026}</span>"),
             (true, "1", sahte("", "", ""), "<span>Bağlanıyor\u{2026}</span>"),
@@ -3292,6 +3295,7 @@ mod tests {
             (true, "0", sahte(PPP, DHCP, ""), "<span class=\"durum kotu\">Kablo takılı değil</span>"),
             (true, "1", sahte("", "", "Timeout waiting for PADO packets\nUnable to complete PPPoE Discovery phase 1\n"), "<span class=\"durum kotu\">PPPoE sunucusu yanıt vermiyor (kablo doğru porta mı, VLAN gerekli mi?)</span>"),
             (true, "1", sahte("", "", "CHAP authentication failed: Access denied\n"), "<span class=\"durum kotu\">Kullanıcı adı ya da parola reddedildi</span>"),
+            (true, "1", sahte("", DHCP, "CHAP authentication failed: Access denied\n"), "<span class=\"durum kotu\">Kullanıcı adı ya da parola reddedildi</span>"),
         ] {
             // aynı oturumda: her vakada kayıtlı ayar, kablo ve sahte komutlar değişir (giriş parolası özeti yavaş, bir kez yeter)
             crate::ag::save(&e.p.ag_yollar.ag, &crate::ag::Ag { pppoe: crate::ag::Pppoe { acik, ..pppoe_kayitli() }, ..Default::default() }).unwrap();

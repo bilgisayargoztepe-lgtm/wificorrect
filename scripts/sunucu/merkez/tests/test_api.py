@@ -379,7 +379,7 @@ def test_saglik_temizle_pppoe():
     assert eski == RAPOR and "wan_tur" not in eski and "pppoe" not in eski
     for tur in ("dhcp", "pppoe"):
         assert A.saglik_temizle(dict(RAPOR, wan_tur=tur))["wan_tur"] == tur
-    for durum in ("kapali", "kablo_yok", "dhcp_yok", "sunucu_yok", "kimlik_hatasi", "baglaniyor", "bagli"):
+    for durum in ("kapali", "kablo_yok", "dhcp_yok", "sunucu_yok", "modemden", "kimlik_hatasi", "baglaniyor", "bagli"):
         assert A.saglik_temizle(dict(RAPOR, pppoe=durum))["pppoe"] == durum
     assert "pppoe" not in A.saglik_temizle(dict(RAPOR, wan_tur="dhcp"))  # tek alan gelebilir
     assert "ek" not in A.saglik_temizle(dict(RAPOR, wan_tur="dhcp", pppoe="kapali", ek=1))  # bilinmeyen alan hâlâ atılır

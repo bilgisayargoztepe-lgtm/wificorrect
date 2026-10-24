@@ -33,7 +33,7 @@ pub struct Girdi {
     /// internet portunun türü: `dhcp` (modemden DHCP) | `pppoe` (ag.toml'da PPPoE açık; bağlı olması gerekmez)
     pub wan_tur: &'static str,
     /// internet portunun durumu (`pppoe::Durum::kod()`, DHCP'li cihazda da gelir): kapali | kablo_yok | dhcp_yok | sunucu_yok |
-    /// kimlik_hatasi | baglaniyor | bagli
+    /// modemden (≥ 0.4.18) | kimlik_hatasi | baglaniyor | bagli
     pub pppoe: &'static str,
     pub sms_sorunu: bool,
     pub bagli: u64,
@@ -390,8 +390,11 @@ mod tests {
         assert_eq!(wan_ozeti(true, true, "", "", KIMLIK_HATASI), "wan=false tur=pppoe pppoe=kimlik_hatasi");
         assert_eq!(wan_ozeti(true, true, "", "", SUNUCU_YOK), "wan=false tur=pppoe pppoe=sunucu_yok");
         assert_eq!(wan_ozeti(true, false, "", "", ""), "wan=false tur=pppoe pppoe=kablo_yok");
-        // PPPoE bağlanamıyor ama modem hâlâ DHCP veriyor (yönlendirici kipinde): DHCP yedeği internet sağlar, PPPoE durumu yine görünür
-        assert_eq!(wan_ozeti(true, true, ETH_ADRES, "", SUNUCU_YOK), "wan=true tur=pppoe pppoe=sunucu_yok");
+        // PPPoE bağlanamıyor ama modem DHCP veriyor (modemli hat): internet modemden, durum `modemden` (sorun değil; 0.4.18)
+        assert_eq!(wan_ozeti(true, true, ETH_ADRES, "", SUNUCU_YOK), "wan=true tur=pppoe pppoe=modemden");
+        assert_eq!(wan_ozeti(true, true, ETH_ADRES, "", ""), "wan=true tur=pppoe pppoe=modemden");
+        // kimlik reddi DHCP çalışsa da görünür (bir PPPoE sunucusu yanıt verdi, bilgi yanlış)
+        assert_eq!(wan_ozeti(true, true, ETH_ADRES, "", KIMLIK_HATASI), "wan=true tur=pppoe pppoe=kimlik_hatasi");
     }
 
     #[test]

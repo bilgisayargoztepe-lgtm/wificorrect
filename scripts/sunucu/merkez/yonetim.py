@@ -76,6 +76,7 @@ INTERNET_DURUMLARI = {
     "kablo_yok": ("kablo yok", True),
     "dhcp_yok": ("modemden adres alınamadı", True),
     "sunucu_yok": ("PPPoE: sunucu yanıt vermiyor", True),
+    "modemden": ("Modemden bağlı (DHCP); PPPoE ONT'ye takılınca bağlanır", False),  # PPPoE açık, modemli hat (≥ 0.4.18)
     "kimlik_hatasi": ("PPPoE: parola reddedildi", True),
     "baglaniyor": ("PPPoE: bağlanıyor", False),
     "bagli": ("PPPoE bağlı", False),

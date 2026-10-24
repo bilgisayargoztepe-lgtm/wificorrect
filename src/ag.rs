@@ -145,6 +145,25 @@ pub fn load(path: &Path) -> Ag {
     fs::read_to_string(path).ok().and_then(|t| toml::from_str(&t).ok()).unwrap_or_default()
 }
 
+/// `load_kesin` hatası: dosya yok ya da var ama okunamıyor/ayrıştırılamıyor.
+#[derive(Debug, PartialEq)]
+pub enum AgDosyasi {
+    Yok,
+    Bozuk,
+}
+
+/// ag.toml'u kesin okur: `load` gibi varsayılana düşmez. Servis yolu (`pppoe_uygula` ve giriş sayfasının ön denetimi) kullanır:
+/// hangi portun internet aldığı bilinmeden varsayılan portlar (enp3s0 alır, enp1s0 verir) yazılıp üstüne PPPoE konmaz ve güvenlik
+/// duvarı yanlış WAN ile yüklenmez (portları ters kablolanan kutularda, ör. Visavis, varsayılan yanlış porttur). Ayrıştırma hatasının
+/// metni (hatalı satırı, parola olabilir) taşınmaz.
+pub fn load_kesin(path: &Path) -> Result<Ag, AgDosyasi> {
+    match fs::read_to_string(path) {
+        Ok(t) => toml::from_str(&t).map_err(|_| AgDosyasi::Bozuk),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Err(AgDosyasi::Yok),
+        Err(_) => Err(AgDosyasi::Bozuk),
+    }
+}
+
 pub fn save(path: &Path, ag: &Ag) -> Result<(), String> {
     let text = toml::to_string_pretty(ag).map_err(|e| e.to_string())?;
     ortak::write_atomic(path, text.as_bytes()).map_err(|e| format!("{} yazılamadı: {e}", path.display()))
@@ -530,15 +549,17 @@ pub fn gecis(cfg: &Config, y: &Yollar, new_path: &Path, now: f64, runner: &Runne
 /// eskisine döndürürdü. Boş parola = eskisi kalır (parola hiçbir yerde geri gösterilmez). Geçersiz ayar (ya da onay bekleyen bir
 /// port değişikliği: süresi dolunca geri alma yedeği bu ayarı ezerdi) `Err`, hiçbir şey değişmez. Dönen: kalan hatalar.
 /// Ağı yeniden kurmaz (`switch` değil): ag.toml, bağlantı dosyası, güvenlik duvarı kuralları, pppd birimi, tünel MTU'su.
-/// ag.toml yoksa da `Err` (hiçbir şey değişmez): hangi portun internet aldığı bilinmeden varsayılan portlar yazılıp üstüne PPPoE konmaz.
+/// ag.toml yoksa ya da var ama ayrıştırılamıyorsa da `Err` (hiçbir şey değişmez, `load_kesin`): hangi portun internet aldığı
+/// bilinmeden varsayılan portlar yazılıp üstüne PPPoE konmaz.
 pub fn pppoe_uygula(cfg: &Config, y: &Yollar, yeni: &Pppoe, runner: &Runner) -> Result<Vec<String>, String> {
     if pending(y).is_some() {
         return Err("Bir port değişikliği onay bekliyor (en çok 3 dakika); onaylanınca ya da geri alınınca yeniden deneyin.".into());
     }
-    if !y.ag.exists() {
-        return Err("Ağ ayar dosyası yok; PPPoE ayarı uygulanmadı.".into());
-    }
-    let mut ag = load(&y.ag);
+    let mut ag = match load_kesin(&y.ag) {
+        Ok(ag) => ag,
+        Err(AgDosyasi::Yok) => return Err("Ağ ayar dosyası yok; PPPoE ayarı uygulanmadı.".into()),
+        Err(AgDosyasi::Bozuk) => return Err("Ağ ayar dosyası okunamadı (bozuk); PPPoE ayarı uygulanmadı.".into()),
+    };
     let mut p = yeni.clone();
     if p.parola.is_empty() {
         p.parola = ag.pppoe.parola.clone();
@@ -1194,6 +1215,39 @@ mod tests {
         save(&y.ag, &Ag::default()).unwrap();
         assert_eq!(pppoe_uygula(&cfg, &y, &yeni, &r), Ok(vec![]));
         assert!(load(&y.ag).pppoe.acik && y.peers.exists());
+    }
+
+    #[test]
+    fn pppoe_uygula_bozuk_ag_toml_reddeder() {
+        // ag.toml var ama ayrıştırılamıyor (elle bozulmuş): `load` varsayılana düşerdi; Servis varsayılan portları (enp3s0 alır,
+        // enp1s0 verir: portları ters kablolu kutuda yanlış) yazıp güvenlik duvarını yanlış WAN ile yüklerdi → reddedilir
+        let (cfg, y, _) = setup();
+        let (r, c) = sahte(&[]);
+        let yeni = Pppoe { acik: true, kullanici: "k".into(), parola: "p".into(), ..Pppoe::default() };
+        let bozuk_mesaj = "Ağ ayar dosyası okunamadı (bozuk); PPPoE ayarı uygulanmadı.".to_string();
+        for bozuk in ["wan = \"enp1s0\"\nlan = [\"enp3s0\"\n", "[pppoe]\nacik = \"evet\"\n", "wan = 5\n", "\u{0}\u{1}ikili"] {
+            fs::write(&y.ag, bozuk).unwrap();
+            assert_eq!(load_kesin(&y.ag), Err(AgDosyasi::Bozuk), "{bozuk:?}");
+            assert_eq!(pppoe_uygula(&cfg, &y, &yeni, &r), Err(bozuk_mesaj.clone()), "{bozuk:?}");
+            assert_eq!(pppoe_uygula(&cfg, &y, &Pppoe::default(), &r), Err(bozuk_mesaj.clone())); // kapatma isteği de
+            // hiçbir şey değişmedi: ag.toml aynen, ağ dosyaları yazılmadı, komut çalışmadı
+            assert_eq!(fs::read_to_string(&y.ag).unwrap(), bozuk);
+            assert!(!y.peers.exists() && !y.interfaces.exists() && !y.nft.exists() && !y.hostapd.exists() && !y.issue.exists());
+            assert!(c.lock().unwrap().is_empty(), "{:?}", c.lock().unwrap());
+        }
+        // hata metni ayrıştırıcının ayrıntısını (hatalı satır; parola olabilir) taşımaz
+        fs::write(&y.ag, "[pppoe]\nparola = \"gizli-parola\n").unwrap();
+        let e = pppoe_uygula(&cfg, &y, &yeni, &r).unwrap_err();
+        assert!(!e.contains("gizli") && !e.contains("line"), "{e}");
+        // kesin okuma: yok / var ve geçerli (eski 0.4.16 dosyası dahil: [pppoe] bölümü yok)
+        let _ = fs::remove_file(&y.ag);
+        assert_eq!(load_kesin(&y.ag), Err(AgDosyasi::Yok));
+        fs::write(&y.ag, "wan = \"enp1s0\"\nlan = [\"enp3s0\"]\n").unwrap();
+        assert_eq!(load_kesin(&y.ag).map(|a| (a.wan, a.lan, a.pppoe)), Ok(("enp1s0".to_string(), vec!["enp3s0".to_string()], Pppoe::default())));
+        // geçerli dosyada uygulanır; portlara dokunulmaz
+        assert_eq!(pppoe_uygula(&cfg, &y, &yeni, &r), Ok(vec![]));
+        let k = load(&y.ag);
+        assert!(k.pppoe.acik && k.wan == "enp1s0" && k.lan == ["enp3s0"]);
     }
 
     #[test]

@@ -1287,8 +1287,8 @@ impl Portal {
              <label for=\"servis_parola\">Servis parolası (AP yönetim parolası)</label>\
              <input type=\"password\" id=\"servis_parola\" name=\"servis_parola\" value=\"\" maxlength=\"64\" autocomplete=\"off\" required>\
              {}<button type=\"submit\">Kaydet ve bağlan</button></form>\
-             <p class=\"not\">Servis parolası her kayıtta yeniden yazılır. Kaydedince PPPoE yeniden bağlanır ve sayfa birkaç saniyede bir \
-             yenilenip durumu gösterir; internet gelince giriş sayfası açılır.</p>",
+             <p class=\"not\">Servis parolası her kayıtta yeniden yazılır. Kaydedince ayar uygulanır (PPPoE Açık ise yeniden bağlanır, \
+             Kapalı ise durur) ve sayfa birkaç saniyede bir yenilenip durumu gösterir; internet gelince giriş sayfası açılır.</p>",
             html_escape(&self.base_url),
             pppoe::servis_form_html(alanlar, kullanici)
         )
@@ -1406,9 +1406,15 @@ impl Portal {
         if let Err(e) = ag::pppoe_dogrula(&yeni) {
             return Some(self.servis_hata(&durum, &e, Some(&girilen), &kayitli));
         }
-        // `ctl pppoe-servis`'in reddedeceği durumlar burada söylenir (işin sonucu sayfaya dönmez)
-        if !self.ag_yollar.ag.exists() {
-            return Some(self.servis_hata(&durum, "Ağ ayar dosyası yok; PPPoE ayarı uygulanamaz.", Some(&girilen), &kayitli));
+        // `ctl pppoe-servis`'in reddedeceği durumlar burada söylenir (işin sonucu sayfaya dönmez): ag.toml yok ya da bozuk
+        // (`ag::load_kesin`; hangi portun internet aldığı bilinmeden PPPoE konmaz), port değişikliği onay bekliyor
+        let dosya_hatasi = match ag::load_kesin(&self.ag_yollar.ag) {
+            Ok(_) => None,
+            Err(ag::AgDosyasi::Yok) => Some("Ağ ayar dosyası yok; PPPoE ayarı uygulanamaz."),
+            Err(ag::AgDosyasi::Bozuk) => Some("Ağ ayar dosyası okunamadı (bozuk); PPPoE ayarı uygulanamaz."),
+        };
+        if let Some(hata) = dosya_hatasi {
+            return Some(self.servis_hata(&durum, hata, Some(&girilen), &kayitli));
         }
         if ag::pending(&self.ag_yollar).is_some() {
             let hata = "Panelden yapılan bir port değişikliği onay bekliyor (en çok 3 dakika); süre dolunca yeniden deneyin.";
@@ -2961,6 +2967,8 @@ mod tests {
             let html = t.kaydet(IP, Some(&mac), &servis_form("yanlis-parola", &ad));
             assert!(html.contains("Servis parolası yanlış."), "{html}");
             assert_eq!(secili_pppoe(&html), secim, "yanlış parola: {html}");
+            // formun altındaki not seçimden bağımsız doğru: Kapalı seçiliyken "PPPoE yeniden bağlanır" demez
+            assert!(html.contains("Kaydedince ayar uygulanır (PPPoE Açık ise yeniden bağlanır, Kapalı ise durur)"), "{html}");
             // boş Servis parolası
             let html = t.kaydet(IP, Some(&mac), &servis_form("", &ad));
             assert!(html.contains("Servis parolasını girin."), "{html}");
@@ -3164,6 +3172,12 @@ mod tests {
         let f = servis_form(AP_PAROLA, &YENI);
         // ag.toml yok: hangi portun internet aldığı bilinmeden PPPoE konmaz
         assert!(t.kaydet(IP, Some(MAC), &f).contains("Ağ ayar dosyası yok"));
+        // ag.toml var ama bozuk (ayrıştırılamıyor): ctl de reddederdi (varsayılan portları yazmaz), sayfa hemen söyler; form geri gelir
+        std::fs::create_dir_all(t.p.ag_yollar.ag.parent().unwrap()).unwrap();
+        std::fs::write(&t.p.ag_yollar.ag, "wan = \"enp1s0\"\nlan = [\"enp3s0\"\n").unwrap();
+        let html = t.kaydet(IP, Some(MAC), &f);
+        assert!(html.contains("Ağ ayar dosyası okunamadı (bozuk); PPPoE ayarı uygulanamaz.") && html.contains("<form"), "{html}");
+        assert!(t.calls.lock().unwrap().is_empty() && !t.servis_dosyasi().exists());
         // panelden yapılmış, onay bekleyen port değişikliği (en çok 3 dk): ctl de reddederdi, sayfa hemen söyler
         t.ag_kaydet(eski_pppoe());
         std::fs::create_dir_all(&t.p.ag_yollar.durum).unwrap();

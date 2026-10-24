@@ -3414,6 +3414,28 @@ mod tests {
     }
 
     #[test]
+    fn portlar_pppoe_alani_olmayan_gonderim_pppoe_ya_dokunmaz() {
+        // PPPoE alanı taşımayan bir Portlar gönderimi (betik, ileride başka bir form): kayıtlı PPPoE ayarı (açık, kullanıcı adı,
+        // ileri alanlar) aynen kalır; yalnızca gönderilen port/Wi-Fi değişikliği uygulanır
+        let (e, tok, csrf) = portlar_ortami(Some(pppoe_kayitli()));
+        let r = portlar_gonder(&e, &tok, &csrf, &[]);
+        assert!(!loc(&r).contains("e=1") && loc(&r).contains("%20yok."), "değişiklik yok sayılmalı: {}", loc(&r));
+        assert!(!systemd_run_var(&e) && !e.p.ag_yollar.yeni().exists());
+        // aynı gönderimde Wi-Fi açılırsa: değişiklik uygulanır, hazırlanan ayarda PPPoE kayıtlı haliyle durur
+        let r = portlar_gonder(&e, &tok, &csrf, &[("wifi", "verir"), ("ssid", "Misafir")]);
+        assert!(!loc(&r).contains("e=1"), "{}", loc(&r));
+        let yeni = crate::ag::load(&e.p.ag_yollar.yeni());
+        assert!(yeni.wifi.acik && yeni.wifi.ssid == "Misafir");
+        assert_eq!(yeni.pppoe, pppoe_kayitli());
+        assert!(denetim_satiri(&e, "PANEL_PORT").contains("pppoe=acik vlan=35 kullanici_degisti=0 parola_degisti=0"));
+        // PPPoE seçimi gönderilince (sayfadaki form hep gönderir) alanlar formdan okunur: Kapalı seçilirse kapanır
+        std::fs::remove_file(e.p.ag_yollar.yeni()).unwrap();
+        let r = portlar_gonder(&e, &tok, &csrf, &[("pppoe_acik", "kapali"), ("pppoe_kullanici", "5321234567@turk.net"), ("pppoe_vlan", "35")]);
+        assert!(!loc(&r).contains("e=1"), "{}", loc(&r));
+        assert!(!crate::ag::load(&e.p.ag_yollar.yeni()).pppoe.acik);
+    }
+
+    #[test]
     fn portlar_pppoe_degisiklik_tespiti() {
         let (e, tok, csrf) = portlar_ortami(Some(pppoe_kayitli()));
         // sayfadaki form kayıtlı değerlerle dolu gelir (parola boş): hiçbir şey değişmemiş, hiçbir iş başlamaz

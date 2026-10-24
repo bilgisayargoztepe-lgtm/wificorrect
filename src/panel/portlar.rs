@@ -108,8 +108,12 @@ impl Panel {
         new.wifi.ssid = f("ssid").trim().to_string();
         new.wifi.sifre = f("sifre").to_string();
         new.wifi.kanal = f("kanal").parse().unwrap_or(0);
-        // PPPoE: boş parola = eskisi (ag::gecis birleştirmez; hazırlanan dosyaya eski parola burada yazılır), boş VLAN = yok
-        new.pppoe = pppoe::formdan(&cur.pppoe, &|k: &str| f(k).to_string());
+        // PPPoE: boş parola = eskisi (ag::gecis birleştirmez; hazırlanan dosyaya eski parola burada yazılır), boş VLAN = yok. Yalnızca
+        // form PPPoE seçimini taşıyorsa (Servis'teki gibi): PPPoE alanı olmayan bir gönderim (betik, başka bir form) kayıtlı PPPoE
+        // ayarını varsayılana (kapalı, kullanıcı adı ve ileri alanlar boş) döndürmesin; kayıtlı ayar aynen kalır
+        if req.form.contains_key("pppoe_acik") {
+            new.pppoe = pppoe::formdan(&cur.pppoe, &|k: &str| f(k).to_string());
+        }
         if new.wan != cur.wan && new.wan_mac.is_empty() {
             // modemdeki IP rezervasyonu korunsun: eski internet portunun MAC'i yeni porta yazılır
             new.wan_mac = ortak::norm_mac(&ag::link(&self.sys, &cur.wan).2).unwrap_or_default();

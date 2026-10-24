@@ -28,13 +28,14 @@ pub fn alt_arayuz(ag: &Ag) -> String {
 /// Kullanıcı adı ve parola tırnaklı yazılır; `ag::pppoe_dogrula` tırnak, ters eğik çizgi ve kontrol karakterini zaten reddeder
 /// (çağıran doğrulamalı). Sistemin ortak chap-secrets/pap-secrets dosyalarına dokunulmaz: kimlik bilgisi yalnızca bu dosyada.
 /// Eklentinin seçenekleri (`nic-…`, `pppoe-ac`, `pppoe-service`) `plugin` satırından sonra gelmeli: eklenti yüklenince tanınırlar.
-/// Yeniden deneme: `persist` bağlantı düşünce yeniden dener, `holdoff 10` denemeler arasında 10 sn bekletir. `maxfail 3`: arka arkaya
-/// 3 başarısız denemeden sonra pppd çıkar ve birim (`Restart=always`, `RestartSteps=5`, `RestartMaxDelaySec=300`) onu 10 sn'den
-/// 5 dk'ya çıkan gecikmeyle yeniden başlatır; yani deneme sınırsızdır ama başarısızken yavaşlar (systemd bu sayacı kendiliğinden
-/// yeniden başlatmalar arasında sıfırlamaz; her başarılı bağlantıdan sonra `/etc/ppp/ip-up.d/wificorrect` sıfırlar). Sınırsız
-/// (`maxfail 0`) olmaması şundandır; gerçek pppd 2.5.2 ile gözlendi (scripts/pppoe-deneme.sh): yanlış kimlik YÖNTEMİ seçilince
-/// (`pap`/`chap`, operatörün istediğinden farklı) LCP hiç kalkmaz, `holdoff` uygulanmaz ve pppd ~3,3 sn'de bir yeni oturum açar
-/// (saatte ~1000 deneme: operatörün hesabı kilitlemesine yol açabilir); yanlış parolada ise `holdoff` işler (~13 sn'de bir).
+/// Yeniden deneme: `persist` kurulmuş bağlantı düşünce yeniden dener (`holdoff 10` sonra). `maxfail 1`: her başarısız denemeden
+/// sonra pppd çıkar ve birim (`Restart=always`, `RestartSteps=5`, `RestartMaxDelaySec=300`) onu 10 sn'den 5 dk'ya çıkan gecikmeyle
+/// yeniden başlatır; yani deneme sınırsızdır ama başarısızken yavaşlar (systemd bu sayacı kendiliğinden yeniden başlatmalar arasında
+/// sıfırlamaz; her başarılı bağlantıdan sonra `/etc/ppp/ip-up.d/wificorrect` sıfırlar, kablo internet portuna takılınca
+/// `/etc/dhcpcd.exit-hook` sıfırlayıp hemen yeniden başlatır). pppd'nin kendi beklemesine güvenilmez: yanlış kimlik YÖNTEMİ seçilince
+/// (`pap`/`chap`, operatörün istediğinden farklı) LCP hiç kalkmaz ve `holdoff` uygulanmaz (sahte operatörde ~3,3 sn'de bir yeni
+/// oturum: saatte ~1000 deneme); gerçek operatör (Türk.net, 2026-10-24) yanlış parolada da PADT ile oturumu kapatıyor, pppd yine
+/// beklemeden deniyor (dakikada 9 deneme). Hesap kilitlenmesin diye 0.4.20'de `maxfail 3`'ten 1'e indi.
 pub fn peers_text(ag: &Ag) -> String {
     peers_text_nic(ag, &alt_arayuz(ag))
 }
@@ -47,7 +48,7 @@ pub fn peers_text_nic(ag: &Ag, nic: &str) -> String {
         "# WifiCorrect üretir (ag.toml [pppoe]); {BIRIM} bunu okur. Elle değiştirmeyin.\n\
          plugin pppoe.so\nnic-{nic}\nifname {ARAYUZ}\nuser \"{user}\"\npassword \"{pass}\"\n\
          noauth\nhide-password\nnoipdefault\ndefaultroute\ndefaultroute-metric {METRIK}\nusepeerdns\n\
-         persist\nmaxfail 3\nholdoff 10\nlcp-echo-interval 10\nlcp-echo-failure 6\nmtu {mtu}\nmru {mtu}\nnoipv6\n",
+         persist\nmaxfail 1\nholdoff 10\nlcp-echo-interval 10\nlcp-echo-failure 6\nmtu {mtu}\nmru {mtu}\nnoipv6\n",
         user = p.kullanici,
         pass = p.parola,
         mtu = p.mtu,
@@ -163,10 +164,14 @@ pub enum Durum {
     KabloYok,
     /// PPPoE açık değil ve DHCP'den adres alınamıyor
     DhcpYok,
+    /// PPPoE açık değil; internet portu DHCP'den adres almış ama internete çıkılamıyor (etkin yoklama, `ag::internet_yoklamasi`):
+    /// modemin interneti yok ya da kablo PPPoE isteyen bir hatta (ONT'nin VLAN'sız ağı adres verir ama internete çıkarmaz; 0.4.20)
+    InternetYok,
     /// PPPoE sunucusu yanıt vermiyor (keşif zaman aşımı)
     SunucuYok,
-    /// PPPoE açık ama bağlı değil (sunucu yanıt vermiyor ya da deneme sürüyor) ve internet portu modemden DHCP adresi almış:
-    /// modemli hatta internet modemden gelir, ONT'ye takılınca PPPoE bağlanır (sorun değil; 0.4.18)
+    /// PPPoE açık ama bağlı değil (sunucu yanıt vermiyor ya da deneme sürüyor), internet portu modemden DHCP adresi almış ve
+    /// internete çıkılıyor: modemli hatta internet modemden gelir, ONT'ye takılınca PPPoE bağlanır (sorun değil; 0.4.18; 0.4.20'den
+    /// beri yalnızca etkin yoklama internete çıkılabildiğini gösterirse)
     Modemden,
     /// operatör kullanıcı adını/parolayı (ya da kimlik doğrulama yöntemini) reddetti
     KimlikHatasi,
@@ -183,6 +188,7 @@ impl Durum {
             Durum::Kapali => "kapali",
             Durum::KabloYok => "kablo_yok",
             Durum::DhcpYok => "dhcp_yok",
+            Durum::InternetYok => "internet_yok",
             Durum::SunucuYok => "sunucu_yok",
             Durum::Modemden => "modemden",
             Durum::KimlikHatasi => "kimlik_hatasi",
@@ -197,6 +203,7 @@ impl Durum {
             Durum::Kapali => "PPPoE kapalı (modemden DHCP)".into(),
             Durum::KabloYok => "Kablo takılı değil".into(),
             Durum::DhcpYok => "Modemden adres alınamadı (modem kapalı ya da kablo yanlış porta takılı)".into(),
+            Durum::InternetYok => "Adres alındı ama internete çıkılamıyor (modemin interneti yok ya da hat PPPoE istiyor)".into(),
             Durum::SunucuYok => "PPPoE sunucusu yanıt vermiyor (kablo doğru porta mı, VLAN gerekli mi?)".into(),
             Durum::Modemden => "Modemden bağlı (DHCP); PPPoE ONT'ye takılınca bağlanır".into(),
             Durum::KimlikHatasi => "Kullanıcı adı ya da parola reddedildi".into(),
@@ -241,22 +248,28 @@ fn gunluk_durumu(gunluk: &str) -> Durum {
 
 /// Durumu girdilerden çıkarır (saf işlev; `durum` girdileri toplar).
 /// `acik`: ag.toml `pppoe.acik`. `kablo`: internet portunda taşıyıcı var. `ppp_ip`: `wfcppp`'nin IPv4 adresi (varsa).
-/// `dhcp_adres`: internet portunun DHCP'den aldığı IPv4 adresi var. `gunluk`: pppd birim günlüğünün son dakikaları (`journalctl -o cat`).
-/// Sıra: kablo yoksa her şeyden önce `KabloYok` (kablo yeni çekildiyse pppd ~70 sn daha eski adresi tutar); kapalıysa DHCP; açıkta
-/// PPP adresi varsa `Bagli` (günlükteki eski hatalar geçersiz); yoksa günlük: kimlik reddi DHCP çalışsa da gösterilir (bir PPPoE
-/// sunucusu yanıt verdi, bilgi yanlış); sunucu yoksa ya da deneme sürüyorsa ve DHCP adresi varsa `Modemden` (modemli hat: internet
-/// modemden gelir, ONT'ye takılınca PPPoE bağlanır; 0.4.18'den önce bu durumda kırmızı `SunucuYok` görünüyordu).
-pub fn durum_coz(acik: bool, kablo: bool, ppp_ip: Option<&str>, dhcp_adres: bool, gunluk: &str) -> Durum {
+/// `dhcp_adres`: internet portunun DHCP'den aldığı IPv4 adresi var. `internet`: o adresle internete çıkılıyor (etkin yoklama;
+/// yalnızca DHCP adresi varken anlamlı). `gunluk`: pppd birim günlüğünün son dakikaları (`journalctl -o cat`).
+/// Sıra: kablo yoksa her şeyden önce `KabloYok` (kablo yeni çekildiyse pppd ~70 sn daha eski adresi tutar); kapalıysa DHCP (adres
+/// var ama internet yoksa `InternetYok`); açıkta PPP adresi varsa `Bagli` (günlükteki eski hatalar geçersiz); yoksa günlük: kimlik
+/// reddi DHCP çalışsa da gösterilir (bir PPPoE sunucusu yanıt verdi, bilgi yanlış); sunucu yoksa ya da deneme sürüyorsa ve DHCP
+/// adresiyle internete çıkılıyorsa `Modemden` (modemli hat: internet modemden gelir, ONT'ye takılınca PPPoE bağlanır; 0.4.18'den
+/// önce bu durumda kırmızı `SunucuYok` görünüyordu). Adres var ama internet yoksa (ONT'nin VLAN'sız ağı; 0.4.20) günlüğün durumu.
+pub fn durum_coz(acik: bool, kablo: bool, ppp_ip: Option<&str>, dhcp_adres: bool, internet: bool, gunluk: &str) -> Durum {
     if !kablo {
         return Durum::KabloYok;
     }
     if !acik {
-        return if dhcp_adres { Durum::Kapali } else { Durum::DhcpYok };
+        return match (dhcp_adres, internet) {
+            (false, _) => Durum::DhcpYok,
+            (true, true) => Durum::Kapali,
+            (true, false) => Durum::InternetYok,
+        };
     }
     match (ppp_ip, gunluk_durumu(gunluk)) {
         (Some(ip), _) => Durum::Bagli(ip.to_string()),
         (None, Durum::KimlikHatasi) => Durum::KimlikHatasi,
-        (None, _) if dhcp_adres => Durum::Modemden,
+        (None, _) if dhcp_adres && internet => Durum::Modemden,
         (None, d) => d,
     }
 }
@@ -275,9 +288,10 @@ fn adres_coz(ip_addr: &str) -> Option<String> {
 
 /// Canlı durum. Kablo `sys/<internet portu>/carrier`; adresler `ip -4 -o addr show dev …`; PPPoE açık ve bağlı değilse pppd birim
 /// günlüğünün son 10 dakikası. `komut`: süre sınırlı komut çıktısı (`None`: çalışmadı / zaman aşımı → adres/günlük yok sayılır).
+/// `internet`: etkin internet yoklaması (sistemde `ag::internet_yoklamasi`; çağıran internetin olmadığını zaten biliyorsa `|| false`).
 /// Yalnızca kararı etkileyecek veri okunur: kapalıyken günlük, bağlıyken ya da günlükte kimlik reddi varken DHCP adresi, kablo
-/// yokken hiçbiri okunmaz.
-pub fn durum(ag: &Ag, sys: &Path, komut: &dyn Fn(&[&str]) -> Option<String>) -> Durum {
+/// yokken hiçbiri okunmaz; yoklama yalnızca DHCP adresi varken ve karar ona bağlıyken yapılır.
+pub fn durum(ag: &Ag, sys: &Path, komut: &dyn Fn(&[&str]) -> Option<String>, internet: &dyn Fn() -> bool) -> Durum {
     let adres = |arayuz: &str| komut(&["ip", "-4", "-o", "addr", "show", "dev", arayuz]).and_then(|o| adres_coz(&o));
     let (acik, kablo) = (ag.pppoe.acik, crate::ag::link(sys, &ag.wan).0);
     let ppp_ip = if acik && kablo { adres(ARAYUZ) } else { None };
@@ -289,7 +303,9 @@ pub fn durum(ag: &Ag, sys: &Path, komut: &dyn Fn(&[&str]) -> Option<String>) -> 
     // DHCP adresi kapalıyken `Kapali`/`DhcpYok`, açıkken (bağlı değil, kimlik reddi yok) `Modemden` için gerekir
     let dhcp_sor = kablo && (!acik || (ppp_ip.is_none() && gunluk_durumu(&gunluk) != Durum::KimlikHatasi));
     let dhcp_adres = dhcp_sor && adres(&ag.wan).is_some();
-    durum_coz(acik, kablo, ppp_ip.as_deref(), dhcp_adres, &gunluk)
+    // adres internete çıkarıyor mu: ONT'nin VLAN'sız ağı adres ve rota verir ama internete çıkarmaz (2026-10-24, Göztepe)
+    let internet = dhcp_adres && internet();
+    durum_coz(acik, kablo, ppp_ip.as_deref(), dhcp_adres, internet, &gunluk)
 }
 
 // ---------------------------------------------------------------- form (panel → Portlar, giriş sayfası → Servis)
@@ -432,7 +448,9 @@ mod tests {
             "defaultroute-metric 100",
             "usepeerdns",
             "persist",
-            "maxfail 3", // 3 başarısız denemeden sonra pppd çıkar; birim artan gecikmeyle yeniden başlatır (sınırsız hızlı deneme yok)
+            // her başarısız denemeden sonra pppd çıkar, birim artan gecikmeyle yeniden başlatır: gerçek operatör reddi PADT ile
+            // kapatınca pppd'nin holdoff'u işlemiyor (maxfail 3 ile dakikada 9 deneme oldu, 2026-10-24)
+            "maxfail 1",
             "holdoff 10",
             "lcp-echo-interval 10",
             "lcp-echo-failure 6",
@@ -442,7 +460,7 @@ mod tests {
         ] {
             assert!(l.contains(&beklenen), "{beklenen:?} satırı yok:\n{t}");
         }
-        assert!(!t.contains("maxfail 0"), "sınırsız hızlı yeniden deneme operatörün hesabı kilitlemesine yol açabilir:\n{t}");
+        assert!(!t.contains("maxfail 0") && !t.contains("maxfail 3"), "hızlı yeniden deneme operatörün hesabı kilitlemesine yol açabilir:\n{t}");
         assert!(!t.contains("refuse-"), "kimlik otomatik: reddedilen yöntem olmamalı:\n{t}");
         assert!(!t.contains("pppoe-ac") && !t.contains("pppoe-service"), "AC/servis adı boşken satırı olmamalı:\n{t}");
         // eklenti önce yüklenir; arayüz seçeneği (eklentinin) ondan sonra gelir
@@ -695,7 +713,7 @@ mod tests {
         assert!(satir(&format!("ExecStart=/usr/sbin/pppd call {} nodetach", peers.file_name().unwrap().to_str().unwrap())), "{BIRIM_DOSYASI}");
         assert!(satir("ExecStartPre=/usr/local/bin/wificorrect ctl pppoe-hazirla") && satir("ExecStopPost=/usr/local/bin/wificorrect ctl pppoe-temizle"));
         assert!(satir("Restart=always") && satir("RestartSec=10") && satir("After=network.target") && satir("WantedBy=multi-user.target"));
-        // pppd 3 başarısız denemeden sonra çıkar (maxfail 3); yeniden başlatma aralığı 10 sn'den 5 adımda 5 dk'ya çıkar
+        // pppd her başarısız denemeden sonra çıkar (maxfail 1); yeniden başlatma aralığı 10 sn'den 5 adımda 5 dk'ya çıkar
         // (systemd 254+; Debian 13'te 257): yanlış kimlik bilgisiyle operatörü saniyede bir yoklayıp hesabı kilitletmeyelim
         assert!(satir("RestartSteps=5") && satir("RestartMaxDelaySec=300"), "{BIRIM_DOSYASI}");
         assert!(satir("SuccessExitStatus=5")); // pppd SIGTERM'e 5 koduyla çıkar: durdurma birimi "failed" yapmasın
@@ -876,7 +894,8 @@ mod tests {
         // /etc/ppp/ip-up gibi: ortam temiz, PATH ve PPP_IFACE verilir; run-parts altı argüman geçirir. Dönen: (kod, süre)
         let calistir = |ppp_iface: Option<&str>, arayuz: &str, kayit: &str, ek: &[(&str, &str)]| {
             let mut c = std::process::Command::new(&kanca);
-            c.env_clear().env("PATH", &path).env("WFC_KAYIT", d.join(kayit)).args([arayuz, "", "0", "203.0.113.10", "198.51.100.1", ""]);
+            c.env_clear().env("PATH", &path).env("WFC_KAYIT", d.join(kayit)).env("WFC_RESOLV", d.join("resolv.conf"));
+            c.args([arayuz, "", "0", "203.0.113.10", "198.51.100.1", ""]);
             if let Some(p) = ppp_iface {
                 c.env("PPP_IFACE", p);
             }
@@ -914,7 +933,7 @@ mod tests {
         assert_eq!(bekle("kayit-hata"), BEKLENEN);
         // systemctl hiç yoksa da
         let mut c = std::process::Command::new(&kanca);
-        c.env_clear().env("PATH", "/yok/bin").env("PPP_IFACE", "wfcppp").arg("wfcppp");
+        c.env_clear().env("PATH", "/yok/bin").env("PPP_IFACE", "wfcppp").env("WFC_RESOLV", d.join("resolv.conf")).arg("wfcppp");
         assert_eq!(c.output().unwrap().status.code(), Some(0));
         // systemctl yavaş olsa da (PID 1 meşgul) pppd beklemez: kanca hemen döner, komut arkada biter
         let (kod, sure) = calistir(Some("wfcppp"), "wfcppp", "kayit-yavas", &[("WFC_BEKLE", "2")]);
@@ -923,6 +942,205 @@ mod tests {
         assert_eq!(bekle("kayit-yavas"), BEKLENEN);
         // ppp0 için (en başta) hiç çağrılmadı
         assert!(!d.join("kayit-ppp0").exists());
+
+        // 0000usepeerdns'in yedeği silinir (koparken bayat DNS geri gelmesin; 2026-10-24); bağlantıysa gerçek dosyanın yanındaki
+        let rc = d.join("resolv.conf");
+        let yedek = d.join("resolv.conf.pppd-backup.wfcppp");
+        std::fs::write(&rc, "nameserver 203.0.113.53\n").unwrap();
+        for ad in ["resolv.conf.pppd-backup.wfcppp", "resolv.conf.pppd-backup.ppp0", "resolv.conf.wfc-yeni"] {
+            std::fs::write(d.join(ad), "nameserver 10.98.153.1\n").unwrap();
+        }
+        assert_eq!(calistir(Some("ppp0"), "ppp0", "kayit-ppp0-yedek", &[]).0, Some(0));
+        assert!(yedek.exists(), "ppp0'da wfcppp'nin yedeğine dokunulmaz");
+        assert_eq!(calistir(Some("wfcppp"), "wfcppp", "kayit-yedek", &[]).0, Some(0));
+        assert!(!yedek.exists() && d.join("resolv.conf.pppd-backup.ppp0").exists() && d.join("resolv.conf.wfc-yeni").exists());
+        assert_eq!(std::fs::read_to_string(&rc).unwrap(), "nameserver 203.0.113.53\n"); // resolv.conf'un kendisine dokunulmaz
+        assert_eq!(bekle("kayit-yedek"), BEKLENEN);
+        // /etc/resolv.conf bir bağlantıysa yedek gerçek dosyanın yanındadır (0000usepeerdns `readlink --canonicalize` kullanır)
+        std::fs::create_dir_all(d.join("gercek")).unwrap();
+        std::fs::write(d.join("gercek/resolv.conf"), "").unwrap();
+        std::fs::write(d.join("gercek/resolv.conf.pppd-backup.wfcppp"), "").unwrap();
+        std::fs::remove_file(&rc).unwrap();
+        std::os::unix::fs::symlink(d.join("gercek/resolv.conf"), &rc).unwrap();
+        assert_eq!(calistir(Some("wfcppp"), "wfcppp", "kayit-bag", &[]).0, Some(0));
+        assert!(!d.join("gercek/resolv.conf.pppd-backup.wfcppp").exists());
+        // yedek yoksa da sorun yok
+        assert_eq!(calistir(Some("wfcppp"), "wfcppp", "kayit-yedeksiz", &[]).0, Some(0));
+        let _ = std::fs::remove_dir_all(&d);
+    }
+
+    const IP_DOWN_KANCASI: &str = include_str!("../deploy/debian/etc/ppp/ip-down.d/wificorrect");
+
+    #[test]
+    fn ip_down_kancasi_dns_i_dhcp_den_yeniden_kurdurur() {
+        use std::os::unix::fs::PermissionsExt;
+        use std::time::{Duration, Instant};
+        let d = kanca_klasoru("ip-down");
+        let kanca = d.join("wificorrect");
+        std::fs::write(&kanca, IP_DOWN_KANCASI).unwrap();
+        std::fs::set_permissions(&kanca, std::fs::Permissions::from_mode(0o755)).unwrap();
+        // sahte dhcpcd (PATH'te önde): argümanlarını kayıt dosyasına yazar; istenirse bekler ya da hata koduyla çıkar
+        std::fs::create_dir_all(d.join("bin")).unwrap();
+        let sahte = d.join("bin/dhcpcd");
+        std::fs::write(&sahte, "#!/bin/sh\nsleep \"${WFC_BEKLE:-0}\"\necho \"$*\" >>\"$WFC_KAYIT\"\nexit \"${WFC_KOD:-0}\"\n").unwrap();
+        std::fs::set_permissions(&sahte, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let path = format!("{}:/usr/bin:/bin", d.join("bin").display());
+        // internet portunun çalışan dhcpcd'si: denetim soketi (gerçek UNIX soketi) ve yaşayan süreç (bu test)
+        let run = d.join("run");
+        std::fs::create_dir_all(&run).unwrap();
+        let soket = std::os::unix::net::UnixListener::bind(run.join("enp3s0.sock")).unwrap();
+        std::fs::write(run.join("enp3s0.pid"), format!("{}\n", std::process::id())).unwrap();
+        // /etc/ppp/ip-down gibi: PPP_IFACE ve PPP_TTY (pppd'nin aygıtı: PPPoE'de Ethernet ya da VLAN arayüzü) ve altı argüman
+        let calistir = |iface: &str, tty: &str, kayit: &str, ek: &[(&str, &str)]| {
+            let mut c = std::process::Command::new(&kanca);
+            c.env_clear().env("PATH", &path).env("WFC_KAYIT", d.join(kayit)).env("WFC_DHCPCD_RUN", &run);
+            c.env("PPP_IFACE", iface).env("PPP_TTY", tty).args([iface, tty, "0", "203.0.113.10", "198.51.100.1", ""]);
+            for (k, v) in ek {
+                c.env(k, v);
+            }
+            let t0 = Instant::now();
+            let cikti = c.output().unwrap(); // arka plandaki komut çıktı borusunu tutsaydı burada beklenirdi
+            (cikti.status.code(), t0.elapsed())
+        };
+        let bekle = |kayit: &str| {
+            for _ in 0..30 {
+                if let Ok(t) = std::fs::read_to_string(d.join(kayit)) {
+                    if t.ends_with('\n') {
+                        return t;
+                    }
+                }
+                std::thread::sleep(Duration::from_millis(100));
+            }
+            String::new()
+        };
+        assert!(IP_DOWN_KANCASI.lines().any(|l| l == format!("{ARAYUZ})")));
+        // wfcppp koptu: internet portunun dhcpcd'sine "yeniden bağlan" denir (VLAN'lı aygıt da, `nic-` önekli yazım da)
+        for (tty, kayit) in [("enp3s0", "k-duz"), ("enp3s0.35", "k-vlan"), ("nic-enp3s0", "k-nic")] {
+            assert_eq!(calistir("wfcppp", tty, kayit, &[]).0, Some(0), "{tty}");
+            assert_eq!(bekle(kayit), "-n enp3s0\n", "{tty}");
+        }
+        // dhcpcd yavaş olsa da pppd beklemez
+        let (kod, sure) = calistir("wfcppp", "enp3s0", "k-yavas", &[("WFC_BEKLE", "2")]);
+        assert_eq!(kod, Some(0));
+        assert!(sure < Duration::from_millis(1500), "kanca bekledi: {sure:?}");
+        assert_eq!(bekle("k-yavas"), "-n enp3s0\n");
+        // dhcpcd hata verse de kanca 0 ile çıkar
+        assert_eq!(calistir("wfcppp", "enp3s0", "k-hata", &[("WFC_KOD", "1")]).0, Some(0));
+        assert_eq!(bekle("k-hata"), "-n enp3s0\n");
+        // dokunulmayanlar (dhcpcd çağrılmaz): başka PPP arayüzü; o portun dhcpcd'si yok (soket yok: `dhcpcd -n` yeni bir dhcpcd
+        // başlatırdı); aygıt adı boş ya da tuhaf
+        let mut hic = vec![calistir("ppp0", "enp3s0", "k-ppp0", &[]), calistir("wfcppp", "enp1s0", "k-baska", &[])];
+        hic.push(calistir("wfcppp", "", "k-bos", &[]));
+        hic.push(calistir("wfcppp", "../enp3s0", "k-tuhaf", &[]));
+        hic.push(calistir("wfcppp", "enp3s0 x", "k-bosluk", &[]));
+        // pid dosyası yok ya da süreç ölü (soket bayat)
+        std::fs::remove_file(run.join("enp3s0.pid")).unwrap();
+        hic.push(calistir("wfcppp", "enp3s0", "k-pidsiz", &[]));
+        std::fs::write(run.join("enp3s0.pid"), "999999999\n").unwrap();
+        hic.push(calistir("wfcppp", "enp3s0", "k-olu", &[]));
+        // soket yerine düz dosya
+        std::fs::write(run.join("enp3s0.pid"), format!("{}\n", std::process::id())).unwrap();
+        drop(soket);
+        std::fs::remove_file(run.join("enp3s0.sock")).unwrap();
+        std::fs::write(run.join("enp3s0.sock"), "").unwrap();
+        hic.push(calistir("wfcppp", "enp3s0", "k-dosya", &[]));
+        assert!(hic.iter().all(|(k, _)| *k == Some(0)), "{hic:?}");
+        std::thread::sleep(Duration::from_millis(300));
+        for k in ["k-ppp0", "k-baska", "k-bos", "k-tuhaf", "k-bosluk", "k-pidsiz", "k-olu", "k-dosya"] {
+            assert!(!d.join(k).exists(), "{k}: dhcpcd çağrılmamalıydı");
+        }
+        // dhcpcd hiç yoksa da 0
+        let mut c = std::process::Command::new(&kanca);
+        c.env_clear().env("PATH", "/yok/bin").env("PPP_IFACE", "wfcppp").env("PPP_TTY", "enp3s0").env("WFC_DHCPCD_RUN", &run);
+        assert_eq!(c.args(["wfcppp", "enp3s0"]).output().unwrap().status.code(), Some(0));
+        let _ = std::fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn dhcpcd_kancasi_kablo_takilinca_pppoe_yi_hemen_dener() {
+        use std::os::unix::fs::PermissionsExt;
+        use std::time::Duration;
+        let d = kanca_klasoru("carrier");
+        std::fs::write(d.join("kanca"), DHCPCD_KANCASI).unwrap();
+        // sahte systemctl: her çağrının argümanları bir satır
+        std::fs::create_dir_all(d.join("bin")).unwrap();
+        std::fs::write(d.join("bin/systemctl"), "#!/bin/sh\necho \"$*\" >>\"$WFC_KAYIT\"\n").unwrap();
+        std::fs::set_permissions(d.join("bin/systemctl"), std::fs::Permissions::from_mode(0o755)).unwrap();
+        let path = format!("{}:/usr/bin:/bin", d.join("bin").display());
+        let peers = d.join("peers");
+        let bayrak = |b: Option<&str>| {
+            let _ = std::fs::remove_dir_all(d.join("net"));
+            if let Some(b) = b {
+                std::fs::create_dir_all(d.join("net/wfcppp")).unwrap();
+                std::fs::write(d.join("net/wfcppp/flags"), format!("{b}\n")).unwrap();
+            }
+        };
+        // dhcpcd-run-hooks gibi "source" eder (set -eu altında da durmamalı); reason ve interface dhcpcd'den
+        let calistir = |reason: &str, interface: &str, kayit: &str| {
+            let cikti = std::process::Command::new("sh")
+                .args(["-euc", ". \"$1\"; echo \"SONRA=$?\"", "sh"])
+                .arg(d.join("kanca"))
+                .env_clear()
+                .env("PATH", &path)
+                .env("WFC_KAYIT", d.join(kayit))
+                .env("WFC_NET", d.join("net"))
+                .env("WFC_PPP_RESOLV", d.join("ppp-resolv.conf"))
+                .env("WFC_RESOLV", d.join("resolv.conf"))
+                .env("WFC_PEERS", &peers)
+                .env("reason", reason)
+                .env("interface", interface)
+                .output()
+                .unwrap();
+            let t = String::from_utf8_lossy(&cikti.stdout).into_owned();
+            assert!(t.lines().any(|l| l == "SONRA=0"), "{reason} {interface}: {t}");
+        };
+        let bekle = |kayit: &str| {
+            for _ in 0..30 {
+                if let Ok(t) = std::fs::read_to_string(d.join(kayit)) {
+                    if t.lines().count() == 2 {
+                        return t;
+                    }
+                }
+                std::thread::sleep(Duration::from_millis(100));
+            }
+            std::fs::read_to_string(d.join(kayit)).unwrap_or_default()
+        };
+        const BEKLENEN: &str = "reset-failed wificorrect-pppoe.service\nrestart --no-block wificorrect-pppoe.service\n";
+        assert_eq!(BEKLENEN, format!("reset-failed {BIRIM}\nrestart --no-block {BIRIM}\n"));
+        // PPPoE açık (bağlantı dosyası var), bağlı değil (wfcppp yok ya da kapalı), kablo internet portuna takıldı: hemen yeniden dener
+        let mut a = ag(acik());
+        a.pppoe.vlan = 0;
+        std::fs::write(&peers, peers_text(&a)).unwrap();
+        assert!(peers_text(&a).lines().any(|l| l == "nic-enp3s0"));
+        bayrak(None);
+        calistir("CARRIER", "enp3s0", "k-takildi");
+        assert_eq!(bekle("k-takildi"), BEKLENEN);
+        bayrak(Some("0x1090")); // arayüz var ama kapalı
+        calistir("CARRIER", "enp3s0", "k-kapali-arayuz");
+        assert_eq!(bekle("k-kapali-arayuz"), BEKLENEN);
+        // VLAN'lı hatta da (pppd enp3s0.35'te, dhcpcd enp3s0'da)
+        std::fs::write(&peers, peers_text(&ag(acik()))).unwrap();
+        assert!(peers_text(&ag(acik())).lines().any(|l| l == "nic-enp3s0.35"));
+        calistir("CARRIER", "enp3s0", "k-vlan");
+        assert_eq!(bekle("k-vlan"), BEKLENEN);
+        // dokunulmayanlar: PPPoE zaten bağlı; başka olay; başka arayüz; PPPoE kapalı (bağlantı dosyası yok)
+        bayrak(Some("0x10d1"));
+        calistir("CARRIER", "enp3s0", "k-bagli");
+        bayrak(None);
+        const OLAYLAR: [&str; 7] = ["NOCARRIER", "BOUND", "RENEW", "REBOOT", "IPV4LL", "PREINIT", "STOPPED"];
+        for olay in OLAYLAR {
+            calistir(olay, "enp3s0", &format!("k-{olay}"));
+        }
+        calistir("CARRIER", "enp1s0", "k-baska");
+        calistir("CARRIER", "", "k-bos");
+        std::fs::remove_file(&peers).unwrap();
+        calistir("CARRIER", "enp3s0", "k-kapali");
+        std::thread::sleep(Duration::from_millis(300));
+        let mut olmamali = vec!["k-bagli".to_string(), "k-baska".into(), "k-bos".into(), "k-kapali".into()];
+        olmamali.extend(OLAYLAR.map(|o| format!("k-{o}")));
+        for k in olmamali {
+            assert!(!d.join(&k).exists(), "{k}: systemctl çağrılmamalıydı");
+        }
         let _ = std::fs::remove_dir_all(&d);
     }
 
@@ -957,24 +1175,27 @@ mod tests {
     const DUSTU: &str = "Modem hangup\nConnect time 1.2 minutes.\nSent 0 bytes, received 0 bytes.\nConnection terminated.\nSent PADT\n";
 
     fn acik_coz(gunluk: &str) -> Durum {
-        durum_coz(true, true, None, false, gunluk)
+        durum_coz(true, true, None, false, false, gunluk)
     }
 
     #[test]
     fn durum_kapali() {
-        assert_eq!(durum_coz(false, false, None, false, ""), Durum::KabloYok);
-        assert_eq!(durum_coz(false, false, None, true, ""), Durum::KabloYok); // kablo yoksa eski adres önemsiz
-        assert_eq!(durum_coz(false, true, None, false, ""), Durum::DhcpYok);
-        assert_eq!(durum_coz(false, true, None, true, ""), Durum::Kapali);
+        assert_eq!(durum_coz(false, false, None, false, false, ""), Durum::KabloYok);
+        assert_eq!(durum_coz(false, false, None, true, true, ""), Durum::KabloYok); // kablo yoksa eski adres önemsiz
+        assert_eq!(durum_coz(false, true, None, false, false, ""), Durum::DhcpYok);
+        assert_eq!(durum_coz(false, true, None, true, true, ""), Durum::Kapali);
+        // adres var ama internete çıkılamıyor (modemin interneti yok ya da kablo PPPoE isteyen hatta; 0.4.20)
+        assert_eq!(durum_coz(false, true, None, true, false, ""), Durum::InternetYok);
         // PPPoE kapalıyken eski günlük ve kalıntı PPP adresi durumu değiştirmez
-        assert_eq!(durum_coz(false, true, None, true, KIMLIK_CHAP), Durum::Kapali);
-        assert_eq!(durum_coz(false, true, Some("85.1.2.3"), true, SUNUCU_YOK), Durum::Kapali);
-        assert_eq!(durum_coz(false, true, None, false, SUNUCU_YOK), Durum::DhcpYok);
+        assert_eq!(durum_coz(false, true, None, true, true, KIMLIK_CHAP), Durum::Kapali);
+        assert_eq!(durum_coz(false, true, Some("85.1.2.3"), true, true, SUNUCU_YOK), Durum::Kapali);
+        assert_eq!(durum_coz(false, true, Some("85.1.2.3"), true, false, SUNUCU_YOK), Durum::InternetYok);
+        assert_eq!(durum_coz(false, true, None, false, false, SUNUCU_YOK), Durum::DhcpYok);
     }
 
     #[test]
     fn durum_acik_fixture() {
-        let coz = |kablo: bool, ip: Option<&str>, gunluk: &str| durum_coz(true, kablo, ip, false, gunluk);
+        let coz = |kablo: bool, ip: Option<&str>, gunluk: &str| durum_coz(true, kablo, ip, false, false, gunluk);
         assert_eq!(coz(true, None, KIMLIK_CHAP), Durum::KimlikHatasi);
         assert_eq!(coz(true, None, KIMLIK_PAP), Durum::KimlikHatasi);
         assert_eq!(coz(true, None, KIMLIK_YONTEMI), Durum::KimlikHatasi);
@@ -994,21 +1215,25 @@ mod tests {
     #[test]
     fn durum_dhcp_ve_pppoe_birlikte() {
         // DHCP adresi de var, PPPoE de bağlı: PPPoE tercih edilir
-        assert_eq!(durum_coz(true, true, Some("85.1.2.3"), true, ""), Durum::Bagli("85.1.2.3".into()));
-        assert_eq!(durum_coz(true, true, Some("85.1.2.3"), true, KIMLIK_CHAP), Durum::Bagli("85.1.2.3".into()));
+        assert_eq!(durum_coz(true, true, Some("85.1.2.3"), true, true, ""), Durum::Bagli("85.1.2.3".into()));
+        assert_eq!(durum_coz(true, true, Some("85.1.2.3"), true, true, KIMLIK_CHAP), Durum::Bagli("85.1.2.3".into()));
         // modemli hat (dükkân ya da modemi olan müşteri): PPPoE sunucusu yok ya da deneme sürüyor, internet modemden geliyor
-        assert_eq!(durum_coz(true, true, None, true, SUNUCU_YOK), Durum::Modemden);
-        assert_eq!(durum_coz(true, true, None, true, ""), Durum::Modemden);
-        assert_eq!(durum_coz(true, true, None, true, &format!("{BAGLI}{DUSTU}")), Durum::Modemden); // ONT'den modeme geçildi
-        assert_eq!(durum_coz(true, true, None, true, &format!("{KIMLIK_CHAP}{SUNUCU_YOK}")), Durum::Modemden); // en son olay: sunucu yok
+        assert_eq!(durum_coz(true, true, None, true, true, SUNUCU_YOK), Durum::Modemden);
+        assert_eq!(durum_coz(true, true, None, true, true, ""), Durum::Modemden);
+        assert_eq!(durum_coz(true, true, None, true, true, &format!("{BAGLI}{DUSTU}")), Durum::Modemden); // ONT'den modeme geçildi
+        assert_eq!(durum_coz(true, true, None, true, true, &format!("{KIMLIK_CHAP}{SUNUCU_YOK}")), Durum::Modemden); // en son olay: sunucu yok
+        // adres var ama internete çıkılamıyor (ONT'nin VLAN'sız ağı: 2026-10-24, Göztepe): yeşil "Modemden" değil, PPPoE'nin
+        // kendi durumu (VLAN gerekli olabilir)
+        assert_eq!(durum_coz(true, true, None, true, false, SUNUCU_YOK), Durum::SunucuYok);
+        assert_eq!(durum_coz(true, true, None, true, false, ""), Durum::Baglaniyor);
         // kimlik reddi DHCP çalışsa da gösterilir (bir PPPoE sunucusu yanıt verdi, bilgi yanlış)
-        assert_eq!(durum_coz(true, true, None, true, KIMLIK_CHAP), Durum::KimlikHatasi);
-        assert_eq!(durum_coz(true, true, None, true, KIMLIK_YONTEMI), Durum::KimlikHatasi);
+        assert_eq!(durum_coz(true, true, None, true, true, KIMLIK_CHAP), Durum::KimlikHatasi);
+        assert_eq!(durum_coz(true, true, None, true, true, KIMLIK_YONTEMI), Durum::KimlikHatasi);
         // DHCP adresi yoksa PPPoE'nin kendi durumu (açıkken "DHCP yok" durumu yoktur)
-        assert_eq!(durum_coz(true, true, None, false, SUNUCU_YOK), Durum::SunucuYok);
-        assert_eq!(durum_coz(true, true, None, false, ""), Durum::Baglaniyor);
+        assert_eq!(durum_coz(true, true, None, false, false, SUNUCU_YOK), Durum::SunucuYok);
+        assert_eq!(durum_coz(true, true, None, false, false, ""), Durum::Baglaniyor);
         // kablo yoksa DHCP adresi önemsiz
-        assert_eq!(durum_coz(true, false, None, true, SUNUCU_YOK), Durum::KabloYok);
+        assert_eq!(durum_coz(true, false, None, true, true, SUNUCU_YOK), Durum::KabloYok);
     }
 
     #[test]
@@ -1072,6 +1297,7 @@ mod tests {
             (Durum::Kapali, "kapali", "PPPoE kapalı (modemden DHCP)"),
             (Durum::KabloYok, "kablo_yok", "Kablo takılı değil"),
             (Durum::DhcpYok, "dhcp_yok", "Modemden adres alınamadı (modem kapalı ya da kablo yanlış porta takılı)"),
+            (Durum::InternetYok, "internet_yok", "Adres alındı ama internete çıkılamıyor (modemin interneti yok ya da hat PPPoE istiyor)"),
             (Durum::SunucuYok, "sunucu_yok", "PPPoE sunucusu yanıt vermiyor (kablo doğru porta mı, VLAN gerekli mi?)"),
             (Durum::Modemden, "modemden", "Modemden bağlı (DHCP); PPPoE ONT'ye takılınca bağlanır"),
             (Durum::KimlikHatasi, "kimlik_hatasi", "Kullanıcı adı ya da parola reddedildi"),
@@ -1119,15 +1345,27 @@ mod tests {
         d
     }
 
-    /// `durum`u sahte komut çıktılarıyla çalıştırır (tabloda olmayan komut `None` = çalışmadı/zaman aşımı); çağrılan komutlar sırayla döner.
+    /// Sahte etkin yoklamanın çağrı kaydındaki adı
+    const YOKLAMA: &str = "YOKLAMA";
+
+    /// `durum`u sahte komut çıktılarıyla çalıştırır (tabloda olmayan komut `None` = çalışmadı/zaman aşımı); çağrılan komutlar
+    /// (ve etkin yoklama, `YOKLAMA`) sırayla döner. Yoklama internete çıkıldığını söyler (`durum_dene_net`: verilen sonuç).
     fn durum_dene(a: &Ag, sys: &Path, cikti: &[(&str, &str)]) -> (Durum, Vec<String>) {
+        durum_dene_net(a, sys, cikti, true)
+    }
+
+    fn durum_dene_net(a: &Ag, sys: &Path, cikti: &[(&str, &str)], internet: bool) -> (Durum, Vec<String>) {
         let cagrilar = std::cell::RefCell::new(Vec::<String>::new());
         let komut = |c: &[&str]| {
             let s = c.join(" ");
             cagrilar.borrow_mut().push(s.clone());
             cikti.iter().find(|(k, _)| *k == s).map(|(_, v)| v.to_string())
         };
-        let d = durum(a, sys, &komut);
+        let yokla = || {
+            cagrilar.borrow_mut().push(YOKLAMA.to_string());
+            internet
+        };
+        let d = durum(a, sys, &komut, &yokla);
         (d, cagrilar.into_inner())
     }
 
@@ -1139,12 +1377,16 @@ mod tests {
         assert_eq!((d, c.len()), (Durum::KabloYok, 0));
         // carrier okunamıyor (arayüz kapalı → EINVAL / dosya yok): kablo yok sayılır
         assert_eq!(durum_dene(&kapali, &sys_dizini("k-carrier-yok", None), &[]).0, Durum::KabloYok);
-        // kablo var, DHCP adresi var: yalnızca internet portunun adresi sorulur (wfcppp ve günlük okunmaz)
+        // kablo var, DHCP adresi var: yalnızca internet portunun adresi sorulur (wfcppp ve günlük okunmaz), sonra etkin yoklama
         let sys = sys_dizini("k-dhcp", Some("1\n"));
         let (d, c) = durum_dene(&kapali, &sys, &[(IP_WAN, DHCP_ADRES)]);
-        assert_eq!((d, c), (Durum::Kapali, vec![IP_WAN.to_string()]));
-        // DHCP yanıt vermiyor: adres yok, ya da yalnızca dhcpcd'nin 169.254 adresi, ya da komut çalışmadı
-        assert_eq!(durum_dene(&kapali, &sys, &[(IP_WAN, "")]).0, Durum::DhcpYok);
+        assert_eq!((d, c), (Durum::Kapali, vec![IP_WAN.to_string(), YOKLAMA.to_string()]));
+        // adres var ama yoklama internete çıkamadı: modemin interneti yok ya da hat PPPoE istiyor
+        let (d, c) = durum_dene_net(&kapali, &sys, &[(IP_WAN, DHCP_ADRES)], false);
+        assert_eq!((d, c), (Durum::InternetYok, vec![IP_WAN.to_string(), YOKLAMA.to_string()]));
+        // DHCP yanıt vermiyor: adres yok, ya da yalnızca dhcpcd'nin 169.254 adresi, ya da komut çalışmadı (yoklama yapılmaz)
+        let (d, c) = durum_dene(&kapali, &sys, &[(IP_WAN, "")]);
+        assert_eq!((d, c), (Durum::DhcpYok, vec![IP_WAN.to_string()]));
         assert_eq!(durum_dene(&kapali, &sys, &[(IP_WAN, YEREL_ADRES)]).0, Durum::DhcpYok);
         assert_eq!(durum_dene(&kapali, &sys, &[]).0, Durum::DhcpYok);
         // PPPoE bilgileri dolu ama kapalı: aynı
@@ -1159,22 +1401,30 @@ mod tests {
         // wfcppp'nin adresi var: bağlı; günlük okunmaz, DHCP sorulmaz
         let (d, c) = durum_dene(&a, &sys, &[(IP_PPP, PPP_ADRES), (IP_WAN, DHCP_ADRES)]);
         assert_eq!((d, c), (Durum::Bagli("203.0.113.10".into()), vec![IP_PPP.to_string()]));
-        // adres yok: pppd birim günlüğünün son 10 dakikası okunur; kimlik reddi yoksa internet portunun (DHCP) adresi de sorulur
+        // adres yok: pppd birim günlüğünün son 10 dakikası okunur; kimlik reddi yoksa internet portunun (DHCP) adresi de sorulur,
+        // adres varsa internete çıkıyor mu diye etkin yoklama yapılır
         let yok = "Device \"wfcppp\" does not exist.\n";
-        for (gunluk, dhcp, beklenen) in [
-            (KIMLIK_CHAP, DHCP_ADRES, Durum::KimlikHatasi),
-            (KIMLIK_PAP, DHCP_ADRES, Durum::KimlikHatasi),
-            (KIMLIK_YONTEMI, "", Durum::KimlikHatasi),
-            (SUNUCU_YOK, "", Durum::SunucuYok),
-            (SUNUCU_YOK, YEREL_ADRES, Durum::SunucuYok), // dhcpcd'nin 169.254 adresi modem sayılmaz (ONT DHCP vermiyor)
-            (SUNUCU_YOK, DHCP_ADRES, Durum::Modemden),
-            ("", "", Durum::Baglaniyor),
-            ("", DHCP_ADRES, Durum::Modemden),
+        for (gunluk, dhcp, internet, beklenen) in [
+            (KIMLIK_CHAP, DHCP_ADRES, true, Durum::KimlikHatasi),
+            (KIMLIK_PAP, DHCP_ADRES, true, Durum::KimlikHatasi),
+            (KIMLIK_YONTEMI, "", true, Durum::KimlikHatasi),
+            (SUNUCU_YOK, "", true, Durum::SunucuYok),
+            (SUNUCU_YOK, YEREL_ADRES, true, Durum::SunucuYok), // dhcpcd'nin 169.254 adresi modem sayılmaz (ONT DHCP vermiyor)
+            (SUNUCU_YOK, DHCP_ADRES, true, Durum::Modemden),
+            // ONT'nin VLAN'sız ağı: adres var ama internet yok (2026-10-24, Göztepe): yeşil "Modemden" değil
+            (SUNUCU_YOK, DHCP_ADRES, false, Durum::SunucuYok),
+            ("", "", true, Durum::Baglaniyor),
+            ("", DHCP_ADRES, true, Durum::Modemden),
+            ("", DHCP_ADRES, false, Durum::Baglaniyor),
         ] {
-            let (d, c) = durum_dene(&a, &sys, &[(IP_PPP, yok), (GUNLUK_KOMUTU, gunluk), (IP_WAN, dhcp)]);
-            assert_eq!(d, beklenen, "{gunluk:?} {dhcp:?}");
-            let sorulan = if beklenen == Durum::KimlikHatasi { vec![IP_PPP, GUNLUK_KOMUTU] } else { vec![IP_PPP, GUNLUK_KOMUTU, IP_WAN] };
-            assert_eq!(c, sorulan, "{gunluk:?} {dhcp:?}");
+            let (d, c) = durum_dene_net(&a, &sys, &[(IP_PPP, yok), (GUNLUK_KOMUTU, gunluk), (IP_WAN, dhcp)], internet);
+            assert_eq!(d, beklenen, "{gunluk:?} {dhcp:?} {internet}");
+            let sorulan = match (&beklenen, dhcp) {
+                (Durum::KimlikHatasi, _) => vec![IP_PPP, GUNLUK_KOMUTU],
+                (_, DHCP_ADRES) => vec![IP_PPP, GUNLUK_KOMUTU, IP_WAN, YOKLAMA],
+                _ => vec![IP_PPP, GUNLUK_KOMUTU, IP_WAN],
+            };
+            assert_eq!(c, sorulan, "{gunluk:?} {dhcp:?} {internet}");
         }
         // komutlar çalışmadı (zaman aşımı): bağlanıyor
         assert_eq!(durum_dene(&a, &sys, &[]).0, Durum::Baglaniyor);
@@ -1187,7 +1437,7 @@ mod tests {
         std::fs::create_dir_all(sys.join("enp1s0")).unwrap();
         std::fs::write(sys.join("enp1s0").join("carrier"), "1\n").unwrap();
         let (d, c) = durum_dene(&b, &sys, &[("ip -4 -o addr show dev enp1s0", DHCP_ADRES)]);
-        assert_eq!((d, c), (Durum::Kapali, vec!["ip -4 -o addr show dev enp1s0".to_string()]));
+        assert_eq!((d, c), (Durum::Kapali, vec!["ip -4 -o addr show dev enp1s0".to_string(), YOKLAMA.to_string()]));
     }
 
     // ---------------------------------------------------------------- form (Portlar ve Servis aynı alanları kullanır)

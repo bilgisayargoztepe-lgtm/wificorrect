@@ -817,7 +817,7 @@ kurulmadı ve gerçek bir PPPoE hattında denenmedi (aşağıda "Canlı kabul li
   enable` + `restart`, kapalıyken `disable --now`) ve `switch` (panel geçişi, geri alma, fabrika dönüşü) ile `pppoe_uygula` (Servis)
   ikisi de çağırır. **Bağlantı dosyası** `/etc/ppp/peers/wificorrect` (600; yalnızca PPPoE açıkken var, kapanınca ve fabrika dönüşünde
   silinir) ag.toml'dan üretilir: `plugin pppoe.so`, `nic-<arayüz>`, `ifname wfcppp`, `user "…"`, `password "…"`, `noauth`, `hide-password`,
-  `noipdefault`, `defaultroute`, `defaultroute-metric 100`, `usepeerdns`, `persist`, `maxfail 3`, `holdoff 10`, `lcp-echo-interval 10`,
+  `noipdefault`, `defaultroute`, `defaultroute-metric 100`, `usepeerdns`, `persist`, `maxfail 3` (0.4.20'den beri `maxfail 1`: "PPPoE düzeltmeleri"), `holdoff 10`, `lcp-echo-interval 10`,
   `lcp-echo-failure 6`, `mtu N`, `mru N`, `noipv6`; `kimlik=pap` → `refuse-chap/-mschap/-mschap-v2/-eap`, `chap` → `refuse-pap/-eap`;
   AC/servis adı doluysa `pppoe-ac "…"` ve `pppoe-service "…"` (eklenti seçenekleri, `plugin` satırından sonra; `pppoe-ac-name` diye bir
   seçenek **yok**: pppd 2.5.2 eklenti kaynağından, gerçek pppd ikisini de sahte operatörde kabul etti, yanlış değerle bağlanmadı). Sistemin
@@ -835,7 +835,7 @@ kurulmadı ve gerçek bir PPPoE hattında denenmedi (aşağıda "Canlı kabul li
   sunucuları geçerli olur (PPPoE rotası önde). Kanca cihazda birim testiyle sınandı (yollar geçici klasörde; gerçek `/etc/resolv.conf`'un
   özeti sınamadan önce ve sonra aynı); dhcpcd'nin gerçek olaylarıyla birlikte yalnızca canlı kabulde: sahte operatör denemesi dhcpcd
   çalıştırmaz (dhcpcd kancaları cihazın ana bilgisayar adına, timesyncd'sine ve resolv.conf'una dokunurdu) ve `usepeerdns`i kaldırır.
-- **Yeniden deneme sınırsızdır ama başarısızken yavaşlar:** pppd arka arkaya 3 başarısız denemeden sonra çıkar (`maxfail 3`); birim onu
+- **Yeniden deneme sınırsızdır ama başarısızken yavaşlar:** pppd arka arkaya 3 başarısız denemeden sonra çıkar (`maxfail 3`; 0.4.20'den beri her başarısız denemede, `maxfail 1`); birim onu
   10 sn'den başlayıp 5 adımda 5 dk'ya çıkan gecikmeyle yeniden başlatır (`RestartSec`/`RestartSteps`/`RestartMaxDelaySec`; systemd 257'de
   birim sözdizimi `systemd-analyze verify` ile doğrulandı). Düşen bağlantıyı `persist` yeniden kurar (operatör oturumu kapatırsa pppd hemen
   yeniden keşfe başlar; kimlik reddinde `holdoff 10` araya girer). Neden, sahte operatörde ölçüldü: yanlış parolada `holdoff` işler (~13
@@ -1139,6 +1139,44 @@ kartında da kırmızı "PPPoE: sunucu yanıt vermiyor"); "çoğu zaman modem" d
 - **Sağlık raporu:** `pppoe=modemden`; merkezde `SAGLIK_PPPOE_DURUMLARI` ve kart metni eklendi. Eski merkez bilinmeyen kodu atar (rapor
   reddedilmez), kartta "—" görünür; merkez güncellenince düzelir. Yeni sağlık kuralı yok.
 - **Testler:** cihazda `bash scripts/test.sh wificorrect` 453/453 (uyarısız), merkez 22/22 dosya.
+
+## PPPoE düzeltmeleri (2026-10-24, 0.4.20)
+Dal `pppoe-duzeltmeler`. İlk gerçek PPPoE denemesi (Göztepe, Türk.net, VLAN 35, PAP, ONT'nin tek portu; bağlandı) üç sorun gösterdi.
+- **DNS bayat kalıyordu:** Debian'ın `ip-up.d/0000usepeerdns`'i bağlanırken `/etc/resolv.conf`'u `resolv.conf.pppd-backup.wfcppp`'ye
+  yedekler, `ip-down.d/0000usepeerdns` koparken geri koyar. Yedek, bağlanma anındaki hattın DNS'iydi (ONT'nin VLAN'sız ağı, 10.98.153.x).
+  Kablo modeme dönünce pppd kopmayı ~70 sn sonra fark edip bu yedeği geri koydu ve cihaz ad çözemedi (misafirlere DNS yok, SMS "kod
+  gönderilemiyor"); `dhcpcd -n enp3s0` ile elle düzeltildi. **Düzeltme:** `ip-up.d/wificorrect` (ad sırasıyla 0000usepeerdns'ten sonra)
+  yedeği siler (resolv.conf bağlantıysa gerçek dosyanın yanındakini). Yeni `ip-down.d/wificorrect` (755) portu pppd'nin aygıtından bulur
+  (`PPP_TTY`: `enp3s0`, VLAN'lı `enp3s0.35` → `enp3s0`) ve o portun dhcpcd'si çalışıyorsa (denetim soketi `/run/dhcpcd/<port>.sock` ve
+  `<port>.pid`'deki süreç yaşıyor) arka planda `dhcpcd -n <port>` der: dhcpcd kirasını yeniler, kancası resolv.conf'a DHCP'nin DNS'ini
+  yazar (wfcppp o sırada kapalı, exit-hook PPP sunucularını geri yazmaz). dhcpcd çalışmıyorken `-n` yeni bir dhcpcd başlatırdı (pppd'nin
+  biriminde doğar, pppd yeniden başlayınca ölür): denetim bu yüzden.
+- **Kimlik reddinde hızlı tekrar:** gerçek BRAS reddi PADT ile kapatıyor ("Modem hangup"), pppd `holdoff` uygulamadan yeniden deniyordu:
+  `maxfail 3` ile dakikada 9 deneme (sahte operatörde 13 sn'de birdi), hesap kilitlenebilirdi. **Düzeltme:** `maxfail 1`: her başarısız
+  denemede pppd çıkar, birim onu 10 sn'den 5 adımda 5 dk'ya çıkan gecikmeyle yeniden başlatır (yanlış parolada ~10, 20, 39, 76, 150, 300
+  sn arayla). Modemli hatta (PPPoE açık, sunucu yok) pppd ~35 sn'lik keşif + bekleme döngüsündedir (en çok 5 dk'da bir deneme). Modemden
+  ONT'ye geçince bu bekleme 5 dk'yı bulabileceği için `/etc/dhcpcd.exit-hook`: internet portunda `reason=CARRIER` (kablo takıldı) olunca,
+  PPPoE açık (bağlantı dosyası var; `nic-<port>[.<vlan>]` satırı portu verir) ve `wfcppp` ayakta değilse arka planda `systemctl
+  reset-failed` + `restart --no-block wificorrect-pppoe.service`.
+- **İnternetsiz DHCP internet sayılıyordu:** ONT'nin VLAN'sız portu DHCP adresi ve varsayılan rota veriyor (10.242.x/19) ama internete
+  çıkarmıyor; giriş sayfasındaki uyarı + Servis çıkmıyor, panel yeşil "Modemden" diyordu. **Düzeltme:** `ag::internet_yoklamasi`:
+  1.1.1.1, 8.8.8.8 ve 9.9.9.9'un 443. portuna aynı anda TCP bağlantısı (adresle, DNS gerekmez, veri gönderilmez); biri 1,5 sn içinde
+  kurulursa internet var. Giriş sayfası: rota varsa yoklanır (10 sn önbellek, tek yoklama), yoklama da olmazsa uyarı + Servis.
+  `pppoe::durum`: DHCP adresi varken yoklanır. PPPoE açık ve bağlı değilse `Modemden` yalnızca internete çıkılıyorsa (değilse günlüğün
+  durumu: "PPPoE sunucusu yanıt vermiyor (… VLAN gerekli mi?)" ya da "Bağlanıyor…"); PPPoE kapalıysa yeni durum `internet_yok` "Adres
+  alındı ama internete çıkılamıyor (modemin interneti yok ya da hat PPPoE istiyor)" (panelde kırmızı). Sağlık raporunda
+  `pppoe=internet_yok`; merkez kodu tanır, kartta kırmızı "adres var ama internet yok" (eski merkez kodu atar, kartta "—"). Panel
+  Portlar ve sağlık raporu da yoklar (internet varken onlarca milisaniye). Bütün cihazlarda davranış değişir: modemin interneti kesilince
+  de misafirler uyarıyı görür. Bilinen sınır: üç adresin 443. portunu kapatan (çok kısıtlı) bir ağda internet varken de "yok" görünür.
+- **Testler:** cihazda `bash scripts/test.sh wificorrect` → 460/460 (uyarısız); merkez `sh scripts/sunucu/merkez/tests/hepsi.sh py` →
+  23/23 dosya `TUM TESTLER GECTI`. Kancalar `sh` ile geçici yollarda sınanır (sahte `dhcpcd` ve `systemctl`, gerçek UNIX soketi); yoklama yerel açık/kapalı
+  portlarla.
+- **Canlı kabul listesi** (Göztepe 0.4.20; ONT denemesinde modemin kablosu çıkarılıp ~4 dk beklenir: Türk.net tek oturuma izin veriyor):
+  - ONT'ye takınca PPPoE beklemeden dener (`journalctl -u wificorrect-pppoe.service`: kablo takılır takılmaz yeni pppd) ve bağlanır.
+  - Kablo modeme dönünce (PPPoE ~70 sn sonra kopar) `/etc/resolv.conf` modemin DNS'iyle ("Generated by dhcpcd"), `resolv.conf.pppd-backup.wfcppp`
+    yok, misafir SMS'i ve DNS çalışıyor (elle `dhcpcd -n` gerekmeden).
+  - ONT'nin VLAN'sız ağında (PPPoE'de VLAN boş): giriş sayfasında uyarı + Servis, panelde kırmızı "PPPoE sunucusu yanıt vermiyor".
+  - Bilerek yanlış parola: denemeler 10 sn'den 5 dk'ya açılan aralıklarla (dakikada 9 değil).
 
 ## Yönetim sol menü ve AP joker DNS kaydı (2026-10-24)
 Dal `yonetim-menu`; yalnızca merkez (cihazda değişiklik yok).

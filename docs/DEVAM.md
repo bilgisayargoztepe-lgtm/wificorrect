@@ -173,31 +173,19 @@ Bitenler (canlıda):
 - Kurulum sırasında bulunan: kötü kablo sağ portu 100 Mb/yarım çift yönlü ve rx=0 gösterdi; kablo değişince düzeldi.
 
 ## Sıradaki işler
-**PPPoE düzeltmeleri (sonraki cihaz sürümü) — SIRADA (kullanıcı 2026-10-24: "bu gece yapacağız"; dal `pppoe-duzeltmeler`, boş):** ilk gerçek
-PPPoE denemesinin (2026-10-24, Göztepe, Türk.net, VLAN 35, ONT'nin tek portu: o sırada dükkânın ve merkezin interneti yok) bulguları.
-Sonuç: **bağlandı** (18:56:49, PAP, kablo takıldıktan 28 sn sonra, genel IP). İlk denemeler (18:39–18:40) "Authentication failed"
-aldı: modem ONT'den çıkarıldıktan 27–90 sn sonra denendi, Türk.net aynı hesapla tek oturuma izin veriyor ve modemin kopan oturumu
-birkaç dakika açık kalıyor; ~4 dk beklenince bağlandı (bilgiler doğruydu). Panelde ilk kayıt (18:18) "Kapalı" seçiliyken yapılmış ve
-3 dk'da onaylanmadığı için geri alınmıştı. Düzeltilecekler:
-1. **DNS bayat kalıyor (canlıda yaşandı):** Debian `/etc/ppp/ip-up.d/0000usepeerdns` bağlanırken `/etc/resolv.conf`'u
-   `resolv.conf.pppd-backup.wfcppp`'ye yedekliyor, `ip-down.d/0000usepeerdns` koparken bu yedeği geri yüklüyor. Yedek ONT'nin
-   etiketsiz ağının DNS'ini (10.98.153.x) taşıyordu; kablo modeme dönünce cihaz ad çözemedi (SMS "kod gönderilemiyor", misafir DNS'i
-   yok); `dhcpcd -n enp3s0` ile düzeltildi (19:06). Plan: `ip-up.d/wificorrect` (0000usepeerdns'ten sonra çalışır) yedeği siler; yeni
-   `ip-down.d/wificorrect`, internet portunun dhcpcd'si çalışıyorsa (`/run/dhcpcd/<wan>.sock`) arka planda `dhcpcd -n <wan>` ile
-   resolv.conf'u DHCP'den yeniden yazdırır (arayüzsüz `dhcpcd -n` YASAK: yeni bir ana dhcpcd başlatır); paket modları + paket testi.
-2. **Kimlik reddinde hızlı tekrar:** gerçek BRAS kimlik reddinden sonra PADT gönderiyor ("Modem hangup"), pppd `holdoff` uygulamıyor:
-   1 dk'da 9 deneme (sahte operatörde 13 sn'de birdi); hesap kilitlenebilir. Plan: `maxfail 1` (her başarısız denemede pppd çıkar,
-   systemd 10 sn → 5 dk) + `/etc/dhcpcd.exit-hook`'ta internet portunda `reason=CARRIER` olunca (PPPoE açık, wfcppp kapalı)
-   `systemctl reset-failed` + `restart --no-block wificorrect-pppoe.service` (yoksa modemden ONT'ye geçince bekleme 5 dk'ya kadar sürer;
-   denemede elle yeniden başlatıldı). `maxfail 3` geçen testler/belge (src/pppoe.rs, scripts/pppoe-deneme.sh) güncellenecek.
-3. **İnternetsiz DHCP internet sayılıyor:** ONT etiketsiz portta operatör DHCP veriyor (10.242.x/19, ağ geçidi 10.242.160.1) ama
-   internet yok: rota var diye giriş sayfasındaki uyarı + Servis çıkmıyor; PPPoE açık + sunucu yok + bu adres panelde yeşil
-   "Modemden" görünürdü. Plan: internet koşuluna etkin yoklama (1.1.1.1 / 8.8.8.8 / 9.9.9.9 :443 TCP, paralel, ~1,5 sn; portal
-   önbelleği 10 sn); `pppoe::durum`'da `Modemden` için de ulaşılabilirlik (çağıranlar: `panel/portlar.rs`, `saglik.rs`, `portal.rs`).
-   Bütün cihazlarda davranış değişir (modem arızasında da uyarı çıkar); kullanıcıya söylendi.
-Göztepe'de PPPoE **açık bırakıldı** (Türk.net bilgileri + VLAN 35 kayıtlı; modemdeyken zararsız, durum yeşil "Modemden"). Düzeltme
-kurulmadan ONT'ye yeniden takılırsa dönüşte DNS hatası tekrarlar: `ssh wificorrect 'dhcpcd -n enp3s0'`. ONT denemesinde modemin
-kablosu çıkarılıp ~4 dk beklenmeli (merkez o sırada internetsiz: Visavis'te yeni misafir SMS alamaz).
+**PPPoE düzeltmeleri — YAPILDI (2026-10-24, dal `pppoe-duzeltmeler`, sürüm 0.4.20; ayrıntı KURULUM_GUNLUGU "PPPoE düzeltmeleri"):**
+ilk gerçek PPPoE denemesinin (2026-10-24, Göztepe, Türk.net, VLAN 35, PAP; bağlandı: 18:56:49) üç bulgusu. İlk denemeler (18:39–18:40)
+"Authentication failed" aldı çünkü Türk.net aynı hesapla tek oturuma izin veriyor ve modemin kopan oturumu birkaç dakika açık kalıyor
+(~4 dk beklenince bağlandı; bilgiler doğruydu) — ONT denemesinde modemin kablosu çıkarılıp ~4 dk beklenmeli (merkez o sırada
+internetsiz: Visavis'te yeni misafir SMS alamaz). Düzeltilenler: (1) PPPoE kopunca bayat DNS (0000usepeerdns'in yedeği) geri gelmez,
+DNS internet portunun DHCP'sinden yeniden kurulur (`ip-up.d` yedeği siler, yeni `ip-down.d/wificorrect` → `dhcpcd -n <port>`, yalnızca o
+portun dhcpcd'si çalışıyorsa); (2) `maxfail 1` (her başarısız denemede pppd çıkar, birim 10 sn → 5 dk bekletir; gerçek BRAS reddi PADT ile
+kapatınca pppd'nin holdoff'u işlemiyordu: dakikada 9 deneme) + kablo internet portuna takılınca (`dhcpcd.exit-hook`, CARRIER) PPPoE hemen
+yeniden dener; (3) internet koşulu = rota + etkin yoklama (1.1.1.1 / 8.8.8.8 / 9.9.9.9 :443, en çok 1,5 sn): ONT'nin VLAN'sız ağı ya da
+interneti kesik modem artık giriş sayfasında uyarı + Servis gösterir, panelde yeşil "Modemden" yerine PPPoE'nin kendi durumu; PPPoE
+kapalıyken yeni durum `internet_yok` "Adres alındı ama internete çıkılamıyor…" (merkez kartında "adres var ama internet yok", kırmızı).
+Göztepe'de PPPoE **açık** (Türk.net bilgileri + VLAN 35 kayıtlı; modemdeyken zararsız, durum yeşil "Modemden"). 0.4.20 kurulmadan
+ONT'ye yeniden takılırsa dönüşte DNS hatası tekrarlar: `ssh wificorrect 'dhcpcd -n enp3s0'`. Canlı kabul listesi KURULUM_GUNLUGU'nda.
 **SMS merkezden — BİTTİ (2026-10-14, PR #17, v0.4.8):** misafir doğrulama SMS'i (NetGSM OTP + Twilio Verify) merkezden
 (`/api/sms`, `/api/sms-dogrula`; sabit şablon, 6 hane, cihaz başına 300/gün, yabancı 20/gün; merkeze ulaşılamazsa "Şu an kod
 gönderilemiyor…"). Cihazda NetGSM/Twilio sırrı yok (eski dosyadan temizlendi). Merkez SMS ayarları Yönetim → SMS ayarları'nda

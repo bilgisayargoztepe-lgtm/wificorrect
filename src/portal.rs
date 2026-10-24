@@ -482,19 +482,22 @@ fn servis_parolasi_dogru(girilen: &str, beklenen: &str) -> bool {
     a.iter().zip(b.iter()).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
 }
 
-/// `ip -o route show default` çıktısından karar (spec: internet yok = kullanılabilir varsayılan rota yok; dhcpcd'nin IPv4LL rotası
-/// sayılmaz, `ag::internet_var`). Çıktı yoksa (komut çalışmadı, zaman aşımı, hata koduyla bitti) internet var sayılır: emin
-/// olunamayınca misafire açık sayfada Servis açılmaz. Rota yoksa internet alan portun durumu (`durum` yalnızca o zaman okunur).
-fn internet_coz(rota: Option<&str>, durum: impl FnOnce() -> Durum) -> Option<Durum> {
+/// `ip -o route show default` çıktısından ve etkin yoklamadan karar (spec: internet yok = kullanılabilir varsayılan rota yok;
+/// dhcpcd'nin IPv4LL rotası sayılmaz, `ag::internet_var`). Rota varsa internete gerçekten çıkılıyor mu diye `yokla` sorulur (0.4.20:
+/// ONT'nin VLAN'sız ağı adres ve rota verir ama internete çıkarmaz; modemin interneti kesikken de böyle); rota yoksa sorulmaz.
+/// Çıktı yoksa (komut çalışmadı, zaman aşımı, hata koduyla bitti) internet var sayılır: emin olunamayınca misafire açık sayfada
+/// Servis açılmaz. İnternet yoksa internet alan portun durumu (`durum` yalnızca o zaman okunur).
+fn internet_coz(rota: Option<&str>, yokla: impl FnOnce() -> bool, durum: impl FnOnce() -> Durum) -> Option<Durum> {
     match rota {
-        Some(r) if !ag::internet_var(r) => Some(durum()),
+        Some(r) if !ag::internet_var(r) || !yokla() => Some(durum()),
         _ => None,
     }
 }
 
-/// Sistemdeki sağlayıcı: varsayılan rota `ip`'ten, durum `pppoe::durum` ile (kablo, PPP adresi, pppd günlüğü); komutlar süre sınırlı.
+/// Sistemdeki sağlayıcı: varsayılan rota `ip`'ten, etkin yoklama `ag::internet_yoklamasi` (en çok 1,5 sn), durum `pppoe::durum` ile
+/// (kablo, PPP adresi, pppd günlüğü); komutlar süre sınırlı.
 fn internet_sistem(ag_toml: &Path) -> Option<Durum> {
-    internet_yokla(ag_toml, Path::new("/sys/class/net"), &rota_oku_sistem, &|c: &[&str]| ortak::capture_timeout(c, 5))
+    internet_yokla(ag_toml, Path::new("/sys/class/net"), &rota_oku_sistem, &|c: &[&str]| ortak::capture_timeout(c, 5), &ag::internet_yoklamasi)
 }
 
 /// Sistemdeki varsayılan rota okuyucusu: süre sınırlı ve çıkış koduna bakar (hata kodu = sonuç yok, "rota yok" değil).
@@ -505,9 +508,16 @@ fn rota_oku_sistem(c: &[&str]) -> Option<String> {
 /// `internet_sistem`'in gövdesi (testte yollar ve komutlar verilir). Rota `rota_oku` ile okunur (sistemde `capture_timeout_basarili`):
 /// `ip` çalışıp hata koduyla biterse de sonuç yoktur, internet var sayılır (boş çıktı "rota yok" demek değildir). Durum
 /// komutları (`komut`) çıkış koduna bakmaz (`pppoe::durum` boş çıktıyı zaten "adres yok / iz yok" okur).
-fn internet_yokla(ag_toml: &Path, sys: &Path, rota_oku: &dyn Fn(&[&str]) -> Option<String>, komut: &dyn Fn(&[&str]) -> Option<String>) -> Option<Durum> {
+fn internet_yokla(
+    ag_toml: &Path,
+    sys: &Path,
+    rota_oku: &dyn Fn(&[&str]) -> Option<String>,
+    komut: &dyn Fn(&[&str]) -> Option<String>,
+    yokla: &dyn Fn() -> bool,
+) -> Option<Durum> {
     let rota = rota_oku(&["ip", "-o", "route", "show", "default"]);
-    internet_coz(rota.as_deref(), || pppoe::durum(&ag::load(ag_toml), sys, komut))
+    // durum yalnızca internet yokken okunur: yoklama ya hiç gerekmedi (rota yok) ya da zaten olmadı, `pppoe::durum` yeniden yoklamasın
+    internet_coz(rota.as_deref(), yokla, || pppoe::durum(&ag::load(ag_toml), sys, komut, &|| false))
 }
 
 /// Sayfanın altındaki uyarı (herkese), yalnızca internet yokken: neden (spec tablosundaki durum metni) + Servis bağlantısı.
@@ -3206,25 +3216,54 @@ mod tests {
 
     #[test]
     fn internet_cozumu() {
-        // varsayılan rota yoksa internet yok; neden internet alan portun durumu
-        assert_eq!(internet_coz(Some(""), || Durum::KabloYok), Some(Durum::KabloYok));
-        assert_eq!(internet_coz(Some("blackhole default metric 1\n"), || Durum::DhcpYok), Some(Durum::DhcpYok));
-        // rota varsa (DHCP ya da PPPoE) internet var; durum hiç okunmaz
+        let yoklanmamali = || -> bool { panic!("rota yokken yoklanmamalı") };
+        // varsayılan rota yoksa internet yok (yoklanmaz); neden internet alan portun durumu
+        assert_eq!(internet_coz(Some(""), yoklanmamali, || Durum::KabloYok), Some(Durum::KabloYok));
+        assert_eq!(internet_coz(Some("blackhole default metric 1\n"), yoklanmamali, || Durum::DhcpYok), Some(Durum::DhcpYok));
+        // rota varsa (DHCP ya da PPPoE) ve yoklama internete çıkıyorsa internet var; durum hiç okunmaz
         for rota in ["default via 192.168.1.1 dev enp3s0 proto dhcp src 192.168.1.110 metric 1002 \n", "default dev wfcppp scope link metric 100 \n"] {
-            assert_eq!(internet_coz(Some(rota), || panic!("durum okunmamalı")), None, "{rota}");
+            assert_eq!(internet_coz(Some(rota), || true, || panic!("durum okunmamalı")), None, "{rota}");
+            // rota var ama internete çıkılamıyor (ONT'nin VLAN'sız ağı ya da modemin interneti kesik; 0.4.20): uyarı ve Servis görünür
+            assert_eq!(internet_coz(Some(rota), || false, || Durum::SunucuYok), Some(Durum::SunucuYok), "{rota}");
         }
         // `ip` çalışmadı / zaman aşımı / hata koduyla bitti: internet var sayılır (emin olunamayınca misafire açık sayfada Servis açılmaz)
-        assert_eq!(internet_coz(None, || panic!("durum okunmamalı")), None);
+        assert_eq!(internet_coz(None, yoklanmamali, || panic!("durum okunmamalı")), None);
         // dhcpcd'nin IPv4LL rotası (PPPoE bağlanamamış ONT hattı) internet değildir: uyarı ve Servis görünür
         for rota in [
             "default dev enp3s0 proto dhcp scope link src 169.254.37.120 metric 1001003 \n",
             "default dev enp3s0 scope link src 169.254.37.120 metric 1001003\n",
         ] {
-            assert_eq!(internet_coz(Some(rota), || Durum::SunucuYok), Some(Durum::SunucuYok), "{rota}");
+            assert_eq!(internet_coz(Some(rota), yoklanmamali, || Durum::SunucuYok), Some(Durum::SunucuYok), "{rota}");
         }
         // IPv4LL + PPPoE: internet var
         let ikisi = "default dev wfcppp scope link metric 100 \ndefault dev enp3s0 proto dhcp scope link src 169.254.37.120 metric 1001003 \n";
-        assert_eq!(internet_coz(Some(ikisi), || panic!("durum okunmamalı")), None);
+        assert_eq!(internet_coz(Some(ikisi), || true, || panic!("durum okunmamalı")), None);
+    }
+
+    #[test]
+    fn internet_yoklamasi_basarisizsa_durum_yeniden_yoklanmaz() {
+        // rota var, yoklama internete çıkamadı: neden internet portunun durumu; PPPoE kapalı, DHCP adresi var → "adres var ama
+        // internet yok" (pppoe::durum yeniden yoklamaz: yoklama bir kez)
+        let ag_toml = Path::new("/yok/wfc-test/ag.toml"); // yok: varsayılan ayar (PPPoE kapalı, internet portu enp3s0)
+        let sys = std::env::temp_dir().join(format!("wfc-portal-sys-yoklama-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&sys);
+        std::fs::create_dir_all(sys.join("enp3s0")).unwrap();
+        std::fs::write(sys.join("enp3s0/carrier"), "1\n").unwrap();
+        let rota_oku = |_: &[&str]| Some("default via 10.242.160.1 dev enp3s0 proto dhcp src 10.242.187.227 metric 1003 \n".to_string());
+        let komut = |c: &[&str]| -> Option<String> {
+            assert_eq!(c, ["ip", "-4", "-o", "addr", "show", "dev", "enp3s0"]);
+            Some("3: enp3s0    inet 10.242.187.227/19 brd 10.242.191.255 scope global dynamic enp3s0\n".into())
+        };
+        let sayac = std::cell::Cell::new(0);
+        let yokla = || {
+            sayac.set(sayac.get() + 1);
+            false
+        };
+        assert_eq!(internet_yokla(ag_toml, &sys, &rota_oku, &komut, &yokla), Some(Durum::InternetYok));
+        assert_eq!(sayac.get(), 1);
+        let var = || true;
+        assert_eq!(internet_yokla(ag_toml, &sys, &rota_oku, &komut, &var), None);
+        let _ = std::fs::remove_dir_all(&sys);
     }
 
     #[test]
@@ -3241,7 +3280,7 @@ mod tests {
                 assert_eq!(c, ["ip", "-o", "route", "show", "default"]);
                 rota_oku_sistem(&["sh", "-c", betik])
             };
-            internet_yokla(ag_toml, &sys, &rota_oku, &durum_komutu)
+            internet_yokla(ag_toml, &sys, &rota_oku, &durum_komutu, &|| true)
         };
         assert_eq!(yokla("exit 2"), None);
         assert_eq!(yokla("echo; exit 1"), None);
@@ -3252,7 +3291,7 @@ mod tests {
         assert_eq!(yokla("echo 'default dev wfcppp scope link metric 100 '"), None);
         // karşılaştırma: çıkış koduna bakmayan okuma (`capture_timeout`) hata kodunu "rota yok" sayardı (internet varken Servis açılırdı)
         let eski = |_: &[&str]| ortak::capture_timeout(&["sh", "-c", "exit 2"], 5);
-        assert_eq!(internet_yokla(ag_toml, &sys, &eski, &durum_komutu), Some(Durum::KabloYok));
+        assert_eq!(internet_yokla(ag_toml, &sys, &eski, &durum_komutu, &|| true), Some(Durum::KabloYok));
         let _ = std::fs::remove_dir_all(&sys);
     }
 }

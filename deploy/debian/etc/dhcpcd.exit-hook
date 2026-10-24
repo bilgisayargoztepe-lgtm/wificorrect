@@ -1,4 +1,5 @@
-# WifiCorrect (docs/KURULUM_GUNLUGU.md "PPPoE"): PPPoE bağlıyken operatörün DNS'i /etc/resolv.conf'ta kalsın.
+# WifiCorrect (docs/KURULUM_GUNLUGU.md "PPPoE"): PPPoE bağlıyken operatörün DNS'i /etc/resolv.conf'ta kalsın; kablo internet
+# portuna takılınca bekleyen PPPoE hemen yeniden denesin (dosyanın sonunda).
 # dhcpcd-run-hooks bu dosyayı bütün kancalarından sonra "source" eder (Debian dhcpcd-base): exit yok, hata vermez, değişken
 # bırakmaz (_wfc_* sonda silinir), işlev tanımlamaz.
 # Neden: dhcpcd'nin 20-resolv.conf kancası /etc/resolv.conf'u yalnızca kendi kayıtlarından kurar. DHCP'siz PPPoE hattında (ONT,
@@ -33,5 +34,23 @@ case $_wfc_bayrak in
 	fi
 	;;
 esac
-unset _wfc_net _wfc_ppp _wfc_rc _wfc_bayrak _wfc_ns _wfc_simdi
+# Kablo internet portuna takılınca (CARRIER) PPPoE açık ama bağlı değilse pppd hemen yeniden denesin (docs/KURULUM_GUNLUGU.md "PPPoE
+# düzeltmeleri"): pppd her başarısız denemede çıkar (maxfail 1) ve birim onu 10 sn'den 5 dk'ya çıkan gecikmeyle yeniden başlatır;
+# modemden ONT'ye geçince bu bekleme 5 dk'yı bulabilirdi (2026-10-24, Göztepe). PPPoE açıkken bağlantı dosyası vardır ve
+# `nic-<port>[.<vlan>]` satırı internet portunu verir; sayaç da sıfırlanır (sonraki başarısızlıkta gecikme 10 sn'den başlar).
+# systemctl arka planda ve çıktısız çalışır (dhcpcd beklemez). Yol sınama için değiştirilebilir (WFC_PEERS).
+if [ "${reason:-}" = CARRIER ] && [ -n "${interface:-}" ]; then
+	_wfc_nic=$(sed -n 's/^nic-//p' "${WFC_PEERS:-/etc/ppp/peers/wificorrect}" 2>/dev/null | head -n 1) || _wfc_nic=
+	_wfc_nic=${_wfc_nic%%.*}
+	case $_wfc_bayrak in
+	0x*[13579bdf]) _wfc_nic= ;; # PPPoE zaten bağlı (wfcppp ayakta)
+	esac
+	if [ -n "$_wfc_nic" ] && [ "$_wfc_nic" = "$interface" ]; then
+		{
+			systemctl reset-failed wificorrect-pppoe.service
+			systemctl restart --no-block wificorrect-pppoe.service
+		} </dev/null >/dev/null 2>&1 &
+	fi
+fi
+unset _wfc_net _wfc_ppp _wfc_rc _wfc_bayrak _wfc_ns _wfc_simdi _wfc_nic
 :

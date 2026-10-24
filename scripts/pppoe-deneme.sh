@@ -438,7 +438,7 @@ senaryo_kimlik_hatasi() {
             sleep 0.5 # zamanlı kopya yetişsin
             tekrar="ikinci deneme $(fark "$(zaman 'authentication failed$' 1)" "$(zaman 'authentication failed$' 2)") sn sonra yine reddedildi"
         else
-            tekrar="20 sn içinde yeniden denemedi"
+            if istemci_calisiyor; then tekrar="20 sn içinde yeniden denemedi"; else tekrar="pppd ilk retten sonra kendiliğinden çıktı (maxfail 1; sistemde birim gecikmeyle yeniden başlatır)"; fi
         fi
         if ip_var; then
             sonuc FAIL "$ad" "yanlış parolayla $(ppp_ip) aldı"
@@ -524,7 +524,7 @@ senaryo_ac_servis() {
 
 ip_var_ya_da_cikti() { ip_var || ! istemci_calisiyor; }
 # Yanlış kimlik YÖNTEMİ (operatör öbürünü ister): LCP hiç kalkmaz, operatör "peer refused to authenticate" ile kapatır, holdoff
-# işlemez (~3,3 sn'de bir yeni oturum). Bağlantı dosyasındaki maxfail 3 ile pppd üç başarısız denemeden sonra kendiliğinden çıkar
+# işlemez (~3,3 sn'de bir yeni oturum). Bağlantı dosyasındaki maxfail 1 ile pppd ilk başarısız denemeden sonra kendiliğinden çıkar
 # (sistemde birim onu gecikmeyle yeniden başlatır); "hâlâ çalışıyor" şartı bu yüzden yok. PASS: süre boyunca IP yok, günlükte
 # operatörün reddi ve pppd ya hâlâ deniyor ya da kendiliğinden çıktı. Seçenek hatasıyla çıkan pppd PASS sayılmaz: o oturum açmaz
 # (günlükte ret olmaz) ve 1-4 koduyla çıkar (ölümcül/seçenek hatası; 5 ve üstü bağlantı sonuçlarıdır, pppd(8) EXIT STATUS).
@@ -550,7 +550,7 @@ yontem_reddi() {
         # timeout sarmalayıcısı pppd'nin çıkış kodunu geçirir (124 ve üstü: zaman aşımı ya da sinyal)
         wait "$ISTEMCI_PID" 2>/dev/null || rc=$?
         if [ "$rc" -lt 124 ] && ! [[ $rc =~ ^[1-4]$ ]]; then
-            sonuc PASS "$ad" "$4: $n ret, pppd $(sure "$ms") sonra kendiliğinden çıktı (kod $rc, maxfail 3)"
+            sonuc PASS "$ad" "$4: $n ret, pppd $(sure "$ms") sonra kendiliğinden çıktı (kod $rc, maxfail 1)"
         else
             sonuc FAIL "$ad" "pppd hatayla çıktı (kod $rc, $n ret)"
             gunluk_goster

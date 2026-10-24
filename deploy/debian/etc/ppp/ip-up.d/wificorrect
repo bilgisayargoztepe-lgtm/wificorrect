@@ -1,15 +1,22 @@
 #!/bin/sh
-# WifiCorrect (docs/KURULUM_GUNLUGU.md "PPPoE"): PPPoE (wfcppp) her bağlandığında pppd biriminin yeniden başlatma sayacını sıfırlar.
-# wificorrect-pppoe.service: Restart=always, RestartSec=10, RestartSteps=5, RestartMaxDelaySec=300. systemd bu sayacı (NRestarts)
-# birim kendiliğinden yeniden başladıkça hiç sıfırlamaz: araya giren sağlıklı bağlantılar ne kadar uzun sürerse sürsün kendiliğinden
-# yeniden başlatmalar birikir; sayacı yalnızca elle başlatma, `systemctl reset-failed` ya da kendiliğinden yeniden başlamayan bir
-# duruş sıfırlar. Birikince (5 kendiliğinden yeniden başlatmadan sonra) her kopmada pppd 5 dk bekletilirdi. Bu kanca her başarılı
-# bağlantıdan sonra sayacı sıfırlar: bir sonraki kopmada gecikme yeniden 10 sn'den başlar.
-# /etc/ppp/ip-up çalıştırır (run-parts; $1 ve PPP_IFACE arayüz adı). pppd'yi bekletmez ve hata vermez: komut arka planda ve
-# çıktısız çalışır, kanca sonuç ne olursa olsun 0 ile çıkar.
+# WifiCorrect (docs/KURULUM_GUNLUGU.md "PPPoE"): PPPoE (wfcppp) her bağlandığında:
+# 1) pppd biriminin yeniden başlatma sayacını sıfırlar. wificorrect-pppoe.service: Restart=always, RestartSec=10, RestartSteps=5,
+#    RestartMaxDelaySec=300. systemd bu sayacı (NRestarts) birim kendiliğinden yeniden başladıkça hiç sıfırlamaz: araya giren
+#    sağlıklı bağlantılar ne kadar uzun sürerse sürsün kendiliğinden yeniden başlatmalar birikir; sayacı yalnızca elle başlatma,
+#    `systemctl reset-failed` ya da kendiliğinden yeniden başlamayan bir duruş sıfırlar. Birikince (5 kendiliğinden yeniden
+#    başlatmadan sonra) her kopmada pppd 5 dk bekletilirdi. Bu kanca her başarılı bağlantıdan sonra sayacı sıfırlar: bir sonraki
+#    kopmada gecikme yeniden 10 sn'den başlar.
+# 2) Debian'ın 0000usepeerdns kancasının aldığı /etc/resolv.conf yedeğini (resolv.conf.pppd-backup.wfcppp) siler. O kanca bağlanırken
+#    eski dosyayı yedekler, koparken (ip-down) geri koyar; ama yedek bağlanma anındaki hattın DNS'idir (ör. ONT'nin VLAN'sız ağının
+#    10.98.x sunucuları) ve kablo başka hatta (modem) geçince geri gelirse cihaz ad çözemez (2026-10-24, Göztepe: misafirler DNS'siz,
+#    SMS "kod gönderilemiyor"). Kopunca DNS'i /etc/ppp/ip-down.d/wificorrect internet portunun DHCP'sinden yeniden kurdurur.
+# /etc/ppp/ip-up çalıştırır (run-parts, ad sırasıyla: 0000usepeerdns'ten sonra; $1 ve PPP_IFACE arayüz adı). pppd'yi bekletmez ve
+# hata vermez: systemctl arka planda ve çıktısız çalışır, kanca sonuç ne olursa olsun 0 ile çıkar.
+# Yol sınama için değiştirilebilir (WFC_RESOLV); gerçek cihazda /etc/resolv.conf (0000usepeerdns gibi bağlantı izlenir).
 case "${PPP_IFACE:-$1}" in
 wfcppp)
 	systemctl reset-failed wificorrect-pppoe.service </dev/null >/dev/null 2>&1 &
+	_rc=$(readlink -f "${WFC_RESOLV:-/etc/resolv.conf}" 2>/dev/null) && rm -f "$_rc.pppd-backup.wfcppp" 2>/dev/null
 	;;
 esac
 exit 0

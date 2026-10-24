@@ -297,6 +297,8 @@ def test_cihaz_kartinda_internet():
         assert internet(_rapor(wan_tur="pppoe", pppoe="kablo_yok")) == kotu("kablo yok")
         assert internet(_rapor(wan_tur="dhcp", pppoe="kablo_yok")) == kotu("kablo yok")
         assert internet(_rapor(wan_tur="dhcp", pppoe="dhcp_yok")) == kotu("modemden adres alınamadı")
+        # adres var ama etkin yoklama internete çıkamadı (0.4.20): kötü işaretli
+        assert internet(_rapor(wan_tur="dhcp", pppoe="internet_yok")) == kotu("adres var ama internet yok")
         # durum alanı yok → "—": tür tek başına gösterilmez (durumu okunamayan cihaz sağlam görünmesin); tür atılmış olsa da durum gösterilir
         assert internet(_rapor(wan_tur="dhcp")) == "—" and internet(_rapor(wan_tur="pppoe")) == "—"
         assert internet(_rapor(pppoe="bagli")) == "PPPoE bağlı"

@@ -635,9 +635,45 @@ mod tests {
         assert_eq!(birim_acilista(&ag(acik()), &r), Some("PPPoE açılışta kendiliğinden başlamayabilir (birim etkinleştirilemedi)".into()));
     }
 
-    // Birim dosyası ve güvenlik duvarı kuralı kodla birlikte değişmeli: test.sh bu iki dosyayı da cihaza gönderir.
+    // Birim dosyası, güvenlik duvarı kuralları ve kancalar kodla birlikte değişmeli: test.sh bu dosyaları da cihaza gönderir.
     const BIRIM_DOSYASI: &str = include_str!("../deploy/debian/etc/systemd/system/wificorrect-pppoe.service");
     const GUVENLIK_NFT: &str = include_str!("../deploy/debian/etc/wificorrect/guvenlik.nft");
+    const HIZ_NFT: &str = include_str!("../deploy/debian/etc/wificorrect/hiz.nft");
+
+    /// Kural dosyasının yorumsuz, boş olmayan satırları (baştaki/sondaki boşluk kırpılmış)
+    fn nft_kurallari(nft: &str) -> Vec<&str> {
+        nft.lines().map(str::trim).filter(|l| !l.is_empty() && !l.starts_with('#')).collect()
+    }
+
+    #[test]
+    fn guvenlik_nft_yonetim_pppoe_arayuzunde_kapali() {
+        // Yönetim (SSH 22, panel 8443, ping) özel kaynak adreslerinden yalnızca internet alan Ethernet'te; PPPoE arayüzünde hiç:
+        // arkasında dükkân ağı yok, yalnızca operatör var (CGNAT ya da operatörün kendi adresleri özel aralıkta olabilir).
+        // `$WAN` iki biçimde de gelir: eski tek ad (`iifname "enp3s0" iifname != "wfcppp"`) ve küme
+        // (`iifname { "enp3s0", "wfcppp" } iifname != "wfcppp"`); kural metni ikisinde de aynıdır.
+        let haric = format!("iifname $WAN iifname != \"{ARAYUZ}\" ip saddr {{ 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16 }} ");
+        let kurallar = nft_kurallari(GUVENLIK_NFT);
+        let yonetim: Vec<&str> = kurallar.iter().copied().filter(|l| l.starts_with("iifname $WAN ") && l.ends_with(" accept")).collect();
+        assert_eq!(yonetim, [format!("{haric}tcp dport {{ 22, 8443 }} accept"), format!("{haric}icmp type echo-request accept")]);
+        // `$WAN` kullanan her kural gözden geçirildi: misafir iletimi, NAT ve hız sayaçları PPPoE arayüzünü kapsamalı (misafir
+        // trafiği wfcppp'den çıkar), yönetim kapsamamalı. Yeni bir `$WAN` kuralı eklenirse buraya ve PPPoE'deki anlamına bakılmalı.
+        let wan: Vec<&str> = kurallar.iter().copied().chain(nft_kurallari(HIZ_NFT)).filter(|l| l.contains("$WAN")).collect();
+        assert_eq!(
+            wan,
+            [
+                yonetim[0],
+                yonetim[1],
+                "iifname \"br-hotspot\" oifname $WAN meta mark 0x5651 accept",
+                "oifname $WAN ip saddr 10.50.0.0/24 masquerade",
+                "iifname \"br-hotspot\" oifname $WAN update @yukle { ip saddr }",
+                "iifname $WAN oifname \"br-hotspot\" update @indir { ip daddr }",
+            ]
+        );
+        // PPPoE'de yönetim tünelden: tünel kuralları aynen
+        assert!(kurallar.contains(&"iifname \"wfc\" ip saddr 10.99.0.0/24 tcp dport { 22, 8443 } accept"));
+        assert!(kurallar.contains(&"iifname \"wfc\" ip saddr 10.99.0.0/24 icmp type echo-request accept"));
+        assert!(kurallar.contains(&"iifname != \"wfc\" ip saddr 10.99.0.0/24 drop")); // tünel adresi başka arayüzden (wfcppp dahil) taklit edilemez
+    }
 
     #[test]
     fn birim_dosyasi() {

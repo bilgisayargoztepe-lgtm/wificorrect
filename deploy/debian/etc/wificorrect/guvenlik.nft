@@ -3,7 +3,7 @@
 # Müşteri (br-hotspot) → internet ($WAN) yalnızca 0x5651 işaretli paketler; işareti kapi.nft koyar.
 # kapi.nft yüklenmezse hiçbir paket işaretlenmez → kimse internete çıkamaz (kapalıyken güvenli).
 # İnternet alan portun adı (WAN) arayuzler.nft'ten gelir; onu panel → Portlar üretir (wificorrect ctl ag-uygula).
-# Yönetim: internet alan portun arkasındaki her özel ağdan (modem hangi havuzu verirse versin).
+# Yönetim: internet alan portun arkasındaki her özel ağdan (modem hangi havuzu verirse versin); PPPoE arayüzünden hiç.
 # Cihaz doğrudan genel IP alırsa (modem köprü modunda) internetten gelen yönetim istekleri kapalı kalır.
 
 include "/etc/wificorrect/arayuzler.nft"
@@ -21,9 +21,11 @@ table inet wfc {
 		iif lo accept
 		icmpv6 type { nd-neighbor-solicit, nd-neighbor-advert, nd-router-solicit, nd-router-advert } accept
 
-		# Yönetim: yalnızca dükkân ağından (özel adresler) SSH ve panel
-		iifname $WAN ip saddr { 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16 } tcp dport { 22, 8443 } accept
-		iifname $WAN ip saddr { 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16 } icmp type echo-request accept
+		# Yönetim: yalnızca dükkân ağından (özel adresler) SSH ve panel. PPPoE arayüzü (wfcppp) hariç: arkasında dükkân ağı yok,
+		# yalnızca operatör var (CGNAT ya da operatörün kendi adresleri özel aralıkta olabilir); PPPoE'de yönetim tünelden.
+		# "iifname != wfcppp" eski tek adlı WAN tanımıyla (0.4.16'nın arayuzler.nft'i) da geçerli.
+		iifname $WAN iifname != "wfcppp" ip saddr { 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16 } tcp dport { 22, 8443 } accept
+		iifname $WAN iifname != "wfcppp" ip saddr { 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16 } icmp type echo-request accept
 
 		# Uzak erişim (WireGuard "wfc", panel → Admin ayarları): yalnızca VPN ağından panel, SSH ve ping; başka hiçbir şey
 		iifname "wfc" ip saddr 10.99.0.0/24 tcp dport { 22, 8443 } accept

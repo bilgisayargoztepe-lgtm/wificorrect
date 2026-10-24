@@ -1,0 +1,37 @@
+# WifiCorrect (docs/KURULUM_GUNLUGU.md "PPPoE"): PPPoE bağlıyken operatörün DNS'i /etc/resolv.conf'ta kalsın.
+# dhcpcd-run-hooks bu dosyayı bütün kancalarından sonra "source" eder (Debian dhcpcd-base): exit yok, hata vermez, değişken
+# bırakmaz (_wfc_* sonda silinir), işlev tanımlamaz.
+# Neden: dhcpcd'nin 20-resolv.conf kancası /etc/resolv.conf'u yalnızca kendi kayıtlarından kurar. DHCP'siz PPPoE hattında (ONT,
+# bina kablosu) IPv4LL adresi ya da kısa kablo kopması (NOCARRIER) gibi DNS taşımayan bir olay dosyayı nameserver'sız yazar;
+# pppd'nin kancası (/etc/ppp/ip-up.d/0000usepeerdns) ancak PPPoE yeniden bağlanınca yeniden çalışır (günler sürebilir) ve o
+# zamana kadar dnsmasq yukarı akışsız kalır: misafirler ve cihazın kendisi (merkez) ad çözemez.
+# Ne yapar: wfcppp ayaktaysa (IFF_UP) ve /etc/ppp/resolv.conf'ta sunucu varsa, /etc/resolv.conf'taki sunucular onlardan
+# farklıysa dosyayı 0000usepeerdns'in yaptığı gibi yeniden yazar: PPP sunucuları "# PPP: " işaretli bölümde başta, öteki satırlar
+# (nameserver ve "# PPP: " satırları dışındakiler) korunur; geçici dosya + mv (dnsmasq dosyanın değiştiğini inode'dan da görür).
+# /etc/resolv.conf bir bağlantıysa (resolvconf ya da systemd-resolved yönetir) dokunulmaz. PPPoE kapalı cihazda hiçbir şey yapmaz.
+# Yollar sınama için değiştirilebilir (WFC_NET, WFC_PPP_RESOLV, WFC_RESOLV); gerçek cihazda varsayılanlar kullanılır.
+_wfc_net=${WFC_NET:-/sys/class/net}
+_wfc_ppp=${WFC_PPP_RESOLV:-/etc/ppp/resolv.conf}
+_wfc_rc=${WFC_RESOLV:-/etc/resolv.conf}
+_wfc_bayrak=$(cat "$_wfc_net/wfcppp/flags" 2>/dev/null) || _wfc_bayrak=
+case $_wfc_bayrak in
+0x*[13579bdf])
+	# arayüz bayrakları onaltılık; en düşük bit IFF_UP
+	_wfc_ns=$(grep -E '^nameserver[[:space:]]' "$_wfc_ppp" 2>/dev/null) || _wfc_ns=
+	_wfc_simdi=$(grep -E '^nameserver[[:space:]]' "$_wfc_rc" 2>/dev/null) || _wfc_simdi=
+	if [ -n "$_wfc_ns" ] && [ "$_wfc_ns" != "$_wfc_simdi" ] && [ ! -L "$_wfc_rc" ]; then
+		{
+			echo '# PPP: This file was written by /etc/dhcpcd.exit-hook (WifiCorrect), as /etc/ppp/ip-up.d/0000usepeerdns does.'
+			echo '# PPP: The following entries were obtained using PPP:'
+			printf '%s\n' "$_wfc_ns"
+			echo '# PPP: End of section rewritten by /etc/dhcpcd.exit-hook.'
+			grep -vE '^(nameserver[[:space:]]|# PPP: )' "$_wfc_rc" 2>/dev/null || :
+		} 2>/dev/null >"$_wfc_rc.wfc-yeni" &&
+			chmod 644 "$_wfc_rc.wfc-yeni" 2>/dev/null &&
+			mv -f "$_wfc_rc.wfc-yeni" "$_wfc_rc" 2>/dev/null ||
+			rm -f "$_wfc_rc.wfc-yeni" 2>/dev/null || :
+	fi
+	;;
+esac
+unset _wfc_net _wfc_ppp _wfc_rc _wfc_bayrak _wfc_ns _wfc_simdi
+:

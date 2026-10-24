@@ -347,6 +347,9 @@ def test_yonetim_sol_menu():
         n, _ = v.musteri_ekle()
         s = Y.al(app, "/", c)[2].decode()
         assert "<header>" not in s
+        # telefonda menü gizli, üst şeritteki düğme açar (cihaz paneli gibi; betik yok): onay kutusu menüden önce gelmeli
+        assert s.index('<input type="checkbox" id="menu-ac"') < s.index('<div class="ust-mobil">') < s.index('<div class="yerlesim">')
+        assert '<label for="menu-ac" class="menu-dugme"' in s and "#menu-ac:checked~.yerlesim nav.yan{display:block}" in s
         menu = s[s.index('<nav class="yan">'):s.index("</nav>")]
         sira = [">Müşteriler<", ">Müşteri listesi<", ">Yeni müşteri<", ">Bekleyen cihazlar<", ">Sürümler<", ">Kayıtlar<",
                 ">Hareketler<", ">Eski arşivler<", ">Ayarlar<", ">Engel listeleri<", ">SMS ayarları<", ">Uyarı ayarları<",

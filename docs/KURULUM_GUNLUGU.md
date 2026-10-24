@@ -823,26 +823,48 @@ hazır, cihazda sahte operatörle denendi; **henüz yayınlanmadı** (`v0.4.17` 
   seçenek **yok**: pppd 2.5.2 eklenti kaynağından, gerçek pppd ikisini de sahte operatörde kabul etti, yanlış değerle bağlanmadı). Sistemin
   ortak `chap-secrets`/`pap-secrets` dosyalarına dokunulmaz. pppd 2.5.2 dosyanın her satırını Debian'ın `/etc/ppp/options`'u (`auth`,
   `lock`, `crtscts`, `modem` …) ile birlikte kabul etti ve her seçenek etkisiyle doğrulandı (ör. `noauth` o `auth`'u ezer). **DNS:**
-  operatörün DNS'i `usepeerdns` ile gelir (Debian'ın ppp kancası `/etc/resolv.conf`'u yazar, dnsmasq yukarı akış olarak onu okur; DHCP
-  de bağlıysa son yazan geçerli, ikisi de çalışan DNS'tir) — gerçek hatta doğrulanmadı (sahte operatör denemesi `usepeerdns`i kaldırır).
+  operatörün DNS'i `usepeerdns` ile gelir: pppd `/etc/ppp/resolv.conf`'u yazar, Debian'ın kancası (`/etc/ppp/ip-up.d/0000usepeerdns`) onu
+  `/etc/resolv.conf`'a geçirir, dnsmasq yukarı akış olarak onu okur. dhcpcd de `/etc/resolv.conf`'u yalnızca kendi kayıtlarından yeniden kurar
+  (`20-resolv.conf` kancası): DHCP'siz PPPoE hattında IPv4LL adresi ya da kısa kablo kopması (NOCARRIER) gibi DNS taşımayan bir olay dosyayı
+  sunucusuz yazardı; pppd'nin kancası ancak PPPoE yeniden bağlanınca (günler sonra) çalışır, o zamana kadar misafirler ve cihazın kendisi
+  (merkez, sağlık raporu) ad çözemezdi. Bu yüzden paket **`/etc/dhcpcd.exit-hook`**'u kurar (dhcpcd-run-hooks bütün kancalardan sonra source
+  eder; dhcpcd-base bu dosyayı içermez): `wfcppp` ayaktaysa (IFF_UP) ve `/etc/ppp/resolv.conf`'ta sunucu varsa, `/etc/resolv.conf`'taki
+  sunucular farklıysa dosyayı 0000usepeerdns'in yaptığı gibi yeniden yazar (PPP sunucuları `# PPP: ` işaretli bölümde başta, öteki satırlar
+  korunur; geçici dosya + `mv`: dnsmasq değişikliği inode'dan da görür). `/etc/resolv.conf` bir bağlantıysa (resolvconf, systemd-resolved)
+  dokunmaz; PPPoE kapalı cihazda hiçbir şey yapmaz; exit kullanmaz, hata vermez, değişken bırakmaz. DHCP ve PPPoE ikisi de bağlıyken PPP
+  sunucuları geçerli olur (PPPoE rotası önde). Kanca cihazda birim testiyle sınandı (yollar geçici klasörde; gerçek `/etc/resolv.conf`'un
+  özeti sınamadan önce ve sonra aynı); dhcpcd'nin gerçek olaylarıyla birlikte yalnızca canlı kabulde: sahte operatör denemesi dhcpcd
+  çalıştırmaz (dhcpcd kancaları cihazın ana bilgisayar adına, timesyncd'sine ve resolv.conf'una dokunurdu) ve `usepeerdns`i kaldırır.
 - **Yeniden deneme sınırsızdır ama başarısızken yavaşlar:** pppd arka arkaya 3 başarısız denemeden sonra çıkar (`maxfail 3`); birim onu
   10 sn'den başlayıp 5 adımda 5 dk'ya çıkan gecikmeyle yeniden başlatır (`RestartSec`/`RestartSteps`/`RestartMaxDelaySec`; systemd 257'de
   birim sözdizimi `systemd-analyze verify` ile doğrulandı). Düşen bağlantıyı `persist` yeniden kurar (operatör oturumu kapatırsa pppd hemen
   yeniden keşfe başlar; kimlik reddinde `holdoff 10` araya girer). Neden, sahte operatörde ölçüldü: yanlış parolada `holdoff` işler (~13
   sn'de bir deneme), ama yanlış kimlik **yöntemi** seçilince (kimlik=pap ya da chap, operatör öbürünü ister) LCP hiç kalkmaz, `holdoff`
   uygulanmaz ve pppd ~3,3 sn'de bir yeni oturum açar (saatte ~1000 deneme; bazı operatörler hesabı kilitler). `maxfail 3` ile yanlış
-  parolada pppd üç redden (3,1 / 16,3 / 29,5 sn) sonra ~31 sn'de kendiliğinden çıktı. Bedeli: uzun bir operatör kesintisinden sonra yeniden bağlanma 5 dk'ya kadar sürebilir. İlk taslak "sınırsız
-  yeniden deneme" (`maxfail 0`) diyordu.
+  parolada pppd üç redden (3,1 / 16,3 / 29,5 sn) sonra ~31 sn'de, yanlış yöntemde üç redden sonra 9,9 sn'de (kod 16) kendiliğinden çıktı.
+  Bedeli: uzun bir operatör kesintisinden sonra yeniden bağlanma 5 dk'ya kadar sürebilir. İlk taslak "sınırsız yeniden deneme" (`maxfail 0`)
+  diyordu. **Sayaç:** systemd bu yeniden başlatma sayacını (`NRestarts`) `Restart=always` altında birim kendiliğinden yeniden başladıkça
+  sıfırlamaz: araya giren sağlıklı bağlantılar ne kadar uzun sürerse sürsün kendiliğinden yeniden başlatmalar birikir (sayacı yalnızca elle
+  başlatma, `systemctl reset-failed` ya da kendiliğinden yeniden başlamayan bir duruş sıfırlar); birikince her kopmada pppd 5 dk bekletilirdi.
+  Paket **`/etc/ppp/ip-up.d/wificorrect`**'u kurar (755; `/etc/ppp/ip-up` run-parts ile çalıştırır): `wfcppp` her bağlandığında (`PPP_IFACE`
+  ya da ilk argüman) `systemctl reset-failed wificorrect-pppoe.service` sayacı sıfırlar; sonraki kopmada gecikme yeniden 10 sn'den başlar.
+  Komut arka planda ve çıktısız çalışır, kanca her durumda 0 ile çıkar: pppd'yi bekletmez, başarısız olmaz (sahte `systemctl` ile birim
+  testi: yalnızca `wfcppp`'de, tam olarak bu komutla çağrılır; `ppp0`'da çağrılmaz; yavaş ya da hatalı `systemctl` kancayı bekletmez).
 - **VLAN:** `vlan > 0` ise birim başlarken (`pppoe-hazirla`) internet portu açılır, `<wan>.<vlan>` kurulur (`ip link add link <wan> name
   <wan>.<vlan> type vlan id <vlan>`; `oncelik > 0` ise `egress-qos-map 0:<oncelik>`: giden çerçevelere 802.1p önceliği) ve açılır; pppd
   `nic-<wan>.<vlan>` kullanır. Birim durunca (`ExecStopPost`) `pppoe-temizle` internet portunun `<wan>.<rakam>@<wan>` adlı bütün VLAN
   arayüzlerini siler: ayardaki VLAN'a değil adın biçimine bakar (VLAN değişince ya da PPPoE kapanınca eskisi kalmasın), başka portların
   VLAN'larına dokunmaz. Arayüz kurulamazsa birim başlamaz (systemd 10 sn sonra yeniden dener).
 - **Güvenlik duvarı, NAT, MSS:** `arayuzler.nft` artık bir küme: `define WAN = { "<internet portu>", "wfcppp" }` (PPPoE kapalıyken de;
-  olmayan arayüz adı eşleşmez, zararsız). Böylece `guvenlik.nft`'teki yönetim, iletim (`oifname $WAN … mark 0x5651`) ve masquerade
-  kuralları ile `hiz.nft` sayaçları değişmeden iki arayüzü de kapsar. **Yönetim:** PPPoE'de cihaz genel IP alır; yönetim kuralı yalnızca
-  özel kaynak adreslerini kabul ettiği için internetten panel ve SSH kapalı kalır (bugünkü "genel IP alırsa yönetim kapalı"); yönetim
-  tünelden. **MSS düzeltmesi:** `chain forward`'ın **ilk** kuralı `tcp flags syn / syn,rst tcp option maxseg size set rt mtu` (sonraki
+  olmayan arayüz adı eşleşmez, zararsız). Böylece `guvenlik.nft`'teki iletim (`oifname $WAN … mark 0x5651`) ve masquerade kuralları ile
+  `hiz.nft` sayaçları değişmeden iki arayüzü de kapsar. **Yönetim `wfcppp`'de kapalı:** yönetim kuralları (SSH 22, panel 8443, ping; özel
+  kaynak adreslerinden) `iifname $WAN iifname != "wfcppp" ip saddr { 10/8, 172.16/12, 192.168/16 } …` (eski tek adlı WAN tanımıyla da
+  geçerli). PPPoE'nin arkasında dükkân ağı yoktur, yalnızca operatör vardır: CGNAT'lı ya da özel adresli PPPoE hatlarında (ve operatörün
+  kendi BRAS adresinden) SSH ve panel açılırdı. PPPoE'de internetten panel ve SSH kapalıdır, yönetim tünelden. `$WAN` kullanan bütün
+  kurallar testte listelenip sabitlendi (`pppoe::tests::guvenlik_nft_yonetim_pppoe_arayuzunde_kapali`): misafir iletimi, masquerade ve
+  `hiz.nft` sayaçları `wfcppp`'yi kapsar, yönetim kapsamaz; `kapi.nft` yalnızca `br-hotspot`'a bakar, programın yazdığı yavaşlatma kuralları
+  etkin çıkış arayüzünü adıyla kullanır. Dosyaların iki WAN tanımıyla da `nft -c`'den geçtiğini sahte operatör denemesi (`nft_kurallari`)
+  cihaz ad alanında denetler. **MSS düzeltmesi:** `chain forward`'ın **ilk** kuralı `tcp flags syn / syn,rst tcp option maxseg size set rt mtu` (sonraki
   `ct state established,related accept` SYN-ACK'leri kabul edip değerlendirmeyi bitirirdi, MSS'e sıra gelmezdi): SYN ve SYN-ACK'in MSS'i
   çıkış rotasının MTU'suna indirilir, yalnızca küçültür. Cihazda üç ad alanıyla ölçüldü: çıkış MTU 1400 → MSS 1360, 1492 → 1452, 1500'de
   değişmez (yani bugünkü DHCP cihazlarında etkisiz); sahte operatör denemesinde (`mss`) kuralsız 1460, kurallı 1452. 5651'de NAT
@@ -854,7 +876,7 @@ hazır, cihazda sahte operatörle denendi; **henüz yayınlanmadı** (`v0.4.17` 
   oturum setleri) dokunmaz.
 - **Yavaşlatma (HTB):** yükleme yönündeki kök trafiğin gerçekten çıktığı arayüze kurulur: `ag::etkin_cikis` en düşük metrikli varsayılan
   rota `wfcppp` ise `wfcppp`, yalnız DHCP rotası varsa ya da rota yoksa internet alan Ethernet (`ip -o route show default`; arayüzsüz
-  `blackhole default` gibi rotalar sayılmaz). Kaydedici (5 sn) ve panelin anında uygulaması (`ctl hiz-uygula`) aynı kuralı kullanır; rota
+  `blackhole default` gibi rotalar ve dhcpcd'nin IPv4LL rotası sayılmaz, aşağıda "Giriş sayfası"). Kaydedici (5 sn) ve panelin anında uygulaması (`ctl hiz-uygula`) aynı kuralı kullanır; rota
   okunamazsa (asılı/süresi dolan `ip`) kaydedici o tur uzlaştırmaz. `wfcppp` her yeniden bağlanmada yeniden doğar ve kökü kaybolur: 30 sn'lik
   kök denetimi yeniden kurdurur. **Çıkış değişince** (`enp3s0` ↔ `wfcppp`) önceki planın izindeki (`/run/wificorrect/hiz_uygulanan`) yeni
   plana girmeyen arayüzlerin kökü silinir (`tc qdisc del dev X root`; yoksa eski çıkışta kalan sınıflar sonraki hız değişikliklerinde
@@ -864,10 +886,15 @@ hazır, cihazda sahte operatörle denendi; **henüz yayınlanmadı** (`v0.4.17` 
 - **Tünel MTU'su:** PPPoE açıkken WireGuard yapılandırmasına `MTU = <mtu − 80>` yazılır (varsayılanda 1412; elle bozulmuş ag.toml'daki
   1280-1492 dışı değer aralığa çekilir); kapalıyken satır yoktur ve dosya bugünküyle birebir aynıdır (yükseltme PPPoE'siz cihazlarda
   tüneli yeniden yazdırmaz). `uzak::mtu_esitle`, `switch` ve `pppoe_uygula`'nın ortak sonunda (güvenlik duvarı → hız sayaçları → pppd birimi
-  → tünel) dosyadaki MTU istenenden farklıysa yazar ve `wg-quick@wfc`'i yeniden başlatır: tünel birkaç sn düşer (DNS yavaşsa 15 sn'ye
-  kadar), uzak yöneticinin bağlantısı kısa süre kesilir. Sonuç yalnızca `UZAK_ERISIM` denetimine yazılır (sonu `(MTU 1412)` / `(MTU otomatik)`);
-  başarısızlığı ağ hatası sayılmaz (tünel gözcüsü eksik tüneli dosyadan kurar). Uzak erişim kapalıysa dokunulmaz. Açılışta geri alma
-  (ağ henüz kalkmadı) tünel MTU'sunu ayarlamaz; sonraki ayar uygulamasında düzelir.
+  → tünel) dosyadaki MTU istenenden farklıysa dosyayı yazar ve **tüneli yeniden başlatmadan** MTU'yu canlı değiştirir: tünel arayüzü varsa
+  `ip link set dev wfc mtu N` (tünel ve uzak yöneticinin bağlantısı kopmaz). `wg-quick@wfc` yeniden başlatılmaz, çünkü Servis'te PPPoE'yi ilk
+  kez açan çevrimdışı cihazda DNS yoktur: yeniden başlatma `vpn.wificorrect.com`'u çözemeyip arayüzü kaldırırdı, tünel ancak gözcünün en çok
+  10 dk'da bir denemesinde dönerdi. "Otomatik"e dönüşte (PPPoE kapandı, satır yok) yalnızca dosya yazılır: çalışan tünel eski MTU'sunda
+  (1412) kalır (zararsız), bir sonraki başlatılışında `wg-quick` kendisi seçer. Arayüz yoksa (tünel kalkmamış) MTU tünelin sonraki
+  başlatılışında dosyadan gelir; yapılandırma hiç yoksa (uzak erişim açık ama tünel kurulmamış) `uzak::uygula` tüneli kurar. Sonuç yalnızca
+  `UZAK_ERISIM` denetimine yazılır (sonu `(MTU 1412)` / `(MTU otomatik)`); canlı değiştirilemezse `hata=tünel MTU'su değiştirilemedi …`, ağ
+  hatası sayılmaz. Uzak erişim kapalıysa dokunulmaz. Açılışta geri alma (ağ henüz kalkmadı) tünel MTU'sunu ayarlamaz; sonraki ayar
+  uygulamasında düzelir.
 - **Durum** (`pppoe::durum`; panel Portlar, sağlık raporu ve giriş sayfası uyarısı aynı yerden): `kapali` "PPPoE kapalı (modemden DHCP)" ·
   `kablo_yok` "Kablo takılı değil" · `dhcp_yok` "Modemden adres alınamadı (modem kapalı ya da kablo yanlış porta takılı)" · `sunucu_yok`
   "PPPoE sunucusu yanıt vermiyor (kablo doğru porta mı, VLAN gerekli mi?)" · `kimlik_hatasi` "Kullanıcı adı ya da parola reddedildi" ·
@@ -893,15 +920,23 @@ hazır, cihazda sahte operatörle denendi; **henüz yayınlanmadı** (`v0.4.17` 
   **Parola yalnızca yazılır:** hiçbir
   sayfaya, denetime ya da mesaja geri yazılmaz; boş gönderilirse kayıtlı parola kalır, yani **kayıtlı bir PPPoE parolası panelden silinemez**
   (yalnızca yenisiyle değiştirilir; PPPoE'yi kapatınca dosyada kalır, fabrika dönüşü siler). Kullanıcı adı, AC ve servis adı baştan/sondan
-  kırpılır, parola olduğu gibi alınır. Kaydetme **mevcut port değişikliği akışından** geçer (hazırlanan `ag-yeni.toml` → geri alma
+  kırpılır, parola olduğu gibi alınır. PPPoE alanları yalnızca form PPPoE seçimini (`pppoe_acik`) taşıyorsa okunur (Servis'teki gibi):
+  PPPoE alanı olmayan bir `/portlar` gönderimi (betik, ileride başka bir form) kayıtlı PPPoE ayarını varsayılana döndürmez, olduğu gibi
+  bırakır. Kaydetme **mevcut port değişikliği akışından** geçer (hazırlanan `ag-yeni.toml` → geri alma
   zamanlayıcısı → `ag::gecis` → `switch` → 3 dk içinde "Çalışıyor, onayla"; onaylanmazsa ya da açılışta onay yoksa eski ayarla PPPoE da
   geri gelir); `ag::gecis` boş parolayı birleştirmez, panel kayıtlı parolayı hazırlanan dosyaya kendisi yazar. Geçersiz ayar doğrulama
   mesajıyla `/portlar`'a döner, hiçbir şey hazırlanmaz. Bir PPPoE değişikliği de ağı yeniden kurar (misafirler birkaç sn düşer, açık AP
   yan odası kapanır). Panel `/portlar` ve `/ayarlar` açılışında 1-2 kısa komut çalıştırır (`ip`; PPPoE açık ve bağlı değilse `journalctl`), her biri
   en çok 5 sn.
-- **Giriş sayfası: internet yokken uyarı ve Servis** (`src/portal.rs`, `src/sablon/servis.html`): koşul cihazın **varsayılan rotasının
-  olmaması** (`ip -o route show default` boş: ne DHCP ne PPPoE), PPPoE açık da kapalı da olsa (bütün cihazlarda; modem arızasında da).
-  Sonuç 10 sn önbellekte, tek yoklama; `ip` çalışmazsa ya da süresi dolarsa internet var sayılır (emin olunamayınca Servis açılmaz); rota
+- **Giriş sayfası: internet yokken uyarı ve Servis** (`src/portal.rs`, `src/sablon/servis.html`): koşul cihazın **kullanılabilir varsayılan
+  rotasının olmaması** (`ip -o route show default`'ta ne DHCP ne PPPoE rotası), PPPoE açık da kapalı da olsa (bütün cihazlarda; modem
+  arızasında da). **dhcpcd'nin IPv4LL rotası sayılmaz:** DHCP sunucusu olmayan hatta (ONT, bina kablosu; PPPoE bağlanamamış ya da modemi
+  arızalı cihaz) dhcpcd internet portuna 169.254/16 adresi verir ve DHCP'den gelmiş varsayılan rota yoksa o adresle bir varsayılan rota da
+  kurar: `default dev enp3s0 proto dhcp scope link src 169.254.x.y metric 1001003` (arayüz metriği + 1000000). Bu rota internete çıkmaz;
+  sayılsaydı uyarı ve Servis tam da gerektikleri arızada hiç görünmezdi. Kural kaynak adrese (`src` 169.254/16) bakar, ağ geçidi yokluğuna
+  değil (PPPoE rotası `default dev wfcppp scope link metric 100` da ağ geçitsizdir ve sayılır). Sonuç 10 sn önbellekte, tek yoklama; `ip`
+  çalışmazsa, süresi dolarsa **ya da hata koduyla biterse** (`ortak::capture_timeout_basarili`: boş çıktı + hata kodu "rota yok" sayılmaz)
+  internet var sayılır (emin olunamayınca Servis açılmaz); rota
   yokken internet alan portun durumu `pppoe::durum` ile okunur (internet varken `journalctl` çalışmaz). Misafire açık sayfada **internet
   varken hiçbir ayar yüzeyi yoktur:** `/servis`, `/servis?izle=1` ve POST `/servis` giriş sayfasına yönlenir, form işlenmez ve sayılmaz.
   - **Uyarı:** sayfanın altında "Bu cihazın internet bağlantısı şu an yok" + neden (yukarıdaki durum metni) + **Servis** bağlantısı; **her
@@ -934,7 +969,10 @@ hazır, cihazda sahte operatörle denendi; **henüz yayınlanmadı** (`v0.4.17` 
     parolası dosyaya boş yazılır**, kayıtlı parola kopyalanmaz) hazırlanır ve `systemd-run --collect --unit wfc-pppoe-servis
     /usr/local/bin/wificorrect ctl pppoe-servis <dosya>` ile ayrı işte uygulanır (portal `ProtectSystem=full`, `/etc`'ye yazamaz; iş
     beklenmez). `ctl pppoe-servis` dosyayı okur okumaz **siler** (sonuç ne olursa olsun; ayrıştırma hatasının metni gösterilmez, parola
-    taşıyabilir) ve `ag::pppoe_uygula`'yı çağırır: onay bekleyen bir port değişikliği (`ag-bekliyor`) ya da ag.toml yoksa reddeder; boş
+    taşıyabilir) ve `ag::pppoe_uygula`'yı çağırır: onay bekleyen bir port değişikliği (`ag-bekliyor`) varsa, ag.toml yoksa ya da var ama
+    ayrıştırılamıyorsa (bozuk; `ag::load_kesin`: `ag::load` gibi varsayılana düşmez, yoksa varsayılan portlar — enp3s0 alır, enp1s0 verir;
+    portları ters kablolu kutuda, ör. Visavis, yanlış — yazılıp güvenlik duvarı yanlış WAN ile yüklenirdi; hata metni ayrıştırıcının
+    ayrıntısını taşımaz) reddeder; boş
     parolayı kayıtlıyla birleştirir; doğrular; ag.toml'u kaydeder, dosyaları yazar, `nft -f guvenlik.nft` + `hiz.nft`, pppd birimi, tünel MTU'su.
     Ağı yeniden kurmaz (`switch` değil) ve **geri alma zamanlayıcısı kurmaz** (cihaz zaten çevrimdışı; geri almak teknisyenin düzelttiği bilgiyi
     yanlış eskisine döndürürdü). Kayıttan sonra sayfa `/servis?izle=1` durum sayfasına geçer (5 sn'de bir meta yenileme, "Ayarları değiştir"
@@ -943,8 +981,9 @@ hazır, cihazda sahte operatörle denendi; **henüz yayınlanmadı** (`v0.4.17` 
     dakikayı bulabilir); internet gelince giriş sayfası açılır."; Kapalı → "Ayar kaydedildi; PPPoE kapalı. Cihaz internet portundan modemin adres
     vermesini bekliyor (PPPoE hattı için Ayarları değiştir bağlantısından PPPoE seçimini Açık yapın). Bu sayfa birkaç saniyede bir yenilenip
     durumu gösterir; internet gelince giriş sayfası açılır." (Kapalıda "bir dakikayı bulabilir" yok: pppd durur, durum DHCP adresinden hemen
-    okunur.) Önceki iş sürerken yeniden kaydetmek "iş başlatılamadı; birkaç saniye sonra yeniden deneyin" der; ag.toml yoksa ya da port
-    değişikliği onay bekliyorsa sayfa bunu hemen söyler.
+    okunur.) Önceki iş sürerken yeniden kaydetmek "iş başlatılamadı; birkaç saniye sonra yeniden deneyin" der; ag.toml yoksa, bozuksa ("Ağ ayar
+    dosyası okunamadı (bozuk); PPPoE ayarı uygulanamaz.") ya da port değişikliği onay bekliyorsa sayfa bunu hemen söyler (form geri gelir).
+    Formun altındaki not seçimden bağımsızdır: "Kaydedince ayar uygulanır (PPPoE Açık ise yeniden bağlanır, Kapalı ise durur) …".
 - **AP yönetim parolası cihaza 5 dk içinde ulaşır (≥ 0.4.17):** Servis'in parolası yönetimdeki "Yenile"yle değişebilir, o yüzden merkez onu
   5 dk'lık sağlık cevabında da gönderir (`/api/saglik` cevabında `ap_parola`; yalnızca bağlı cihaza ve müşterinin parolası doluysa; `/api/eslesme`
   gibi lisans/askı durumuna bakmaz) ve cihaz (`ctl saglik`) değiştiyse `merkez.json`'a yazar. Cihaz tarafı değeri `merkez::ap_parola_oku` kuralıyla
@@ -971,39 +1010,63 @@ hazır, cihazda sahte operatörle denendi; **henüz yayınlanmadı** (`v0.4.17` 
   parolasını taşımaz (testlerle sabitlendi).
 - **Sahte operatör denemesi** (`scripts/pppoe-deneme.sh`, cihazda root; `ppp` ve **yalnızca bu deneme için** `pppoe` Debian paketleri kurulu
   olmalı, `pppoe` Depends'e girmez): `scp scripts/pppoe-deneme.sh wificorrect:/root/ && ssh wificorrect bash /root/pppoe-deneme.sh` (~4,5 dk;
-  kurulu sürümde `ctl pppoe-peers` yoksa başa `WFC=/root/rza/target/debug/wificorrect`; belirli senaryolar `bash /root/pppoe-deneme.sh bagli vlan`;
+  kurulu sürümde `ctl pppoe-peers` yoksa başa `WFC=/root/rza/target/debug/wificorrect`; güvenlik duvarı kuralları varsayılan olarak kurulu sürümden
+  (`/etc/wificorrect`), dalınkiler için `KURALLAR=/root/rza/deploy/debian/etc/wificorrect` (`scripts/test.sh` gönderir); belirli senaryolar
+  `bash /root/pppoe-deneme.sh bagli vlan`;
   yarıda kalanın artıkları `--temizle`; çıkış kodu: hepsi PASS 0, en az bir FAIL 1, kurulum hatası 2; günlükler `/root/pppoe-deneme/`). Cihazın kendi
   içinde üç ağ ad alanı (`wfc-isp` operatör, `wfc-cpe` cihaz, `wfc-lan` MSS için misafir) ve ad alanının içinde doğan sanal kablolar: operatör
   tarafı `pppoe-server`, cihaz tarafı **gerçek `pppd call wificorrect nodetach`** (bağlantı dosyasını `ctl pppoe-peers <ag.toml> <arayüz>` üretir). `/etc/ppp`,
   `/etc/resolv.conf` ve `/run` iki tarafta da yalıtılır (`/etc/netns/…`, ad alanına özel tmpfs): sistemin `/etc/ppp`'si ve kancaları kullanılmaz, kök
   `/run`'a hiçbir şey yazılmaz; yalnızca kendi süreçleri durdurulur (`pkill` yok; 2026-10-03 dersi: netns süreçleri ayırmaz, cihazın kendi `dhcpcd`'si de
-  ölürdü); başta ve sonda kök ad alanı (ip addr/route/rule/link, nft kuralları, `resolv.conf`, `/etc/ppp`, `ip_forward`) karşılaştırılır. **18 kontrol:**
+  ölürdü); başta ve sonda kök ad alanı (ip addr/route/rule/link, nft kuralları, `resolv.conf`, `/etc/ppp`, `ip_forward`) karşılaştırılır. **19 kontrol:**
   `bagli` (IP 15 sn içinde, rota `metric 100`, MTU 1492), `kimlik_hatasi` (CHAP) ve `kimlik_hatasi_pap`, `sunucu_yok`, `vlan_gerekli` (olumsuz: VLAN'sız
   istemci VLAN'lı operatöre bağlanmaz) ve `vlan` (`egress-qos-map`), `ac_yanlis` + `servis_yanlis` (olumsuz) ve `ac_servis`, `kimlik_pap` / `kimlik_chap` ve
-  `kimlik_chap_red` / `kimlik_pap_red` (`refuse-*` satırları yanlış yöntemi gerçekten engelliyor), `yeniden_baglanma` (operatör durup gelince),
-  `hat_kopmasi` (iki yönde paket düşürme; cihazın kendi LCP yankı algılaması), `mss`, `parola_gizli` (hiçbir çıktıda parola yok), `kok_ad_alani`. **Canlı Göztepe'de
-  2026-10-23: 18 PASS, 0 FAIL (254,5 sn); kök ad alanı (adres, rota, nft, `resolv.conf`) denemeden önce ve sonra aynı;** dört tam turun hepsi 18/18. Ölçülen
+  `kimlik_chap_red` / `kimlik_pap_red` (`refuse-*` satırları yanlış yöntemi gerçekten engelliyor: IP yok, günlükte operatörün reddi `peer refused to
+  authenticate`, pppd ya hâlâ deniyor ya da `maxfail 3` ile kendiliğinden ve seçenek/ölümcül hata kodu 1-4 dışında çıktı), `yeniden_baglanma` (operatör durup
+  gelince), `hat_kopmasi` (iki yönde paket düşürme; cihazın kendi LCP yankı algılaması), `mss` (kural `KURALLAR`'daki guvenlik.nft'ten), `nft_kurallari`
+  (`guvenlik.nft` ve `hiz.nft` eski tek adlı ve yeni küme WAN tanımıyla `nft -c`'den geçer, bilerek bozulmuş kopya reddedilir; cihaz ad alanında, kök ad
+  alanının kurallarına dokunulmaz), `parola_gizli` (hiçbir çıktıda parola yok), `kok_ad_alani`. **Son ağaçta (final review düzeltmelerinden sonra, `maxfail 3`'lü
+  bağlantı dosyası, `WFC=/root/rza/target/debug/wificorrect KURALLAR=/root/rza/deploy/debian/etc/wificorrect`) canlı Göztepe'de 2026-10-24: 19 PASS, 0 FAIL
+  (250,1 sn), çıkış kodu 0; kök ad alanı (adres, rota, nft, `resolv.conf`) denemeden önce ve sonra aynı (`kok-fark.txt` boş), sonra ad alanı, `/etc/netns`
+  artığı ve pppd süreci yok, servisler ve tünel çalışıyor.** Yanlış yöntemde (`kimlik_chap_red`, `kimlik_pap_red`) pppd 3 redden sonra 9,9 sn'de kod 16 ile
+  kendiliğinden çıktı. (Önceki 18/18 turları, 2026-10-23, `maxfail 0`'lı taslak bağlantı dosyasıyla ve `nft_kurallari` olmadan yapılmıştı.) Ölçülen
   süreler: oturum 3,3 sn; yanlış parolada yeni deneme 13 sn sonra (`holdoff` işliyor); yanlış yöntemde ~3,3 sn'de bir (`holdoff` yok); operatör yokken bir
   keşif turu 35 sn; operatör kapanıp gelince yeniden bağlanma ~5 sn; hat kopması ~70 sn (+6 sn) sonra fark edilir, hat gelince ~9 sn. Hat kopması iki
   yönde paket düşürülerek taklit edildi (arayüzler ayakta kalır); gerçek kablo çekme denenmedi (çekirdeğin PPPoE sürücüsü taşıyıcı değişiminde oturumu
   bırakmaz diye değerlendirildi, kaynak okumasına dayanır) → canlı kabulde.
-- **Testler (2026-10-24, sürüm 0.4.17):** cihazda `bash scripts/test.sh wificorrect` → 445 birim testi geçti; merkez `sh
-  scripts/sunucu/merkez/tests/hepsi.sh py` → 22/22 dosya `TUM TESTLER GECTI`. Cihaz birim testleri pppd gerektirmez (sahte `/sys`, sahte komut
-  çalıştırıcı, gerçek pppd günlük örnekleri); testler `ag::Yollar`'a geçici dizin verir (canlı `/etc/ppp` ve `/etc/wireguard` yolları yerine).
+- **Testler (2026-10-24, sürüm 0.4.17):** cihazda `bash scripts/test.sh wificorrect` → final review düzeltmelerinden sonra 453 birim testi geçti
+  (uyarısız); merkez `sh scripts/sunucu/merkez/tests/hepsi.sh py` → 22/22 dosya `TUM TESTLER GECTI` (merkez son düzeltmelerde değişmedi). Cihaz
+  birim testleri pppd gerektirmez (sahte `/sys`, sahte komut çalıştırıcı, gerçek pppd günlük örnekleri); testler `ag::Yollar`'a geçici dizin verir
+  (canlı `/etc/ppp` ve `/etc/wireguard` yolları yerine); iki kancanın testleri `sh` ile geçici yollarda çalışır (`scripts/test.sh` kancaları,
+  `guvenlik.nft` ve `hiz.nft`'yi de cihaza gönderir).
 - **Paket ve kurulum sırası:** `paket/control.in` Depends'e **`ppp`** (Debian 13: 2.5.2, PPPoE eklentisi içinde); uzaktan güncelleme `apt-get install
   ./paket.deb` ile bağımlılığı Debian deposundan çeker (cihazın internet erişimi gerekir; iki canlı cihazda `ppp` Debian deposundan kurulabildiği
-  doğrulandı). Birim pakette ama postinst etkinleştirmez (`scripts/paket-test.sh` bunu denetler: birim pakette, `multi-user.target.wants`'ta bağlantı
-  yok, `/usr/sbin/pppd` kurulu; yalnızca CI'da çalışır, bu makinede çalıştırılamadı). PPPoE kapalı cihazlarda yükseltmeden sonra görünen fark: yeni
-  (devre dışı) birim, internet yokken giriş sayfasındaki uyarı ve Servis, sağlık raporunda iki yeni alan ve sağlık cevabıyla gelen AP yönetim parolası;
+  doğrulandı). Birim pakette ama postinst etkinleştirmez. Paket iki kanca da taşır: `/etc/dhcpcd.exit-hook` (644; dhcpcd source eder) ve
+  `/etc/ppp/ip-up.d/wificorrect` (755; `scripts/paket.sh` iki modu da açıkça verir, git'te de +x); ikisi de başka bir paketin dosyası değil
+  (`dpkg -S` boş). `scripts/paket-test.sh` denetler: birim pakette, `multi-user.target.wants`'ta bağlantı yok, `/usr/sbin/pppd` kurulu; iki kanca
+  pakette ve modları doğru, `run-parts --test` ip-up kancasını görür, kanca `wfcppp`/`ppp0` ile (systemd'siz kapsayıcıda) 0 döner, dhcpcd-run-hooks
+  exit-hook'u hâlâ okuyor, exit-hook `sh -eu` altında source edilince durmaz (yalnızca CI'da çalışır, bu makinede çalıştırılamadı; paketin
+  içeriği ve modları cihazda geçici bir `scripts/paket.sh` derlemesiyle `dpkg-deb -c` ile görüldü). PPPoE kapalı cihazlarda yükseltmeden sonra
+  görünen fark: yeni (devre dışı) birim ve iki kanca (PPPoE kapalıyken hiçbir şey yapmazlar), internet yokken giriş sayfasındaki uyarı ve Servis,
+  sağlık raporunda iki yeni alan ve sağlık cevabıyla gelen AP yönetim parolası;
   güvenlik duvarı değişiklikleri yukarıdaki gibi sonra devreye girer. **Merkez ile cihaz güncelleme sırası önemsizdir:** eski merkez yeni cihazın
   raporundaki bilinmeyen anahtarları atar (raporu reddetmez), eski cihaz cevaptaki `ap_parola`'yı yok sayar; yeni merkez + eski cihazda "İnternet"
   satırı "—" ve Servis yoktur. Servis'in AP parolasını 5 dk'da alması için ikisi de 0.4.17 olmalıdır. Merkez: `scripts/sunucu/merkez-guncelle.sh`
   (kullanıcı, sudo). Cihazlar: `v0.4.17` etiketi → release → Yönetim → Sürümler → kanal hedefi (docs/DEVAM.md "Dallar ve durum").
+  **Uyarı — eski sürüme dönüş yok:** PPPoE açık bir cihaza (sağlık kartında "İnternet: PPPoE …") hiçbir zaman 0.4.17'den eski bir sürüm
+  hedeflenmez (kanal hedefi ya da "Şimdi güncelle"): eski paket `wificorrect-pppoe.service`'i kaldırır (etkinleştirme bağlantısı boşa düşer), pppd
+  bir sonraki açılışa kadar çalışır, sonra PPPoE de Servis de yoktur; yalnızca PPPoE'li hatta cihaz internetsiz kalır ve yerinde düzeltilemez.
+  Merkez bunu engellemez (karar: yalnızca belge).
 - **Bilinen sınırlar ve riskler:**
   - *Operatörün hesabı kilitlemesi:* yanlış kullanıcı adı/parola/kimlik yöntemiyle cihaz yoklamayı sürdürür (yukarıdaki geri çekilmeyle: 3 denemelik
-    turlar, tur arası bekleme 10 sn'den 5 dk'ya); bazı operatörler yine de kilitleyebilir, teknisyen yanlış bilgiyi hemen düzeltmelidir. systemd'in
-    `RestartSteps` sayacı sağlıklı bir çalışmadan sonra sıfırlanıyor mu **doğrulanmadı** (sıfırlanmıyorsa en kötü durum: beşinci kesintiden sonra her
-    kesintide 5 dk'ya kadar gecikme, elle yeniden başlatmaya ya da açılışa kadar).
+    turlar, tur arası bekleme 10 sn'den 5 dk'ya); bazı operatörler yine de kilitleyebilir, teknisyen yanlış bilgiyi hemen düzeltmelidir. systemd
+    `RestartSteps` sayacını `Restart=always` altında kendiliğinden yeniden başlatmalar arasında sıfırlamaz (sağlıklı bağlantılar araya girse de
+    birikir); bu yüzden ip-up kancası her başarılı bağlantıdan sonra `systemctl reset-failed` ile sıfırlar ("Yeniden deneme" yukarıda). Kanca
+    çalışmazsa (ör. elle silinmişse) en kötü durum: beşinci kendiliğinden yeniden başlatmadan sonra her kesintide 5 dk'ya kadar gecikme.
+  - *VLAN önceliği (PCP) yavaşlatılmış misafirlerin yükleme trafiğinde 0 olur:* `egress-qos-map 0:N` yalnızca çekirdek önceliği tam 0 olan
+    paketleri eşler; yavaşlatma sınıfları misafir paketine `1:1x` önceliğini verir ve bu öncelik PPPoE'den VLAN'a kadar taşınır, o paketler
+    VLAN'dan PCP 0 ile çıkar. Yalnızca veri çerçevelerinde PCP isteyen operatörlerde önemlidir; gerekirse sınıf öncelikleri de `egress-qos-map`'e
+    eklenir.
   - *Servis parolası şifresiz ağdan gider:* giriş sayfası HTTP, Wi-Fi şifresiz; yakındaki biri o anki AP yönetim parolasını yakalayabilir (bu parola o
     müşterinin AP'sini de korur). Etki o müşteriyle sınırlı; Servis yalnızca cihaz çevrimdışıyken vardır. Servis kullanıldıktan sonra yönetimde AP
     yönetim parolasını **Yenile** deyip AP'ye de yazın. (Ortak admin parolası bilerek Servis'te kullanılmaz.)
@@ -1011,8 +1074,9 @@ hazır, cihazda sahte operatörle denendi; **henüz yayınlanmadı** (`v0.4.17` 
   - *Operatörün tek oturum sınırı:* bazı operatörler aynı hesapla tek PPPoE oturumuna izin verir; müşterinin eski modemi de bağlıysa biri düşer
     (kurulumda eski modem sökülür). VLAN bilinmezse cihaz `sunucu_yok`'ta kalır (operatörden sorulup Servis'ten girilir).
   - *Bayat/yanlış görünüm:* durum sayfası ayar sonrası ~35 sn geriden gelebilir; ölü hat ~76 sn boyunca `bagli` görünür; sağlık raporundaki `wan`
-    169.254/16 adresini de sayar (ONT köprü kipinde DHCP vermezse dhcpcd Ethernet'e IPv4LL atar: `wan=true` ama `pppoe=sunucu_yok`; durum ve internet
-    koşulu IPv4LL'i saymaz — yalnızca görünüm).
+    169.254/16 adresini de sayar (ONT köprü kipinde DHCP vermezse dhcpcd Ethernet'e IPv4LL atar: `wan=true` ama `pppoe=sunucu_yok`; böyle bir cihaz
+    zaten rapor gönderemez — yalnızca görünüm). Durum (`pppoe::durum`, PPP adresi) ve internet koşulu IPv4LL'i saymaz: dhcpcd'nin o adresle
+    kurduğu varsayılan rota (`… scope link src 169.254.x.y metric 1001003`) internet sayılmaz, uyarı ve Servis görünür ("Giriş sayfası" yukarıda).
   - *Servis kayıt yarışı:* kayıttan hemen sonra (iş dosyayı okumadan) ikinci kayıt aynı hazırlık dosyasının üzerine yazabilir ya da silebilir; sonucu durum
     sayfasında görüp gerekirse yeniden kaydedin.
   - *Küçükler:* USB Ethernet gibi uzun adlı (`enx…`) internet portlarında `<port>.<vlan>` adı Linux'un 15 karakter sınırını aşabilir (J1900'ün
@@ -1023,8 +1087,10 @@ hazır, cihazda sahte operatörle denendi; **henüz yayınlanmadı** (`v0.4.17` 
   - *Dükkânda (DHCP):* panelde PPPoE kutusu görünüyor mu; uydurma bilgiyle Açık → Uygula → Onayla: durum "PPPoE sunucusu yanıt vermiyor (…)", DHCP
     internet ve tünel sürüyor (kopmuyor), kapatınca `/etc/ppp/peers/wificorrect` siliniyor, VLAN arayüzü gidiyor, tünel yapılandırmasındaki `MTU` satırı kalkıyor.
     Cihazın AP yönetim parolası geldi mi (panel → AP kurulumu → Takılan cihaz; yönetimdekiyle aynı olmalı: cihaz çevrimdışı kalınca Servis'in tek anahtarı).
-  - *ONT'ye takınca:* PPPoE bağlanıyor mu; `ip -o route show default` → `default dev wfcppp scope link metric 100`; panelde "PPPoE bağlı (dış IP …)"; Yönetim →
+  - *ONT'ye takınca:* PPPoE bağlanıyor mu; `ip -o route show default` → `default dev wfcppp scope link metric 100` (yanında dhcpcd'nin IPv4LL satırı
+    `… src 169.254.… metric 1001003` de olabilir; çıktıyı not edin); panelde "PPPoE bağlı (dış IP …)"; Yönetim →
     müşteri → sağlık kartı "İnternet: PPPoE bağlı"; tünel kalkıyor (`ip link show wfc` MTU 1412, el sıkışma) ve merkez bağlantısı geliyor.
+    `nft list chain inet wfc input`'ta yönetim satırlarında `iifname != "wfcppp"`; `/etc/resolv.conf`'ta operatörün sunucuları (`# PPP: ` bölümü).
   - **Bir kez `journalctl -u wificorrect-pppoe.service -o cat` bakın** (pppd'nin systemd altındaki gerçek çıktısı sahte operatörde gözlenmedi: satırlar çift mi
     geliyor, hangi başlangıç satırları var; durum çözümleyici alt dizgiyle eşler, ama kimlik/PADO/`local  IP address` satırları gerçek operatörde beklenen
     biçimde mi) ve panel durumunun doğru olup olmadığını karşılaştırın.
@@ -1035,11 +1101,18 @@ hazır, cihazda sahte operatörle denendi; **henüz yayınlanmadı** (`v0.4.17` 
     (HTB kalmamış olmalı).
   - *Kopma:* kabloyu çekip takın (ya da ONT'yi kısa süre kapatın): kablo çekilince `kablo_yok` hemen görünür; kablo gelince kendiliğinden yeniden
     bağlanma; kablo takılıyken hat ölürse (ONT kapanınca) ~70 sn'de fark edilmesi ve durum satırı.
-  - *Geri çekilme:* yanlış parolayla bırakıp `journalctl` zaman damgalarından yeniden deneme aralıklarının 10 sn'den 5 dk'ya çıktığını görün; sağlıklı
-    bağlandıktan sonraki bir kesintide aralığın 10 sn'den yeniden başladığını (`RestartSteps` sıfırlanması) doğrulayın (şimdilik doğrulanmadı).
+  - **DNS (dhcpcd kancası):** kabloyu 5 sn çekip takınca `/etc/resolv.conf`'ta operatör DNS'i kalıyor mu (`cat /etc/resolv.conf`: `# PPP: ` bölümü ve
+    sunucular; dhcpcd'nin NOCARRIER/CARRIER olayından sonra) ve misafir ile cihaz ad çözebiliyor mu (`getent hosts api.wificorrect.com`); aynısını cihazı
+    yeniden başlatınca (dhcpcd'nin IPv4LL olayı PPPoE'den önce ya da sonra gelir) da bakın. `journalctl -u ifup@enp3s0` içinde dhcpcd kanca hatası yok.
+  - *Geri çekilme:* yanlış parolayla bırakıp `journalctl` zaman damgalarından yeniden deneme aralıklarının 10 sn'den 5 dk'ya çıktığını görün; doğru
+    bilgiyle bağlandıktan hemen sonra `systemctl show -p NRestarts wificorrect-pppoe.service` 0 mı (ip-up kancası sıfırladı) ve sonraki bir kesintide
+    aralık yeniden 10 sn'den mi başlıyor.
   - *Servis:* panelden bilerek yanlış parola (ya da bu hattın VLAN'ı yanlış) → durum "Kullanıcı adı ya da parola reddedildi"; telefonla misafir Wi-Fi'ına bağlanın:
     telefon "internet yok" uyarısına rağmen Wi-Fi'da kalıyor mu (iOS ve Android), `10.50.0.1:8080` ve `10.50.0.1:8080/servis` açılıyor mu, uyarı + Servis bağlantısı
-    görünüyor mu; AP yönetim parolasıyla doğru bilgiyi yazın → izleme sayfası → bağlanma → giriş sayfasına dönüş; yanlış Servis parolası 5 kez → kilit mesajı ve
+    görünüyor mu (bu sırada `ip -o route show default`'ta en çok dhcpcd'nin IPv4LL satırı olmalı; uyarı görünmüyorsa bu çıktıyı not edin); AP yönetim parolasıyla
+    doğru bilgiyi yazın → izleme sayfası → bağlanma → giriş sayfasına dönüş (tünel yeniden başlatılmaz: arayüz varsa `ip link show wfc` MTU 1412 olur ve
+    internet gelince el sıkışma kendiliğinden döner; cihaz internetsiz açıldıysa tünel hiç kalkmamış olabilir, o zaman tünel gözcüsü en çok 10 dk içinde
+    kurar); yanlış Servis parolası 5 kez → kilit mesajı ve
     `SERVIS_GIRIS` satırları; kayıtlı kullanıcı adı hiçbir Servis sayfasında görünmüyor. **PPPoE seçimi:** PPPoE hiç ayarlanmamış (Kapalı) bir cihazda Servis
     formunda Açık/Kapalı seçimi **Açık hazır geliyor mu** (panelin Portlar kutusunda aynı cihazda Kapalı görünür); bilgileri girip kaydedince "Ayar
     kaydedildi; PPPoE yeniden bağlanıyor" ve durum PPPoE'ye geçiyor mu; Kapalı seçip kaydedince "Ayar kaydedildi; PPPoE kapalı…" mesajı ve durum "Modemden adres

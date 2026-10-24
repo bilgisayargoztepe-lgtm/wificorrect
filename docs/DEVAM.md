@@ -50,20 +50,28 @@ merkez .1, Visavis .10, Göztepe .11).
 Canlı müşteriler: **Göztepe Bilgisayar = 1537344** (cihaz 192.168.1.110, test kanalı) ve **Visavis** (tünel 10.99.0.10,
 kararlı kanal; numarası yönetimde; aşağıda "Visavis").
 
-## Dallar ve durum (2026-10-19)
+## Dallar ve durum (2026-10-24)
 Repo `bilgisayargoztepe-lgtm/wificorrect` (avsharbeyi'den devredildi). Her şey **`main`**'de (PR #3–#26 birleşti; #2 kapatıldı; PPPoE 0.4.17 hariç: aşağıda).
 **v0.4.16** yayında (2026-10-18; tarihler gün.ay.yıl; ISO + .deb, `release.yml`; `WFC_SSH_PUB` = `~/.ssh/bocafe.pub`). İki canlı
 cihaz da 0.4.16 (merkezden uzaktan güncellemeyle); merkez main'i çalıştırıyor.
-**v0.4.17 (PPPoE) `pppoe` dalında yayına hazır, YAYINLANMADI** (2026-10-24; dal `pppoe`, çalışma ağacı
-`C:\Users\hp\Desktop\claudecode\wificorrect-pppoe`, main `f92ec7e`'den): sürüm 0.4.17, cihaz testleri 445/445 ve merkez testleri 22/22
-dosya geçti, sahte operatörle cihazda 18/18 PASS; gerçek PPPoE hattında denenmedi. Sırada (her adım kullanıcı onayıyla): dalın `main`'e birleştirilmesi (PR),
-`v0.4.17` etiketi, merkezin güncellenmesi (`merkez-guncelle.sh`, kullanıcı), uzaktan güncelleme; ayrıntı ve canlı kabul listesi
-KURULUM_GUNLUGU "PPPoE".
+**v0.4.17 (PPPoE): `pppoe` dalında, `main`'e birleştirilmeyi bekliyor; YAYINLANMADI** (etiket yok, canlıda değil; dal main `f92ec7e`'den;
+spec `docs/superpowers/specs/2026-10-23-pppoe-design.md`, ayrıntı ve canlı kabul listesi KURULUM_GUNLUGU "PPPoE", teknisyen notu
+`docs/AP_KURULUM.md` 5. bölüm). İçerik: internet alan portta PPPoE (`ag.toml [pppoe]`, ayrı `wificorrect-pppoe.service` + pppd, VLAN, DHCP hep
+açık ve PPPoE metrik 100 ile önde), panel → Ayarlar → Portlar kutusu (3 dk onay akışı), internet yokken giriş sayfasında uyarı + **Servis**
+(`10.50.0.1:8080/servis`, parola = AP yönetim parolası, merkezden 5 dk'lık sağlık cevabıyla iner), sağlık raporunda `wan_tur`/`pppoe` +
+yönetimde "İnternet" satırı, tünel MTU 1412 (yeniden başlatmadan), yavaşlatma etkin çıkış arayüzünde, MSS düzeltmesi, yönetim `wfcppp`'de
+kapalı, dhcpcd çıkış kancası (operatör DNS'i) ve ppp ip-up kancası (yeniden deneme sayacı). Son incelemenin düzeltmelerinden sonra cihaz
+testleri 453/453 ve sahte operatörle cihazda (`scripts/pppoe-deneme.sh`, ağ ad alanlarında) 19/19 PASS; merkez testleri 22/22 dosya (merkez son
+düzeltmelerde değişmedi); gerçek PPPoE hattında denenmedi. Sırada (her adım kullanıcı onayıyla): dalın `main`'e birleştirilmesi (PR), `v0.4.17` etiketi, merkezin güncellenmesi
+(`merkez-guncelle.sh`, kullanıcı), uzaktan güncelleme, ilk PPPoE'li müşteride canlı kabul.
 **Cihaza kurulum `gelistir.sh` ile değil**: yeni sürüm → `v*` etiketi (release ~20–25 dk) → Yönetim → Sürümler → "GitHub'dan
 yeni sürümleri al" → kanal hedefi (Göztepe **test**, Visavis **kararlı**: ikisinin de hedefini seç) → müşteri sayfasında
 "Şimdi güncelle" (kullanıcı basar) ya da 03:00–06:00 penceresi. Acil yerel deneme: cihazda `scripts/paket.sh` ile .deb, sunucuda
 `sudo -u wcpanel python3 /usr/local/lib/wificorrect/surumler.py ekle DOSYA SURUM` (gelistir.sh paketli cihazı paketten saptırır).
 Merkez her güncellemede yeniden başlar ve bellekteki oturumlar düşer (yönetime yeniden giriş gerekir).
+**PPPoE açık bir cihaza (sağlık kartında "İnternet: PPPoE …") 0.4.17'den eski bir sürüm asla hedeflenmez** (kanal hedefi ya da "Şimdi
+güncelle"): eski paket `wificorrect-pppoe.service`'i kaldırır, pppd bir sonraki açılışa kadar çalışır, sonra PPPoE de Servis de yoktur;
+yalnızca PPPoE'li hatta cihaz internetsiz kalır ve yerinde düzeltilemez. Merkez engellemez (yalnızca bu uyarı).
 
 Bitenler (canlıda):
 - ISO (Debian netinst + preseed + .deb), GitHub'da QEMU duman testi (`iso.yml`), `release.yml` yalnızca `v*` etiketinde.
@@ -117,12 +125,6 @@ Bitenler (canlıda):
 - **ISO gerçek donanımda** (PR #24, 0.4.14): preseed initrd'de, kurulum belleği kimlikle seçilir (takılı başka kurulum diski
   karışmaz), `firmware-realtek`, iç disk yoksa boş USB belleğe kurulum. 0.4.15: boş/bozuk panel sertifikası yeniden üretilir
   (Visavis'te 0 baytlık `panel.crt/key` görüldü), monitörsüz açılış için EFI `startup.nsh`.
-- **PPPoE** (0.4.17, `pppoe` dalı; **henüz canlıda değil**; spec `docs/superpowers/specs/2026-10-23-pppoe-design.md`, ayrıntı
-  KURULUM_GUNLUGU "PPPoE", teknisyen notu `docs/AP_KURULUM.md` 5. bölüm): internet alan portta PPPoE (`ag.toml [pppoe]`, ayrı
-  `wificorrect-pppoe.service` + pppd, VLAN, DHCP hep açık ve PPPoE metrik 100 ile önde), panel → Ayarlar → Portlar kutusu (3 dk
-  onay akışı), internet yokken giriş sayfasında uyarı + **Servis** (`10.50.0.1:8080/servis`, parola = AP yönetim parolası, merkezden
-  5 dk'lık sağlık cevabıyla iner), sağlık raporunda `wan_tur`/`pppoe` + yönetimde "İnternet" satırı, tünel MTU 1412, yavaşlatma
-  etkin çıkış arayüzünde, MSS düzeltmesi. Kabul: `scripts/pppoe-deneme.sh` (sahte operatör, ağ ad alanlarında) 18/18 PASS.
 
 ## Visavis (ikinci canlı müşteri, 2026-10-16'dan)
 - J1900; ISO 0.4.13 ile 7,5 GB USB belleğe kuruldu, kolay bağlamayla bağlandı; tünel 10.99.0.10, **kararlı** kanal, 0.4.16.
@@ -187,7 +189,7 @@ siteleri çalışıyor — müşteri artınca merkezi ayrı sunucuya al.
   (Emek Koltuk, paketatmaca, 128bitbilgisayar … 10'dan fazla site) içe alır; paket yalnızca kendi dosyasını eklemeli.
   Windows sunucu: doğrudan değil (systemd, WireGuard + nftables, rrsync yedek hesapları, fail2ban Linux'a özgü); gerekirse
   Hyper-V'de Ubuntu sanal makine.
-- **Router kipinin geri kalanı** (PPPoE 0.4.17'de yapıldı, yukarıda "Bitenler"): işletme ağı (3. port) ve personel Wi-Fi'ı şimdi
+- **Router kipinin geri kalanı** (PPPoE 0.4.17'de yapıldı, henüz yayında değil: yukarıda "Dallar ve durum"): işletme ağı (3. port) ve personel Wi-Fi'ı şimdi
   gerek yok (kullanıcı: işletmenin kendi cihazı olmayacak); ONT'nin yerine geçmek yok (SFP yuvası yok, operatör ONT'yi seri
   numarasıyla yetkilendiriyor). PPPoE'de 1492'den büyük MRU (RFC 4638) gerekirse ileride eklenir.
 **Bulgular 2026-10-13:** cihaz telefon (mobil) hattına alınınca HTTPS/sağlık raporu çalışıyor ama WireGuard 1–2 dk sonra kesiliyor

@@ -1,6 +1,6 @@
 [package]
 name = "wificorrect"
-version = "0.4.16"
+version = "0.4.17"
 edition = "2021"
 rust-version = "1.85"
 description = "Kafeler için 5651 uyumlu, SMS doğrulamalı misafir internet sistemi"

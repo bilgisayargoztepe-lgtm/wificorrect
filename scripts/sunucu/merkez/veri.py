@@ -218,7 +218,8 @@ class Veri:
         return pw
 
     def ap_parolasi_yenile(self, numara):
-        """Yeni AP yönetim parolası (yönetimde gösterilir, cihaza sonraki eşitlemede gider; AP'de elle değiştirilir)."""
+        """Yeni AP yönetim parolası (yönetimde gösterilir; cihaza 5 dk'lık sağlık cevabıyla (0.4.17 ve sonrası) ya da sonraki
+        eşitlemede — eski sürümlerde günlük 06:00 — gider; AP'de elle değiştirilir)."""
         pw = guvenlik.parola_uret(AP_PAROLA_UZUNLUK)
         with self._islem() as db:
             db.execute("UPDATE musteri SET ap_parola = ? WHERE numara = ?", (pw, numara))

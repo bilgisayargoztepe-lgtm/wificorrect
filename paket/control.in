@@ -2,7 +2,7 @@ Package: wificorrect
 Version: @SURUM@
 Architecture: amd64
 Maintainer: WifiCorrect <destek@wificorrect.com>
-Depends: systemd, systemd-timesyncd | time-daemon, iptables, dnsmasq, hostapd, iw, wireless-regdb, conntrack, nftables, wireguard-tools, rsync, curl, ca-certificates, openssl, openssh-server, openssh-client, bridge-utils, ifupdown, dhcpcd-base, iproute2, unattended-upgrades
+Depends: systemd, systemd-timesyncd | time-daemon, iptables, dnsmasq, hostapd, iw, wireless-regdb, conntrack, nftables, wireguard-tools, rsync, curl, ca-certificates, openssl, openssh-server, openssh-client, bridge-utils, ifupdown, dhcpcd-base, ppp, iproute2, unattended-upgrades
 Section: net
 Priority: optional
 Description: WifiCorrect 5651 uyumlu SMS doğrulamalı misafir internet cihazı

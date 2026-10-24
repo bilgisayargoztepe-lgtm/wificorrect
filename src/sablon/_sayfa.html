@@ -27,14 +27,15 @@ a{color:var(--vurgu);text-decoration:underline;text-decoration-thickness:1px;tex
 :focus-visible{outline:2px solid var(--vurgu);outline-offset:3px}
 form{margin-top:8px}
 label{display:block;margin:18px 0 6px;font-weight:600;font-size:.9375rem;color:var(--murekkep)}
-input[type=text],input[type=tel]{display:block;width:100%;min-height:50px;padding:12px 14px;border:1px solid var(--cizgi);border-radius:10px;background:#fff;color:var(--murekkep);font:inherit;font-size:1.0625rem}
+input[type=text],input[type=tel],input[type=password]{display:block;width:100%;min-height:50px;padding:12px 14px;border:1px solid var(--cizgi);border-radius:10px;background:#fff;color:var(--murekkep);font:inherit;font-size:1.0625rem}
 input::placeholder{color:#8a95a1}
-input[type=text]:focus,input[type=tel]:focus{outline:2px solid var(--vurgu);outline-offset:-1px;border-color:var(--vurgu)}
+input[type=text]:focus,input[type=tel]:focus,input[type=password]:focus{outline:2px solid var(--vurgu);outline-offset:-1px;border-color:var(--vurgu)}
 .madde{margin-top:18px;padding-top:16px;border-top:1px solid #eceeeb}
 .madde + .madde{margin-top:0;border-top:0;padding-top:12px}
 .onay{display:flex;gap:12px;align-items:flex-start;margin:0;font-weight:400;font-size:.9375rem;color:var(--govde);line-height:1.5}
 details{margin:6px 0 0 34px}
 .madde > details:first-child{margin-left:0}
+details.gelismis{margin:18px 0 0}
 summary{display:inline-flex;align-items:center;gap:6px;min-height:32px;color:var(--bag);font-size:.9375rem;font-weight:600;cursor:pointer;list-style:none;-webkit-tap-highlight-color:transparent}
 summary::-webkit-details-marker{display:none}
 summary::after{content:"";width:7px;height:7px;margin-left:2px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(45deg) translateY(-2px);transition:transform .15s}
@@ -52,12 +53,17 @@ a.dugme:active{background:var(--gok)}
 fieldset{margin:18px 0 0;padding:0;border:0}legend{padding:0;margin:0 0 8px;font-weight:600;font-size:.9375rem;color:var(--murekkep)}
 .secenek{display:flex;gap:20px;flex-wrap:wrap}.secenek .onay input{accent-color:var(--vurgu)}
 select#uyruk{display:block;width:100%;min-height:50px;padding:0 10px;border:1px solid var(--cizgi);border-radius:10px;background:#fff;color:var(--murekkep);font:inherit;font-size:1rem}
+form.servis select{display:block;width:100%;min-height:50px;padding:0 10px;border:1px solid var(--cizgi);border-radius:10px;background:#fff;color:var(--murekkep);font:inherit;font-size:1rem}
 form.misafir:has(input[value=pasaport]:checked) .alan-tc,form.misafir:has(input[value=tc]:checked) .alan-pasaport{display:none}
 .hata{margin:6px 0 0;color:var(--hata);font-size:.9375rem}
 .hata.genel{margin:0 0 16px;padding:12px 14px;border-left:3px solid var(--hata);border-radius:0 8px 8px 0;background:var(--hata-acik);color:#8c1d17}
 .not{margin:12px 0 0;font-size:.9375rem;color:var(--soluk)}
 .not.kucuk{margin-top:2px;font-size:.8125rem}
 .hata:empty,.not:empty{display:none}
+.uyari{margin:24px 0 0;padding:12px 14px;border-left:3px solid #b26a00;border-radius:0 8px 8px 0;background:#fff7e6;color:#5c3b00;font-size:.9375rem;line-height:1.5}
+.uyari a{font-weight:600;color:var(--bag)}
+.servis-durum{margin:0 0 16px;padding:10px 14px;border-radius:8px;background:#f6f7f5;border:1px solid #e6e9e6;font-weight:600;color:var(--murekkep)}
+.servis-durum:empty{display:none}
 .tel{display:flex;gap:8px}.tel select{flex:0 0 7.6em;min-width:0;min-height:50px;padding:0 6px;border:1px solid var(--cizgi);border-radius:10px;background:#fff;color:var(--murekkep);font:inherit;font-size:1rem}.tel input{flex:1;min-width:0}
 input.kod{text-align:center;font-size:1.625rem;letter-spacing:.45em;padding-left:calc(14px + .45em);font-variant-numeric:tabular-nums}
 footer{margin-top:auto;padding:24px 24px calc(20px + env(safe-area-inset-bottom));text-align:center;font-size:.75rem;line-height:1.5;color:var(--soluk)}
@@ -71,6 +77,7 @@ footer p{max-width:440px;margin:0 auto}
 </header>
 <main>
 $icerik_html
+$internet_uyari_html
 </main>
 <footer><p>$m_alt_bilgi</p></footer>
 </body>

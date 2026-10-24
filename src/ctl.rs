@@ -304,6 +304,86 @@ fn ap_dhcp_denetle(cfg: &Config) -> ExitCode {
     }
 }
 
+/// `ctl uzak-uygula`: tüneli ayara getirir. PPPoE açıksa tünel MTU'su hattan küçülür (`uzak::tunel_mtu`, ag.toml'dan); ag.toml okunamazsa
+/// ya da yoksa PPPoE kapalı sayılır (tünel MTU satırsız kurulur: bugünkü davranış). Sonuç `UZAK_ERISIM` olarak denetime yazılır.
+fn uzak_uygula(cfg: &Config, ag_yolu: &std::path::Path, key: &std::path::Path, conf: &std::path::Path, runner: &Runner, now: f64) -> ExitCode {
+    let mtu = crate::uzak::tunel_mtu(&crate::ag::load(ag_yolu));
+    let r = crate::uzak::uygula(cfg, key, conf, mtu, runner);
+    crate::uzak::audit(cfg, now, &r);
+    match r {
+        Ok(m) => {
+            println!("{m}");
+            ExitCode::SUCCESS
+        }
+        Err(e) => {
+            eprintln!("{e}");
+            ExitCode::from(1)
+        }
+    }
+}
+
+/// `ctl pppoe-peers AG.TOML ARAYUZ` (ağ ad alanındaki sahte operatör denemesi, `scripts/pppoe-deneme.sh`): AG.TOML'daki PPPoE
+/// ayarından pppd bağlantı dosyasının metnini üretir; yalnızca Ethernet arayüzü ARAYUZ'dür (VLAN soneki eklenmez). Dosya yazmaz.
+/// Üretilen dosya kullanılabilir olmalı: ayar açıkmış gibi doğrulanır (boş / satır sokan kullanıcı adı ve parola reddedilir).
+fn pppoe_peers_metni(ag_toml: &std::path::Path, arayuz: &str) -> Result<String, String> {
+    if arayuz.is_empty() || arayuz.len() > 15 || !arayuz.bytes().all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b'-')) {
+        return Err("Arayüz adı geçersiz (en çok 15 karakter: harf, rakam, nokta, alt çizgi, tire).".into());
+    }
+    let metin = std::fs::read_to_string(ag_toml).map_err(|e| format!("{} okunamadı: {e}", ag_toml.display()))?;
+    // ayrıştırma hatasının metni hatalı satırı (parola olabilir) içerir: gösterilmez
+    let ag: crate::ag::Ag = toml::from_str(&metin).map_err(|_| format!("{} ayrıştırılamadı", ag_toml.display()))?;
+    crate::ag::pppoe_dogrula(&crate::ag::Pppoe { acik: true, ..ag.pppoe.clone() })?;
+    Ok(crate::pppoe::peers_text_nic(&ag, arayuz))
+}
+
+/// `ctl pppoe-servis DOSYA` (giriş sayfasındaki Servis bölümü `systemd-run` ile başlatır): DOSYA, ag.toml'daki `[pppoe]` ile aynı
+/// alanlara sahip bir `[pppoe]` tablosu içeren TOML'dur (boş parola = eskisi kalır). Parola içerdiği için okunur okunmaz, sonuç
+/// ne olursa olsun silinir. Uygulama `ag::pppoe_uygula` (geri alma zamanlayıcısı yok). Denetime kullanıcı adı ve parola yazılmaz.
+fn pppoe_servis(cfg: &Config, y: &crate::ag::Yollar, dosya: &std::path::Path, runner: &Runner, now: f64) -> ExitCode {
+    #[derive(serde::Deserialize)]
+    struct Servis {
+        pppoe: crate::ag::Pppoe, // tablo zorunlu: eksikse PPPoE kendiliğinden kapanmasın
+    }
+    let okunan = std::fs::read_to_string(dosya);
+    let _ = std::fs::remove_file(dosya);
+    let yeni = match okunan {
+        // ayrıştırma hatasının metni hatalı satırı (parola olabilir) içerir: gösterilmez
+        Ok(t) => match toml::from_str::<Servis>(&t) {
+            Ok(s) => s.pppoe,
+            Err(_) => {
+                eprintln!("PPPoE servis dosyası geçersiz: [pppoe] tablosu okunamadı.");
+                return ExitCode::from(1);
+            }
+        },
+        Err(e) => {
+            eprintln!("{} okunamadı: {e}", dosya.display());
+            return ExitCode::from(1);
+        }
+    };
+    let sonuc = crate::ag::pppoe_uygula(cfg, y, &yeni, runner);
+    let hata = match &sonuc {
+        Ok(errs) if errs.is_empty() => String::new(),
+        Ok(errs) => format!(" hata={}", errs.join(",")),
+        Err(e) => format!(" hata={e}"),
+    };
+    let ek = format!("pppoe={} vlan={}{hata}", if yeni.acik { "acik" } else { "kapali" }, yeni.vlan);
+    ortak::audit(&cfg.main.log_root, Row::new("PPPOE_SERVIS_UYGULANDI", &ortak::now_iso(now)).set("ek", ek));
+    match sonuc {
+        Ok(errs) if errs.is_empty() => {
+            println!("PPPoE ayarı uygulandı");
+            ExitCode::SUCCESS
+        }
+        Ok(errs) => {
+            eprintln!("{}", errs.join("; "));
+            ExitCode::from(1)
+        }
+        Err(e) => {
+            eprintln!("{e}");
+            ExitCode::from(1)
+        }
+    }
+}
+
 fn oturumlar(cfg: &Config, now: f64) {
     let ses = ortak::load_sessions(&cfg.main.state_root);
     if ses.is_empty() {
@@ -448,6 +528,23 @@ fn sms_sonucu_kaydet(sms: Result<bool, String>, yeni: &Config, cfg_path: &str, d
         },
         Ok(false) => {}
         Err(e) => denetim("MERKEZ_EK_HATA", e),
+    }
+}
+
+/// Sağlık cevabıyla gelen AP yönetim parolası (spec 2026-10-23): merkezde "Yenile"den sonra cihaza 5 dk içinde inmesi için
+/// `merkez.json`'a yazılır (Servis sayfasının parolası bu; bağlanırken ve her eşitlemede de gelir). Parola yalnızca dosyadakinden
+/// FARKLIYSA yazılır (aynıysa dosyaya dokunulmaz: 5 dk'da bir boşuna yazım olmasın), dosya yazmadan hemen önce yeniden okunur
+/// (cevap beklenirken başka bir yazım olduysa onun üzerine yazılmasın) ve dosya yoksa (cihaz bağlı değil, fabrika dönüşü) bağ
+/// oluşturulmaz. Denetime parola yazılmaz: yalnızca kaynağı (`AP_PAROLA_MERKEZ kaynak=saglik`); yazılamazsa `MERKEZ_EK_HATA`.
+fn ap_parola_kaydet(merkez_path: &std::path::Path, yeni: &str, denetim: &dyn Fn(&str, String)) {
+    let Some(mut m) = crate::merkez::oku(merkez_path) else { return };
+    if m.ap_parola == yeni {
+        return;
+    }
+    m.ap_parola = yeni.to_string();
+    match crate::merkez::kaydet(merkez_path, &m) {
+        Ok(()) => denetim("AP_PAROLA_MERKEZ", "kaynak=saglik".into()),
+        Err(e) => denetim("MERKEZ_EK_HATA", format!("ap_parola: {e}")),
     }
 }
 
@@ -596,14 +693,18 @@ pub fn run(cfg: Config, args: &[String]) -> ExitCode {
             let mut liste_isi = false;
             match crate::saglik::calistir(&cfg, std::path::Path::new(crate::merkez::PATH), &k, &http, now) {
                 Ok(cevap) => {
+                    let denetim = |olay: &str, ek: String| ortak::audit(&cfg.main.log_root, Row::new(olay, &ortak::now_iso(now)).set("ek", ek));
                     // merkezin etkin deneme modu (Özet uyarısı, sms_sorunu): yalnızca değiştiyse kaydedilir
                     if cevap.sms_mock.is_some() {
                         let cfg_path = std::env::var("WFC_AYAR").unwrap_or_else(|_| crate::ayar::PATH.to_string());
                         let mut yeni = cfg.clone();
                         let ek = crate::merkez::Ek { admin: None, sms_mock: cevap.sms_mock };
                         let (_, sms) = crate::merkez::ek_uygula(&mut yeni, &crate::hesap::Hesaplar::new(crate::hesap::PATH), &ek);
-                        let denetim = |olay: &str, ek: String| ortak::audit(&cfg.main.log_root, Row::new(olay, &ortak::now_iso(now)).set("ek", ek));
                         sms_sonucu_kaydet(sms, &yeni, &cfg_path, &denetim);
+                    }
+                    // AP yönetim parolası (Servis sayfası): merkezde yenilendiyse 06:00'ı beklemeden bu turda iner
+                    if let Some(parola) = cevap.ap_parola.as_deref() {
+                        ap_parola_kaydet(std::path::Path::new(crate::merkez::PATH), parola, &denetim);
                     }
                     if let Some(h) = cevap.hedef {
                         // karar Kur ise hedef.json yazılır ve güncelleme ayrı systemd işinde başlar (birim varsa systemd reddeder)
@@ -692,25 +793,22 @@ pub fn run(cfg: Config, args: &[String]) -> ExitCode {
                 }
             }
         }
-        // Panel → Admin ayarları → Uzak erişim kaydedilince (ayrı systemd işinde)
-        Some("uzak-uygula") => {
-            let r = crate::uzak::uygula(&cfg, std::path::Path::new(crate::uzak::KEY), std::path::Path::new(crate::uzak::CONF), &runner);
-            crate::uzak::audit(&cfg, now, &r);
-            match r {
-                Ok(m) => {
-                    println!("{m}");
-                    ExitCode::SUCCESS
-                }
-                Err(e) => {
-                    eprintln!("{e}");
-                    ExitCode::from(1)
-                }
-            }
-        }
+        // Panel → Admin ayarları → Uzak erişim kaydedilince ve merkez bağlanınca (ayrı systemd işinde)
+        Some("uzak-uygula") => uzak_uygula(
+            &cfg,
+            &crate::ag::Yollar::sistem().ag,
+            std::path::Path::new(crate::uzak::KEY),
+            std::path::Path::new(crate::uzak::CONF),
+            &runner,
+            now,
+        ),
         // Panel → Bağlı kullanıcılar → Yavaşlat / Yavaşlatmayı kaldır
         Some("hiz-uygula") => {
-            let wan = crate::ag::load(&crate::ag::Yollar::sistem().ag).wan;
-            hiz_uygula(&cfg, &wan, &runner, &crate::hiz::nft_dosya, std::path::Path::new(crate::hiz::UYGULANAN_YOLU))
+            // kaydedici ile aynı seçim (yoksa ikisi planı sırayla farklı arayüzlere kurup birbirini bozar): trafiğin gerçekten çıktığı
+            // arayüz, PPPoE bağlıyken wfcppp. Rota okunamazsa (tek seferlik komut: bekleyemez) internet alan Ethernet.
+            let ag = crate::ag::load(&crate::ag::Yollar::sistem().ag);
+            let rota = ortak::capture_timeout(&["ip", "-o", "route", "show", "default"], 5).unwrap_or_default();
+            hiz_uygula(&cfg, &crate::ag::etkin_cikis(&ag, &rota), &runner, &crate::hiz::nft_dosya, std::path::Path::new(crate::hiz::UYGULANAN_YOLU))
         }
         // Açılışta (wificorrect-guvenlik) ve panelden: yasaklı site / kelime listelerini uygula
         Some("filtre-uygula") => match crate::filtre::uygula(&cfg, std::path::Path::new(crate::filtre::DNSMASQ_CONF), &runner) {
@@ -734,6 +832,40 @@ pub fn run(cfg: Config, args: &[String]) -> ExitCode {
                     ExitCode::from(1)
                 }
             }
+        }
+        // PPPoE (spec 2026-10-23): wificorrect-pppoe.service pppd'den önce ve sonra çalıştırır
+        Some("pppoe-hazirla") => match crate::pppoe::hazirla(&crate::ag::load(&crate::ag::Yollar::sistem().ag), &runner) {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(e) => {
+                eprintln!("{e}");
+                ExitCode::from(1)
+            }
+        },
+        Some("pppoe-temizle") => {
+            let ip_link = ortak::capture(&["ip", "-o", "link", "show", "type", "vlan"]);
+            crate::pppoe::temizle(&crate::ag::load(&crate::ag::Yollar::sistem().ag), &ip_link, &runner);
+            ExitCode::SUCCESS
+        }
+        // Sahte operatör denemesi (scripts/pppoe-deneme.sh): ag.toml'daki PPPoE ayarından pppd bağlantı dosyası metnini stdout'a yazar
+        Some("pppoe-peers") if args.len() == 3 => match pppoe_peers_metni(std::path::Path::new(&args[1]), &args[2]) {
+            Ok(t) => {
+                print!("{t}");
+                ExitCode::SUCCESS
+            }
+            Err(e) => {
+                eprintln!("{e}");
+                ExitCode::from(1)
+            }
+        },
+        Some("pppoe-peers") => {
+            eprintln!("Kullanım: wificorrect ctl pppoe-peers <ag.toml> <arayuz>");
+            ExitCode::from(2)
+        }
+        // Giriş sayfası → Servis (systemd-run ile): DOSYA'daki [pppoe] ayarını uygular, dosyayı siler
+        Some("pppoe-servis") if args.len() == 2 => pppoe_servis(&cfg, &crate::ag::Yollar::sistem(), std::path::Path::new(&args[1]), &runner, now),
+        Some("pppoe-servis") => {
+            eprintln!("Kullanım: wificorrect ctl pppoe-servis <hazir.toml>");
+            ExitCode::from(2)
         }
         Some(c @ ("ag-uygula" | "ag-gecis" | "ag-onayla" | "ag-geri-al" | "ag-acilis")) => {
             use crate::ag;
@@ -819,7 +951,7 @@ pub fn run(cfg: Config, args: &[String]) -> ExitCode {
         _ => {
             eprintln!(
                 "Kullanım: wificorrect ctl <komut>\n  dhcp-olay <add|old|del> <mac> <ip> [ad]\n  yukle\n  oturumlar\n  \
-                 gun-kapat [YYYY-AA-GG] [--zorla]\n  dogrula [--son N]\n  temizle [--kuru]\n  yedekle\n  ara ...  (ayrıntı: ctl ara)\n  disa-aktar --baslangic G --bitis G --cikti DOSYA\n  ag-uygula | ag-gecis DOSYA | ag-onayla | ag-geri-al | ag-ilk\n  ayar-temizle\n  filtre-uygula\n  liste-uygula | liste-guncelle\n  hiz-uygula\n  admin-parola\n  merkez-eslesme\n  saglik\n  guncelle\n  ap-adres-ekle a.b.c.d/önek [--sure SN]  (AP yan odası)\n  ap-adres-kaldir <elle|sure> [KIMLIK]\n  ap-dhcp-denetle\n  ap-bul KIM ROL IP [HEDEF]"
+                 gun-kapat [YYYY-AA-GG] [--zorla]\n  dogrula [--son N]\n  temizle [--kuru]\n  yedekle\n  ara ...  (ayrıntı: ctl ara)\n  disa-aktar --baslangic G --bitis G --cikti DOSYA\n  ag-uygula | ag-gecis DOSYA | ag-onayla | ag-geri-al | ag-ilk\n  pppoe-hazirla | pppoe-temizle | pppoe-peers AG.TOML ARAYUZ | pppoe-servis DOSYA\n  ayar-temizle\n  filtre-uygula\n  liste-uygula | liste-guncelle\n  hiz-uygula\n  admin-parola\n  merkez-eslesme\n  saglik\n  guncelle\n  ap-adres-ekle a.b.c.d/önek [--sure SN]  (AP yan odası)\n  ap-adres-kaldir <elle|sure> [KIMLIK]\n  ap-dhcp-denetle\n  ap-bul KIM ROL IP [HEDEF]"
             );
             ExitCode::from(2)
         }
@@ -1018,6 +1150,241 @@ mod tests {
         assert_eq!(kod(hiz_uygula(&c, "enp3s0", &runner, &nft_f, &yol)), kod(ExitCode::SUCCESS));
         assert!(son.borrow().contains("ip daddr 10.50.0.23 ") && son.borrow().contains("ip daddr 10.50.0.2 "));
         assert_eq!(kod(hiz_uygula(&c, "enp3s0", &runner, &nft_f, &yol)), kod(ExitCode::SUCCESS)); // değişiklik yok
+    }
+
+    // ---------------------------------------------------------------- PPPoE (docs/superpowers/specs/2026-10-23-pppoe-design.md)
+    fn pppoe_yollar(root: &std::path::Path) -> crate::ag::Yollar {
+        crate::ag::Yollar {
+            ag: root.join("ag.toml"),
+            interfaces: root.join("interfaces"),
+            nft: root.join("arayuzler.nft"),
+            hostapd: root.join("hostapd.conf"),
+            issue: root.join("issue"),
+            peers: root.join("peers"),
+            durum: root.join("durum"),
+            hiz_uygulanan: root.join("hiz_uygulanan"),
+            uzak_key: root.join("wg.key"),
+            uzak_conf: root.join("wireguard/wfc.conf"),
+        }
+    }
+
+    #[test]
+    fn uzak_uygula_tunel_mtusunu_ag_tomlundan_alir() {
+        // `ctl uzak-uygula` (panel → Uzak erişim, merkez bağlama): PPPoE açıksa tünel MTU'su hattan küçülür
+        let (mut c, root) = cfg();
+        std::fs::create_dir_all(&root).unwrap();
+        c.uzak = crate::ayar::Uzak {
+            enabled: true,
+            sunucu: "vpn.wificorrect.com:51820".into(),
+            sunucu_anahtar: "aBcDeFgHiJkLmNoPqRsTuVwXyZ0123456789+/abcdE=".into(),
+            adres: "10.99.0.17".into(),
+        };
+        let (ag_yolu, key, conf) = (root.join("ag.toml"), root.join("wg.key"), root.join("wireguard/wfc.conf"));
+        std::fs::write(&key, "aBcDeFgHiJkLmNoPqRsTuVwXyZ0123456789+/abcdE=\n").unwrap();
+        let calls = Arc::new(Mutex::new(Vec::<String>::new()));
+        let c2 = calls.clone();
+        let runner = move |x: &[String]| {
+            c2.lock().unwrap().push(x.join(" "));
+            true
+        };
+        let kod = |k: ExitCode| format!("{k:?}");
+        let denetim = || std::fs::read_to_string(ortak::day_file(&c.main.log_root, ortak::day_of(&ortak::now_iso(NOW)), "denetim.csv")).unwrap_or_default();
+        let ag = |acik: bool, mtu: u16| crate::ag::Ag { pppoe: crate::ag::Pppoe { acik, mtu, ..Default::default() }, ..Default::default() };
+
+        // ag.toml yok: PPPoE yok sayılır, tünel MTU satırsız kurulur (bugünkü davranış)
+        assert_eq!(kod(uzak_uygula(&c, &ag_yolu, &key, &conf, &runner, NOW)), kod(ExitCode::SUCCESS));
+        assert!(!std::fs::read_to_string(&conf).unwrap().contains("MTU"));
+        // PPPoE açık (hat MTU'su 1400): tünel 1320
+        crate::ag::save(&ag_yolu, &ag(true, 1400)).unwrap();
+        assert_eq!(kod(uzak_uygula(&c, &ag_yolu, &key, &conf, &runner, NOW + 1.0)), kod(ExitCode::SUCCESS));
+        assert!(std::fs::read_to_string(&conf).unwrap().contains("Address = 10.99.0.17/24\nMTU = 1320\n"));
+        assert!(calls.lock().unwrap().iter().any(|x| x == "systemctl restart wg-quick@wfc.service"));
+        // PPPoE kapalı (kullanıcı adı ve MTU ag.toml'da dursa da): satır yok
+        crate::ag::save(&ag_yolu, &ag(false, 1400)).unwrap();
+        assert_eq!(kod(uzak_uygula(&c, &ag_yolu, &key, &conf, &runner, NOW + 2.0)), kod(ExitCode::SUCCESS));
+        assert!(!std::fs::read_to_string(&conf).unwrap().contains("MTU"));
+        // sonuç denetime yazılır; ayar eksikse çıkış 1 ve dosyaya dokunulmaz
+        assert_eq!(denetim().matches("UZAK_ERISIM").count(), 3, "{}", denetim());
+        let once = std::fs::read(&conf).unwrap();
+        c.uzak.sunucu.clear();
+        assert_eq!(kod(uzak_uygula(&c, &ag_yolu, &key, &conf, &runner, NOW + 3.0)), kod(ExitCode::from(1)));
+        assert_eq!(std::fs::read(&conf).unwrap(), once);
+    }
+
+    #[test]
+    fn pppoe_peers_komutu() {
+        let (_, root) = cfg();
+        std::fs::create_dir_all(&root).unwrap();
+        let f = root.join("ag.toml");
+        std::fs::write(&f, "wan = \"enp1s0\"\n[pppoe]\nacik = true\nkullanici = \"deneme@isp\"\nparola = \"gizli1\"\nvlan = 35\nmtu = 1400\n").unwrap();
+        let once = std::fs::read_dir(&root).unwrap().count();
+        let t = pppoe_peers_metni(&f, "vethcpe").unwrap();
+        // yalnızca arayüz değişir: VLAN soneki eklenmez, internet portunun adı yazılmaz; gerisi ayardan
+        assert!(t.lines().any(|l| l == "nic-vethcpe") && t.contains("user \"deneme@isp\"\n") && t.contains("password \"gizli1\"\n") && t.contains("mtu 1400\n"), "{t}");
+        assert!(!t.contains("enp1s0") && !t.contains("vethcpe.35"), "{t}");
+        assert!(pppoe_peers_metni(&f, "vethcpe.35").unwrap().lines().any(|l| l == "nic-vethcpe.35")); // betik kendi VLAN arayüzünü verebilir
+        assert_eq!(std::fs::read_dir(&root).unwrap().count(), once); // hiçbir dosya yazılmaz (yalnızca stdout)
+        // geçersiz arayüz adı (peers dosyasına satır sokulamaz) ve eksik dosya
+        let uzun = "a".repeat(16);
+        for kotu in ["", "veth cpe", "veth\ncpe", uzun.as_str(), "veth;x", "veth/cpe", "veth\"x"] {
+            assert!(pppoe_peers_metni(&f, kotu).is_err(), "{kotu:?}");
+        }
+        assert!(pppoe_peers_metni(&root.join("yok.toml"), "vethcpe").is_err());
+        // bozuk ayar: hata, hata metni parolayı göstermez
+        std::fs::write(&f, "[pppoe]\nacik = true\nkullanici = \"k\"\nparola = \"gizli1\nvlan =\n").unwrap();
+        let e = pppoe_peers_metni(&f, "vethcpe").unwrap_err();
+        assert!(!e.contains("gizli1"), "{e}");
+        // kullanılamaz peers üretilmez: boş parola, satır sokan değer
+        std::fs::write(&f, "[pppoe]\nacik = true\nkullanici = \"k\"\n").unwrap();
+        assert!(pppoe_peers_metni(&f, "vethcpe").is_err());
+        std::fs::write(&f, "[pppoe]\nkullanici = \"k\\nconnect /bin/sh\"\nparola = \"p\"\n").unwrap();
+        assert!(pppoe_peers_metni(&f, "vethcpe").is_err());
+        // acik = false olsa da bilgiler doluysa peers üretilir (betik yalnızca kullanıcı adı, parola, kimlik doğrulama verebilir)
+        std::fs::write(&f, "[pppoe]\nkullanici = \"k\"\nparola = \"p\"\n").unwrap();
+        assert!(pppoe_peers_metni(&f, "vethcpe").unwrap().contains("user \"k\"\n"));
+    }
+
+    #[test]
+    fn pppoe_komutlari_arguman_sayisi() {
+        // run(): yanlış argüman sayısı kullanım hatasıdır (2) ve hiçbir şeye dokunmaz; doğru sayıda argüman komuta gider
+        let (c, root) = cfg();
+        let a = |v: &[&str]| v.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        let kod = |k: ExitCode| format!("{k:?}");
+        let kullanim = kod(ExitCode::from(2));
+        for v in [&["pppoe-peers"][..], &["pppoe-peers", "ag.toml"], &["pppoe-peers", "a", "b", "c"], &["pppoe-servis"], &["pppoe-servis", "a", "b"]] {
+            assert_eq!(kod(run(c.clone(), &a(v))), kullanim, "{v:?}");
+        }
+        let yok = root.join("yok.toml").to_string_lossy().to_string();
+        assert_eq!(kod(run(c.clone(), &a(&["pppoe-peers", &yok, "vethcpe"]))), kod(ExitCode::from(1))); // komuta gitti: dosya yok
+        assert_eq!(kod(run(c.clone(), &a(&["pppoe-servis", &yok]))), kod(ExitCode::from(1)));
+    }
+
+    #[test]
+    fn pppoe_servis_komutu() {
+        let (c, root) = cfg();
+        let y = pppoe_yollar(&root);
+        let eski = crate::ag::Ag { pppoe: crate::ag::Pppoe { acik: true, kullanici: "eski@isp".into(), parola: "eski-parola".into(), vlan: 35, ..Default::default() }, ..Default::default() };
+        crate::ag::save(&y.ag, &eski).unwrap();
+        let calls = Arc::new(Mutex::new(Vec::<String>::new()));
+        let c2 = calls.clone();
+        let runner = move |x: &[String]| {
+            c2.lock().unwrap().push(x.join(" "));
+            true
+        };
+        let kod = |k: ExitCode| format!("{k:?}");
+        let denetim = || std::fs::read_to_string(ortak::day_file(&c.main.log_root, ortak::day_of(&ortak::now_iso(NOW)), "denetim.csv")).unwrap_or_default();
+        let dosya = root.join("servis.toml");
+
+        // boş parola = eskisi kalır; hazırlık dosyası (parola içerir) okununca silinir; kullanıcı adı / parola denetime yazılmaz
+        std::fs::write(&dosya, "[pppoe]\nacik = true\nkullanici = \"yeni@isp\"\nparola = \"\"\nvlan = 0\n").unwrap();
+        assert_eq!(kod(pppoe_servis(&c, &y, &dosya, &runner, NOW)), kod(ExitCode::SUCCESS));
+        let k = crate::ag::load(&y.ag);
+        assert_eq!((k.pppoe.acik, k.pppoe.kullanici.as_str(), k.pppoe.parola.as_str(), k.pppoe.vlan), (true, "yeni@isp", "eski-parola", 0));
+        assert!(!dosya.exists());
+        let calls_simdi = calls.lock().unwrap().clone();
+        assert!(calls_simdi.iter().any(|x| x == "systemctl restart wificorrect-pppoe.service") && !calls_simdi.iter().any(|x| x.contains("systemd-run")), "{calls_simdi:?}");
+        assert_eq!(std::fs::read_to_string(&y.peers).unwrap(), crate::pppoe::peers_text(&k));
+        let d = denetim();
+        let satir = d.lines().find(|l| l.contains("PPPOE_SERVIS_UYGULANDI")).unwrap_or_else(|| panic!("{d}"));
+        assert!(satir.contains("pppoe=acik vlan=0") && !satir.contains("hata="), "{satir}");
+        assert!(!d.contains("yeni@isp") && !d.contains("eski@isp") && !d.contains("parola"), "{d}");
+
+        // geçersiz bilgi (satır sokan kullanıcı adı): çıkış 1, ayar ve bağlantı dosyası aynı, dosya yine silinir, denetimde hata var ama bilgi yok
+        let ag_once = std::fs::read(&y.ag).unwrap();
+        let peers_once = std::fs::read(&y.peers).unwrap();
+        calls.lock().unwrap().clear();
+        std::fs::write(&dosya, "[pppoe]\nacik = true\nkullanici = \"kotu\\nconnect /bin/sh\"\nparola = \"sirli-parola\"\nvlan = 7\n").unwrap();
+        assert_eq!(kod(pppoe_servis(&c, &y, &dosya, &runner, NOW + 1.0)), kod(ExitCode::from(1)));
+        assert!(!dosya.exists());
+        assert_eq!((std::fs::read(&y.ag).unwrap(), std::fs::read(&y.peers).unwrap()), (ag_once.clone(), peers_once));
+        assert!(calls.lock().unwrap().is_empty());
+        let d = denetim();
+        let hatali = d.lines().filter(|l| l.contains("PPPOE_SERVIS_UYGULANDI")).nth(1).unwrap_or_else(|| panic!("{d}"));
+        assert!(hatali.contains("pppoe=acik vlan=7") && hatali.contains("hata="), "{hatali}");
+        assert!(!d.contains("sirli-parola") && !d.contains("connect"), "{d}");
+
+        // [pppoe] tablosu yok ya da dosya bozuk: çıkış 1 (PPPoE kendiliğinden kapanmaz), ayar aynı, dosya silinir, parola hiçbir yere sızmaz
+        for icerik in ["acik = false\n", "[pppoe]\nacik = true\nparola = \"sirli-parola\nvlan =\n", "[pppoe]\nvlan = \"sirli-parola\"\n"] {
+            std::fs::write(&dosya, icerik).unwrap();
+            assert_eq!(kod(pppoe_servis(&c, &y, &dosya, &runner, NOW + 2.0)), kod(ExitCode::from(1)), "{icerik:?}");
+            assert!(!dosya.exists());
+            assert_eq!(std::fs::read(&y.ag).unwrap(), ag_once);
+        }
+        assert!(!denetim().contains("sirli-parola"));
+        assert!(calls.lock().unwrap().is_empty());
+        // dosya yok: çıkış 1
+        assert_eq!(kod(pppoe_servis(&c, &y, &root.join("yok.toml"), &runner, NOW + 3.0)), kod(ExitCode::from(1)));
+
+        // kapatma: denetimde pppoe=kapali; bağlantı dosyası gider, birim durur
+        std::fs::write(&dosya, "[pppoe]\nacik = false\n").unwrap();
+        assert_eq!(kod(pppoe_servis(&c, &y, &dosya, &runner, NOW + 4.0)), kod(ExitCode::SUCCESS));
+        assert!(!y.peers.exists() && calls.lock().unwrap().iter().any(|x| x == "systemctl disable --now wificorrect-pppoe.service"));
+        assert!(denetim().lines().any(|l| l.contains("PPPOE_SERVIS_UYGULANDI") && l.contains("pppoe=kapali vlan=0")));
+        // birim başlamazsa: çıkış 1, hata denetimde
+        std::fs::write(&dosya, "[pppoe]\nacik = true\nkullanici = \"k\"\nparola = \"p\"\n").unwrap();
+        let hata_runner = |x: &[String]| !x.join(" ").starts_with("systemctl restart");
+        assert_eq!(kod(pppoe_servis(&c, &y, &dosya, &hata_runner, NOW + 5.0)), kod(ExitCode::from(1)));
+        assert!(denetim().contains("hata=PPPoE başlatılamadı"));
+    }
+
+    #[test]
+    fn saglik_cevabindaki_ap_parola_merkez_jsona_yazilir() {
+        use std::os::unix::fs::PermissionsExt;
+        let (c, root) = cfg();
+        std::fs::create_dir_all(&root).unwrap();
+        let p = root.join("merkez.json");
+        let denetim = |olay: &str, ek: String| ortak::audit(&c.main.log_root, Row::new(olay, &ortak::now_iso(NOW)).set("ek", ek));
+        let dosya = || std::fs::read_to_string(ortak::day_file(&c.main.log_root, ortak::day_of(&ortak::now_iso(NOW)), "denetim.csv")).unwrap_or_default();
+        let satirlar = |olay: &str| dosya().lines().filter(|l| l.split(';').nth(1) == Some(olay)).map(String::from).collect::<Vec<_>>();
+
+        // cihaz merkeze bağlı değil (merkez.json yok): bağ oluşturulmaz, denetim yok
+        ap_parola_kaydet(&p, "Kp7mQx2Rtz4W", &denetim);
+        assert!(!p.exists() && dosya().is_empty());
+
+        // cevaptaki parola dosyadakinden farklı: yalnızca ap_parola değişir (öteki alanlar aynen), dosya 600, denetimde yalnızca kaynak
+        let m = crate::merkez::Merkez {
+            numara: "4511643".into(),
+            tuz: "t".into(),
+            ozet: "o".into(),
+            yineleme: 120_000,
+            cihaz_anahtari: "gizli-anahtar".into(),
+            son_eslesme: 5.0,
+            ap_parola: "Eski2345Abcd".into(),
+            ..Default::default()
+        };
+        crate::merkez::kaydet(&p, &m).unwrap();
+        ap_parola_kaydet(&p, "Kp7mQx2Rtz4W", &denetim);
+        assert_eq!(crate::merkez::oku(&p).unwrap(), crate::merkez::Merkez { ap_parola: "Kp7mQx2Rtz4W".into(), ..m.clone() });
+        assert_eq!(std::fs::metadata(&p).unwrap().permissions().mode() & 0o777, 0o600);
+        let s = satirlar("AP_PAROLA_MERKEZ");
+        assert_eq!(s.len(), 1, "{}", dosya());
+        assert!(s[0].ends_with(";kaynak=saglik"), "{}", s[0]);
+        assert!(!dosya().contains("Kp7mQx2Rtz4W") && !dosya().contains("Eski2345Abcd") && !dosya().contains("gizli-anahtar"), "{}", dosya());
+
+        // aynı parola: dosyaya dokunulmaz (bayt bayt aynı; kaydet() girintili yazar, elle sıkışık yazılan dosya yeniden yazılsaydı değişirdi), denetim yok
+        let sikisik = serde_json::to_vec(&crate::merkez::oku(&p).unwrap()).unwrap();
+        std::fs::write(&p, &sikisik).unwrap();
+        ap_parola_kaydet(&p, "Kp7mQx2Rtz4W", &denetim);
+        assert_eq!(std::fs::read(&p).unwrap(), sikisik);
+        assert_eq!(satirlar("AP_PAROLA_MERKEZ").len(), 1);
+
+        // dosyada hiç parola yok (alan yazılmaz: eski bağ ya da merkez henüz göndermemişti): gelen yazılır
+        crate::merkez::kaydet(&p, &crate::merkez::Merkez { ap_parola: String::new(), ..m.clone() }).unwrap();
+        assert!(!std::fs::read_to_string(&p).unwrap().contains("ap_parola"));
+        ap_parola_kaydet(&p, "Yeni2345Abcd", &denetim);
+        assert_eq!(crate::merkez::oku(&p).unwrap().ap_parola, "Yeni2345Abcd");
+        assert_eq!(satirlar("AP_PAROLA_MERKEZ").len(), 2);
+
+        // yazılamazsa (geçici dosya adı bir dizin): dosya aynı kalır, hata denetime düşer ama parola ve anahtar düşmez
+        std::fs::create_dir(root.join("merkez.tmp")).unwrap();
+        let once = std::fs::read(&p).unwrap();
+        ap_parola_kaydet(&p, "Baska2345Abcd", &denetim);
+        assert_eq!(std::fs::read(&p).unwrap(), once);
+        assert_eq!(satirlar("AP_PAROLA_MERKEZ").len(), 2);
+        let hata = satirlar("MERKEZ_EK_HATA");
+        assert_eq!(hata.len(), 1, "{}", dosya());
+        assert!(hata[0].contains("ap_parola"), "{}", hata[0]);
+        assert!(!dosya().contains("Baska2345Abcd") && !dosya().contains("Yeni2345Abcd") && !dosya().contains("gizli-anahtar"), "{}", dosya());
     }
 
     #[test]

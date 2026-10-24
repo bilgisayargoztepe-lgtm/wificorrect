@@ -1,0 +1,8 @@
+PPP session is 1
+Connected to 02:57:46:43:00:01 via interface wfccpe0
+Using interface wfcppp
+Connect: wfcppp <--> wfccpe0
+Remote message: Login incorrect
+PAP authentication failed
+Connection terminated.
+Sent PADT

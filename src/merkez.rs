@@ -40,7 +40,8 @@ pub struct Merkez {
 }
 
 /// Merkezin gönderdiği AP yönetim parolası: 8–64 yazdırılabilir ASCII karakter (boşluk yok); değilse yok sayılır.
-fn ap_parola_oku(v: &Value) -> Option<String> {
+/// Bağlanma/eşitleme cevapları ve 5 dk'lık sağlık cevabı (`saglik::gonder`) aynı kuralı kullanır.
+pub(crate) fn ap_parola_oku(v: &Value) -> Option<String> {
     metin(v, "ap_parola").filter(|s| (8..=64).contains(&s.len()) && s.bytes().all(|b| b.is_ascii_graphic()))
 }
 

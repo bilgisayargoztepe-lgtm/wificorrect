@@ -453,6 +453,8 @@ pub struct Panel {
     ap_yollar: crate::ap::Yollar,
     /// Canlı komut çıktısı (komşu tablosu, aracı birimi durumu, DHCP denetimi; testte sahte)
     ip_oku: Box<dyn Fn(&[&str]) -> String + Send + Sync>,
+    /// Süre sınırlı canlı komut çıktısı (PPPoE durumu: `ip`, `journalctl`; `None`: çalışmadı / zaman aşımı; testte sahte)
+    komut: Box<dyn Fn(&[&str]) -> Option<String> + Send + Sync>,
     /// Yabancı DHCP denetimi sürüyor: aynı anda tek denetim (panelin iş parçacıkları bağlanmasın)
     dhcp_denetim: std::sync::atomic::AtomicBool,
     /// "Bağlan" / "Otomatik bul" başlatma tek seferde (çift tıklamada ikinci istek koşan aramanın durumunu ezmesin)
@@ -626,6 +628,7 @@ impl Panel {
             rapor_onbellek: std::sync::Mutex::new(HashMap::new()),
             ap_yollar: crate::ap::Yollar::sistem(),
             ip_oku: Box::new(|c: &[&str]| ortak::capture(c)),
+            komut: Box::new(|c: &[&str]| ortak::capture_timeout(c, 5)),
             dhcp_denetim: std::sync::atomic::AtomicBool::new(false),
             ap_bul_kilit: std::sync::Mutex::new(()),
             ap_dene: Box::new(crate::ap_arayuz::web_portu),
@@ -2081,6 +2084,8 @@ mod tests {
         let ip_ek: Arc<Mutex<String>> = Arc::default();
         let ek2 = ip_ek.clone();
         p.ip_oku = Box::new(move |a: &[&str]| sahte_ip(a, &ek2.lock().unwrap()));
+        // PPPoE durumu: testler gerçek ip / journalctl çalıştırmaz (hiçbir komut çıktı vermez: adres yok, pppd günlüğü yok)
+        p.komut = Box::new(|_: &[&str]| None);
         // AP arayüzü: testler gerçek ağa bağlanmaz (web arayüzü 80'de var sayılır; aktarım bağlantısı yok)
         p.ap_dene = Box::new(|_, _, _| Some(80));
         p.ap_baglan = Box::new(|_: &crate::ap_arayuz::Hedef| Err(std::io::Error::from(std::io::ErrorKind::ConnectionRefused)));
@@ -3097,8 +3102,11 @@ mod tests {
             nft: e.root.join("arayuzler.nft"),
             hostapd: e.root.join("hostapd.conf"),
             issue: e.root.join("issue"),
+            peers: e.root.join("peers"),
             durum: e.root.join("durum"),
             hiz_uygulanan: e.root.join("hiz_uygulanan"),
+            uzak_key: e.root.join("wg.key"),
+            uzak_conf: e.root.join("wireguard/wfc.conf"),
         };
         let (tok, csrf) = setup_and_login(&e, "mudur", "sahip-parola-12"); // kafe sahibi de port değiştirebilir
         let page = e.p.handle(&req("GET", "/portlar", &[], Some(&tok))).body;
@@ -3142,6 +3150,318 @@ mod tests {
         let audit = std::fs::read_to_string(e.root.join("5651/gunluk/2026-09-29/denetim.csv")).unwrap();
         assert!(audit.contains("PANEL_PORT;") || audit.contains(";PANEL_PORT"));
         assert!(audit.contains("PANEL_PORT_ONAY") && audit.contains("PANEL_PORT_GERI_AL") && audit.contains("Ethernet 2 (sol) alır"));
+    }
+
+    // ---------------------------------------------------------------- Portlar → PPPoE kutusu
+
+    /// Portlar sayfası ortamı: geçici /sys (Ethernet 1 kablolu, Ethernet 2 kablosuz değil), geçici ağ yolları, işletme sahibi oturumu.
+    /// `pppoe`: ag.toml'daki kayıtlı PPPoE ayarı (None: ag.toml yok, varsayılan ayar).
+    fn portlar_ortami(pppoe: Option<crate::ag::Pppoe>) -> (Env, String, String) {
+        let mut e = env();
+        let sys = e.root.join("sys");
+        for (n, mac, up) in [("enp3s0", "00:0e:c4:ce:a0:9b", "1"), ("enp1s0", "00:0e:c4:ce:a0:9a", "0")] {
+            std::fs::create_dir_all(sys.join(n).join("device")).unwrap();
+            std::fs::write(sys.join(n).join("address"), format!("{mac}\n")).unwrap();
+            std::fs::write(sys.join(n).join("carrier"), up).unwrap();
+            std::fs::write(sys.join(n).join("speed"), "1000").unwrap();
+        }
+        e.p.sys = sys;
+        e.p.ag_yollar = crate::ag::Yollar {
+            ag: e.root.join("ag.toml"),
+            interfaces: e.root.join("interfaces"),
+            nft: e.root.join("arayuzler.nft"),
+            hostapd: e.root.join("hostapd.conf"),
+            issue: e.root.join("issue"),
+            peers: e.root.join("peers"),
+            durum: e.root.join("durum"),
+            hiz_uygulanan: e.root.join("hiz_uygulanan"),
+            uzak_key: e.root.join("wg.key"),
+            uzak_conf: e.root.join("wireguard/wfc.conf"),
+        };
+        if let Some(p) = pppoe {
+            crate::ag::save(&e.p.ag_yollar.ag, &crate::ag::Ag { pppoe: p, ..Default::default() }).unwrap();
+        }
+        let (tok, csrf) = setup_and_login(&e, "mudur", "sahip-parola-12");
+        (e, tok, csrf)
+    }
+
+    /// Her alanı varsayılandan farklı, açık bir PPPoE ayarı (parola dahil)
+    fn pppoe_kayitli() -> crate::ag::Pppoe {
+        crate::ag::Pppoe {
+            acik: true,
+            kullanici: "5321234567@turk.net".into(),
+            parola: "gizli-parola-9".into(),
+            vlan: 35,
+            oncelik: 3,
+            mtu: 1400,
+            kimlik: "chap".into(),
+            ac_adi: "AC1".into(),
+            servis_adi: "srv1".into(),
+        }
+    }
+
+    /// Portlar formunu gönderir: portlar aynı kalır (Ethernet 1 alır, Ethernet 2 verir, Wi-Fi kapalı) + verilen PPPoE alanları
+    fn portlar_gonder(e: &Env, tok: &str, csrf: &str, pppoe: &[(&str, &str)]) -> Resp {
+        let mut f = vec![("csrf", csrf), ("rol_enp3s0", "alir"), ("rol_enp1s0", "verir"), ("wifi", "kapali"), ("kanal", "6")];
+        f.extend_from_slice(pppoe);
+        e.p.handle(&req("POST", "/portlar", &f, Some(tok)))
+    }
+
+    /// `name="…"` taşıyan giriş etiketinin tamamı (`<input …>`, `<select …>` açılışı)
+    fn etiket<'a>(html: &'a str, ad: &str) -> &'a str {
+        let i = html.find(&format!("name=\"{ad}\"")).unwrap_or_else(|| panic!("{ad} alanı yok:\n{html}"));
+        let bas = html[..i].rfind('<').unwrap();
+        &html[bas..i + html[i..].find('>').unwrap() + 1]
+    }
+
+    /// `name="…"` taşıyan seçim kutusunun tamamı (`<select …>…</select>`)
+    fn secim_html<'a>(html: &'a str, ad: &str) -> &'a str {
+        let i = html.find(&format!("name=\"{ad}\"")).unwrap_or_else(|| panic!("{ad} alanı yok:\n{html}"));
+        let bas = html[..i].rfind("<select").unwrap_or_else(|| panic!("{ad} seçim kutusu değil"));
+        &html[bas..i + html[i..].find("</select>").unwrap() + "</select>".len()]
+    }
+
+    /// Günün denetim kaydındaki son `olay` satırı (yoksa boş)
+    fn denetim_satiri(e: &Env, olay: &str) -> String {
+        let t = std::fs::read_to_string(e.root.join("5651/gunluk/2026-09-29/denetim.csv")).unwrap_or_default();
+        t.lines().filter(|l| l.contains(&format!(";{olay};"))).last().unwrap_or("").to_string()
+    }
+
+    fn systemd_run_var(e: &Env) -> bool {
+        e.calls.lock().unwrap().iter().any(|c| c[0] == "systemd-run")
+    }
+
+    #[test]
+    fn portlar_pppoe_kutusu() {
+        let (e, tok, _) = portlar_ortami(Some(pppoe_kayitli()));
+        let page = e.p.handle(&req("GET", "/portlar", &[], Some(&tok))).body;
+        // Açık/Kapalı, kullanıcı adı (örnek yer tutucu, kayıtlı değer), parola (yalnızca yazılır), VLAN
+        assert!(secim_html(&page, "pppoe_acik").contains("<option value=\"acik\" selected>"), "{page}");
+        let k = etiket(&page, "pppoe_kullanici");
+        assert!(k.contains("placeholder=\"5321234567@turk.net\"") && k.contains("value=\"5321234567@turk.net\""), "{k}");
+        let p = etiket(&page, "pppoe_parola");
+        assert!(p.contains("type=\"password\"") && p.contains("value=\"\""), "{p}");
+        assert!(etiket(&page, "pppoe_vlan").contains("value=\"35\""));
+        // Gelişmiş'in altında: öncelik, MTU, kimlik doğrulama (Otomatik/PAP/CHAP), AC adı, servis adı
+        let (once, sonra) = page.split_once("Gelişmiş").expect("Gelişmiş bölümü");
+        for ad in ["pppoe_acik", "pppoe_kullanici", "pppoe_parola", "pppoe_vlan"] {
+            assert!(once.contains(&format!("name=\"{ad}\"")), "{ad} Gelişmiş'in üstünde olmalı");
+        }
+        for ad in ["pppoe_oncelik", "pppoe_mtu", "pppoe_kimlik", "pppoe_ac_adi", "pppoe_servis_adi"] {
+            assert!(sonra.contains(&format!("name=\"{ad}\"")) && !once.contains(&format!("name=\"{ad}\"")), "{ad} Gelişmiş'in altında olmalı");
+        }
+        assert!(etiket(sonra, "pppoe_oncelik").contains("value=\"3\"") && etiket(sonra, "pppoe_mtu").contains("value=\"1400\""));
+        let kimlik = secim_html(sonra, "pppoe_kimlik");
+        assert!(kimlik.contains(">Otomatik<") && kimlik.contains(">PAP<") && kimlik.contains(">CHAP<") && kimlik.contains("value=\"chap\" selected"), "{kimlik}");
+        assert!(etiket(sonra, "pppoe_ac_adi").contains("value=\"AC1\"") && etiket(sonra, "pppoe_servis_adi").contains("value=\"srv1\""));
+        // durum satırı (sahte komutlar boş: adres de pppd günlüğü de yok) ve dükkân notu
+        assert!(page.contains("Bağlanıyor\u{2026}"), "{page}");
+        assert!(page.contains("Dükkânda PPPoE bağlanmaz; ONT'ye takılınca bağlanır."), "{page}");
+        // kayıtlı parola sayfada hiçbir yerde yok
+        assert!(!page.contains("gizli-parola-9"), "parola sayfaya yazılmış");
+        // menüden gelinen yol: Ayarlar sayfasında Portlar bölümü olarak aynı kutu; parola orada da yok
+        let ayarlar = e.p.handle(&req("GET", "/ayarlar", &[], Some(&tok))).body;
+        assert!(ayarlar.contains("name=\"pppoe_kullanici\"") && ayarlar.contains("Dükkânda PPPoE bağlanmaz") && !ayarlar.contains("gizli-parola-9"));
+    }
+
+    #[test]
+    fn portlar_pppoe_durum_satiri() {
+        const DHCP: &str = "3: enp3s0    inet 192.168.1.110/24 brd 192.168.1.255 scope global dynamic noprefixroute enp3s0\\       valid_lft 3101sec preferred_lft 2651sec\n";
+        const PPP: &str = "12: wfcppp    inet 203.0.113.10 peer 198.51.100.1/32 scope global wfcppp\\       valid_lft forever preferred_lft forever\n";
+        // sahte komutlar: wfcppp adresi, internet portunun adresi, pppd birim günlüğü (komut çalışmazsa None)
+        let sahte = |ppp: &'static str, dhcp: &'static str, gunluk: &'static str| -> Box<dyn Fn(&[&str]) -> Option<String> + Send + Sync> {
+            Box::new(move |c: &[&str]| match c {
+                ["ip", "-4", "-o", "addr", "show", "dev", "wfcppp"] => Some(ppp.to_string()),
+                ["ip", "-4", "-o", "addr", "show", "dev", "enp3s0"] => Some(dhcp.to_string()),
+                ["journalctl", ..] => Some(gunluk.to_string()),
+                _ => None,
+            })
+        };
+        let hicbiri: Box<dyn Fn(&[&str]) -> Option<String> + Send + Sync> = Box::new(|_: &[&str]| None);
+        let (mut e, tok, _) = portlar_ortami(None);
+        for (acik, kablo, komut, beklenen) in [
+            // iyi durumlar yeşil nokta
+            (false, "1", sahte("", DHCP, ""), "<span class=\"durum\">PPPoE kapalı (modemden DHCP)</span>"),
+            (true, "1", sahte(PPP, DHCP, ""), "<span class=\"durum\">PPPoE bağlı (dış IP 203.0.113.10)</span>"),
+            // bağlanma sürerken düz metin
+            (true, "1", hicbiri, "<span>Bağlanıyor\u{2026}</span>"),
+            (true, "1", sahte("", "", ""), "<span>Bağlanıyor\u{2026}</span>"),
+            // sorunlar kırmızı
+            (false, "1", sahte("", "", ""), "<span class=\"durum kotu\">Modemden adres alınamadı (modem kapalı ya da kablo yanlış porta takılı)</span>"),
+            (false, "0", sahte("", DHCP, ""), "<span class=\"durum kotu\">Kablo takılı değil</span>"),
+            (true, "0", sahte(PPP, DHCP, ""), "<span class=\"durum kotu\">Kablo takılı değil</span>"),
+            (true, "1", sahte("", "", "Timeout waiting for PADO packets\nUnable to complete PPPoE Discovery phase 1\n"), "<span class=\"durum kotu\">PPPoE sunucusu yanıt vermiyor (kablo doğru porta mı, VLAN gerekli mi?)</span>"),
+            (true, "1", sahte("", "", "CHAP authentication failed: Access denied\n"), "<span class=\"durum kotu\">Kullanıcı adı ya da parola reddedildi</span>"),
+        ] {
+            // aynı oturumda: her vakada kayıtlı ayar, kablo ve sahte komutlar değişir (giriş parolası özeti yavaş, bir kez yeter)
+            crate::ag::save(&e.p.ag_yollar.ag, &crate::ag::Ag { pppoe: crate::ag::Pppoe { acik, ..pppoe_kayitli() }, ..Default::default() }).unwrap();
+            std::fs::write(e.p.sys.join("enp3s0/carrier"), kablo).unwrap();
+            e.p.komut = komut;
+            let page = e.p.handle(&req("GET", "/portlar", &[], Some(&tok))).body;
+            assert!(page.contains(&format!("Durum: {beklenen}")), "açık={acik} kablo={kablo}: {beklenen}");
+        }
+    }
+
+    #[test]
+    fn portlar_pppoe_bos_alanlar() {
+        // kayıtlı ayarda VLAN, öncelik ve MTU varsayılandan farklı: boş gönderilince varsayılana döner (eskisi kalmaz)
+        let (e, tok, csrf) = portlar_ortami(Some(pppoe_kayitli()));
+        let r = portlar_gonder(
+            &e,
+            &tok,
+            &csrf,
+            &[
+                ("pppoe_acik", "acik"),
+                ("pppoe_kullanici", "5321234567@turk.net"),
+                ("pppoe_parola", ""),
+                ("pppoe_vlan", ""),
+                ("pppoe_oncelik", ""),
+                ("pppoe_mtu", ""),
+                ("pppoe_kimlik", ""),
+                ("pppoe_ac_adi", ""),
+                ("pppoe_servis_adi", ""),
+            ],
+        );
+        assert!(!loc(&r).contains("e=1"), "{}", loc(&r));
+        let p = crate::ag::load(&e.p.ag_yollar.yeni()).pppoe;
+        assert!(p.acik, "hazırlanan ayar okunamadı");
+        assert_eq!((p.vlan, p.oncelik, p.mtu), (0, 0, 1492));
+        assert_eq!((p.kimlik.as_str(), p.ac_adi.as_str(), p.servis_adi.as_str()), ("otomatik", "", ""));
+        assert_eq!(p.parola, "gizli-parola-9"); // parola alanı da boştu: eskisi kalır
+    }
+
+    #[test]
+    fn portlar_pppoe_bos_parola_korunur() {
+        let eski = crate::ag::Pppoe { acik: true, kullanici: "k1".into(), parola: "p1".into(), ..Default::default() };
+        let (e, tok, csrf) = portlar_ortami(Some(eski));
+        // boş parola: hazırlanan ag-yeni.toml'a ESKİ parola yazılır (ag::gecis boş parolayı birleştirmez)
+        let r = portlar_gonder(&e, &tok, &csrf, &[("pppoe_acik", "acik"), ("pppoe_kullanici", "k2"), ("pppoe_parola", ""), ("pppoe_vlan", "35")]);
+        assert!(!loc(&r).contains("e=1"), "{}", loc(&r));
+        let yeni = std::fs::read_to_string(e.p.ag_yollar.yeni()).unwrap();
+        assert!(yeni.contains("parola = \"p1\"") && yeni.contains("kullanici = \"k2\""), "{yeni}");
+        // yazılan parola eskisinin yerine geçer
+        std::fs::remove_file(e.p.ag_yollar.yeni()).unwrap();
+        let r = portlar_gonder(&e, &tok, &csrf, &[("pppoe_acik", "acik"), ("pppoe_kullanici", "k2"), ("pppoe_parola", "p2"), ("pppoe_vlan", "35")]);
+        assert!(!loc(&r).contains("e=1"), "{}", loc(&r));
+        let yeni = std::fs::read_to_string(e.p.ag_yollar.yeni()).unwrap();
+        assert!(yeni.contains("parola = \"p2\"") && !yeni.contains("parola = \"p1\""), "{yeni}");
+    }
+
+    #[test]
+    fn portlar_pppoe_gecersiz() {
+        let (e, tok, csrf) = portlar_ortami(None);
+        let gecerli = [("pppoe_acik", "acik"), ("pppoe_kullanici", "k1"), ("pppoe_parola", "p1")];
+        let bos = "PPPoE kullanıcı adı ve parolası boş olamaz.";
+        let ad = "PPPoE AC adı en çok 64 karakter olmalı ve yalnızca harf, rakam, nokta, alt çizgi ve tire içerebilir.";
+        let vlan = "VLAN 1-4094 arasında olmalı (boş: VLAN yok).";
+        let karakter = "PPPoE kullanıcı adı ve parolası en çok 128 karakter olmalı; tırnak, ters eğik çizgi ve kontrol karakteri içeremez.";
+        let mut vakalar: Vec<(Vec<(&str, &str)>, &str)> = vec![
+            // açık + boş kullanıcı adı / parola (kayıtlı parola da yok)
+            (vec![("pppoe_acik", "acik"), ("pppoe_kullanici", ""), ("pppoe_parola", "p1")], bos),
+            (vec![("pppoe_acik", "acik"), ("pppoe_kullanici", "k1"), ("pppoe_parola", "")], bos),
+            (vec![("pppoe_acik", "acik"), ("pppoe_kullanici", "   "), ("pppoe_parola", "p1")], bos), // yalnızca boşluk: kırpılınca boş
+            (vec![("pppoe_acik", "acik"), ("pppoe_kullanici", "k\"1"), ("pppoe_parola", "p1")], karakter),
+        ];
+        for (alan, deger, mesaj) in [
+            ("pppoe_vlan", "4095", vlan),
+            ("pppoe_vlan", "abc", vlan),
+            ("pppoe_vlan", "-1", vlan),
+            ("pppoe_oncelik", "8", "VLAN önceliği 0-7 arasında olmalı."),
+            ("pppoe_oncelik", "x", "VLAN önceliği 0-7 arasında olmalı."),
+            ("pppoe_mtu", "1000", "PPPoE MTU değeri 1280-1492 arasında olmalı."),
+            ("pppoe_mtu", "1493", "PPPoE MTU değeri 1280-1492 arasında olmalı."),
+            ("pppoe_mtu", "abc", "PPPoE MTU değeri 1280-1492 arasında olmalı."),
+            ("pppoe_kimlik", "radius", "Kimlik doğrulama yöntemi otomatik, PAP ya da CHAP olmalı."),
+            ("pppoe_ac_adi", "bir ad", ad),
+        ] {
+            let mut f = gecerli.to_vec();
+            f.push((alan, deger));
+            vakalar.push((f, mesaj));
+        }
+        for (alanlar, mesaj) in &vakalar {
+            let r = portlar_gonder(&e, &tok, &csrf, alanlar);
+            assert!(loc(&r).contains("e=1") && loc(&r).contains(&pct(mesaj)), "{alanlar:?}: {}", loc(&r));
+        }
+        // hiçbiri uygulanmaya başlamadı
+        assert!(!systemd_run_var(&e) && !e.p.ag_yollar.yeni().exists());
+    }
+
+    #[test]
+    fn portlar_pppoe_denetim() {
+        let (e, tok, csrf) = portlar_ortami(None);
+        let r = portlar_gonder(&e, &tok, &csrf, &[("pppoe_acik", "acik"), ("pppoe_kullanici", "5321234567@turk.net"), ("pppoe_parola", "gizli-parola-9"), ("pppoe_vlan", "35")]);
+        assert!(!loc(&r).contains("e=1"), "{}", loc(&r));
+        let satir = denetim_satiri(&e, "PANEL_PORT");
+        assert!(satir.contains("pppoe=acik vlan=35 kullanici_degisti=1 parola_degisti=1"), "{satir}");
+        assert!(satir.contains("PPPoE açık (VLAN 35)"), "mevcut özet metni korunur: {satir}");
+        for gizli in ["5321234567", "turk.net", "gizli-parola-9"] {
+            assert!(!satir.contains(gizli), "denetime {gizli} yazılmış: {satir}");
+        }
+        // değişiklik uygulanmış sayılsın (gecis ag.toml'u yazar); bu kez kullanıcı adı aynı, parola boş, yalnızca VLAN değişir
+        std::fs::remove_file(e.p.ag_yollar.yeni()).unwrap();
+        crate::ag::save(&e.p.ag_yollar.ag, &crate::ag::Ag { pppoe: crate::ag::Pppoe { acik: true, kullanici: "5321234567@turk.net".into(), parola: "gizli-parola-9".into(), vlan: 35, ..Default::default() }, ..Default::default() }).unwrap();
+        let r = portlar_gonder(&e, &tok, &csrf, &[("pppoe_acik", "acik"), ("pppoe_kullanici", "5321234567@turk.net"), ("pppoe_parola", ""), ("pppoe_vlan", "7")]);
+        assert!(!loc(&r).contains("e=1"), "{}", loc(&r));
+        assert!(denetim_satiri(&e, "PANEL_PORT").contains("pppoe=acik vlan=7 kullanici_degisti=0 parola_degisti=0"));
+        // kapatma: kullanıcı adı ve ileri alanlar kalır (form kayıtlı değerlerle dolu gelir)
+        std::fs::remove_file(e.p.ag_yollar.yeni()).unwrap();
+        let r = portlar_gonder(&e, &tok, &csrf, &[("pppoe_acik", "kapali"), ("pppoe_kullanici", "5321234567@turk.net"), ("pppoe_parola", ""), ("pppoe_vlan", "35")]);
+        assert!(!loc(&r).contains("e=1"), "{}", loc(&r));
+        let satir = denetim_satiri(&e, "PANEL_PORT");
+        assert!(satir.contains("pppoe=kapali vlan=35 kullanici_degisti=0 parola_degisti=0") && !satir.contains("PPPoE açık"), "{satir}");
+        let kapali = crate::ag::load(&e.p.ag_yollar.yeni()).pppoe;
+        assert_eq!((kapali.acik, kapali.kullanici.as_str(), kapali.parola.as_str()), (false, "5321234567@turk.net", "gizli-parola-9"));
+    }
+
+    #[test]
+    fn portlar_pppoe_alani_olmayan_gonderim_pppoe_ya_dokunmaz() {
+        // PPPoE alanı taşımayan bir Portlar gönderimi (betik, ileride başka bir form): kayıtlı PPPoE ayarı (açık, kullanıcı adı,
+        // ileri alanlar) aynen kalır; yalnızca gönderilen port/Wi-Fi değişikliği uygulanır
+        let (e, tok, csrf) = portlar_ortami(Some(pppoe_kayitli()));
+        let r = portlar_gonder(&e, &tok, &csrf, &[]);
+        assert!(!loc(&r).contains("e=1") && loc(&r).contains("%20yok."), "değişiklik yok sayılmalı: {}", loc(&r));
+        assert!(!systemd_run_var(&e) && !e.p.ag_yollar.yeni().exists());
+        // aynı gönderimde Wi-Fi açılırsa: değişiklik uygulanır, hazırlanan ayarda PPPoE kayıtlı haliyle durur
+        let r = portlar_gonder(&e, &tok, &csrf, &[("wifi", "verir"), ("ssid", "Misafir")]);
+        assert!(!loc(&r).contains("e=1"), "{}", loc(&r));
+        let yeni = crate::ag::load(&e.p.ag_yollar.yeni());
+        assert!(yeni.wifi.acik && yeni.wifi.ssid == "Misafir");
+        assert_eq!(yeni.pppoe, pppoe_kayitli());
+        assert!(denetim_satiri(&e, "PANEL_PORT").contains("pppoe=acik vlan=35 kullanici_degisti=0 parola_degisti=0"));
+        // PPPoE seçimi gönderilince (sayfadaki form hep gönderir) alanlar formdan okunur: Kapalı seçilirse kapanır
+        std::fs::remove_file(e.p.ag_yollar.yeni()).unwrap();
+        let r = portlar_gonder(&e, &tok, &csrf, &[("pppoe_acik", "kapali"), ("pppoe_kullanici", "5321234567@turk.net"), ("pppoe_vlan", "35")]);
+        assert!(!loc(&r).contains("e=1"), "{}", loc(&r));
+        assert!(!crate::ag::load(&e.p.ag_yollar.yeni()).pppoe.acik);
+    }
+
+    #[test]
+    fn portlar_pppoe_degisiklik_tespiti() {
+        let (e, tok, csrf) = portlar_ortami(Some(pppoe_kayitli()));
+        // sayfadaki form kayıtlı değerlerle dolu gelir (parola boş): hiçbir şey değişmemiş, hiçbir iş başlamaz
+        let ayni = [
+            ("pppoe_acik", "acik"),
+            ("pppoe_kullanici", "5321234567@turk.net"),
+            ("pppoe_parola", ""),
+            ("pppoe_vlan", "35"),
+            ("pppoe_oncelik", "3"),
+            ("pppoe_mtu", "1400"),
+            ("pppoe_kimlik", "chap"),
+            ("pppoe_ac_adi", "AC1"),
+            ("pppoe_servis_adi", "srv1"),
+        ];
+        let r = portlar_gonder(&e, &tok, &csrf, &ayni);
+        assert!(!loc(&r).contains("e=1") && loc(&r).contains("%20yok."), "{}", loc(&r));
+        assert!(!systemd_run_var(&e) && !e.p.ag_yollar.yeni().exists());
+        // yalnızca bir PPPoE alanı değişse de değişikliktir: mevcut 3 dk onay akışına girer
+        let mut vlanli = ayni.to_vec();
+        vlanli[3] = ("pppoe_vlan", "36");
+        let r = portlar_gonder(&e, &tok, &csrf, &vlanli);
+        assert!(!loc(&r).contains("e=1") && !loc(&r).contains("%20yok."), "{}", loc(&r));
+        assert!(e.calls.lock().unwrap().iter().any(|c| c.join(" ").contains("ctl ag-gecis")));
+        let yeni = crate::ag::load(&e.p.ag_yollar.yeni());
+        assert_eq!(yeni.pppoe.vlan, 36);
+        assert_eq!(crate::ag::Ag { pppoe: crate::ag::Pppoe { vlan: 35, ..yeni.pppoe.clone() }, ..yeni.clone() }, crate::ag::load(&e.p.ag_yollar.ag), "başka hiçbir ayar değişmemeli");
     }
 
     #[test]

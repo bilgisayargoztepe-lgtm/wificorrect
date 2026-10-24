@@ -1,0 +1,15 @@
+#!/bin/sh
+# WifiCorrect (docs/KURULUM_GUNLUGU.md "PPPoE"): PPPoE (wfcppp) her bağlandığında pppd biriminin yeniden başlatma sayacını sıfırlar.
+# wificorrect-pppoe.service: Restart=always, RestartSec=10, RestartSteps=5, RestartMaxDelaySec=300. systemd bu sayacı (NRestarts)
+# birim kendiliğinden yeniden başladıkça hiç sıfırlamaz: araya giren sağlıklı bağlantılar ne kadar uzun sürerse sürsün kendiliğinden
+# yeniden başlatmalar birikir; sayacı yalnızca elle başlatma, `systemctl reset-failed` ya da kendiliğinden yeniden başlamayan bir
+# duruş sıfırlar. Birikince (5 kendiliğinden yeniden başlatmadan sonra) her kopmada pppd 5 dk bekletilirdi. Bu kanca her başarılı
+# bağlantıdan sonra sayacı sıfırlar: bir sonraki kopmada gecikme yeniden 10 sn'den başlar.
+# /etc/ppp/ip-up çalıştırır (run-parts; $1 ve PPP_IFACE arayüz adı). pppd'yi bekletmez ve hata vermez: komut arka planda ve
+# çıktısız çalışır, kanca sonuç ne olursa olsun 0 ile çıkar.
+case "${PPP_IFACE:-$1}" in
+wfcppp)
+	systemctl reset-failed wificorrect-pppoe.service </dev/null >/dev/null 2>&1 &
+	;;
+esac
+exit 0

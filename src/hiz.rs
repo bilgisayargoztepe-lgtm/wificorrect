@@ -102,8 +102,36 @@ pub fn nft_dosya(metin: &str) -> bool {
     ortak::write_atomic(yol, metin.as_bytes()).is_ok() && ortak::run(&["nft".into(), "-f".into(), NFT_GECICI.into()])
 }
 
-/// Kayıttaki sınırları güncel IP'lere uygular. `ip_of`: mac → ip (IP'si olmayan sınırlı cihaz atlanır).
+/// Linux arayüz adı biçimi: 1-15 karakter, harf/rakam/`.`/`_`/`-`, `-` ile başlamaz (`tc`'ye seçenek olarak gitmesin).
+fn arayuz_adi(ad: &str) -> bool {
+    (1..=15).contains(&ad.len()) && !ad.starts_with('-') && ad.bytes().all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b'-'))
+}
+
+/// Bir planın (uygulanmış parmak izinin) tc komutlarındaki arayüzler: `tc … dev <ad> …`, sırayla ve tekrarsız. Arayüz adı biçimine
+/// uymayan değer (bozuk ya da başka bir sürümün yazdığı dosya) atlanır. `uygula` önceki planın, kaydedicinin kök denetimi uygulanmış
+/// planın arayüzlerini bulmak için kullanır.
+pub(crate) fn plan_arayuzleri(iz: &str) -> Vec<String> {
+    let mut arayuzler: Vec<String> = Vec::new();
+    for satir in iz.lines().filter(|l| l.starts_with("tc ")) {
+        let mut it = satir.split_whitespace();
+        if it.any(|w| w == "dev") {
+            if let Some(ad) = it.next().filter(|ad| arayuz_adi(ad)) {
+                if !arayuzler.iter().any(|a| a == ad) {
+                    arayuzler.push(ad.to_string());
+                }
+            }
+        }
+    }
+    arayuzler
+}
+
+/// Kayıttaki sınırları güncel IP'lere uygular. `ip_of`: mac → ip (IP'si olmayan sınırlı cihaz atlanır). `wan`: trafiğin çıktığı arayüz
+/// (internet portu; PPPoE bağlıyken `wfcppp`, bkz. `ag::etkin_cikis`).
 /// Plan son uygulananla aynıysa hiçbir komut çalışmaz → `Ok(false)`. Hata olursa parmak izi silinir: sonraki tur yeniden dener.
+/// Çıkış arayüzü değiştiyse (PPPoE bağlandı/düştü) önceki planda olup yenisinde olmayan arayüzlerin HTB kökü silinir: PPPoE çerçeveleri
+/// skb önceliğini korur ve HTB önceliği sınıf numarası sayar, eski çıkışta kalan sınıflar yeni planın numaralarıyla uyuşmaz ve ilgisiz
+/// cihazları yavaşlatırdı. Önceki plan yalnızca parmak izi dosyasından okunur (kaydedici yeniden başlasa da çalışır); arayüz yoksa
+/// (`wfcppp` düşünce gider) silme hatası önemsizdir.
 pub fn uygula(
     cfg: &Config,
     wan: &str,
@@ -122,7 +150,8 @@ pub fn uygula(
     sinirli.dedup_by(|a, b| a.0 == b.0);
     let p = plan(lan, wan, &sinirli);
     let iz = parmak_izi(&p);
-    if std::fs::read_to_string(uygulanan).is_ok_and(|eski| eski == iz) {
+    let eski = std::fs::read_to_string(uygulanan).ok();
+    if eski.as_deref() == Some(iz.as_str()) {
         return Ok(false);
     }
     let _ = std::fs::remove_file(uygulanan);
@@ -132,8 +161,15 @@ pub fn uygula(
         nft_f(SINIF_BOSALT);
         Err(format!("Yavaşlatma uygulanamadı: {hata}"))
     };
+    let kok_sil = |d: &str| {
+        runner(&["tc".into(), "qdisc".into(), "del".into(), "dev".into(), d.into(), "root".into()]); // kök/arayüz yoksa hata: önemsiz
+    };
     for d in [lan, wan] {
-        runner(&["tc".into(), "qdisc".into(), "del".into(), "dev".into(), d.into(), "root".into()]); // kök yoksa hata: önemsiz
+        kok_sil(d);
+    }
+    // çıkış arayüzü değişti (ya da ayar): önceki planın artık kullanılmayan arayüzlerindeki kök; yeni plan kurulmadan silinir
+    for d in plan_arayuzleri(eski.as_deref().unwrap_or("")).iter().filter(|d| *d != lan && *d != wan) {
+        kok_sil(d);
     }
     for c in &p.tc {
         if !runner(c) {
@@ -384,6 +420,132 @@ mod tests {
         assert!(uygula(&cfg, "enp3s0", &ipler, &*r, &nft_f, &yol).is_err());
         let n = nftler.borrow();
         assert!(n[n.len() - 2].contains("ip daddr 10.50.0.24 ") && n[n.len() - 1] == SINIF_BOSALT);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    // ---------------------------------------------------------------- çıkış arayüzü değişince eski kök (PPPoE: internet portu ↔ wfcppp)
+    /// Şimdiye kadarki runner çağrıları; listeyi boşaltır.
+    fn al(calls: &Arc<Mutex<Vec<String>>>) -> Vec<String> {
+        std::mem::take(&mut *calls.lock().unwrap())
+    }
+
+    /// `tc qdisc del` çağrıları, çağrı sırasıyla.
+    fn silmeler(c: &[String]) -> Vec<&str> {
+        c.iter().filter(|x| x.starts_with("tc qdisc del ")).map(String::as_str).collect()
+    }
+
+    #[test]
+    fn plan_arayuzleri_cozumleme() {
+        // gerçek parmak izi (nft + tc satırları): köprü ve çıkış arayüzü, sırayla ve bir kez
+        let s = vec![("10.50.0.5".to_string(), 2), ("10.50.0.6".to_string(), 5)];
+        assert_eq!(plan_arayuzleri(&parmak_izi(&plan("br-hotspot", "wfcppp", &s))), ["br-hotspot", "wfcppp"]);
+        assert_eq!(plan_arayuzleri(&parmak_izi(&plan("br-hotspot", "enp3s0", &[]))), ["br-hotspot", "enp3s0"]);
+        // nft satırlarındaki oifname değerleri arayüz sayılmaz (yalnızca tc komutları)
+        let nft_only = plan("br-hotspot", "enp3s0", &s).nft;
+        assert!(nft_only.contains("oifname \"enp3s0\"") && plan_arayuzleri(&nft_only).is_empty());
+        assert!(plan_arayuzleri("").is_empty());
+        assert!(plan_arayuzleri("\n\n").is_empty());
+        // arayüz adı biçimi: uzunluk, karakter kümesi, baştaki tire
+        assert_eq!(plan_arayuzleri("tc qdisc replace dev enx001122334455 root\ntc qdisc replace dev br-hotspot root\ntc x dev enp3s0.35 y\n"), ["enx001122334455", "br-hotspot", "enp3s0.35"]);
+        for kotu in ["-batch", "a/b", "ad;reboot", "ad\"x", "aaaaaaaaaaaaaaaa", "ü"] {
+            assert!(plan_arayuzleri(&format!("tc qdisc replace dev {kotu} root\n")).is_empty(), "{kotu}");
+        }
+        assert!(arayuz_adi("wfcppp") && arayuz_adi("enp3s0") && arayuz_adi("aaaaaaaaaaaaaaa") && !arayuz_adi("") && !arayuz_adi("-a"));
+    }
+
+    #[test]
+    fn uygula_cikis_degisince_eski_kok_silinir() {
+        // PPPoE çerçeveleri skb önceliğini korur ve HTB önceliği sınıf numarası sayar: eski çıkış arayüzünde kalan kök ve sınıflar yeni
+        // plandaki numaralarla uyuşmaz. Önceki planda olup yenisinde olmayan arayüzün kökü, yeni plan kurulmadan silinir.
+        let (cfg, root) = kur("cikis");
+        let (calls, r) = runner(Arc::new(Mutex::new(true)));
+        let nftler = RefCell::new(Vec::<String>::new());
+        let nft_f = |t: &str| {
+            nftler.borrow_mut().push(t.to_string());
+            true
+        };
+        let yol = root.join("uygulanan");
+        let i = ip(M1, "10.50.0.23");
+        // önceki plan yok: yalnızca kendi arayüzlerinin kökü silinip kurulur
+        assert_eq!(uygula(&cfg, "enp3s0", &i, &*r, &nft_f, &yol), Ok(true));
+        assert_eq!(silmeler(&al(&calls)), ["tc qdisc del dev br-hotspot root", "tc qdisc del dev enp3s0 root"]);
+
+        // PPPoE bağlandı, çıkış wfcppp: enp3s0'nun eski kökü silinir, wfcppp kurulur; enp3s0'ya başka dokunuş yok
+        assert_eq!(uygula(&cfg, "wfcppp", &i, &*r, &nft_f, &yol), Ok(true));
+        let c = al(&calls);
+        assert_eq!(silmeler(&c), ["tc qdisc del dev br-hotspot root", "tc qdisc del dev wfcppp root", "tc qdisc del dev enp3s0 root"]);
+        assert_eq!(c.iter().filter(|x| x.contains("dev enp3s0")).count(), 1, "{c:?}");
+        let sil = c.iter().position(|x| x == "tc qdisc del dev enp3s0 root").unwrap();
+        let kur_wfcppp = c.iter().position(|x| x == "tc qdisc replace dev wfcppp root handle 1: htb default 1").unwrap();
+        assert!(sil < kur_wfcppp, "eski kök yeni plan kurulmadan silinmeli: {c:?}");
+        assert!(nftler.borrow().last().unwrap().contains(r#"oifname "wfcppp" ip saddr 10.50.0.23 meta priority set 1:10"#));
+
+        // aynı çıkışta plan değişince (IP değişti) ek silme yok
+        assert_eq!(uygula(&cfg, "wfcppp", &ip(M1, "10.50.0.24"), &*r, &nft_f, &yol), Ok(true));
+        assert_eq!(silmeler(&al(&calls)), ["tc qdisc del dev br-hotspot root", "tc qdisc del dev wfcppp root"]);
+        // plan aynıysa hiçbir komut yok
+        assert_eq!(uygula(&cfg, "wfcppp", &ip(M1, "10.50.0.24"), &*r, &nft_f, &yol), Ok(false));
+        assert!(al(&calls).is_empty());
+
+        // PPPoE düştü, çıkış yine internet portu: wfcppp'nin kökü silinmeye çalışılır, başka wfcppp komutu yok
+        assert_eq!(uygula(&cfg, "enp3s0", &i, &*r, &nft_f, &yol), Ok(true));
+        let c = al(&calls);
+        assert_eq!(silmeler(&c), ["tc qdisc del dev br-hotspot root", "tc qdisc del dev enp3s0 root", "tc qdisc del dev wfcppp root"]);
+        assert_eq!(c.iter().filter(|x| x.contains("dev wfcppp")).count(), 1, "{c:?}");
+        assert!(c.contains(&"tc qdisc replace dev enp3s0 root handle 1: htb default 1".to_string()));
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn uygula_eski_cikis_arayuzu_yoksa_hata_degil() {
+        // wfcppp düşünce arayüz çekirdekten gider: `tc qdisc del dev wfcppp root` "Cannot find device" ile başarısız olur → önemsiz
+        let (cfg, root) = kur("yok");
+        let calls = Arc::new(Mutex::new(Vec::<String>::new()));
+        let c2 = calls.clone();
+        let r = move |c: &[String]| {
+            c2.lock().unwrap().push(c.join(" "));
+            !(c[0] == "tc" && c[2] == "del" && c.contains(&"wfcppp".to_string()))
+        };
+        let nft_f = |_: &str| true;
+        let yol = root.join("uygulanan");
+        let i = ip(M1, "10.50.0.23");
+        assert_eq!(uygula(&cfg, "wfcppp", &i, &r, &nft_f, &yol), Ok(true));
+        al(&calls);
+        assert_eq!(uygula(&cfg, "enp3s0", &i, &r, &nft_f, &yol), Ok(true));
+        let c = al(&calls);
+        assert!(c.contains(&"tc qdisc del dev wfcppp root".to_string()), "denendi: {c:?}");
+        assert!(c.contains(&"tc qdisc replace dev enp3s0 root handle 1: htb default 1".to_string()), "yeni plan eksiksiz kurulmalı: {c:?}");
+        assert!(yol.exists(), "parmak izi yazılmalı");
+        assert_eq!(uygula(&cfg, "enp3s0", &i, &r, &nft_f, &yol), Ok(false));
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn uygula_bozuk_eski_iz_arguman_olarak_gitmez() {
+        // önceki parmak izi bozuk ya da başka bir sürümün yazdığı: arayüz adı biçimine uymayan değer `tc`'ye hiç gitmez
+        let (cfg, root) = kur("bozuk");
+        let (calls, r) = runner(Arc::new(Mutex::new(true)));
+        let yol = root.join("uygulanan");
+        std::fs::write(
+            &yol,
+            "garip satir\n\
+             tc qdisc replace dev -batch root handle 1:\n\
+             tc class replace dev a/b parent 1: classid 1:1\n\
+             tc qdisc replace dev bu_ad_on_bes_karakterden_uzun root\n\
+             tc qdisc replace dev ad;reboot root\n\
+             tc qdisc replace dev\n\
+             nft add rule dev enp7s7 root\n\
+             tc qdisc replace dev enp9s9 root handle 1: htb default 1\n\
+             tc class replace dev enp9s9 parent 1: classid 1:1 htb rate 1gbit\n",
+        )
+        .unwrap();
+        assert_eq!(uygula(&cfg, "enp3s0", &ip(M1, "10.50.0.23"), &*r, &|_: &str| true, &yol), Ok(true));
+        // yalnızca geçerli adlı ve tc satırlarındaki arayüz (enp9s9, bir kez); "ad;reboot" gibi bozuk değerler elenir
+        assert_eq!(silmeler(&al(&calls)), ["tc qdisc del dev br-hotspot root", "tc qdisc del dev enp3s0 root", "tc qdisc del dev enp9s9 root"]);
+        // boş dosya: ek silme yok
+        std::fs::write(&yol, "").unwrap();
+        assert_eq!(uygula(&cfg, "enp3s0", &ip(M1, "10.50.0.23"), &*r, &|_: &str| true, &yol), Ok(true));
+        assert_eq!(silmeler(&al(&calls)), ["tc qdisc del dev br-hotspot root", "tc qdisc del dev enp3s0 root"]);
         let _ = std::fs::remove_dir_all(&root);
     }
 }

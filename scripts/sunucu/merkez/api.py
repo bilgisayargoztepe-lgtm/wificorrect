@@ -80,6 +80,10 @@ def _cihaz_ekleri(veri, m, eski=True):
 
 SAGLIK_SERVISLER = ("portal", "panel", "kaydedici", "dnsmasq", "guvenlik")
 SAGLIK_BOOL = ("kayit_boslugu_1s", "wan", "sms_sorunu", "hiz_hata")
+# PPPoE (spec 2026-10-23 "Durum ve teşhis"): internet portunun türü ve durumu; cihaz her raporda ikisini de gönderir.
+# Bilinen değerler; başkası (ör. ileride eklenen bir durum kodu) raporu bozmaz, saglik_temizle yalnızca o alanı atar.
+SAGLIK_WAN_TURLERI = ("dhcp", "pppoe")
+SAGLIK_PPPOE_DURUMLARI = ("kapali", "kablo_yok", "dhcp_yok", "sunucu_yok", "kimlik_hatasi", "baglaniyor", "bagli")
 
 
 def _tam(v, alt, ust=None):
@@ -103,7 +107,8 @@ def _guncelleme_sonucu(g):
 
 
 def saglik_temizle(r):
-    """Cihaz sağlık raporunu sıkı doğrular; yalnızca bilinen alanlarla yeni sözlük döner, bozuksa None."""
+    """Cihaz sağlık raporunu sıkı doğrular; yalnızca bilinen alanlarla yeni sözlük döner, bozuksa None. İstisna: isteğe bağlı
+    PPPoE alanları (wan_tur, pppoe) — bilinmeyen/bozuk değeri yalnızca o alanı atar, raporu reddetmez."""
     if not isinstance(r, dict):
         return None
     sv = r.get("servisler")
@@ -132,6 +137,11 @@ def saglik_temizle(r):
             if g is False:
                 return None
         t["guncelleme"] = g
+    for alan, izinli in (("wan_tur", SAGLIK_WAN_TURLERI), ("pppoe", SAGLIK_PPPOE_DURUMLARI)):
+        # Yukarıdakilerden FARKLI olarak bilinmeyen/bozuk değer raporu reddetmez, yalnızca o alan atılır: yeni bir cihaz sürümü yeni
+        # bir durum kodu eklese bile eski merkez raporu kabul eder (reddetseydi çalışan cihaz için "Rapor gelmiyor" uyarısı/SMS'i çıkardı).
+        if isinstance(r.get(alan), str) and r[alan] in izinli:
+            t[alan] = r[alan]
     return t
 
 
@@ -336,6 +346,10 @@ class Api:
         m = self.veri.musteri(c["musteri"])
         if c["durum"] == "bagli" and self.veri.hizmet_acik(m):  # /api/liste ile aynı koşul: indiremeyeceği sürüm bildirilmez
             yanit["listeler"] = listeler.ozet(self.liste_dizini)  # hazır engel listelerinin sürümleri; cihaz değişeni indirir
+        if c["durum"] == "bagli" and m["ap_parola"]:
+            # AP yönetim parolası (spec 2026-10-23): yönetimde "Yenile"den 5 dk sonra cihaz yeni parolayı bilsin (giriş sayfasındaki
+            # Servis bu parolayı ister); /api/eslesme gibi lisans durumuna bakmaz. Bir sır: hareket satırına/günlüğe yazılmaz.
+            yanit["ap_parola"] = m["ap_parola"]
         hedef = self.veri.cihaz_hedefi(m)
         if m["guncelleme_hemen"] > 0 and (hedef is None or m["guncelleme_hemen_surum"] != hedef["surum"]
                                          or r.get("paket") == hedef["surum"]):

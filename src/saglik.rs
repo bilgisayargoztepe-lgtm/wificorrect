@@ -27,7 +27,14 @@ pub struct Girdi {
     /// en son mühürlenen gün (YYYY-AA-GG) ya da ""
     pub son_muhur: String,
     pub kayit_boslugu_1s: bool,
+    /// internet portunda IPv4 adresi var: Ethernet'te DHCP'den; PPPoE açıksa ayrıca PPP arayüzünde (`wfcppp`; PPPoE'de
+    /// Ethernet'in kendisinde adres olmaz). Kablo/bağlantı ayrıntısı `pppoe` alanında.
     pub wan: bool,
+    /// internet portunun türü: `dhcp` (modemden DHCP) | `pppoe` (ag.toml'da PPPoE açık; bağlı olması gerekmez)
+    pub wan_tur: &'static str,
+    /// internet portunun durumu (`pppoe::Durum::kod()`, DHCP'li cihazda da gelir): kapali | kablo_yok | dhcp_yok | sunucu_yok |
+    /// kimlik_hatasi | baglaniyor | bagli
+    pub pppoe: &'static str,
     pub sms_sorunu: bool,
     pub bagli: u64,
     pub hiz_hata: bool,
@@ -44,6 +51,8 @@ pub fn rapor(g: &Girdi) -> Value {
         "son_muhur": g.son_muhur,
         "kayit_boslugu_1s": g.kayit_boslugu_1s,
         "wan": g.wan,
+        "wan_tur": g.wan_tur,
+        "pppoe": g.pppoe,
         "sms_sorunu": g.sms_sorunu,
         "bagli": g.bagli,
         "hiz_hata": g.hiz_hata,
@@ -90,8 +99,13 @@ pub fn topla(cfg: &Config, now: f64, k: &Kaynak) -> Result<Girdi, String> {
         .map_or(0, |s| s.max(0.0) as u64);
     // en yeni geçerli gün (zincirin son satırı bozuk ya da eski olabilir)
     let son_muhur = crate::muhur::chain_lines(&m.log_root).into_iter().map(|l| l[0].clone()).filter(|g| tarih_mi(g)).max().unwrap_or_default();
-    let wan_if = crate::ag::load(&k.ag).wan;
-    let wan = !wan_if.is_empty() && (k.komut)(&["ip", "-4", "-o", "addr", "show", "dev", &wan_if]).unwrap_or_default().contains(" inet ");
+    // internet portu (spec 2026-10-23): DHCP'de Ethernet'in adresi; PPPoE açıkken PPP arayüzünün adresi de sayılır (Ethernet'te
+    // adres olmaz). Kapalıyken `wfcppp` kalıntısı sayılmaz. PPPoE bağlanamasa da modem DHCP veriyorsa yedek rota çalışır: `wan` true.
+    let ag = crate::ag::load(&k.ag);
+    let adresli = |arayuz: &str| !arayuz.is_empty() && (k.komut)(&["ip", "-4", "-o", "addr", "show", "dev", arayuz]).unwrap_or_default().contains(" inet ");
+    let wan = adresli(&ag.wan) || (ag.pppoe.acik && adresli(crate::pppoe::ARAYUZ));
+    let wan_tur = if ag.pppoe.acik { "pppoe" } else { "dhcp" };
+    let pppoe = crate::pppoe::durum(&ag, &k.sys, &*k.komut).kod();
     // bağlı = oturumu süren ve köprüde görülen cihaz (panel Özet ile aynı)
     let agda = std::fs::read(k.sys.join(&m.iface).join("brforward")).map(|b| ortak::kopruye_bagli(&b)).unwrap_or_default();
     let bagli = ortak::load_sessions(&m.state_root).iter().filter(|(mac, s)| !s.ip.is_empty() && s.expires_epoch > now && agda.contains(*mac)).count() as u64;
@@ -103,6 +117,8 @@ pub fn topla(cfg: &Config, now: f64, k: &Kaynak) -> Result<Girdi, String> {
         son_muhur,
         kayit_boslugu_1s: kayit_boslugu(&m.log_root, now),
         wan,
+        wan_tur,
+        pppoe,
         // SMS merkezden gider (spec 2026-10-13): sorun = merkez deneme modunda (rapor yalnızca bağlı cihazdan gider)
         sms_sorunu: cfg.sms.mock,
         bagli,
@@ -139,6 +155,10 @@ pub struct Cevap {
     pub sms_mock: Option<bool>,
     /// Hazır engel listelerinin sürümleri (src/liste.rs); bu alandan önceki merkez göndermez: None.
     pub listeler: Option<std::collections::BTreeMap<String, crate::liste::Meta>>,
+    /// Müşterinin AP yönetim parolası (spec 2026-10-23: merkezde "Yenile"den 5 dk sonra cihaza inmesi için sağlık cevabında da
+    /// gelir; Servis sayfasının parolası). `merkez::ap_parola_oku` kuralına uymayan (8–64 yazdırılabilir ASCII) değer ya da bu
+    /// alandan önceki merkez: None. Bir sır: denetime/günlüğe/hata metnine yazılmaz, `{:?}` ile biçimlenmez.
+    pub ap_parola: Option<String>,
 }
 
 /// Raporu gönderir; merkezin cevabını döner.
@@ -151,6 +171,7 @@ pub fn gonder(m: &Merkez, rapor: &Value, http: &Http) -> Result<Cevap, String> {
         hedef: v.get("guncelleme").and_then(guncelleme::hedef_coz),
         sms_mock: v.get("sms_etkin_mock").and_then(Value::as_bool),
         listeler: v.get("listeler").map(crate::liste::hedef_coz),
+        ap_parola: crate::merkez::ap_parola_oku(&v),
     })
 }
 
@@ -203,6 +224,8 @@ mod tests {
             son_muhur: "2026-10-10".into(),
             kayit_boslugu_1s: false,
             wan: true,
+            wan_tur: "dhcp",
+            pppoe: "kapali",
             sms_sorunu: false,
             bagli: 3,
             hiz_hata: false,
@@ -215,8 +238,8 @@ mod tests {
         let o = r.as_object().unwrap();
         let mut anahtar: Vec<&str> = o.keys().map(String::as_str).collect();
         anahtar.sort();
-        assert_eq!(anahtar, ["acik_sn", "bagli", "disk_yuzde", "hiz_hata", "kayit_boslugu_1s", "servisler", "sms_sorunu", "son_muhur", "surum", "wan"]);
-        for a in ["surum", "son_muhur"] {
+        assert_eq!(anahtar, ["acik_sn", "bagli", "disk_yuzde", "hiz_hata", "kayit_boslugu_1s", "pppoe", "servisler", "sms_sorunu", "son_muhur", "surum", "wan", "wan_tur"]);
+        for a in ["surum", "son_muhur", "wan_tur", "pppoe"] {
             assert!(o[a].is_string(), "{a}");
         }
         for a in ["acik_sn", "disk_yuzde", "bagli"] {
@@ -232,12 +255,18 @@ mod tests {
         assert!(sv.values().all(Value::is_boolean));
         assert_eq!((sv["kaydedici"].as_bool(), sv["portal"].as_bool()), (Some(false), Some(true)));
         assert_eq!((o["acik_sn"].as_u64(), o["bagli"].as_u64(), o["son_muhur"].as_str()), (Some(3600), Some(3), Some("2026-10-10")));
+        assert_eq!((o["wan_tur"].as_str(), o["pppoe"].as_str()), (Some("dhcp"), Some("kapali")));
         // sınırlar: disk en çok 100, sürüm en çok 40 karakter
         let mut g = ornek();
         g.disk_yuzde = 130;
         g.surum = "x".repeat(60);
         let r = rapor(&g);
         assert_eq!((r["disk_yuzde"].as_u64(), r["surum"].as_str().map(str::len)), (Some(100), Some(40)));
+        // PPPoE'li cihaz: aynı anahtarlar, farklı değerler
+        let mut g = ornek();
+        (g.wan_tur, g.pppoe) = ("pppoe", "bagli");
+        let r = rapor(&g);
+        assert_eq!((r["wan_tur"].as_str(), r["pppoe"].as_str(), r.as_object().unwrap().len()), (Some("pppoe"), Some("bagli"), 12));
     }
 
     #[test]
@@ -300,6 +329,69 @@ mod tests {
         assert!(g.servisler.iter().all(|(_, d)| !d));
         assert_eq!(g.disk_yuzde, 100); // log_root yok: statvfs okunamadı → dolu say, gizleme
         let _ = root;
+    }
+
+    const ETH_ADRES: &str = "2: enp3s0    inet 192.168.1.10/24 brd 192.168.1.255 scope global dynamic enp3s0\n";
+    const PPP_ADRES: &str = "7: wfcppp    inet 203.0.113.10 peer 198.51.100.1/32 scope global wfcppp\n";
+    const KIMLIK_HATASI: &str = include_str!("../tests/fixtures/pppoe/kimlik_hatasi.log");
+    const SUNUCU_YOK: &str = include_str!("../tests/fixtures/pppoe/sunucu_yok.log");
+
+    /// Sahte internet portu: ag.toml'da PPPoE açık/kapalı, internet portunda kablo (taşıyıcı), `ip addr` çıktıları ve pppd birim
+    /// günlüğü verilir; merkeze giden rapor (JSON) döner.
+    fn wan_raporu(acik: bool, kablo: bool, eth: &'static str, ppp: &'static str, gunluk: &'static str) -> Value {
+        let (cfg, _root, mut k) = kur();
+        k.ag = k.ag.with_file_name("ag.toml");
+        let ag = crate::ag::Ag { pppoe: crate::ag::Pppoe { acik, ..Default::default() }, ..Default::default() };
+        crate::ag::save(&k.ag, &ag).unwrap();
+        std::fs::create_dir_all(k.sys.join("enp3s0")).unwrap();
+        std::fs::write(k.sys.join("enp3s0/carrier"), if kablo { "1\n" } else { "0\n" }).unwrap();
+        k.komut = Box::new(move |c: &[&str]| {
+            Some(match c {
+                ["ip", "-4", "-o", "addr", "show", "dev", "enp3s0"] => eth.into(),
+                ["ip", "-4", "-o", "addr", "show", "dev", "wfcppp"] => ppp.into(),
+                ["journalctl", ..] => gunluk.into(),
+                _ => String::new(),
+            })
+        });
+        rapor(&topla(&cfg, 1_791_072_000.0, &k).unwrap())
+    }
+
+    /// Merkezin gördüğü üç alan tek satırda: internet var mı, internet türü, durum kodu.
+    fn wan_ozeti(acik: bool, kablo: bool, eth: &'static str, ppp: &'static str, gunluk: &'static str) -> String {
+        let r = wan_raporu(acik, kablo, eth, ppp, gunluk);
+        format!("wan={} tur={} pppoe={}", r["wan"], r["wan_tur"].as_str().unwrap(), r["pppoe"].as_str().unwrap())
+    }
+
+    #[test]
+    fn wan_ppp_ile() {
+        // PPPoE'de internet portunun Ethernet'inde adres yok (DHCP'den alınmaz), PPP arayüzü `wfcppp`'de var: internet var
+        let r = wan_raporu(true, true, "", PPP_ADRES, "");
+        assert_eq!((r["wan"].as_bool(), r["wan_tur"].as_str(), r["pppoe"].as_str()), (Some(true), Some("pppoe"), Some("bagli")));
+        // taşıyıcı bilgisi okunamasa da (sys boş) `wan` yalnızca adrese bakar, DHCP'deki gibi; kablo durumu `pppoe` alanında
+        let (cfg, _root, mut k) = kur();
+        k.ag = k.ag.with_file_name("ag.toml");
+        crate::ag::save(&k.ag, &crate::ag::Ag { pppoe: crate::ag::Pppoe { acik: true, ..Default::default() }, ..Default::default() }).unwrap();
+        k.komut = Box::new(|c: &[&str]| Some(if c.contains(&"wfcppp") { PPP_ADRES.to_string() } else { String::new() }));
+        let r = rapor(&topla(&cfg, 1_791_072_000.0, &k).unwrap());
+        assert_eq!((r["wan"].as_bool(), r["wan_tur"].as_str(), r["pppoe"].as_str()), (Some(true), Some("pppoe"), Some("kablo_yok")));
+    }
+
+    #[test]
+    fn wan_tur_ve_pppoe_durumlari() {
+        // PPPoE kapalı (modemden DHCP): tür dhcp; durum kapali | dhcp_yok | kablo_yok
+        assert_eq!(wan_ozeti(false, true, ETH_ADRES, "", ""), "wan=true tur=dhcp pppoe=kapali");
+        assert_eq!(wan_ozeti(false, true, "", "", ""), "wan=false tur=dhcp pppoe=dhcp_yok");
+        assert_eq!(wan_ozeti(false, false, "", "", ""), "wan=false tur=dhcp pppoe=kablo_yok");
+        // kapalıyken `wfcppp` kalıntısı internet sayılmaz (PPPoE birimi kapanırken arayüz bir süre kalabilir)
+        assert_eq!(wan_ozeti(false, true, "", PPP_ADRES, ""), "wan=false tur=dhcp pppoe=dhcp_yok");
+        // PPPoE açık: tür her zaman pppoe (bağlı olması gerekmez); durum pppd'nin son haline göre
+        assert_eq!(wan_ozeti(true, true, "", PPP_ADRES, ""), "wan=true tur=pppoe pppoe=bagli");
+        assert_eq!(wan_ozeti(true, true, "", "", ""), "wan=false tur=pppoe pppoe=baglaniyor");
+        assert_eq!(wan_ozeti(true, true, "", "", KIMLIK_HATASI), "wan=false tur=pppoe pppoe=kimlik_hatasi");
+        assert_eq!(wan_ozeti(true, true, "", "", SUNUCU_YOK), "wan=false tur=pppoe pppoe=sunucu_yok");
+        assert_eq!(wan_ozeti(true, false, "", "", ""), "wan=false tur=pppoe pppoe=kablo_yok");
+        // PPPoE bağlanamıyor ama modem hâlâ DHCP veriyor (yönlendirici kipinde): DHCP yedeği internet sağlar, PPPoE durumu yine görünür
+        assert_eq!(wan_ozeti(true, true, ETH_ADRES, "", SUNUCU_YOK), "wan=true tur=pppoe pppoe=sunucu_yok");
     }
 
     #[test]
@@ -396,6 +488,42 @@ mod tests {
             let (h, _) = sahte(Ok((200, govde)));
             assert_eq!(calistir(&cfg, &p, &k, &*h, 1000.0).unwrap().sms_mock, beklenen, "{govde}");
         }
+    }
+
+    #[test]
+    fn cevapta_ap_parola() {
+        let (cfg, root, k) = kur();
+        let p = root.join("merkez.json");
+        crate::merkez::kaydet(&p, &Merkez { numara: "4511643".into(), cihaz_anahtari: "a".into(), ..Default::default() }).unwrap();
+        // gövdeyi json! kurar (kaçışlar doğru); sahte() 'static metin ister
+        let ap = |parola: Value| {
+            let govde: &'static str = Box::leak(json!({"tamam": true, "ap_parola": parola}).to_string().into_boxed_str());
+            let (h, _) = sahte(Ok((200, govde)));
+            calistir(&cfg, &p, &k, &*h, 1000.0).unwrap().ap_parola
+        };
+        let sin = |s: &str| Some(s.to_string());
+        assert_eq!(ap(json!("Kp7mQx2Rtz4W")), sin("Kp7mQx2Rtz4W"));
+        // sınırlar: 8–64 bayt
+        assert_eq!(ap(json!("Kp7mQx2R")), sin("Kp7mQx2R"));
+        assert_eq!(ap(json!("A".repeat(64))), Some("A".repeat(64)));
+        assert_eq!(ap(json!("Kp7mQx2")), None); // 7 karakter
+        assert_eq!(ap(json!("A".repeat(65))), None);
+        assert_eq!(ap(json!("")), None);
+        // yalnızca yazdırılabilir ASCII, boşluksuz
+        for kotu in ["Kp7m Qx2Rtz4W", "Kp7mQx2\tRtz4W", "Kp7mQx2\nRtz4W", "Şifre1234567", "Kp7mQx2Rtz4W\u{0}"] {
+            assert_eq!(ap(json!(kotu)), None, "{kotu:?}");
+        }
+        // dize olmayan değerler ve eski merkez (alan yok)
+        for kotu in [json!(12345678901u64), json!(null), json!(true), json!(["Kp7mQx2Rtz4W"])] {
+            assert_eq!(ap(kotu.clone()), None, "{kotu}");
+        }
+        let (h, _) = sahte(Ok((200, r#"{"tamam":true}"#)));
+        assert_eq!(calistir(&cfg, &p, &k, &*h, 1000.0), Ok(Cevap::default()));
+        // öteki cevap alanlarını bozmaz; cevap tek başına parolayı dosyaya yazmaz (uygulamak ctl'nin işi)
+        let govde: &'static str = r#"{"tamam":true,"ap_parola":"Kp7mQx2Rtz4W","sms_etkin_mock":true}"#;
+        let (h, _) = sahte(Ok((200, govde)));
+        assert_eq!(calistir(&cfg, &p, &k, &*h, 1000.0), Ok(Cevap { sms_mock: Some(true), ap_parola: sin("Kp7mQx2Rtz4W"), ..Default::default() }));
+        assert_eq!(crate::merkez::oku(&p).unwrap().ap_parola, "");
     }
 
     #[test]

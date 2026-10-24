@@ -661,18 +661,14 @@ impl Panel {
                     .collect();
                 (
                     format!("<nav aria-label=\"Menü\">{links}</nav>"),
-                    // logo müşteri numarasının yanında (2026-10-24, kullanıcı isteği)
+                    // şeridin sağında yalnızca çıkış; müşteri numarası gösterilmez, logo ortada (2026-10-24, kullanıcı isteği)
                     format!(
-                        "<div class=\"ust-sag\">{}<div class=\"kim\">{}<span>{}</span></div>\
-                         <form method=\"post\" action=\"/cikis\">{}<button class=\"ikincil\">Çıkış</button></form></div>",
-                        crate::logo::ust_logo(),
-                        h(&o.user),
-                        h(o.rol.ad()),
+                        "<div class=\"ust-sag\"><form method=\"post\" action=\"/cikis\">{}<button class=\"ikincil\">Çıkış</button></form></div>",
                         csrf_input(o)
                     ),
                 )
             }
-            None => (String::new(), format!("<div class=\"ust-sag\">{}</div>", crate::logo::ust_logo())),
+            None => (String::new(), "<div class=\"ust-sag\"></div>".to_string()),
         };
         // telefonda menü: betik yok (CSP), gizli onay kutusu + etiket açar/kapatır
         let (dugme, etiket) = if o.is_some() {
@@ -691,8 +687,12 @@ impl Panel {
         v.insert("baslik", h(title));
         v.insert("favicon_html", crate::logo::favicon_html().to_string());
         v.insert("bas_ek", if o.is_some() { yenile_meta(req) + bas } else { bas.to_string() });
-        // cihaz bir müşteriye bağlanmadan işletme adı yok (eski/örnek ayardaki ad görünmesin)
-        v.insert("site", h(if crate::merkez::oku(&self.merkez_path).is_none() { "WifiCorrect" } else { &cfg.main.site_name }));
+        // cihaz bir müşteriye bağlanmadan işletme adı yok (eski/örnek ayardaki ad görünmesin): sekme başlığında "WifiCorrect",
+        // şeritte ad yok (ortadaki logo yeter)
+        let bagli = crate::merkez::oku(&self.merkez_path).is_some();
+        v.insert("site", h(if bagli { &cfg.main.site_name } else { "WifiCorrect" }));
+        v.insert("marka", if bagli { h(&cfg.main.site_name) } else { String::new() });
+        v.insert("logo_html", crate::logo::ust_logo().to_string());
         v.insert("govde", if o.is_some() { String::new() } else { "yalin".into() });
         v.insert("menu_html", menu);
         v.insert("ust_html", ust);
@@ -2200,7 +2200,8 @@ mod tests {
         let g = e.p.handle(&req("GET", "/giris", &[], None)).body;
         assert!(g.contains("action=\"/giris\"") && g.contains("Müşteri numarası"));
         // oturumsuz sayfada da üst şeritte logo (müşteri numarası yok) ve sekme simgesi
-        assert!(g.contains("<div class=\"ust-sag\"><span class=\"wc-logo\"") && g.contains("<link rel=\"icon\""), "{g}");
+        assert!(g.contains("<div class=\"marka\"></div></div>\n<span class=\"wc-logo\"") && g.contains("<link rel=\"icon\""), "{g}");
+        assert!(g.contains(" · WifiCorrect</title>"), "bağlanmamış cihazda sekme başlığı: {g}");
         assert_eq!(loc(&e.p.handle(&req("GET", "/cihazlar", &[], None))), "/giris");
         setup_and_login(&e, "mudur", "sahip-parola-12");
         uzak_adresli(&e);
@@ -2666,7 +2667,9 @@ mod tests {
         assert!(s.contains("for=\"menu-ac\""));
         // wificorrect_ logosu üst şeritte müşteri numarasının yanında, sekme simgesi başta (2026-10-24)
         let ust = s.split("<header class=\"ust\">").nth(1).unwrap().split("</header>").next().unwrap();
-        assert!(ust.find("<span class=\"wc-logo\"").unwrap() < ust.find("<div class=\"kim\">").unwrap(), "{ust}");
+        let (sol, logo, sag) = (ust.find("<div class=\"ust-sol\">").unwrap(), ust.find("<span class=\"wc-logo\"").unwrap(), ust.find("<div class=\"ust-sag\">").unwrap());
+        assert!(sol < logo && logo < sag && ust[sag..].contains("Çıkış"), "solda ad, ortada logo, sağda çıkış: {ust}");
+        assert!(!s.contains("class=\"kim\"") && !ust.contains("mudur") && !ust.contains("İşletme sahibi"), "müşteri numarası/hesap gösterilmez: {ust}");
         // şeritte ve sekme başlığında yalnızca işletme adı ("Yönetim" eki yok; 2026-10-24, kullanıcı isteği)
         assert!(ust.contains("<div class=\"marka\">") && !ust.contains("Yönetim") && !s.contains("Yönetim</title>"), "{ust}");
         let bas = s.split("</head>").next().unwrap();

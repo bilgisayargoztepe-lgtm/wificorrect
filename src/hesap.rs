@@ -25,15 +25,6 @@ pub enum Rol {
     Sahip,
 }
 
-impl Rol {
-    pub fn ad(self) -> &'static str {
-        match self {
-            Rol::Hizmet => "Hizmet sağlayıcı",
-            Rol::Sahip => "İşletme sahibi",
-        }
-    }
-}
-
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Hesap {
     pub rol: Rol,

@@ -80,7 +80,7 @@ yalnızca `g["surum"] == m["guncelleme_hemen_surum"]` ise tüket (+ test). Sür�
 müşteri, Bekleyen cihazlar) · Kayıtlar (Hareketler, Eski arşivler) · Ayarlar (Engel listeleri, SMS ayarları, Uyarı ayarları,
 Sürümler, Hesabım) · Çıkış; gruplar ok işaretiyle aşağı açılır (açık sayfanın grubu açık), telefonda menü gizli, üst şeritteki ☰ düğmesi açar (cihaz paneli gibi). Bütün cihazların admin parolası Hesabım'da
 (`/admin-parolasi` yalnızca kaydeder; açılınca Hesabım'a yönlenir). Müşteri paneli (panel.wificorrect.com) üst şeritte kaldı.
-**Logo (2026-10-24, dal `logo`):** yeni wificorrect_ logosu (kullanıcının kiti `Desktop/logo`) cihaz panelinde üst şeritte müşteri numarasının yanında (dar ekranda W_ işareti), yönetimde sol menünün başında, müşteri panelinde ve giriş sayfalarında; sekme simgesi W_ ikonu. Sayfaya gömülü (CSP/Caddy değişmedi); cihaz tarafı bir sonraki cihaz sürümüyle gelir. Ayrıntı KURULUM_GUNLUGU "Logo ve sekme simgesi".
+**Logo (2026-10-24, dal `logo`):** yeni wificorrect_ logosu (kullanıcının kiti `Desktop/logo`) cihaz panelinde üst şeridin tam ortasında (telefonda W_ işareti; müşteri numarası artık yok, şeritte yalnızca işletme adı), yönetimde sol menünün başında, müşteri panelinde ve giriş sayfalarında; sekme simgesi W_ ikonu. Sayfaya gömülü (CSP/Caddy değişmedi); cihaz tarafı bir sonraki cihaz sürümüyle gelir. Ayrıntı KURULUM_GUNLUGU "Logo ve sekme simgesi".
 **DNS (2026-10-24):** `*.ap.wificorrect.com` joker A kaydı eklendi (Güzel Hosting, merkezin dış IP'si; `ap` ile aynı). Müşteri başına
 AP adresi (ör. `k7f3q9.ap.wificorrect.com`) işi için; kullanıcı kararı: `wificorrect.com` altında kalınacak, ayrı alan adı yok. Kod
 henüz yok (tasarım bekliyor; KURULUM_GUNLUGU "AP arayüzü — merkez" → "Bilinen risk").

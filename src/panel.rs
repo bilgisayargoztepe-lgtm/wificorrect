@@ -2667,6 +2667,8 @@ mod tests {
         // wificorrect_ logosu üst şeritte müşteri numarasının yanında, sekme simgesi başta (2026-10-24)
         let ust = s.split("<header class=\"ust\">").nth(1).unwrap().split("</header>").next().unwrap();
         assert!(ust.find("<span class=\"wc-logo\"").unwrap() < ust.find("<div class=\"kim\">").unwrap(), "{ust}");
+        // şeritte ve sekme başlığında yalnızca işletme adı ("Yönetim" eki yok; 2026-10-24, kullanıcı isteği)
+        assert!(ust.contains("<div class=\"marka\">") && !ust.contains("Yönetim") && !s.contains("Yönetim</title>"), "{ust}");
         let bas = s.split("</head>").next().unwrap();
         assert!(bas.contains("<link rel=\"icon\" type=\"image/svg+xml\" href=\"data:image/svg+xml;base64,"), "{bas}");
         let audit = std::fs::read_to_string(e.root.join("5651/gunluk/2026-09-29/denetim.csv")).unwrap();

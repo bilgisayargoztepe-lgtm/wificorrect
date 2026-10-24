@@ -1174,6 +1174,7 @@ gerekmez): wificorrect_ = "wifi" Nunito ExtraBold dik + "correct_" Nunito ExtraB
   hangi sırayla güncellenirse güncellensin logo görünür.
 - **Cihaz paneli** (`src/logo.rs`, `panel.html` `.wc-logo`): üst şeritte müşteri numarasının solunda yazılı logo (20 px); dar ekranda
   (≤ 820 px, müşteri numarası gizliyken) W_ işareti; oturumsuz sayfalarda da.
+- **Cihaz panelinde işletme adı:** üst şeritte ve sekme başlığında yalnızca işletme adı ("Göztepe Bilgisayar"; eskiden "Göztepe Bilgisayar Yönetim"; kullanıcı isteği).
 - **Merkez** (`web._cerceve`): yönetimde sol menünün başında ve telefondaki üst şeritte koyu logo; müşteri paneli, giriş sayfaları ve
   AP geçidinin sade sayfalarında (beyaz şerit) açık logo. Logo dosyası okunamazsa "WifiCorrect" yazısı.
 - Misafirlerin giriş sayfası (işletmenin sayfası) değişmedi. Testler: cihazda `src/logo.rs` + panel testleri, merkezde `test_logo.py`.

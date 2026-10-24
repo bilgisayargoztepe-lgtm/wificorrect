@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light">
-<title>$baslik · $site Yönetim</title>
+<title>$baslik · $site</title>
 $favicon_html
 $bas_ek
 <style>
@@ -28,7 +28,6 @@ a:hover{color:var(--vurgu-koyu);text-decoration-color:currentColor}
 /* iskelet: koyu üst şerit + koyu kenar menüsü + içerik */
 .ust{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:16px;min-height:52px;padding:0 20px;background:var(--koyu);color:#fff}
 .marka{font-weight:700;font-size:1.0625rem;letter-spacing:-.01em;overflow-wrap:anywhere}
-.marka span{font-weight:400;color:#a8a8a8}
 .ust-sag{display:flex;align-items:center;gap:16px;margin-left:auto}
 /* wificorrect_ logosu (src/logo.rs): geniş ekranda yazılı logo, dar ekranda W_ işareti */
 .wc-logo{display:flex;align-items:center;flex:none}
@@ -235,7 +234,7 @@ main{padding:16px 16px 56px}
 </head>
 <body class="$govde">
 $menu_dugme_html<header class="ust">
-$menu_etiket_html<div class="marka">$site <span>Yönetim</span></div>
+$menu_etiket_html<div class="marka">$site</div>
 $ust_html
 </header>
 <div class="kabuk">

@@ -19,6 +19,9 @@ docker run --rm -v "$PWD/$(dirname "$deb"):/p:ro" debian:trixie sh -euc "
   dpkg -L wificorrect | grep -qx /etc/ppp/ip-up.d/wificorrect && test \"\$(stat -c %a /etc/ppp/ip-up.d/wificorrect)\" = 755
   run-parts --test /etc/ppp/ip-up.d | grep -qx /etc/ppp/ip-up.d/wificorrect
   PPP_IFACE=wfcppp /etc/ppp/ip-up.d/wificorrect wfcppp && PPP_IFACE=ppp0 /etc/ppp/ip-up.d/wificorrect ppp0
+  dpkg -L wificorrect | grep -qx /etc/ppp/ip-down.d/wificorrect && test \"\$(stat -c %a /etc/ppp/ip-down.d/wificorrect)\" = 755
+  run-parts --test /etc/ppp/ip-down.d | grep -qx /etc/ppp/ip-down.d/wificorrect
+  PPP_IFACE=wfcppp PPP_TTY=enp3s0.35 /etc/ppp/ip-down.d/wificorrect wfcppp enp3s0.35 && PPP_IFACE=ppp0 /etc/ppp/ip-down.d/wificorrect ppp0
   dpkg -L wificorrect | grep -qx /etc/dhcpcd.exit-hook && test \"\$(stat -c %a /etc/dhcpcd.exit-hook)\" = 644
   test -f /usr/lib/dhcpcd/dhcpcd-run-hooks && grep -q /etc/dhcpcd.exit-hook /usr/lib/dhcpcd/dhcpcd-run-hooks
   sh -euc '. /etc/dhcpcd.exit-hook; echo kanca-tamam' | grep -qx kanca-tamam

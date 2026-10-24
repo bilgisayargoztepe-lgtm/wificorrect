@@ -32,8 +32,8 @@ pub struct Girdi {
     pub wan: bool,
     /// internet portunun türü: `dhcp` (modemden DHCP) | `pppoe` (ag.toml'da PPPoE açık; bağlı olması gerekmez)
     pub wan_tur: &'static str,
-    /// internet portunun durumu (`pppoe::Durum::kod()`, DHCP'li cihazda da gelir): kapali | kablo_yok | dhcp_yok | sunucu_yok |
-    /// modemden (≥ 0.4.18) | kimlik_hatasi | baglaniyor | bagli
+    /// internet portunun durumu (`pppoe::Durum::kod()`, DHCP'li cihazda da gelir): kapali | kablo_yok | dhcp_yok | internet_yok
+    /// (≥ 0.4.20) | sunucu_yok | modemden (≥ 0.4.18) | kimlik_hatasi | baglaniyor | bagli
     pub pppoe: &'static str,
     pub sms_sorunu: bool,
     pub bagli: u64,
@@ -69,6 +69,8 @@ pub struct Kaynak {
     pub guncelleme: guncelleme::Yollar,
     /// komut çıktısı (systemctl is-active, ip addr); süre sınırlı; None: çalışmadı/zaman aşımı
     pub komut: Box<dyn Fn(&[&str]) -> Option<String>>,
+    /// etkin internet yoklaması (`pppoe` durumu: adres var ama internete çıkılıyor mu; en çok 1,5 sn)
+    pub internet: Box<dyn Fn() -> bool>,
 }
 
 impl Kaynak {
@@ -80,6 +82,7 @@ impl Kaynak {
             uptime: "/proc/uptime".into(),
             guncelleme: guncelleme::Yollar::sistem(),
             komut: Box::new(|c: &[&str]| ortak::capture_timeout(c, 5)),
+            internet: Box::new(crate::ag::internet_yoklamasi),
         }
     }
 }
@@ -105,7 +108,7 @@ pub fn topla(cfg: &Config, now: f64, k: &Kaynak) -> Result<Girdi, String> {
     let adresli = |arayuz: &str| !arayuz.is_empty() && (k.komut)(&["ip", "-4", "-o", "addr", "show", "dev", arayuz]).unwrap_or_default().contains(" inet ");
     let wan = adresli(&ag.wan) || (ag.pppoe.acik && adresli(crate::pppoe::ARAYUZ));
     let wan_tur = if ag.pppoe.acik { "pppoe" } else { "dhcp" };
-    let pppoe = crate::pppoe::durum(&ag, &k.sys, &*k.komut).kod();
+    let pppoe = crate::pppoe::durum(&ag, &k.sys, &*k.komut, &*k.internet).kod();
     // bağlı = oturumu süren ve köprüde görülen cihaz (panel Özet ile aynı)
     let agda = std::fs::read(k.sys.join(&m.iface).join("brforward")).map(|b| ortak::kopruye_bagli(&b)).unwrap_or_default();
     let bagli = ortak::load_sessions(&m.state_root).iter().filter(|(mac, s)| !s.ip.is_empty() && s.expires_epoch > now && agda.contains(*mac)).count() as u64;
@@ -211,6 +214,7 @@ mod tests {
             uptime: root.join("uptime"),
             guncelleme: guncelleme::Yollar { kok: root.join("guncelleme") },
             komut: Box::new(|_: &[&str]| Some(String::new())),
+            internet: Box::new(|| true), // testler gerçek ağa yoklama yapmaz
         };
         (Config::parse(&text).unwrap(), root, k)
     }
@@ -337,9 +341,14 @@ mod tests {
     const SUNUCU_YOK: &str = include_str!("../tests/fixtures/pppoe/sunucu_yok.log");
 
     /// Sahte internet portu: ag.toml'da PPPoE açık/kapalı, internet portunda kablo (taşıyıcı), `ip addr` çıktıları ve pppd birim
-    /// günlüğü verilir; merkeze giden rapor (JSON) döner.
+    /// günlüğü verilir; merkeze giden rapor (JSON) döner. Etkin yoklama internete çıkıldığını söyler (`wan_raporu_net`: verilen).
     fn wan_raporu(acik: bool, kablo: bool, eth: &'static str, ppp: &'static str, gunluk: &'static str) -> Value {
+        wan_raporu_net(acik, kablo, eth, ppp, gunluk, true)
+    }
+
+    fn wan_raporu_net(acik: bool, kablo: bool, eth: &'static str, ppp: &'static str, gunluk: &'static str, internet: bool) -> Value {
         let (cfg, _root, mut k) = kur();
+        k.internet = Box::new(move || internet);
         k.ag = k.ag.with_file_name("ag.toml");
         let ag = crate::ag::Ag { pppoe: crate::ag::Pppoe { acik, ..Default::default() }, ..Default::default() };
         crate::ag::save(&k.ag, &ag).unwrap();
@@ -358,7 +367,11 @@ mod tests {
 
     /// Merkezin gördüğü üç alan tek satırda: internet var mı, internet türü, durum kodu.
     fn wan_ozeti(acik: bool, kablo: bool, eth: &'static str, ppp: &'static str, gunluk: &'static str) -> String {
-        let r = wan_raporu(acik, kablo, eth, ppp, gunluk);
+        wan_ozeti_net(acik, kablo, eth, ppp, gunluk, true)
+    }
+
+    fn wan_ozeti_net(acik: bool, kablo: bool, eth: &'static str, ppp: &'static str, gunluk: &'static str, internet: bool) -> String {
+        let r = wan_raporu_net(acik, kablo, eth, ppp, gunluk, internet);
         format!("wan={} tur={} pppoe={}", r["wan"], r["wan_tur"].as_str().unwrap(), r["pppoe"].as_str().unwrap())
     }
 
@@ -395,6 +408,13 @@ mod tests {
         assert_eq!(wan_ozeti(true, true, ETH_ADRES, "", ""), "wan=true tur=pppoe pppoe=modemden");
         // kimlik reddi DHCP çalışsa da görünür (bir PPPoE sunucusu yanıt verdi, bilgi yanlış)
         assert_eq!(wan_ozeti(true, true, ETH_ADRES, "", KIMLIK_HATASI), "wan=true tur=pppoe pppoe=kimlik_hatasi");
+        // adres var ama etkin yoklama internete çıkamıyor (0.4.20): PPPoE kapalıyken `internet_yok`; açıkken (ONT'nin VLAN'sız ağı,
+        // 2026-10-24) yeşil `modemden` değil, PPPoE'nin kendi durumu. `wan` yalnızca adrese bakar (eskisi gibi)
+        assert_eq!(wan_ozeti_net(false, true, ETH_ADRES, "", "", false), "wan=true tur=dhcp pppoe=internet_yok");
+        assert_eq!(wan_ozeti_net(true, true, ETH_ADRES, "", SUNUCU_YOK, false), "wan=true tur=pppoe pppoe=sunucu_yok");
+        assert_eq!(wan_ozeti_net(true, true, ETH_ADRES, "", "", false), "wan=true tur=pppoe pppoe=baglaniyor");
+        // bağlıyken yoklamaya bakılmaz
+        assert_eq!(wan_ozeti_net(true, true, ETH_ADRES, PPP_ADRES, "", false), "wan=true tur=pppoe pppoe=bagli");
     }
 
     #[test]

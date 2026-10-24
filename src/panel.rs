@@ -455,6 +455,8 @@ pub struct Panel {
     ip_oku: Box<dyn Fn(&[&str]) -> String + Send + Sync>,
     /// Süre sınırlı canlı komut çıktısı (PPPoE durumu: `ip`, `journalctl`; `None`: çalışmadı / zaman aşımı; testte sahte)
     komut: Box<dyn Fn(&[&str]) -> Option<String> + Send + Sync>,
+    /// Etkin internet yoklaması (PPPoE durumu: adres var ama internete çıkılıyor mu; `ag::internet_yoklamasi`, testte sahte)
+    internet: Box<dyn Fn() -> bool + Send + Sync>,
     /// Yabancı DHCP denetimi sürüyor: aynı anda tek denetim (panelin iş parçacıkları bağlanmasın)
     dhcp_denetim: std::sync::atomic::AtomicBool,
     /// "Bağlan" / "Otomatik bul" başlatma tek seferde (çift tıklamada ikinci istek koşan aramanın durumunu ezmesin)
@@ -617,6 +619,7 @@ impl Panel {
             ap_yollar: crate::ap::Yollar::sistem(),
             ip_oku: Box::new(|c: &[&str]| ortak::capture(c)),
             komut: Box::new(|c: &[&str]| ortak::capture_timeout(c, 5)),
+            internet: Box::new(crate::ag::internet_yoklamasi),
             dhcp_denetim: std::sync::atomic::AtomicBool::new(false),
             ap_bul_kilit: std::sync::Mutex::new(()),
             ap_dene: Box::new(crate::ap_arayuz::web_portu),
@@ -2077,6 +2080,7 @@ mod tests {
         p.ip_oku = Box::new(move |a: &[&str]| sahte_ip(a, &ek2.lock().unwrap()));
         // PPPoE durumu: testler gerçek ip / journalctl çalıştırmaz (hiçbir komut çıktı vermez: adres yok, pppd günlüğü yok)
         p.komut = Box::new(|_: &[&str]| None);
+        p.internet = Box::new(|| true); // testler gerçek ağa yoklama yapmaz
         // AP arayüzü: testler gerçek ağa bağlanmaz (web arayüzü 80'de var sayılır; aktarım bağlantısı yok)
         p.ap_dene = Box::new(|_, _, _| Some(80));
         p.ap_baglan = Box::new(|_: &crate::ap_arayuz::Hedef| Err(std::io::Error::from(std::io::ErrorKind::ConnectionRefused)));

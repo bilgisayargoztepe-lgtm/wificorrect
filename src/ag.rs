@@ -403,6 +403,42 @@ pub fn internet_var(ip_route_default: &str) -> bool {
     !varsayilan_rotalar(ip_route_default).is_empty()
 }
 
+/// Etkin internet yoklamasının hedefleri: üç ayrı genel DNS sağlayıcısının HTTPS portu (adresle: ad çözümü gerekmez, DNS bozukken
+/// de çalışır; yalnızca TCP el sıkışması, veri gönderilmez).
+pub const YOKLAMA_HEDEFLERI: [&str; 3] = ["1.1.1.1:443", "8.8.8.8:443", "9.9.9.9:443"];
+/// Yoklamanın en uzun süresi (internet varken bağlantı onlarca milisaniyede kurulur, yokken bu kadar beklenir)
+pub const YOKLAMA_SURE: std::time::Duration = std::time::Duration::from_millis(1500);
+
+/// Cihaz gerçekten internete çıkabiliyor mu (0.4.20): rota yetmez, ONT'nin VLAN'sız ağı adres ve varsayılan rota verir ama internete
+/// çıkarmaz (2026-10-24, Göztepe; giriş sayfasındaki uyarı ve Servis çıkmıyor, panel yeşil "Modemden" diyordu). `YOKLAMA_HEDEFLERI`
+/// aynı anda denenir, biri `YOKLAMA_SURE` içinde bağlanırsa evet.
+pub fn internet_yoklamasi() -> bool {
+    let hedefler: Vec<std::net::SocketAddr> = YOKLAMA_HEDEFLERI.iter().filter_map(|h| h.parse().ok()).collect();
+    yokla(&hedefler, YOKLAMA_SURE)
+}
+
+/// Hedeflerden birine `sure` içinde TCP bağlantısı kurulursa true. Hepsi aynı anda denenir (her biri kendi iş parçacığında): ilk
+/// başarı beklemeyi bitirir, hemen düşenler (reddedildi, ağ yok) beklenmez; hiçbiri olmazsa en çok `sure` beklenir. Geride kalan
+/// iş parçacıkları kendi zaman aşımlarıyla (`sure`) biter.
+pub fn yokla(hedefler: &[std::net::SocketAddr], sure: std::time::Duration) -> bool {
+    let son = std::time::Instant::now() + sure;
+    let (tx, rx) = std::sync::mpsc::channel();
+    for &h in hedefler {
+        let tx = tx.clone();
+        let _ = std::thread::Builder::new().name("wfc-yoklama".into()).spawn(move || {
+            let _ = tx.send(std::net::TcpStream::connect_timeout(&h, sure).is_ok());
+        });
+    }
+    drop(tx); // bütün denemeler bitince (başarısız) kanal kapanır
+    loop {
+        match rx.recv_timeout(son.saturating_duration_since(std::time::Instant::now())) {
+            Ok(true) => return true,
+            Ok(false) => continue,
+            Err(_) => return false, // süre doldu ya da hepsi başarısız
+        }
+    }
+}
+
 /// Trafiğin gerçekten çıktığı arayüz: çekirdek en düşük metrikli varsayılan rotayı kullanır, PPPoE rotası (metrik 100) DHCP'ninkinin
 /// (1000+) önündedir. Bu rota `wfcppp` ise `wfcppp`; yalnız DHCP rotası varsa ya da rota yoksa internet alan Ethernet. dhcpcd'nin
 /// IPv4LL rotası (metrik 1000000+, hep internet portunda) sayılmasa da sonuç aynıdır: ya PPPoE rotası öndedir ya internet portu çıkar.
@@ -1380,6 +1416,32 @@ mod tests {
         assert!(!internet_var("blackhole default metric 1\n"));
         assert!(!internet_var("default via 192.168.1.1\n"));
         assert!(!internet_var("RTNETLINK answers: Operation not permitted\n"));
+    }
+
+    #[test]
+    fn etkin_yoklama() {
+        use std::time::{Duration, Instant};
+        // dinleyen yerel port (çekirdek el sıkışmayı accept beklemeden tamamlar) ve kapalı yerel port (hemen "reddedildi")
+        let acik = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let acik_adres = acik.local_addr().unwrap();
+        let kapali_adres = std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap(); // dinleyici hemen kapanır
+        let uzun = Duration::from_secs(5);
+        assert!(yokla(&[acik_adres], uzun));
+        // biri yetişir: ötekiler beklenmez, sıra önemsiz
+        assert!(yokla(&[kapali_adres, acik_adres], uzun));
+        assert!(yokla(&[acik_adres, kapali_adres], uzun));
+        // hepsi reddedildi: süre dolmadan döner (reddedilen beklenmez)
+        let t0 = Instant::now();
+        assert!(!yokla(&[kapali_adres, kapali_adres], uzun));
+        assert!(t0.elapsed() < Duration::from_secs(2), "{:?}", t0.elapsed());
+        // hedef yok: hemen hayır
+        assert!(!yokla(&[], uzun));
+        // gerçek hedefler: üç ayrı sağlayıcı, adresle (DNS gerekmez), HTTPS portu; en çok 1,5 sn
+        let hedefler: Vec<std::net::SocketAddr> = YOKLAMA_HEDEFLERI.iter().map(|h| h.parse().unwrap()).collect();
+        assert_eq!(hedefler.len(), 3);
+        assert!(hedefler.iter().all(|h| h.port() == 443 && h.is_ipv4()));
+        assert_eq!(YOKLAMA_SURE, Duration::from_millis(1500));
+        drop(acik);
     }
 
     #[test]

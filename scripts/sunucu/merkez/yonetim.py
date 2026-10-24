@@ -28,6 +28,24 @@ ESLESME_GECIKME_SN = 26 * 3600
 GECIKME_GUN = 2
 TEKRAR_SN = 600  # saglik.py: kapanan sorun bu kadar temiz kalmadan "düzeldi" denmez (SMS bekletilir)
 IZLEME_BAYAT_SN = 900  # wc-saglik 5 dk'da bir; son turu bundan eskiyse izleme çalışmıyor olabilir
+# Sol menü (2026-10-24 kullanıcı kararı): grup başlığı (None = başlıksız tek bağlantı) ve bağlantıları. Admin parolası Hesabım'da.
+MENU = (
+    ("Müşteriler", (("/", "Müşteri listesi"), ("/yeni", "Yeni müşteri"), ("/bekleyen", "Bekleyen cihazlar"))),
+    (None, (("/surumler", "Sürümler"),)),
+    ("Kayıtlar", (("/hareketler", "Hareketler"), ("/eski-arsivler", "Eski arşivler"))),
+    ("Ayarlar", (("/listeler", "Engel listeleri"), ("/sms", "SMS ayarları"), ("/uyari", "Uyarı ayarları"), ("/hesabim", "Hesabım"))),
+)
+
+
+def secili_menu(yol):
+    """Açık sayfanın menüdeki bağlantısı (yoksa None): müşteri sayfaları listede, admin parolası Hesabım'da."""
+    if yol == "/admin-parolasi":
+        return "/hesabim"
+    for _, baglantilar in MENU:
+        for href, _ in baglantilar:
+            if href != "/" and (yol == href or yol.startswith(href + "/")):
+                return href
+    return "/" if yol == "/" or yol.startswith("/m/") else None
 
 
 def isletme_turu(c):
@@ -139,6 +157,7 @@ def son_sms_metni(s):
 class Yonetim(web.Taban):
     rol = "yonetici"
     cerez = "wc_yonetim"
+    yan_menu = True
     giris_basligi = "Yönetim merkezi"
     giris_aciklama = "Hizmet sağlayıcı girişi."
 
@@ -177,8 +196,14 @@ class Yonetim(web.Taban):
         return int(m.group(1)) if m else None
 
     def menu(self, ot):
-        return ('<a href="/">Müşteriler</a><a href="/yeni">Yeni müşteri</a><a href="/bekleyen">Bekleyen cihazlar</a><a href="/hareketler">Hareketler</a>'
-                '<a href="/surumler">Sürümler</a><a href="/listeler">Engel listeleri</a><a href="/sms">SMS ayarları</a><a href="/uyari">Uyarı ayarları</a><a href="/admin-parolasi">Admin parolası</a><a href="/eski-arsivler">Eski arşivler</a><a href="/hesabim">Hesabım</a>')
+        secili = secili_menu(ot.get("yol", ""))
+        gruplar = []
+        for baslik, baglantilar in MENU:
+            ic = "".join(f'<a href="{h}"' + (' class="secili" aria-current="page"' if h == secili else "") + f">{e(ad)}</a>"
+                         for h, ad in baglantilar)
+            gruplar.append(f'<div class="grup"><span class="baslik">{e(baslik)}</span>{ic}</div>' if baslik
+                           else f'<div class="grup tek">{ic}</div>')
+        return "".join(gruplar)
 
     # --- yardımcılar ---
     def _durum(self):
@@ -779,22 +804,24 @@ class Yonetim(web.Taban):
         return yanit_html(self.mesaj(ot, "Deneme SMS'i", ne.get(r, f"Deneme SMS'i gönderilemedi ({r}).")))
 
     def admin_parolasi(self, ot, yontem, form, ip):
-        """Bütün cihazlarda tek admin parolası (2026-10-08): yönetici belirler, kendiliğinden değişmez; yalnızca özet saklanır."""
+        """Bütün cihazlarda tek admin parolası (2026-10-08): yönetici belirler, kendiliğinden değişmez; yalnızca özet saklanır.
+        Formu Hesabım'dadır (2026-10-24); bu adres yalnızca kaydeder, eski bağlantılar Hesabım'a gider."""
         if yontem == "POST":
             pw, hata = parola_formdan(form)
             if hata:
                 return yanit_html(self.mesaj(ot, "Admin parolası kaydedilmedi", hata), 400)
             self.veri.admin_parolasi_koy(pw)
             self.veri.hareket("admin", ip, "ADMIN_PAROLASI")  # parola yazılmaz
-            return yonlendir("/admin-parolasi")
+        return yonlendir("/hesabim")
+
+    def _admin_parolasi_karti(self, ot):
         durum = "tanımlı" if self.veri.admin_parolasi() else "tanımsız (cihazlar kendi admin parolasını korur)"
-        icerik = (f'<h1>Admin parolası</h1><p>Durum: <b>{durum}</b></p>'
-                  f'<form method="post" action="/admin-parolasi"><input type="hidden" name="csrf" value="{e(ot["csrf"])}">'
-                  + parola_alanlari("Yeni admin parolası") + '<button>Kaydet</button></form>'
-                  '<p class="alt">Bütün cihazlarda <b>admin</b> kullanıcısı bu parolayla girer. Cihazlar bir sonraki eşitlemede '
-                  '(her gün 06:00) alır; siz değiştirmedikçe değişmez. Parola burada saklanmaz, yalnızca özeti tutulur — '
-                  'unutursanız yenisini belirleyin.</p>')
-        return yanit_html(self.sayfa("Admin parolası", kart(icerik), ot))
+        return kart(f'<h2>Admin parolası (bütün cihazlar)</h2><p>Durum: <b>{durum}</b></p>'
+                    f'<form method="post" action="/admin-parolasi"><input type="hidden" name="csrf" value="{e(ot["csrf"])}">'
+                    + parola_alanlari("Yeni admin parolası") + '<button>Kaydet</button></form>'
+                    '<p class="alt">Bütün cihazlarda <b>admin</b> kullanıcısı bu parolayla girer. Cihazlar bir sonraki eşitlemede '
+                    '(her gün 06:00) alır; siz değiştirmedikçe değişmez. Parola burada saklanmaz, yalnızca özeti tutulur — '
+                    'unutursanız yenisini belirleyin.</p>')
 
     def lisans(self, ot, n, form, ip):
         islem = form.get("islem")
@@ -864,12 +891,12 @@ class Yonetim(web.Taban):
         def html(hata="", tamam=""):
             m = f'<p class="hata">{e(hata)}</p>' if hata else (f'<p class="tamam">{e(tamam)}</p>' if tamam else "")
             return self.sayfa("Hesabım", kart(
-                '<h1>Yönetici parolası</h1><form method="post" action="/hesabim">'
-                f'<input type="hidden" name="csrf" value="{e(ot["csrf"])}">'
+                '<h1>Hesabım</h1><h2>Yönetici parolası</h2><p class="alt">Bu yönetim sayfasına girişin parolası.</p>'
+                f'<form method="post" action="/hesabim"><input type="hidden" name="csrf" value="{e(ot["csrf"])}">'
                 '<label for="m">Mevcut parola</label><input id="m" name="mevcut" type="password" required>'
                 '<label for="y">Yeni parola (en az 12)</label><input id="y" name="yeni" type="password" minlength="12" required>'
                 '<label for="t">Yeni parola (tekrar)</label><input id="t" name="tekrar" type="password" minlength="12" required>'
-                f'{m}<button>Değiştir</button></form>'), ot)
+                f'{m}<button>Değiştir</button></form>') + self._admin_parolasi_karti(ot), ot)
         if yontem == "GET":
             return yanit_html(html())
         if self.dogrula(ot["user"], form.get("mevcut", "")) is None:

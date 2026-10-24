@@ -311,22 +311,58 @@ def test_cihaz_kartinda_internet():
         assert s.index("<th>WAN</th>") < s.index("<th>İnternet</th>") < s.index("<th>SMS</th>")
 
 
-def test_tek_admin_parolasi_sayfasi():
+def test_tek_admin_parolasi_hesabimda():
+    """Bütün cihazların admin parolası Hesabım'da (2026-10-24): menüde ayrı bağlantısı yok; eski /admin-parolasi adresi
+    Hesabım'a gider ve yalnızca kaydeder."""
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
         app, v, _, c, _ = kur(tmp)
         n, _ = v.musteri_ekle()
         v.cihaz_bagla(n, WG, SSH)
         assert f"/m/{n}/admin-parola" not in Y.al(app, f"/m/{n}", c)[2].decode()  # cihaz başına admin parolası yok
-        s = Y.al(app, "/admin-parolasi", c)[2].decode()
-        assert 'href="/admin-parolasi"' in Y.al(app, "/", c)[2].decode() and "tanımsız" in s
-        t = Y.csrf(Y.al(app, "/admin-parolasi", c))
+        r = Y.al(app, "/admin-parolasi", c)
+        assert (r[0], r[1]["Location"]) == (303, "/hesabim")
+        ana = Y.al(app, "/", c)[2].decode()
+        assert 'href="/admin-parolasi"' not in ana and 'href="/hesabim"' in ana
+        h = Y.al(app, "/hesabim", c)
+        s = h[2].decode()
+        assert "Admin parolası (bütün cihazlar)" in s and "tanımsız" in s and 'action="/admin-parolasi"' in s
+        assert s.index("Yönetici parolası") < s.index("Admin parolası (bütün cihazlar)")
+        t = Y.csrf(h)
         r = Y.gonder(app, "/admin-parolasi", c, {"csrf": t, "parola": "benim-admin-parolam", "parola2": "baska"})
         assert r[0] == 400 and v.admin_parolasi() is None
-        Y.gonder(app, "/admin-parolasi", c, {"csrf": t, "parola": "benim-admin-parolam", "parola2": "benim-admin-parolam"})
+        r = Y.gonder(app, "/admin-parolasi", c, {"csrf": t, "parola": "benim-admin-parolam", "parola2": "benim-admin-parolam"})
+        assert (r[0], r[1]["Location"]) == (303, "/hesabim")
         a = v.admin_parolasi()
-        assert a is not None and "tanımlı" in Y.al(app, "/admin-parolasi", c)[2].decode()
+        assert a is not None and "tanımlı" in Y.al(app, "/hesabim", c)[2].decode()
         assert all("benim-admin-parolam" not in h["ayrinti"] for h in v.hareketler())
         assert any(h["olay"] == "ADMIN_PAROLASI" for h in v.hareketler())
+
+
+def test_yonetim_sol_menu():
+    """Yönetim menüsü solda ve gruplu (2026-10-24 kullanıcı kararı): Müşteriler (liste, yeni, bekleyen) · Sürümler ·
+    Kayıtlar (hareketler, eski arşivler) · Ayarlar (engel listeleri, SMS, uyarı, Hesabım) · Çıkış; açık sayfa seçili."""
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        app, v, _, c, _ = kur(tmp)
+        n, _ = v.musteri_ekle()
+        s = Y.al(app, "/", c)[2].decode()
+        assert "<header>" not in s
+        menu = s[s.index('<nav class="yan">'):s.index("</nav>")]
+        sira = [">Müşteriler<", ">Müşteri listesi<", ">Yeni müşteri<", ">Bekleyen cihazlar<", ">Sürümler<", ">Kayıtlar<",
+                ">Hareketler<", ">Eski arşivler<", ">Ayarlar<", ">Engel listeleri<", ">SMS ayarları<", ">Uyarı ayarları<",
+                ">Hesabım<", 'action="/cikis"']
+        konum = [menu.index(x) for x in sira]
+        assert konum == sorted(konum), konum
+        for href in ("/", "/yeni", "/bekleyen", "/surumler", "/hareketler", "/eski-arsivler", "/listeler", "/sms", "/uyari", "/hesabim"):
+            assert f'<a href="{href}"' in menu, href
+        assert "/admin-parolasi" not in menu
+
+        def secili(yol):
+            return re.findall(r'<a href="([^"]+)" class="secili"', Y.al(app, yol, c)[2].decode())
+        assert secili("/") == ["/"] and secili(f"/m/{n}") == ["/"] and secili("/yeni") == ["/yeni"]
+        assert secili("/sms") == ["/sms"] and secili("/hesabim") == ["/hesabim"] and secili("/surumler") == ["/surumler"]
+        assert secili("/eski-arsivler") == ["/eski-arsivler"] and secili("/yok-boyle-sayfa") == []
+        assert YN.secili_menu("/admin-parolasi") == "/hesabim" and YN.secili_menu("/uyari/deneme") == "/uyari"
+        assert YN.secili_menu("/smsx") is None and YN.secili_menu("/m/") == "/"
 
 
 def test_sms_ayarlari_sayfasi():

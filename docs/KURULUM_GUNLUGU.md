@@ -1139,3 +1139,22 @@ kartında da kırmızı "PPPoE: sunucu yanıt vermiyor"); "çoğu zaman modem" d
 - **Sağlık raporu:** `pppoe=modemden`; merkezde `SAGLIK_PPPOE_DURUMLARI` ve kart metni eklendi. Eski merkez bilinmeyen kodu atar (rapor
   reddedilmez), kartta "—" görünür; merkez güncellenince düzelir. Yeni sağlık kuralı yok.
 - **Testler:** cihazda `bash scripts/test.sh wificorrect` 453/453 (uyarısız), merkez 22/22 dosya.
+
+## Yönetim sol menü ve AP joker DNS kaydı (2026-10-24)
+Dal `yonetim-menu`; yalnızca merkez (cihazda değişiklik yok).
+- **Menü** (kullanıcı kararı): yonetim.wificorrect.com'da üst şerit yerine sol menü, gruplu: **Müşteriler** (Müşteri listesi `/`,
+  Yeni müşteri `/yeni`, Bekleyen cihazlar `/bekleyen`) · **Sürümler** (`/surumler`, başlıksız tek bağlantı: kullanıcının saydığı
+  gruplarda yoktu) · **Kayıtlar** (Hareketler `/hareketler`, Eski arşivler `/eski-arsivler`) · **Ayarlar** (Engel listeleri
+  `/listeler`, SMS ayarları `/sms`, Uyarı ayarları `/uyari`, Hesabım `/hesabim`) · Çıkış. Açık sayfanın bağlantısı seçili görünür
+  (`yonetim.secili_menu`: müşteri sayfaları `/m/…` listede, `/uyari/deneme` Uyarı ayarları'nda, `/admin-parolasi` Hesabım'da).
+  Menü `web.Taban.yan_menu` ile açılır: `_cerceve` üst şerit yerine `nav.yan` + `main` çizer; dar ekranda (≤ 760 px) menü sayfanın
+  üstüne satır satır iner, yazdırmada gizlidir. JS yok. İsteğin yolu oturumun bir kopyasına (`ot["yol"]`) yazılır, oturum kaydına
+  yazılmaz. Müşteri paneli (panel.wificorrect.com) ve giriş sayfaları eski üst şeritte.
+- **Admin parolası Hesabım'da:** Hesabım iki kart: "Yönetici parolası" (yönetime girişin parolası) ve "Admin parolası (bütün
+  cihazlar)". Form `/admin-parolasi`'ya gönderir; o adres kaydedip Hesabım'a yönlenir, GET de Hesabım'a yönlenir (eski bağlantılar
+  çalışır). Hareket `ADMIN_PAROLASI` aynen, parola yazılmaz.
+- **DNS:** Güzel Hosting → Alan Adlarınız → wificorrect.com → DNS Yönetimi (`dnseditor.php`): `*.ap` A → merkezin dış IP'si (`ap`
+  kaydıyla aynı) eklendi; yetkili sunucuda (`tr.guzelhosting.com`) rastgele bir `*.ap.wificorrect.com` adı çözülüyor. Müşteri başına
+  AP adresi işi için (kullanıcı kararı: `wificorrect.com` altında; ayrı alan adı alınmadı). Caddy ve kod henüz bu adları tanımıyor
+  (bilinmeyen ada TLS el sıkışması başarısız olur; zararsız).
+- **Testler:** merkez 22/22 dosya (`test_yonetim_sol_menu`, `test_tek_admin_parolasi_hesabimda`).

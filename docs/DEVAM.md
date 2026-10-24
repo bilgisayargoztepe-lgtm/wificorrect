@@ -54,9 +54,11 @@ kararlı kanal; numarası yönetimde; aşağıda "Visavis").
 Repo `bilgisayargoztepe-lgtm/wificorrect` (avsharbeyi'den devredildi). Her şey **`main`**'de (PR #3–#28 birleşti; #2 kapatıldı).
 **v0.4.18** etiketlendi (2026-10-24 12:01, `11dc9ed` = PR #28'in birleştirmesi; tarihler gün.ay.yıl; ISO + .deb, `release.yml`;
 `WFC_SSH_PUB` = `~/.ssh/bocafe.pub`). v0.4.17 (PPPoE, `0581a31`) 2026-10-24 11:02'de yayınlandı, merkeze alındı ama hiçbir cihaza
-kurulmadı; cihazlar doğrudan 0.4.18'e geçecek. Önceki sürüm v0.4.16 (2026-10-18). İki canlı cihaz **hâlâ 0.4.16** (merkezden uzaktan
-güncellemeyle kurulmuştu); merkez 2026-10-24 10:48'de main `4f9f9b9`'dan güncellendi (PPPoE'nin merkez parçası dahil; veritabanı yedeği
-`merkez.db.yedek-20261024-104816`); 0.4.18'in merkez parçası (`modemden` kodu ve kart metni) için yeniden güncellenecek (kullanıcı, sudo).
+kurulmadı; cihazlar doğrudan 0.4.18'e geçiyor. Önceki sürüm v0.4.16 (2026-10-18). **Göztepe 0.4.18** (2026-10-24 13:15 uzaktan
+güncellemeyle; 10 dk denetimi 13:31 tamam). Öncesinde test kanalının hedefi yanlışlıkla 0.4.15 seçildi ve Göztepe 12:54'te 0.4.16 →
+0.4.15'e indi (zararsız; PPPoE kapalı cihazdı). **Visavis hâlâ 0.4.16** (kararlı kanal; kararlı hedefin 0.4.18 olduğu yönetimde
+doğrulanmalı, sonra 03:00–06:00'da ya da "Şimdi güncelle" ile geçer). Merkez 2026-10-24 12:01'de main `11dc9ed`'den güncellendi (0.4.17
+ve 0.4.18'in merkez parçaları; ilk PPPoE güncellemesi 10:48'de, veritabanı yedeği `merkez.db.yedek-20261024-104816`).
 **v0.4.18 (PPPoE modemli hatta yeşil durum, PR #28):** PPPoE açık cihaz modemdeyken (PPPoE sunucusu yok, DHCP adresi var) durum kırmızı "PPPoE
 sunucusu yanıt vermiyor" yerine yeşil "Modemden bağlı (DHCP); PPPoE ONT'ye takılınca bağlanır" (`pppoe=modemden`, merkez kartında da);
 kimlik reddi yine kırmızı. Ayrıntı KURULUM_GUNLUGU "PPPoE: modemli hatta yeşil durum".
@@ -68,9 +70,12 @@ açık ve PPPoE metrik 100 ile önde), panel → Ayarlar → Portlar kutusu (3 d
 yönetimde "İnternet" satırı, tünel MTU 1412 (yeniden başlatmadan), yavaşlatma etkin çıkış arayüzünde, MSS düzeltmesi, yönetim `wfcppp`'de
 kapalı, dhcpcd çıkış kancası (operatör DNS'i) ve ppp ip-up kancası (yeniden deneme sayacı). Son incelemenin düzeltmelerinden sonra cihaz
 testleri 453/453 ve sahte operatörle cihazda (`scripts/pppoe-deneme.sh`, ağ ad alanlarında) 19/19 PASS; merkez testleri 22/22 dosya (merkez son
-düzeltmelerde değişmedi); gerçek PPPoE hattında denenmedi. Sırada (kullanıcıda): uzaktan güncelleme (Sürümler → "GitHub'dan yeni
-sürümleri al" → test ve kararlı hedefi en yeni sürüm → "Şimdi güncelle" ya da 03:00–06:00); sonra ilk PPPoE'li müşteride canlı kabul.
+düzeltmelerde değişmedi); gerçek PPPoE hattında denenmedi. Sırada: Visavis'in 0.4.18'e geçmesi, sonra ilk PPPoE'li müşteride canlı kabul.
 Servis parolasının 5 dk'da inmesi için merkez ve cihaz ikisi de ≥ 0.4.17 olmalı (eski merkezde parola günlük eşitlemeyle gelir).
+**Bilinen hata (merkez, düzeltilmedi):** "Şimdi güncelle" isteği istenen sürümün değil HERHANGİ bir güncelleme sonucunun zamanıyla tüketiliyor
+(`api.py` `saglik`: `g["zaman"] > guncelleme_hemen` → `guncelleme_hemen_koy(0)`). Önceki kurulumun 10 dk denetimi sürerken basılırsa
+denetimin sonucu isteği siler (2026-10-24'te 0.4.15 denetimi 0.4.18 isteğini sildi); denetim bitince yeniden basmak gerekir. Düzeltme:
+yalnızca `g["surum"] == m["guncelleme_hemen_surum"]` ise tüket (+ test). Sürümler'deki hedef listesinde en yeni sürüm en üstte.
 **Cihaza kurulum `gelistir.sh` ile değil**: yeni sürüm → `v*` etiketi (release ~20–25 dk) → Yönetim → Sürümler → "GitHub'dan
 yeni sürümleri al" → kanal hedefi (Göztepe **test**, Visavis **kararlı**: ikisinin de hedefini seç) → müşteri sayfasında
 "Şimdi güncelle" (kullanıcı basar) ya da 03:00–06:00 penceresi. Acil yerel deneme: cihazda `scripts/paket.sh` ile .deb, sunucuda
@@ -217,7 +222,7 @@ Kullanıcının onayladığı sıra (2026-10-11; donanım bekçisi hariç): ~~1 
 ~4.300 satır Python + 3.600 satır test, 9 işe bölünür: veritabanı, güvenlik, web tabanı, cihaz API, yönetim, müşteri paneli,
 arka plan işleri, kurulum/yan yana geçiş, uçtan uca + Python'u kaldırma; aynı SQLite şeması ve parola biçimi korunur). Zaman damgası: kontör alınınca. İki aşamalı giriş istenmedi.
 Ertelenmiş küçük bulgular: `.superpowers/sdd/*/progress.md` (yalnızca bu makinede).
-Bekleyen kullanıcı işleri: merkez güncellemesi ve iki cihazın 0.4.17'ye geçirilmesi (yukarıda "Dallar ve durum"), ilk PPPoE'li müşteride canlı kabul (yanında yedek modemle; liste KURULUM_GUNLUGU
+Bekleyen kullanıcı işleri: Visavis'in 0.4.18'e geçmesi (kararlı hedef; yukarıda "Dallar ve durum"), ilk PPPoE'li müşteride canlı kabul (yanında yedek modemle; liste KURULUM_GUNLUGU
 "PPPoE" sonunda; gerçek SMS yalnızca açık onayla); iki J1900'de BIOS → "Restore on AC Power Loss = Power On" (monitör + klavyeyle; sonra fiş çekip
 kendiliğinden açıldığını dene) ve yeni kutulara sahte ekran fişi; Göztepe'nin TP-Link'inin yönetim
 parolasını AP yönetim parolasına çevirmek (2026-10-16'ya kadarki kural panel parolasıydı); aydınlatma metni (misafir kodu
@@ -225,10 +230,10 @@ cümlesi ve yeni veri sorumlusu kalıbı) için hukukçu onayı; AP canlı kabul
 cihaz": Göztepe TP-Link'in yeni yoldan açılması, iPhone/Özel Geçiş, süre dolumu sayfası, `ap-ac.ps1 -Tunel`).
 
 ## Açık küçük notlar
-- PPPoE geliştirmesinden Göztepe'de kalanlar (2026-10-23/24; zararsız, gerekirse silinir): Debian paketleri `ppp` (2.5.2; 0.4.17'nin
-  Depends'i olacak), `pppoe` (yalnızca `scripts/pppoe-deneme.sh` için, Depends'e girmez) ve `libpcap0.8t64`; çekirdek modülleri
+- PPPoE geliştirmesinden Göztepe'de kalanlar (2026-10-23/24; zararsız, gerekirse silinir): Debian paketleri `ppp` (2.5.2; 0.4.17'den beri
+  paketin Depends'inde), `pppoe` (yalnızca `scripts/pppoe-deneme.sh` için, Depends'e girmez) ve `libpcap0.8t64`; çekirdek modülleri
   `ppp_generic`/`pppox`/`pppoe`/`slhc`; `/root/pppoe-deneme.sh` ve `/root/pppoe-deneme/` (deneme günlükleri). `wificorrect-pppoe.service`
-  canlı cihazlarda **kurulu değil** (0.4.17 paketiyle gelecek).
+  Göztepe'de 0.4.18 paketiyle kurulu, devre dışı (PPPoE kapalı); Visavis'e 0.4.18'le gelecek.
 - AP (TP-Link TL-WA901ND, 10.50.0.2) menzili zayıf; kullanıcı sonra ilgilenecek (iletim gücü High, kanal 1/6/11, 20 MHz).
 - Monitörsüz açılış ve J1900 donması için GRUB ayarı `deploy/debian/etc/default/grub.d/wificorrect.cfg` (cihazda uygulandı);
   ekransız açılmayan J1900'lerde sahte ekran (çevirici) işe yarıyor; ayrıntı yukarıda "Visavis → Monitörsüz açılış".

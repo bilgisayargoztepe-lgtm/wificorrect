@@ -1166,8 +1166,12 @@ Dal `yonetim-menu`; yalnızca merkez (cihazda değişiklik yok).
 Dal `logo`. Kullanıcının logo kiti (`Desktop/logo`: `_kaynak/build_logo.py` üretir, Nunito harfleri yola çevrilmiş, yazı tipi
 gerekmez): wificorrect_ = "wifi" Nunito ExtraBold dik + "correct_" Nunito ExtraBold İtalik; antrasit `#293133`, mercan `#FF6247`.
 - **Dosyalar:** kitten küçültülmüş kopyalar (sayılar 1 ondalığa yuvarlanır, `<title>`/`aria-label` atılır): `logo-acik.svg` (açık
-  zemin: antrasit + mercan), `logo-koyu.svg` (koyu zemin: beyaz + mercan), `w-koyu.svg` (W_ işareti), `favicon.svg` (W_ uygulama
-  ikonu, dolgu 0,74; alt çizgisiz W ikonları kullanılmaz) ve `favicon-32.png`. Cihazda `src/sablon/logo/`, merkezde
+  zemin: antrasit + mercan), `logo-koyu.svg` (koyu zemin: beyaz + mercan), `w-koyu.svg` (W_ işareti), `favicon.svg` (sekme simgesi,
+  W_; alt çizgisiz W ikonları kullanılmaz) ve `favicon-32.png`. **Sekme simgesi büyütüldü** (kullanıcı: Chrome'da çok küçük; 5
+  seçenekten 5. seçildi): kitteki uygulama ikonu W_'yi karenin %74'üne sığdırıyordu (16 px'te işaret ~12×7 px); yenisinde W ve yay
+  çizgileri 1,25 kat kalın (185 / 84,5), W_ kareyi kalın çizgiyle hesaplanan sınırlara göre %97 doldurur, köşe yarıçapı %12
+  (viewBox `-19.8 -981.9 1285 1285`). 32 px PNG kitteki gibi Edge ile 512 px çizilip Pillow LANCZOS ile küçültüldü. Kitteki
+  `wificorrect-ikon.svg` (uygulama ikonu) değişmedi. Cihazda `src/sablon/logo/`, merkezde
   `scripts/sunucu/merkez/logo/` (`kur.sh` `$L/logo`'ya kurar); iki kopya aynı olmalı (`tests/test_logo.py` denetler).
 - **Sayfaya gömülür:** satır içi SVG + `data:` sekme simgesi (32 px PNG önce, SVG sonra). Cihaz panelinin CSP'si ve Caddy'nin
   cihaz bloğundaki CSP (`img-src data:`) dosya sunmaya izin vermez; gömünce CSP, Caddyfile ve yeni yol gerekmez, cihaz ile merkez

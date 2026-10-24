@@ -1,6 +1,8 @@
 """Yönetim merkezi web tabanı: CSS, sayfa çerçevesi, çerezler, giriş/çıkış/CSRF/gerekçe (spec §5–§6, §10).
 Uygulamalar (yönetim, müşteri) Taban'dan türer ve yalnızca kendi sayfalarını yazar."""
+import base64
 import hmac
+import os
 import sys
 import time
 import urllib.parse
@@ -13,6 +15,7 @@ GEREKCE_ONERILERI = ("Emniyet / savcılık talebi", "Müşteri şikâyeti", "Mü
 CSS = """*{box-sizing:border-box}body{margin:0;font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:#f5f7fa;color:#1d2330}
 header{background:#fff;border-bottom:1px solid #e3e7ee;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
 .marka{font-weight:700;color:#0a6ebd;font-size:18px;text-decoration:none}nav{display:flex;gap:12px;align-items:center;flex-wrap:wrap}nav form{margin:0}
+.marka svg.logo{display:block;width:166px;height:24px}
 main{max-width:640px;margin:0 auto;padding:16px}main.genis{max-width:1100px}.kart{background:#fff;border:1px solid #e3e7ee;border-radius:12px;padding:16px;margin-bottom:16px}
 h1{font-size:20px;margin:0 0 4px}.alt{color:#5b6475;font-size:14px;margin:0}
 label{display:block;font-size:14px;margin:12px 0 4px}input,select{width:100%;padding:10px 12px;border:1px solid #c9d0db;border-radius:8px;font:inherit}
@@ -37,10 +40,10 @@ nav.yan summary::after{content:"";width:7px;height:7px;border-right:2px solid #8
 nav.yan details[open]>summary::after{transform:rotate(-135deg);margin-top:4px}
 nav.yan a{display:block;padding:7px 16px 7px 28px;color:#e3e7ee;text-decoration:none;font-size:15px}
 nav.yan summary:hover,nav.yan a:hover{background:#2a3242}nav.yan .marka:hover{background:none}nav.yan a.secili{background:#0a6ebd;color:#fff}
-nav.yan form{margin:16px 16px 0}nav.yan button{margin:0;width:100%}
+nav.yan form{margin:16px 16px 0}nav.yan button{margin:0;width:100%}nav.yan .marka svg.logo{width:180px;height:26px}
 .gizli{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}.ust-mobil{display:none}
 @media(max-width:760px){.ust-mobil{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:8px;min-height:52px;padding:0 12px 0 4px;background:#1d2330}
-.ust-mobil .marka{color:#fff}.menu-dugme{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;flex:none;margin:0;color:#fff;cursor:pointer}
+.ust-mobil .marka{color:#fff}.ust-mobil .marka svg.logo{width:139px;height:20px}.menu-dugme{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;flex:none;margin:0;color:#fff;cursor:pointer}
 .menu-dugme svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
 .yerlesim{display:block;min-height:0}nav.yan{display:none;position:sticky;top:52px;z-index:4;max-height:calc(100vh - 52px);overflow-y:auto;padding:6px 0 14px}
 nav.yan>.marka{display:none}nav.yan form{margin:10px 16px 0}#menu-ac:checked~.yerlesim nav.yan{display:block}
@@ -49,6 +52,40 @@ nav.yan>.marka{display:none}nav.yan form{margin:10px 16px 0}#menu-ac:checked~.ye
 .kart{border:0;padding:0 0 8px;break-inside:avoid}.kaydir{overflow:visible}@page{size:A4;margin:12mm}}"""
 e = detay.e
 SINIF_GENIS = ' class="genis"'
+# wificorrect_ logosu (2026-10-24, kullanıcının logo kiti; harfler yola çevrilmiş). kur.sh $L/logo'ya kurar; cihazdaki aynı
+# dosyalar src/sablon/logo (tests/test_logo.py ikisinin aynı olduğunu denetler). Sayfaya gömülür (satır içi SVG, data: simge).
+LOGO_DIZINI = os.path.join(os.path.dirname(os.path.realpath(__file__)), "logo")
+
+
+def _logo_dosyasi(ad, dizin=None):
+    """Logo kitinden bir dosya (bayt); okunamazsa boş: çerçeve logosuz da çalışır (yazıya düşer)."""
+    try:
+        with open(os.path.join(dizin or LOGO_DIZINI, ad), "rb") as f:
+            return f.read()
+    except OSError:
+        return b""
+
+
+def logo_svg(ad, dizin=None):
+    """Satır içi logo: sınıf verilir, ekran okuyucudan gizlenir (adı çevreleyen bağlantı verir)."""
+    s = _logo_dosyasi(ad, dizin).decode("utf-8", "replace").strip()
+    return s.replace("<svg ", '<svg class="logo" aria-hidden="true" focusable="false" ', 1) if s.startswith("<svg ") else ""
+
+
+def favicon_html(dizin=None):
+    """Sekme simgesi: W_ ikonu; 32 px PNG önce, SVG sonra (ikisini de tanıyan tarayıcı sonuncuyu seçer). CSP img-src data: verir."""
+    png, svg = _logo_dosyasi("favicon-32.png", dizin), _logo_dosyasi("favicon.svg", dizin).strip()
+    h = f'<link rel="icon" type="image/png" sizes="32x32" href="data:image/png;base64,{base64.b64encode(png).decode()}">' if png else ""
+    if svg:
+        h += f'<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,{base64.b64encode(svg).decode()}">'
+    return h
+
+
+LOGO_ACIK, LOGO_KOYU, FAVICON = logo_svg("logo-acik.svg"), logo_svg("logo-koyu.svg"), favicon_html()
+
+
+def _marka(logo):
+    return f'<a class="marka" href="/" aria-label="wificorrect_">{logo or "WifiCorrect"}</a>'
 
 
 def log(msg):
@@ -111,13 +148,13 @@ def _cerceve(baslik, icerik, nav="", genis=False, yenile=None, yan=""):
         govde = ('<input type="checkbox" id="menu-ac" class="gizli"><div class="ust-mobil">'
                  '<label for="menu-ac" class="menu-dugme" title="Menü"><span class="gizli">Menüyü aç/kapat</span>'
                  '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M3 12h18M3 18h18"/></svg></label>'
-                 '<a class="marka" href="/">WifiCorrect</a></div>'
-                 f'<div class="yerlesim"><nav class="yan"><a class="marka" href="/">WifiCorrect</a>{yan}</nav>{ana}</div>')
+                 f'{_marka(LOGO_KOYU)}</div>'
+                 f'<div class="yerlesim"><nav class="yan">{_marka(LOGO_KOYU)}{yan}</nav>{ana}</div>')
     else:
-        govde = f'<header><a class="marka" href="/">WifiCorrect</a>{nav}</header>{ana}'
+        govde = f'<header>{_marka(LOGO_ACIK)}{nav}</header>{ana}'
     return ('<!doctype html><html lang="tr"><head><meta charset="utf-8">'
             f'<meta name="viewport" content="width=device-width,initial-scale=1">{yen}'
-            f'<title>{e(baslik)} · WifiCorrect</title><style>{CSS}</style></head><body>{govde}</body></html>')
+            f'<title>{e(baslik)} · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body>{govde}</body></html>')
 
 
 class Taban:

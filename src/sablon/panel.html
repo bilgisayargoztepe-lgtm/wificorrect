@@ -4,7 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light">
-<title>$baslik · $site Yönetim</title>
+<title>$baslik · $site</title>
+$favicon_html
 $bas_ek
 <style>
 :root{color-scheme:light;
@@ -25,13 +26,15 @@ a:hover{color:var(--vurgu-koyu);text-decoration-color:currentColor}
 :focus-visible{outline:2px solid var(--vurgu);outline-offset:2px}
 
 /* iskelet: koyu üst şerit + koyu kenar menüsü + içerik */
-.ust{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:16px;min-height:52px;padding:0 20px;background:var(--koyu);color:#fff}
+/* üç sütun: solda işletme adı, tam ortada logo, sağda çıkış (yan sütunlar eşit: logo hep ortada, uzun ad solda kayar) */
+.ust{position:sticky;top:0;z-index:5;display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:16px;min-height:52px;padding:0 20px;background:var(--koyu);color:#fff}
+.ust-sol{display:flex;align-items:center;gap:8px;min-width:0}
 .marka{font-weight:700;font-size:1.0625rem;letter-spacing:-.01em;overflow-wrap:anywhere}
-.marka span{font-weight:400;color:#a8a8a8}
-.ust-sag{display:flex;align-items:center;gap:16px;margin-left:auto}
-.kim{font-size:.8125rem;color:var(--koyu-yazi);text-align:right;overflow-wrap:anywhere}
-.kim span{color:#9a9a9a}
-.kim span::before{content:" · "}
+.ust-sag{display:flex;align-items:center;justify-content:flex-end;gap:16px}
+/* wificorrect_ logosu (src/logo.rs): şeridin tam ortasında; telefonda (≤ 600 px) W_ işareti */
+.wc-logo{display:flex;align-items:center;justify-content:center}
+.wc-logo svg{display:block;width:139px;height:20px}
+.wc-logo .logo-w{display:none;width:33px}
 .ust form{margin:0}
 .ust form button{min-height:32px;padding:0 12px;background:transparent;border-color:#5a5a5a;color:#fff;box-shadow:none}
 .ust form button:hover{background:var(--koyu2);border-color:#777;color:#fff}
@@ -171,7 +174,7 @@ code{font:.8125rem var(--es)}
 
 /* giriş / kurulum: menüsüz, ortalanmış */
 .yalin{background:var(--yuzey)}
-.yalin .ust{position:static;justify-content:center}
+.yalin .ust{position:static}
 .yalin .kabuk{display:block;min-height:0;padding:10vh 16px 48px}
 .yalin .yan{display:none}
 .yalin main{max-width:24rem;margin:0 auto;padding:32px;background:var(--zemin);border:1px solid var(--cizgi);border-radius:10px;box-shadow:0 1px 2px rgba(0,0,0,.03),0 8px 24px rgba(0,0,0,.04)}
@@ -197,10 +200,9 @@ code{font:.8125rem var(--es)}
 
 @media (max-width:1100px){.kisayol{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media (max-width:820px){
-.ust{padding:0 12px 0 4px;gap:8px}
+.ust{padding:0 8px;gap:8px}
 .menu-dugme{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;flex:none;color:#fff;cursor:pointer}
 .menu-dugme svg{width:24px;height:24px}
-.kim{display:none}
 .kabuk{display:block}
 .yan{display:none;position:sticky;top:52px;z-index:4;height:auto;max-height:calc(100vh - 52px);padding:6px 0}
 #menu-ac:checked ~ .kabuk .yan{display:block}
@@ -222,13 +224,15 @@ main{padding:16px 16px 56px}
 .yalin .ust{padding:0 16px}
 .yalin main{padding:24px 20px}
 }
+@media (max-width:600px){.wc-logo .logo-tam{display:none}.wc-logo .logo-w{display:block}}
 @media (pointer:coarse){button,.dugme{min-height:44px}.yan nav a{min-height:48px}td button{min-height:40px}}
 @media (prefers-reduced-motion:reduce){*{transition:none !important}}
 </style>
 </head>
 <body class="$govde">
 $menu_dugme_html<header class="ust">
-$menu_etiket_html<div class="marka">$site <span>Yönetim</span></div>
+<div class="ust-sol">$menu_etiket_html<div class="marka">$marka</div></div>
+$logo_html
 $ust_html
 </header>
 <div class="kabuk">

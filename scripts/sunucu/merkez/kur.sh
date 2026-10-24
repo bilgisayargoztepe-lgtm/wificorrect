@@ -14,6 +14,8 @@ install -d -o wcpanel -g wcpanel -m 700 /var/lib/wificorrect/merkez /var/lib/wif
 rm -f $L/panel.py $L/panel_auth.py $L/hesap.py   # eski kafe paneli
 install -m 644 common.py ozet.py detay.py guvenlik.py veri.py kayitlar.py web.py musteri.py yonetim.py api.py cihaz.py ap.py netgsm.py twilio.py surumler.py rapor.py raporlar.py $L/
 install -m 755 merkez.py istatistik.py durum.py kuyruk.py yonetici.py saglik.py listeler.py $L/
+install -d -m 755 $L/logo   # wificorrect_ logosu ve sekme simgesi (web.py gömer)
+install -m 644 logo/logo-acik.svg logo/logo-koyu.svg logo/w-koyu.svg logo/favicon.svg logo/favicon-32.png $L/logo/
 ln -sf $L/istatistik.py /usr/local/sbin/wc-istatistik
 ln -sf $L/durum.py /usr/local/sbin/wc-durum
 ln -sf $L/saglik.py /usr/local/sbin/wc-saglik

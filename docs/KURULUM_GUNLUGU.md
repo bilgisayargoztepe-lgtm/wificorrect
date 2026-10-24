@@ -1143,14 +1143,15 @@ kartında da kırmızı "PPPoE: sunucu yanıt vermiyor"); "çoğu zaman modem" d
 ## Yönetim sol menü ve AP joker DNS kaydı (2026-10-24)
 Dal `yonetim-menu`; yalnızca merkez (cihazda değişiklik yok).
 - **Menü** (kullanıcı kararı): yonetim.wificorrect.com'da üst şerit yerine sol menü, gruplu: **Müşteriler** (Müşteri listesi `/`,
-  Yeni müşteri `/yeni`, Bekleyen cihazlar `/bekleyen`) · **Sürümler** (`/surumler`, başlıksız tek bağlantı: kullanıcının saydığı
-  gruplarda yoktu) · **Kayıtlar** (Hareketler `/hareketler`, Eski arşivler `/eski-arsivler`) · **Ayarlar** (Engel listeleri
-  `/listeler`, SMS ayarları `/sms`, Uyarı ayarları `/uyari`, Hesabım `/hesabim`) · Çıkış. Açık sayfanın bağlantısı seçili görünür
+  Yeni müşteri `/yeni`, Bekleyen cihazlar `/bekleyen`) · **Kayıtlar** (Hareketler `/hareketler`, Eski arşivler `/eski-arsivler`) · **Ayarlar** (Engel listeleri
+  `/listeler`, SMS ayarları `/sms`, Uyarı ayarları `/uyari`, Sürümler `/surumler`, Hesabım `/hesabim`) · Çıkış
+  (Sürümler ilk sürümde başlıksız tek bağlantıydı; kullanıcı isteğiyle Ayarlar'a alındı). Açık sayfanın bağlantısı seçili görünür
   (`yonetim.secili_menu`: müşteri sayfaları `/m/…` listede, `/uyari/deneme` Uyarı ayarları'nda, `/admin-parolasi` Hesabım'da).
-  Menü `web.Taban.yan_menu` ile açılır: `_cerceve` üst şerit yerine `nav.yan` + `main` çizer; dar ekranda (≤ 760 px) aynı menü
-  sayfanın üstüne iner, yazdırmada gizlidir. **Gruplar ok işaretiyle aşağı açılır** (kullanıcı isteği, ilk sürümün her zaman açık
+  Menü `web.Taban.yan_menu` ile açılır: `_cerceve` üst şerit yerine `nav.yan` + `main` çizer; dar ekranda (≤ 760 px) menü gizlenir,
+  üstte koyu şerit (solda ☰ düğmesi + WifiCorrect) çıkar, düğme menüyü şeridin altında açar/kapatır (cihaz paneli gibi; JS yok: gizli
+  onay kutusu `#menu-ac` + etiket, kutu `.yerlesim`'den önce); yazdırmada gizlidir. **Gruplar ok işaretiyle aşağı açılır** (kullanıcı isteği, ilk sürümün her zaman açık
   grupları ve telefondaki yan yana düğmeleri yerine): her grup bir `<details>` (başlıkta aşağı ok, açıkken yukarı); açık sayfanın
-  grubu açık, diğerleri kapalı gelir; Sürümler oksuz tek bağlantı. Masaüstü ve telefon aynı. JS yok. İsteğin yolu oturumun bir kopyasına (`ot["yol"]`) yazılır, oturum kaydına
+  grubu açık, diğerleri kapalı gelir. Gruplar telefonda da aynı. JS yok. İsteğin yolu oturumun bir kopyasına (`ot["yol"]`) yazılır, oturum kaydına
   yazılmaz. Müşteri paneli (panel.wificorrect.com) ve giriş sayfaları eski üst şeritte.
 - **Admin parolası Hesabım'da:** Hesabım iki kart: "Yönetici parolası" (yönetime girişin parolası) ve "Admin parolası (bütün
   cihazlar)". Form `/admin-parolasi`'ya gönderir; o adres kaydedip Hesabım'a yönlenir, GET de Hesabım'a yönlenir (eski bağlantılar

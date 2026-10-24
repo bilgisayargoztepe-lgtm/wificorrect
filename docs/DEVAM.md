@@ -77,8 +77,8 @@ Servis parolasının 5 dk'da inmesi için merkez ve cihaz ikisi de ≥ 0.4.17 ol
 denetimin sonucu isteği siler (2026-10-24'te 0.4.15 denetimi 0.4.18 isteğini sildi); denetim bitince yeniden basmak gerekir. Düzeltme:
 yalnızca `g["surum"] == m["guncelleme_hemen_surum"]` ise tüket (+ test). Sürümler'deki hedef listesinde en yeni sürüm en üstte.
 **Yönetim sol menü (2026-10-24, kullanıcı kararı; yalnızca merkez):** menü solda ve gruplu: Müşteriler (Müşteri listesi, Yeni
-müşteri, Bekleyen cihazlar) · Sürümler · Kayıtlar (Hareketler, Eski arşivler) · Ayarlar (Engel listeleri, SMS ayarları, Uyarı
-ayarları, Hesabım) · Çıkış; gruplar ok işaretiyle aşağı açılır (açık sayfanın grubu açık), dar ekranda menü sayfanın üstüne iner. Bütün cihazların admin parolası Hesabım'da
+müşteri, Bekleyen cihazlar) · Kayıtlar (Hareketler, Eski arşivler) · Ayarlar (Engel listeleri, SMS ayarları, Uyarı ayarları,
+Sürümler, Hesabım) · Çıkış; gruplar ok işaretiyle aşağı açılır (açık sayfanın grubu açık), telefonda menü gizli, üst şeritteki ☰ düğmesi açar (cihaz paneli gibi). Bütün cihazların admin parolası Hesabım'da
 (`/admin-parolasi` yalnızca kaydeder; açılınca Hesabım'a yönlenir). Müşteri paneli (panel.wificorrect.com) üst şeritte kaldı.
 **DNS (2026-10-24):** `*.ap.wificorrect.com` joker A kaydı eklendi (Güzel Hosting, merkezin dış IP'si; `ap` ile aynı). Müşteri başına
 AP adresi (ör. `k7f3q9.ap.wificorrect.com`) işi için; kullanıcı kararı: `wificorrect.com` altında kalınacak, ayrı alan adı yok. Kod

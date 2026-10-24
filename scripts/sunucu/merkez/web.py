@@ -32,14 +32,20 @@ td.cubuk span{-webkit-print-color-adjust:exact;print-color-adjust:exact}
 .yerlesim{display:flex;align-items:stretch;min-height:100vh}.yerlesim main{flex:1;min-width:0}
 nav.yan{display:block;flex:0 0 220px;background:#1d2330;padding:16px 0 24px}nav.yan .marka{display:block;color:#fff;font-size:18px;font-weight:700;padding:0 16px 12px}
 nav.yan details{border:0;border-radius:0;margin:0;background:none}nav.yan summary::-webkit-details-marker{display:none}
-nav.yan summary,nav.yan .tek a{display:flex;justify-content:space-between;align-items:center;list-style:none;padding:9px 16px;color:#fff;font-weight:600;font-size:15px;text-decoration:none}
+nav.yan summary{display:flex;justify-content:space-between;align-items:center;list-style:none;padding:9px 16px;color:#fff;font-weight:600;font-size:15px;text-decoration:none}
 nav.yan summary::after{content:"";width:7px;height:7px;border-right:2px solid #8a93a6;border-bottom:2px solid #8a93a6;transform:rotate(45deg);margin:-4px 2px 0 8px}
 nav.yan details[open]>summary::after{transform:rotate(-135deg);margin-top:4px}
 nav.yan a{display:block;padding:7px 16px 7px 28px;color:#e3e7ee;text-decoration:none;font-size:15px}
 nav.yan summary:hover,nav.yan a:hover{background:#2a3242}nav.yan .marka:hover{background:none}nav.yan a.secili{background:#0a6ebd;color:#fff}
 nav.yan form{margin:16px 16px 0}nav.yan button{margin:0;width:100%}
-@media(max-width:760px){.yerlesim{display:block;min-height:0}nav.yan{padding:10px 0 14px}nav.yan .marka{padding:2px 16px 8px}nav.yan form{margin:10px 16px 0}}
-@media print{header,nav,.yazdirma{display:none}body{background:#fff}main,main.genis{max-width:none;padding:0}
+.gizli{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}.ust-mobil{display:none}
+@media(max-width:760px){.ust-mobil{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:8px;min-height:52px;padding:0 12px 0 4px;background:#1d2330}
+.ust-mobil .marka{color:#fff}.menu-dugme{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;flex:none;margin:0;color:#fff;cursor:pointer}
+.menu-dugme svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
+.yerlesim{display:block;min-height:0}nav.yan{display:none;position:sticky;top:52px;z-index:4;max-height:calc(100vh - 52px);overflow-y:auto;padding:6px 0 14px}
+nav.yan>.marka{display:none}nav.yan form{margin:10px 16px 0}#menu-ac:checked~.yerlesim nav.yan{display:block}
+#menu-ac:focus-visible~.ust-mobil .menu-dugme{outline:2px solid #fff;outline-offset:-4px}}
+@media print{header,nav,.ust-mobil,.yazdirma{display:none}body{background:#fff}main,main.genis{max-width:none;padding:0}
 .kart{border:0;padding:0 0 8px;break-inside:avoid}.kaydir{overflow:visible}@page{size:A4;margin:12mm}}"""
 e = detay.e
 SINIF_GENIS = ' class="genis"'
@@ -97,11 +103,16 @@ def bilgi_tablosu(satirlar):
 
 def _cerceve(baslik, icerik, nav="", genis=False, yenile=None, yan=""):
     """yenile: sayfa bu kadar saniyede kendini yeniler (meta refresh; JavaScript yok). yan: sol menünün içeriği; verilirse
-    üst şerit yerine sol menü çizilir (yönetim; dar ekranda sayfanın üstüne iner)."""
+    üst şerit yerine sol menü çizilir (yönetim). Dar ekranda menü gizlenir, üstteki şeritte menü düğmesi açar/kapatır
+    (cihaz paneli gibi; betik yok (CSP): gizli onay kutusu + etiket, kutu .yerlesim'den önce gelmeli)."""
     yen = f'<meta http-equiv="refresh" content="{int(yenile)}">' if yenile else ""
     ana = f'<main{SINIF_GENIS if genis else ""}>{icerik}</main>'
     if yan:
-        govde = f'<div class="yerlesim"><nav class="yan"><a class="marka" href="/">WifiCorrect</a>{yan}</nav>{ana}</div>'
+        govde = ('<input type="checkbox" id="menu-ac" class="gizli"><div class="ust-mobil">'
+                 '<label for="menu-ac" class="menu-dugme" title="Menü"><span class="gizli">Menüyü aç/kapat</span>'
+                 '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M3 12h18M3 18h18"/></svg></label>'
+                 '<a class="marka" href="/">WifiCorrect</a></div>'
+                 f'<div class="yerlesim"><nav class="yan"><a class="marka" href="/">WifiCorrect</a>{yan}</nav>{ana}</div>')
     else:
         govde = f'<header><a class="marka" href="/">WifiCorrect</a>{nav}</header>{ana}'
     return ('<!doctype html><html lang="tr"><head><meta charset="utf-8">'

@@ -29,6 +29,14 @@ details{border:1px solid #e3e7ee;border-radius:10px;margin:8px 0;background:#fff
 form.ara{display:flex;gap:8px;flex-wrap:wrap}form.ara input{flex:1;min-width:10em}form.ara button{margin:0}
 form.ara select{width:auto}form.ara input.uyruk{flex:0 0 5.5em;min-width:0}.iyi{color:#1e6b34;font-weight:600}
 td.cubuk span{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.yerlesim{display:flex;align-items:stretch;min-height:100vh}.yerlesim main{flex:1;min-width:0}
+nav.yan{display:block;flex:0 0 220px;background:#1d2330;padding:16px 0 24px}nav.yan .marka{display:block;color:#fff;font-size:18px;font-weight:700;padding:0 16px 12px}
+nav.yan .grup{margin-bottom:10px}nav.yan .baslik{display:block;padding:6px 16px 2px;font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#8a93a6}
+nav.yan a{display:block;padding:7px 16px 7px 24px;color:#e3e7ee;text-decoration:none;font-size:15px}nav.yan .tek a{padding-left:16px;font-weight:600}
+nav.yan a:hover{background:#2a3242}nav.yan a.secili{background:#0a6ebd;color:#fff}nav.yan form{margin:16px 16px 0}nav.yan button{margin:0;width:100%}
+@media(max-width:760px){.yerlesim{display:block;min-height:0}nav.yan{display:flex;flex-wrap:wrap;gap:4px;align-items:center;padding:8px}
+nav.yan .marka,nav.yan .marka:hover{width:100%;padding:4px 8px 8px;font-weight:700;background:none}nav.yan .grup{display:contents}nav.yan .baslik{display:none}
+nav.yan a,nav.yan .tek a{padding:6px 10px;border-radius:6px;font-weight:400}nav.yan form{margin:0 0 0 auto}nav.yan button{width:auto}}
 @media print{header,nav,.yazdirma{display:none}body{background:#fff}main,main.genis{max-width:none;padding:0}
 .kart{border:0;padding:0 0 8px;break-inside:avoid}.kaydir{overflow:visible}@page{size:A4;margin:12mm}}"""
 e = detay.e
@@ -85,19 +93,24 @@ def bilgi_tablosu(satirlar):
     return "<table>" + "".join(f"<tr><th>{e(k)}</th><td>{v}</td></tr>" for k, v in satirlar) + "</table>"
 
 
-def _cerceve(baslik, icerik, nav="", genis=False, yenile=None):
-    """yenile: sayfa bu kadar saniyede kendini yeniler (meta refresh; JavaScript yok)."""
+def _cerceve(baslik, icerik, nav="", genis=False, yenile=None, yan=""):
+    """yenile: sayfa bu kadar saniyede kendini yeniler (meta refresh; JavaScript yok). yan: sol menünün içeriği; verilirse
+    üst şerit yerine sol menü çizilir (yönetim; dar ekranda sayfanın üstüne iner)."""
     yen = f'<meta http-equiv="refresh" content="{int(yenile)}">' if yenile else ""
+    ana = f'<main{SINIF_GENIS if genis else ""}>{icerik}</main>'
+    if yan:
+        govde = f'<div class="yerlesim"><nav class="yan"><a class="marka" href="/">WifiCorrect</a>{yan}</nav>{ana}</div>'
+    else:
+        govde = f'<header><a class="marka" href="/">WifiCorrect</a>{nav}</header>{ana}'
     return ('<!doctype html><html lang="tr"><head><meta charset="utf-8">'
             f'<meta name="viewport" content="width=device-width,initial-scale=1">{yen}'
-            f'<title>{e(baslik)} · WifiCorrect</title><style>{CSS}</style></head><body>'
-            f'<header><a class="marka" href="/">WifiCorrect</a>{nav}</header>'
-            f'<main{SINIF_GENIS if genis else ""}>{icerik}</main></body></html>')
+            f'<title>{e(baslik)} · WifiCorrect</title><style>{CSS}</style></head><body>{govde}</body></html>')
 
 
 class Taban:
     rol = ""
     cerez = ""
+    yan_menu = False  # True: menü sol tarafta (menu() grup grup yazar), değilse üst şeritte
     kullanici_etiketi = "Kullanıcı adı"
     giris_basligi = "Giriş"
     giris_aciklama = ""
@@ -138,11 +151,15 @@ class Taban:
 
     # --- ortak ---
     def sayfa(self, baslik, icerik, ot, genis=False, yenile=None):
-        nav = ""
+        nav = yan = ""
         if ot:
-            nav = (f'<nav>{self.menu(ot)}<form method="post" action="/cikis">'
-                   f'<input type="hidden" name="csrf" value="{e(ot["csrf"])}"><button class="ikincil">Çıkış</button></form></nav>')
-        return _cerceve(baslik, icerik, nav, genis, yenile)
+            cikis = (f'<form method="post" action="/cikis"><input type="hidden" name="csrf" value="{e(ot["csrf"])}">'
+                     '<button class="ikincil">Çıkış</button></form>')
+            if self.yan_menu:
+                yan = self.menu(ot) + cikis
+            else:
+                nav = f"<nav>{self.menu(ot)}{cikis}</nav>"
+        return _cerceve(baslik, icerik, nav, genis, yenile, yan)
 
     def mesaj(self, ot, baslik, metin):
         return self.sayfa(baslik, kart(f'<h1>{e(baslik)}</h1><p>{e(metin)}</p><p><a href="/">Ana sayfa</a></p>'), ot)
@@ -172,6 +189,7 @@ class Taban:
             return yonlendir(self.giris_sonrasi(ot["user"])) if ot else yanit_html(self._giris_html())
         if not ot:
             return yonlendir("/giris")
+        ot = dict(ot, yol=yol)  # sol menüde açık sayfa (kopya: oturum kaydına yazılmaz)
         if yontem == "POST" and not hmac.compare_digest(form.get("csrf", "").encode(), ot["csrf"].encode()):
             return yanit_html(self.mesaj(ot, "Geçersiz istek", "Sayfayı yenileyip tekrar deneyin."), 403)
         if (yontem, yol) == ("POST", "/cikis"):

@@ -76,6 +76,13 @@ Servis parolasının 5 dk'da inmesi için merkez ve cihaz ikisi de ≥ 0.4.17 ol
 (`api.py` `saglik`: `g["zaman"] > guncelleme_hemen` → `guncelleme_hemen_koy(0)`). Önceki kurulumun 10 dk denetimi sürerken basılırsa
 denetimin sonucu isteği siler (2026-10-24'te 0.4.15 denetimi 0.4.18 isteğini sildi); denetim bitince yeniden basmak gerekir. Düzeltme:
 yalnızca `g["surum"] == m["guncelleme_hemen_surum"]` ise tüket (+ test). Sürümler'deki hedef listesinde en yeni sürüm en üstte.
+**Yönetim sol menü (2026-10-24, kullanıcı kararı; yalnızca merkez):** menü solda ve gruplu: Müşteriler (Müşteri listesi, Yeni
+müşteri, Bekleyen cihazlar) · Sürümler · Kayıtlar (Hareketler, Eski arşivler) · Ayarlar (Engel listeleri, SMS ayarları, Uyarı
+ayarları, Hesabım) · Çıkış; açık sayfa seçili, dar ekranda menü sayfanın üstüne iner. Bütün cihazların admin parolası Hesabım'da
+(`/admin-parolasi` yalnızca kaydeder; açılınca Hesabım'a yönlenir). Müşteri paneli (panel.wificorrect.com) üst şeritte kaldı.
+**DNS (2026-10-24):** `*.ap.wificorrect.com` joker A kaydı eklendi (Güzel Hosting, merkezin dış IP'si; `ap` ile aynı). Müşteri başına
+AP adresi (ör. `k7f3q9.ap.wificorrect.com`) işi için; kullanıcı kararı: `wificorrect.com` altında kalınacak, ayrı alan adı yok. Kod
+henüz yok (tasarım bekliyor; KURULUM_GUNLUGU "AP arayüzü — merkez" → "Bilinen risk").
 **Cihaza kurulum `gelistir.sh` ile değil**: yeni sürüm → `v*` etiketi (release ~20–25 dk) → Yönetim → Sürümler → "GitHub'dan
 yeni sürümleri al" → kanal hedefi (Göztepe **test**, Visavis **kararlı**: ikisinin de hedefini seç) → müşteri sayfasında
 "Şimdi güncelle" (kullanıcı basar) ya da 03:00–06:00 penceresi. Acil yerel deneme: cihazda `scripts/paket.sh` ile .deb, sunucuda

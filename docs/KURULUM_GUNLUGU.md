@@ -1147,8 +1147,10 @@ Dal `yonetim-menu`; yalnızca merkez (cihazda değişiklik yok).
   gruplarda yoktu) · **Kayıtlar** (Hareketler `/hareketler`, Eski arşivler `/eski-arsivler`) · **Ayarlar** (Engel listeleri
   `/listeler`, SMS ayarları `/sms`, Uyarı ayarları `/uyari`, Hesabım `/hesabim`) · Çıkış. Açık sayfanın bağlantısı seçili görünür
   (`yonetim.secili_menu`: müşteri sayfaları `/m/…` listede, `/uyari/deneme` Uyarı ayarları'nda, `/admin-parolasi` Hesabım'da).
-  Menü `web.Taban.yan_menu` ile açılır: `_cerceve` üst şerit yerine `nav.yan` + `main` çizer; dar ekranda (≤ 760 px) menü sayfanın
-  üstüne satır satır iner, yazdırmada gizlidir. JS yok. İsteğin yolu oturumun bir kopyasına (`ot["yol"]`) yazılır, oturum kaydına
+  Menü `web.Taban.yan_menu` ile açılır: `_cerceve` üst şerit yerine `nav.yan` + `main` çizer; dar ekranda (≤ 760 px) aynı menü
+  sayfanın üstüne iner, yazdırmada gizlidir. **Gruplar ok işaretiyle aşağı açılır** (kullanıcı isteği, ilk sürümün her zaman açık
+  grupları ve telefondaki yan yana düğmeleri yerine): her grup bir `<details>` (başlıkta aşağı ok, açıkken yukarı); açık sayfanın
+  grubu açık, diğerleri kapalı gelir; Sürümler oksuz tek bağlantı. Masaüstü ve telefon aynı. JS yok. İsteğin yolu oturumun bir kopyasına (`ot["yol"]`) yazılır, oturum kaydına
   yazılmaz. Müşteri paneli (panel.wificorrect.com) ve giriş sayfaları eski üst şeritte.
 - **Admin parolası Hesabım'da:** Hesabım iki kart: "Yönetici parolası" (yönetime girişin parolası) ve "Admin parolası (bütün
   cihazlar)". Form `/admin-parolasi`'ya gönderir; o adres kaydedip Hesabım'a yönlenir, GET de Hesabım'a yönlenir (eski bağlantılar

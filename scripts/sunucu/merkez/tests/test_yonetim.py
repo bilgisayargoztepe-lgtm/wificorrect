@@ -340,7 +340,8 @@ def test_tek_admin_parolasi_hesabimda():
 
 def test_yonetim_sol_menu():
     """Yönetim menüsü solda ve gruplu (2026-10-24 kullanıcı kararı): Müşteriler (liste, yeni, bekleyen) · Sürümler ·
-    Kayıtlar (hareketler, eski arşivler) · Ayarlar (engel listeleri, SMS, uyarı, Hesabım) · Çıkış; açık sayfa seçili."""
+    Kayıtlar (hareketler, eski arşivler) · Ayarlar (engel listeleri, SMS, uyarı, Hesabım) · Çıkış; açık sayfa seçili.
+    Gruplar ok işaretiyle aşağı açılır (<details>): açık sayfanın grubu açık, diğerleri kapalı gelir."""
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
         app, v, _, c, _ = kur(tmp)
         n, _ = v.musteri_ekle()
@@ -363,6 +364,14 @@ def test_yonetim_sol_menu():
         assert secili("/eski-arsivler") == ["/eski-arsivler"] and secili("/yok-boyle-sayfa") == []
         assert YN.secili_menu("/admin-parolasi") == "/hesabim" and YN.secili_menu("/uyari/deneme") == "/uyari"
         assert YN.secili_menu("/smsx") is None and YN.secili_menu("/m/") == "/"
+
+        def gruplar(yol):
+            return re.findall(r'<details class="grup"( open)?><summary>([^<]+)</summary>', Y.al(app, yol, c)[2].decode())
+        assert gruplar("/") == [(" open", "Müşteriler"), ("", "Kayıtlar"), ("", "Ayarlar")]
+        assert gruplar(f"/m/{n}") == gruplar("/bekleyen") == gruplar("/")
+        assert gruplar("/eski-arsivler") == [("", "Müşteriler"), (" open", "Kayıtlar"), ("", "Ayarlar")]
+        assert gruplar("/sms") == gruplar("/hesabim") == [("", "Müşteriler"), ("", "Kayıtlar"), (" open", "Ayarlar")]
+        assert all(not acik for acik, _ in gruplar("/surumler"))  # tek bağlantı: hiçbir grup açılmaz
 
 
 def test_sms_ayarlari_sayfasi():

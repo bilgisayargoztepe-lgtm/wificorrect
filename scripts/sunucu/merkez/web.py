@@ -31,12 +31,14 @@ form.ara select{width:auto}form.ara input.uyruk{flex:0 0 5.5em;min-width:0}.iyi{
 td.cubuk span{-webkit-print-color-adjust:exact;print-color-adjust:exact}
 .yerlesim{display:flex;align-items:stretch;min-height:100vh}.yerlesim main{flex:1;min-width:0}
 nav.yan{display:block;flex:0 0 220px;background:#1d2330;padding:16px 0 24px}nav.yan .marka{display:block;color:#fff;font-size:18px;font-weight:700;padding:0 16px 12px}
-nav.yan .grup{margin-bottom:10px}nav.yan .baslik{display:block;padding:6px 16px 2px;font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#8a93a6}
-nav.yan a{display:block;padding:7px 16px 7px 24px;color:#e3e7ee;text-decoration:none;font-size:15px}nav.yan .tek a{padding-left:16px;font-weight:600}
-nav.yan a:hover{background:#2a3242}nav.yan a.secili{background:#0a6ebd;color:#fff}nav.yan form{margin:16px 16px 0}nav.yan button{margin:0;width:100%}
-@media(max-width:760px){.yerlesim{display:block;min-height:0}nav.yan{display:flex;flex-wrap:wrap;gap:4px;align-items:center;padding:8px}
-nav.yan .marka,nav.yan .marka:hover{width:100%;padding:4px 8px 8px;font-weight:700;background:none}nav.yan .grup{display:contents}nav.yan .baslik{display:none}
-nav.yan a,nav.yan .tek a{padding:6px 10px;border-radius:6px;font-weight:400}nav.yan form{margin:0 0 0 auto}nav.yan button{width:auto}}
+nav.yan details{border:0;border-radius:0;margin:0;background:none}nav.yan summary::-webkit-details-marker{display:none}
+nav.yan summary,nav.yan .tek a{display:flex;justify-content:space-between;align-items:center;list-style:none;padding:9px 16px;color:#fff;font-weight:600;font-size:15px;text-decoration:none}
+nav.yan summary::after{content:"";width:7px;height:7px;border-right:2px solid #8a93a6;border-bottom:2px solid #8a93a6;transform:rotate(45deg);margin:-4px 2px 0 8px}
+nav.yan details[open]>summary::after{transform:rotate(-135deg);margin-top:4px}
+nav.yan a{display:block;padding:7px 16px 7px 28px;color:#e3e7ee;text-decoration:none;font-size:15px}
+nav.yan summary:hover,nav.yan a:hover{background:#2a3242}nav.yan .marka:hover{background:none}nav.yan a.secili{background:#0a6ebd;color:#fff}
+nav.yan form{margin:16px 16px 0}nav.yan button{margin:0;width:100%}
+@media(max-width:760px){.yerlesim{display:block;min-height:0}nav.yan{padding:10px 0 14px}nav.yan .marka{padding:2px 16px 8px}nav.yan form{margin:10px 16px 0}}
 @media print{header,nav,.yazdirma{display:none}body{background:#fff}main,main.genis{max-width:none;padding:0}
 .kart{border:0;padding:0 0 8px;break-inside:avoid}.kaydir{overflow:visible}@page{size:A4;margin:12mm}}"""
 e = detay.e

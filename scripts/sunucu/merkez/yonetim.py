@@ -196,13 +196,17 @@ class Yonetim(web.Taban):
         return int(m.group(1)) if m else None
 
     def menu(self, ot):
+        """Gruplar ok işaretiyle aşağı açılır (<details>, JS yok): açık sayfanın grubu açık, diğerleri kapalı gelir."""
         secili = secili_menu(ot.get("yol", ""))
         gruplar = []
         for baslik, baglantilar in MENU:
             ic = "".join(f'<a href="{h}"' + (' class="secili" aria-current="page"' if h == secili else "") + f">{e(ad)}</a>"
                          for h, ad in baglantilar)
-            gruplar.append(f'<div class="grup"><span class="baslik">{e(baslik)}</span>{ic}</div>' if baslik
-                           else f'<div class="grup tek">{ic}</div>')
+            if baslik:
+                acik = " open" if any(h == secili for h, _ in baglantilar) else ""
+                gruplar.append(f'<details class="grup"{acik}><summary>{e(baslik)}</summary>{ic}</details>')
+            else:
+                gruplar.append(f'<div class="grup tek">{ic}</div>')
         return "".join(gruplar)
 
     # --- yardımcılar ---

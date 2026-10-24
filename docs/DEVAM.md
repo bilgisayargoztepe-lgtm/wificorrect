@@ -1,4 +1,4 @@
-# Devir notu — kaldığın yerden devam (2026-10-19)
+# Devir notu — kaldığın yerden devam (2026-10-24)
 
 Bu dosya, projeye yeni bir oturumda/hesapta devam eden ajan içindir. Önce bunu, sonra `CLAUDE.md`'deki belgeleri oku.
 

@@ -32,7 +32,7 @@ ve parolayla) verir. Bugün cihazın internet alan portu yalnızca DHCP biliyor;
    ile çalışmaya devam eder. Panelde bunu açıklayan not: "Dükkânda PPPoE bağlanmaz; ONT'ye takılınca bağlanır."
 2. **Müşteride:** internet alan port ONT'ye / bina kablosuna takılır. PPPoE bağlanır, varsayılan rota PPPoE'den gider, tünel ve
    merkez bağlantısı gelir. Panelde durum "PPPoE bağlı (dış IP …)".
-3. **Bağlanamazsa:** cihazın varsayılan rotası yoktur. Teknisyen telefonla misafir Wi-Fi'ına bağlanır ("internet yok" uyarısına
+3. **Bağlanamazsa:** cihazın kullanılabilir varsayılan rotası yoktur (dhcpcd'nin 169.254 rotası sayılmaz). Teknisyen telefonla misafir Wi-Fi'ına bağlanır ("internet yok" uyarısına
    rağmen bağlı kalır) ve tarayıcıya **`10.50.0.1:8080`** yazar (giriş sayfası; Servis'e doğrudan **`10.50.0.1:8080/servis`**).
    Sayfanın altında (hangi sayfa türü açılırsa açılsın) "Bu cihazın internet bağlantısı şu an yok" + neden ve **Servis**
    bağlantısını görür. Servis sayfasında AP yönetim parolası + PPPoE kullanıcı adı (boş bırakılırsa kayıtlı ad kalır), parola,
@@ -267,7 +267,7 @@ açıkken de çalışması ve PPPoE'nin tercih edilmesi; panelden değişikliği
 geçmemesi; Servis formunun oturumsuz tek form olması; AP yönetim parolasının 5 dk'lık sağlık cevabıyla da gitmesi; cihaz genelinde
 ek deneme sınırı; arayüz adı `wfcppp` ve `define WAN` kümesi; tünel MTU'su `mtu − 80`; Gelişmiş alanların varsayılanları;
 internet yok koşulunun
-"varsayılan rota yok" olması; merkezde yeni sağlık kuralı yok (yalnızca gösterim).
+"kullanılabilir varsayılan rota yok" olması (kaynağı 169.254/16 olan rota sayılmaz); merkezde yeni sağlık kuralı yok (yalnızca gösterim).
 
 Kurucuya bırakılanlar: pppd seçeneklerinin tam listesi, durumun nasıl çıkarılacağı, birim/dosya adları, panel ve giriş sayfası
 yerleşimi, deneme sınırının saklanma yeri, sahte operatör betiğinin ayrıntısı.

@@ -786,7 +786,7 @@ Dal `pppoe`; tasarım `docs/superpowers/specs/2026-10-23-pppoe-design.md`, plan 
 **0.4.17**. Bazı işletmelerde araya modem girmeyecek: internet alan Ethernet portuna doğrudan ONT'den ya da binanın merkezinden
 gelen kablo takılır ve hat adresi DHCP ile değil **PPPoE** ile (operatörün verdiği kullanıcı adı ve parolayla) verir. Kapsam
 yalnızca **internet alan portta PPPoE** (işletme ağı, personel Wi-Fi'ı, ONT'nin yerine geçmek ve PPPoE üzerinden IPv6 yok). Kod
-hazır, cihazda sahte operatörle denendi; 2026-10-24'te `main`'e birleşti (PR #27) ve `v0.4.17` etiketlendi; canlı cihazlara henüz
+hazır, cihazda sahte operatörle denendi; 2026-10-24'te `main`'e birleşti (PR #27) ve `v0.4.17` olarak yayınlandı (cihazlar doğrudan 0.4.18'e geçecek); canlı cihazlara henüz
 kurulmadı ve gerçek bir PPPoE hattında denenmedi (aşağıda "Canlı kabul listesi").
 - **Akış:** (1) *Dükkânda hazırlık:* cihaz modemle (DHCP) çalışırken panel → Ayarlar → Portlar → **PPPoE** kutusunda Açık, operatörün
   kullanıcı adı (ör. `5321234567@turk.net`), parola, gerekirse VLAN (Türk Telekom altyapısındaki hatlarda genelde 35) → Uygula → 3 dk
@@ -1125,7 +1125,7 @@ kurulmadı ve gerçek bir PPPoE hattında denenmedi (aşağıda "Canlı kabul li
     "İnternet: Modem (DHCP)" ve yönetimde "Yenile"den 5 dk sonra cihazda yeni AP parolası.
 
 ## PPPoE: modemli hatta yeşil durum (2026-10-24, 0.4.18)
-Dal `pppoe-modem-durumu`. Kullanıcı isteği: cihaz çoğu zaman modemin arkasında (DHCP) çalışacak, ONT'ye takılınca da PPPoE ile internet
+Dal `pppoe-modem-durumu` (PR #28, `v0.4.18` etiketi 2026-10-24). Kullanıcı isteği: cihaz çoğu zaman modemin arkasında (DHCP) çalışacak, ONT'ye takılınca da PPPoE ile internet
 alabilecek. 0.4.17 bunu zaten yapıyordu (DHCP hep açık, ikisi de bağlıysa PPPoE metrik 100 ile önde; kablo değişince ayara dokunulmaz), ama
 PPPoE açık bir cihaz modemdeyken durum satırı internet olduğu halde kırmızı "PPPoE sunucusu yanıt vermiyor" diyordu (yönetimdeki sağlık
 kartında da kırmızı "PPPoE: sunucu yanıt vermiyor"); "çoğu zaman modem" düzeninde bu kırmızı yazı sürekli ekranda kalırdı.

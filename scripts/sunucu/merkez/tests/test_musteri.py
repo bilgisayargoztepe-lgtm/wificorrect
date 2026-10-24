@@ -31,6 +31,7 @@ def test_giris_ve_kendi_kayitlari():
         s = Y.al(app, "/", c)[2].decode()
         assert ">14<" in s and "777" not in s and f"Müşteri {n}" in s
         assert "<header>" in s and 'id="menu-ac"' not in s  # müşteri paneli üst şeritte (sol menü yalnızca yönetimde)
+        assert '<header><a class="marka" href="/" aria-label="wificorrect_"><svg class="logo"' in s and 'rel="icon"' in s
         cid, _ = v.cihaz_bagla(n, WG, SSH, "Bocafe Göztepe")
         assert "Bocafe Göztepe" in Y.al(app, "/", c)[2].decode()
         assert v.musteri(n)["son_giris"] and [h["olay"] for h in v.hareketler(n)] == ["GIRIS"]

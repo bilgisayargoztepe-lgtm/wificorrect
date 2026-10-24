@@ -1161,3 +1161,19 @@ Dal `yonetim-menu`; yalnızca merkez (cihazda değişiklik yok).
   AP adresi işi için (kullanıcı kararı: `wificorrect.com` altında; ayrı alan adı alınmadı). Caddy ve kod henüz bu adları tanımıyor
   (bilinmeyen ada TLS el sıkışması başarısız olur; zararsız).
 - **Testler:** merkez 22/22 dosya (`test_yonetim_sol_menu`, `test_tek_admin_parolasi_hesabimda`).
+
+## Logo ve sekme simgesi (2026-10-24)
+Dal `logo`. Kullanıcının logo kiti (`Desktop/logo`: `_kaynak/build_logo.py` üretir, Nunito harfleri yola çevrilmiş, yazı tipi
+gerekmez): wificorrect_ = "wifi" Nunito ExtraBold dik + "correct_" Nunito ExtraBold İtalik; antrasit `#293133`, mercan `#FF6247`.
+- **Dosyalar:** kitten küçültülmüş kopyalar (sayılar 1 ondalığa yuvarlanır, `<title>`/`aria-label` atılır): `logo-acik.svg` (açık
+  zemin: antrasit + mercan), `logo-koyu.svg` (koyu zemin: beyaz + mercan), `w-koyu.svg` (W_ işareti), `favicon.svg` (W_ uygulama
+  ikonu, dolgu 0,74; alt çizgisiz W ikonları kullanılmaz) ve `favicon-32.png`. Cihazda `src/sablon/logo/`, merkezde
+  `scripts/sunucu/merkez/logo/` (`kur.sh` `$L/logo`'ya kurar); iki kopya aynı olmalı (`tests/test_logo.py` denetler).
+- **Sayfaya gömülür:** satır içi SVG + `data:` sekme simgesi (32 px PNG önce, SVG sonra). Cihaz panelinin CSP'si ve Caddy'nin
+  cihaz bloğundaki CSP (`img-src data:`) dosya sunmaya izin vermez; gömünce CSP, Caddyfile ve yeni yol gerekmez, cihaz ile merkez
+  hangi sırayla güncellenirse güncellensin logo görünür.
+- **Cihaz paneli** (`src/logo.rs`, `panel.html` `.wc-logo`): üst şeritte müşteri numarasının solunda yazılı logo (20 px); dar ekranda
+  (≤ 820 px, müşteri numarası gizliyken) W_ işareti; oturumsuz sayfalarda da.
+- **Merkez** (`web._cerceve`): yönetimde sol menünün başında ve telefondaki üst şeritte koyu logo; müşteri paneli, giriş sayfaları ve
+  AP geçidinin sade sayfalarında (beyaz şerit) açık logo. Logo dosyası okunamazsa "WifiCorrect" yazısı.
+- Misafirlerin giriş sayfası (işletmenin sayfası) değişmedi. Testler: cihazda `src/logo.rs` + panel testleri, merkezde `test_logo.py`.

@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light">
 <title>$baslik · $site Yönetim</title>
+$favicon_html
 $bas_ek
 <style>
 :root{color-scheme:light;
@@ -29,6 +30,10 @@ a:hover{color:var(--vurgu-koyu);text-decoration-color:currentColor}
 .marka{font-weight:700;font-size:1.0625rem;letter-spacing:-.01em;overflow-wrap:anywhere}
 .marka span{font-weight:400;color:#a8a8a8}
 .ust-sag{display:flex;align-items:center;gap:16px;margin-left:auto}
+/* wificorrect_ logosu (src/logo.rs): geniş ekranda yazılı logo, dar ekranda W_ işareti */
+.wc-logo{display:flex;align-items:center;flex:none}
+.wc-logo svg{display:block;width:139px;height:20px}
+.wc-logo .logo-w{display:none;width:33px}
 .kim{font-size:.8125rem;color:var(--koyu-yazi);text-align:right;overflow-wrap:anywhere}
 .kim span{color:#9a9a9a}
 .kim span::before{content:" · "}
@@ -201,6 +206,8 @@ code{font:.8125rem var(--es)}
 .menu-dugme{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;flex:none;color:#fff;cursor:pointer}
 .menu-dugme svg{width:24px;height:24px}
 .kim{display:none}
+.wc-logo .logo-tam{display:none}
+.wc-logo .logo-w{display:block}
 .kabuk{display:block}
 .yan{display:none;position:sticky;top:52px;z-index:4;height:auto;max-height:calc(100vh - 52px);padding:6px 0}
 #menu-ac:checked ~ .kabuk .yan{display:block}

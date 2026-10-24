@@ -661,16 +661,18 @@ impl Panel {
                     .collect();
                 (
                     format!("<nav aria-label=\"Menü\">{links}</nav>"),
+                    // logo müşteri numarasının yanında (2026-10-24, kullanıcı isteği)
                     format!(
-                        "<div class=\"ust-sag\"><div class=\"kim\">{}<span>{}</span></div>\
+                        "<div class=\"ust-sag\">{}<div class=\"kim\">{}<span>{}</span></div>\
                          <form method=\"post\" action=\"/cikis\">{}<button class=\"ikincil\">Çıkış</button></form></div>",
+                        crate::logo::ust_logo(),
                         h(&o.user),
                         h(o.rol.ad()),
                         csrf_input(o)
                     ),
                 )
             }
-            None => (String::new(), String::new()),
+            None => (String::new(), format!("<div class=\"ust-sag\">{}</div>", crate::logo::ust_logo())),
         };
         // telefonda menü: betik yok (CSP), gizli onay kutusu + etiket açar/kapatır
         let (dugme, etiket) = if o.is_some() {
@@ -687,6 +689,7 @@ impl Panel {
         });
         let mut v: HashMap<&str, String> = HashMap::new();
         v.insert("baslik", h(title));
+        v.insert("favicon_html", crate::logo::favicon_html().to_string());
         v.insert("bas_ek", if o.is_some() { yenile_meta(req) + bas } else { bas.to_string() });
         // cihaz bir müşteriye bağlanmadan işletme adı yok (eski/örnek ayardaki ad görünmesin)
         v.insert("site", h(if crate::merkez::oku(&self.merkez_path).is_none() { "WifiCorrect" } else { &cfg.main.site_name }));
@@ -2196,6 +2199,8 @@ mod tests {
         // bağlı değil: yerelden yalnızca eşleştirme (giriş) ekranı
         let g = e.p.handle(&req("GET", "/giris", &[], None)).body;
         assert!(g.contains("action=\"/giris\"") && g.contains("Müşteri numarası"));
+        // oturumsuz sayfada da üst şeritte logo (müşteri numarası yok) ve sekme simgesi
+        assert!(g.contains("<div class=\"ust-sag\"><span class=\"wc-logo\"") && g.contains("<link rel=\"icon\""), "{g}");
         assert_eq!(loc(&e.p.handle(&req("GET", "/cihazlar", &[], None))), "/giris");
         setup_and_login(&e, "mudur", "sahip-parola-12");
         uzak_adresli(&e);
@@ -2659,6 +2664,11 @@ mod tests {
         // sade özet: kısayol kutuları ve SMS/Disk halkaları yok (menüde zaten var)
         assert!(!s.contains("aria-label=\"Kısayollar\"") && !s.contains("SMS ve Disk") && !s.contains("class=\"halka"), "{s}");
         assert!(s.contains("for=\"menu-ac\""));
+        // wificorrect_ logosu üst şeritte müşteri numarasının yanında, sekme simgesi başta (2026-10-24)
+        let ust = s.split("<header class=\"ust\">").nth(1).unwrap().split("</header>").next().unwrap();
+        assert!(ust.find("<span class=\"wc-logo\"").unwrap() < ust.find("<div class=\"kim\">").unwrap(), "{ust}");
+        let bas = s.split("</head>").next().unwrap();
+        assert!(bas.contains("<link rel=\"icon\" type=\"image/svg+xml\" href=\"data:image/svg+xml;base64,"), "{bas}");
         let audit = std::fs::read_to_string(e.root.join("5651/gunluk/2026-09-29/denetim.csv")).unwrap();
         assert!(audit.contains("PANEL_OZET"));
         assert_eq!(kisa_zaman("2026-09-28T08:05:00+03:00", "2026-09-29"), "28.09.2026 08:05");

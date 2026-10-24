@@ -17,6 +17,7 @@ mod kayit;
 mod kaydedici;
 mod kimlik;
 mod liste;
+mod logo;
 mod merkez;
 mod misafir;
 mod muhur;

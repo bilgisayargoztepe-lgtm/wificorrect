@@ -351,6 +351,7 @@ def test_yonetim_sol_menu():
         assert s.index('<input type="checkbox" id="menu-ac"') < s.index('<div class="ust-mobil">') < s.index('<div class="yerlesim">')
         assert '<label for="menu-ac" class="menu-dugme"' in s and "#menu-ac:checked~.yerlesim nav.yan{display:block}" in s
         menu = s[s.index('<nav class="yan">'):s.index("</nav>")]
+        assert menu.startswith('<nav class="yan"><a class="marka" href="/" aria-label="wificorrect_"><svg class="logo"')  # koyu logo
         sira = [">Müşteriler<", ">Müşteri listesi<", ">Yeni müşteri<", ">Bekleyen cihazlar<", ">Kayıtlar<", ">Hareketler<",
                 ">Eski arşivler<", ">Ayarlar<", ">Engel listeleri<", ">SMS ayarları<", ">Uyarı ayarları<", ">Sürümler<",
                 ">Hesabım<", 'action="/cikis"']

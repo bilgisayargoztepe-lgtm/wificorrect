@@ -36,12 +36,14 @@ ve parolayla) verir. Bugün cihazın internet alan portu yalnızca DHCP biliyor;
    rağmen bağlı kalır) ve tarayıcıya **`10.50.0.1:8080`** yazar (giriş sayfası; Servis'e doğrudan **`10.50.0.1:8080/servis`**).
    Sayfanın altında (hangi sayfa türü açılırsa açılsın) "Bu cihazın internet bağlantısı şu an yok" + neden ve **Servis**
    bağlantısını görür. Servis sayfasında AP yönetim parolası + PPPoE kullanıcı adı (boş bırakılırsa kayıtlı ad kalır), parola,
-   VLAN girer → **Kaydet ve bağlan** → sayfa birkaç saniyede bir yenilenip durumu gösterir.
+   VLAN girer; **PPPoE seçimi Açık olmalıdır** (Servis formunda, kayıtlı ayar kapalı olsa da Açık hazır gelir; panelde seçim
+   kayıtlı değeri gösterir) → **Kaydet ve bağlan** → kayıt mesajı kaydedilen seçimi söyler ("PPPoE yeniden bağlanıyor" ya da
+   "PPPoE kapalı") ve sayfa birkaç saniyede bir yenilenip durumu gösterir.
    - Neden adres elle yazılıyor: cihazın interneti yokken DNS hiçbir adı çözemez; telefonlar "ağda oturum açın" penceresini açmaz,
      yazılan alan adları da açılmaz. Yalnızca IP adresiyle girilir. (Değerlendirilip seçilmeyen yol: internet yokken DNS'in her adı
      yanıtlaması — her cihazda her kesintide bütün misafirlerin davranışını ve 5651 DNS kaydını değiştirirdi.)
    - Teknisyen notu ve cihaz etiketi: "İnternet yoksa: Wi-Fi'a bağlanın, tarayıcıya 10.50.0.1:8080/servis yazın (parola: AP
-     yönetim parolası)."
+     yönetim parolası; PPPoE seçimi Açık olmalı)."
 
 ## Ayar modeli
 `/etc/wificorrect/ag.toml` (zaten 600, root) yeni bölüm:
@@ -139,7 +141,8 @@ Cihaz PPPoE durumunu şu değerlerle bilir (nasıl çıkarılacağı — pppd g�
   (yalnızca yazılır; boş = aynı kalır, yani kayıtlı parola panelden silinemez), VLAN (boş = yok), durum satırı, dükkân notu; altta
   **Gelişmiş**: VLAN önceliği, MTU, kimlik doğrulama (Otomatik/PAP/CHAP), AC adı, servis adı (çoğu hatta boş bırakılır; varsayılandan
   farklı bir değer varsa bölüm açık gelir). Form parola dışında kayıtlı değerlerle dolu gelir: "Kapalı" gönderince kullanıcı adı ve
-  ileri alanlar silinmez.
+  ileri alanlar silinmez. Açık/Kapalı seçimi de kayıtlı değeri gösterir (hiç ayarlanmamış cihazda Kapalı gelir; açmak için Açık
+  seçilir). Servis formunda bu farklıdır: orada seçim Açık gelir (aşağıda).
 - Kaydetme **mevcut port değişikliği akışından** geçer (yeni ayar dosyası → geri alma zamanlayıcısı → geçiş → 3 dk içinde
   "Çalışıyor, onayla"; onaylanmazsa eski ayar döner). Böylece müşterideyken PPPoE bilgisini uzaktan yanlış değiştirmek cihazı
   kalıcı olarak koparmaz.
@@ -161,10 +164,18 @@ Cihaz PPPoE durumunu şu değerlerle bilir (nasıl çıkarılacağı — pppd g�
   gönderimde birlikte yazılır (oturum, çerez yok). **Kayıtlı kullanıcı adı hiçbir sayfada gösterilmez** (çoğu kez abonenin telefon
   numarasıdır ve sayfa parola doğrulanmadan misafire açıktır): alan boş gelir ("Boş bırakılırsa kayıtlı kullanıcı adı aynı kalır"
   notu); boş gönderilirse parola doğrulandıktan sonra kayıtlı ad kullanılır; hata sayfalarında forma yalnızca o istekte yazılan ad
-  döner. VLAN ve gelişmiş alanlar kayıtlı değerlerle dolu gelir; parola alanı hep boştur (boş = kayıtlı parola kalır). Kaydedince
-  ag.toml güncellenir, bağlantı dosyası yeniden üretilir, güvenlik duvarı kuralları yeniden yüklenir, PPPoE birimi yeniden başlar;
+  döner. VLAN ve gelişmiş alanlar kayıtlı değerlerle dolu gelir; parola alanı hep boştur (boş = kayıtlı parola kalır).
+  **PPPoE Açık/Kapalı seçimi, kayıtlı ayar kapalı olsa da Açık gelir:** Servis'e PPPoE'yi açmak için gelinir ve kayıtlı ayar çoğu
+  kez kapalıdır (PPPoE hiç ayarlanmamış cihazda varsayılan); seçim kayıtlı değerle gelseydi formu olduğu gibi gönderen teknisyen
+  bilgileri PPPoE kapalıyken kaydeder ve internet gelmezdi. Kapatmak için Kapalı elle seçilir. Reddedilen bir kayıttan sonra
+  (yanlış ya da boş Servis parolası, kilit, doğrulama hatası) form gönderilen seçimi korur; hiçbir şey gönderilmediyse (eksik
+  form) kayıtlı ayardan, yani ilk çizim gibi Açık kurulur. Kaydedince ag.toml güncellenir, bağlantı dosyası yeniden üretilir,
+  güvenlik duvarı kuralları yeniden yüklenir, PPPoE birimi yeniden başlar (Kapalı kaydedilmişse durur);
   **geri alma zamanlayıcısı kurulmaz** (cihaz zaten çevrimdışı; geri almak yanlış eski bilgiye döndürürdü). Kayıttan sonra sayfa
   `/servis?izle=1` durum sayfasına geçer ve birkaç saniyede bir kendini yeniler (meta, JS yok); internet gelince giriş sayfası açılır.
+  Kayıt mesajı kaydedilen seçimi söyler (kullanıcı adı ve parola hiçbirinde yok): Açık → "Ayar kaydedildi; PPPoE yeniden bağlanıyor. …";
+  Kapalı → "Ayar kaydedildi; PPPoE kapalı. Cihaz internet portundan modemin adres vermesini bekliyor (PPPoE hattı için Ayarları
+  değiştir bağlantısından PPPoE seçimini Açık yapın). …".
   Panelden yapılmış, onay bekleyen bir port değişikliği varken (en çok 3 dk) Servis kaydetmeyi reddeder.
 - **Servis parolası = müşteriye özel AP yönetim parolası** (`merkez.json` → `ap_parola`; yönetimde ve cihaz panelinde görünür).
   Merkeze sormadan cihazda doğrulanır (sabit sürede karşılaştırma). `ap_parola` yoksa (cihaz bağlanmamış ya da eski merkez) ya da
@@ -244,6 +255,9 @@ Uygulamada netleşenler (2026-10-23/24; kullanıcı kontrol etsin; ayrıntı `do
 - Yeniden deneme: `maxfail 3` + birim gecikmesi 10 sn → 5 dk (yukarıda "Yeniden deneme sınırsızdır ama başarısızken yavaşlar").
 - Servis sayfası kayıtlı kullanıcı adını hiç göstermez; boş bırakılırsa parola doğrulandıktan sonra kayıtlı ad kullanılır.
 - "İnternet yok" uyarısı ve Servis bağlantısı her sayfa türünde görünür; teknisyen adresi `10.50.0.1:8080/servis`.
+- Servis formunda PPPoE Açık/Kapalı seçimi, kayıtlı ayar kapalı olsa da **Açık** gelir (teknisyen Servis'e PPPoE'yi açmak için gelir;
+  panelde seçim kayıtlı değeri gösterir ve hiç ayarlanmamış cihazda Kapalı gelir). Reddedilen kayıtta gönderilen seçim korunur; kayıt
+  mesajı kaydedilen seçimi söyler ("PPPoE yeniden bağlanıyor" / "PPPoE kapalı"). Teknisyen notu bunu söyler.
 - Merkez bilinmeyen/bozuk `wan_tur`/`pppoe` değerini reddetmez, yalnızca o alanı atar; "İnternet" satırı yalnızca `pppoe` koduna bakar.
 - `SERVIS_GIRIS sonuc=kilit` kilit dönemi başına bir kez yazılır; Servis'te boş parola ve doğru paroladan sonraki doğrulama hataları
   deneme sınırına sayılmaz.

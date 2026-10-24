@@ -148,9 +148,12 @@ scripts\ap-ac.cmd -Adres 192.168.1.1 -Tunel 10.99.0.11 -Kuru     (yalnızca yön
 4. Kontrol: telefonla SSID'ye bağlanın, giriş sayfası açılıyor mu; panelde "Ağdaki cihazlar"da AP `10.50.0.2` görünüyor mu.
 5. **İnternet yoksa** (PPPoE'li hatta ONT'ye takılı cihaz bağlanamıyorsa ya da modem arızalıysa): telefonla misafir Wi-Fi'ına bağlanın
    ("internet yok" uyarısına rağmen bağlı kalın), tarayıcıya **`10.50.0.1:8080/servis`** yazın → **Servis** (parola: bu müşterinin
-   AP yönetim parolası, 3.6). PPPoE kullanıcı adını, parolayı ve gerekirse VLAN'ı girip **Kaydet ve bağlan**; sayfa birkaç saniyede bir
-   durumu gösterir, internet gelince giriş sayfası açılır. Servis yalnızca cihazın interneti yokken açılır; yanlış parola 5 denemeden sonra
-   15 dakika kilitler. Ayrıntı: `docs/KURULUM_GUNLUGU.md` "PPPoE".
+   AP yönetim parolası, 3.6). **PPPoE seçiminin Açık olduğundan emin olun** (Servis'te Açık hazır gelir; Kapalı seçerseniz PPPoE
+   kapanır ve cihaz modemden adres bekler), PPPoE kullanıcı adını, parolayı ve gerekirse VLAN'ı girip **Kaydet ve bağlan**. Kayıttan sonra
+   sayfa "Ayar kaydedildi; PPPoE yeniden bağlanıyor" der ("PPPoE kapalı" derse seçim Kapalı kaydedilmiştir: Ayarları değiştir bağlantısından
+   Açık yapıp yeniden kaydedin), birkaç saniyede bir durumu gösterir ve internet gelince giriş sayfası açılır. Servis yalnızca cihazın interneti
+   yokken açılır; yanlış parola 5 denemeden sonra 15 dakika kilitler. (Cihaz panelindeki Ayarlar → Portlar → PPPoE kutusu ise kayıtlı değeri
+   gösterir: PPPoE hiç ayarlanmamış cihazda Kapalı gelir, orada Açık'ı kendiniz seçin.) Ayrıntı: `docs/KURULUM_GUNLUGU.md` "PPPoE".
 
 ## Bilinen tuzaklar
 

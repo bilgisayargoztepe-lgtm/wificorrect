@@ -888,7 +888,9 @@ hazır, cihazda sahte operatörle denendi; **henüz yayınlanmadı** (`v0.4.17` 
   nokta, sorunlar kırmızı, "Bağlanıyor…" düz), dükkân notu ve form (`pppoe::form_html`; giriş sayfasındaki Servis aynı alan adlarını ve
   ayrıştırmayı kullanır): Açık/Kapalı seçimi (`pppoe_acik` = `acik`|`kapali`; `formdan` `1`'i de açık sayar), Kullanıcı adı, Parola, VLAN (boş =
   yok) ve **Gelişmiş** (VLAN önceliği, MTU, Kimlik doğrulama, AC adı, Servis adı; varsayılandan farklı değer varsa bölüm açık gelir). Form
-  parola dışında kayıtlı değerlerle dolu gelir: "Kapalı" gönderince kullanıcı adı ve ileri alanlar silinmez. **Parola yalnızca yazılır:** hiçbir
+  parola dışında kayıtlı değerlerle dolu gelir: "Kapalı" gönderince kullanıcı adı ve ileri alanlar silinmez. Açık/Kapalı seçimi de kayıtlı değeri
+  gösterir: PPPoE hiç ayarlanmamış cihazda **Kapalı** gelir, açmak için Açık seçilmelidir (Servis'in formunda seçim Açık gelir, aşağıda).
+  **Parola yalnızca yazılır:** hiçbir
   sayfaya, denetime ya da mesaja geri yazılmaz; boş gönderilirse kayıtlı parola kalır, yani **kayıtlı bir PPPoE parolası panelden silinemez**
   (yalnızca yenisiyle değiştirilir; PPPoE'yi kapatınca dosyada kalır, fabrika dönüşü siler). Kullanıcı adı, AC ve servis adı baştan/sondan
   kırpılır, parola olduğu gibi alınır. Kaydetme **mevcut port değişikliği akışından** geçer (hazırlanan `ag-yeni.toml` → geri alma
@@ -914,7 +916,12 @@ hazır, cihazda sahte operatörle denendi; **henüz yayınlanmadı** (`v0.4.17` 
     hiçbir sayfada gösterilmez** (çoğu kez abonenin telefon numarasıdır, sayfa parola doğrulanmadan misafire açıktır): alan boş gelir, altında
     "Boş bırakılırsa kayıtlı kullanıcı adı aynı kalır."; boş gönderilirse parola doğrulandıktan sonra kayıtlı ad kullanılır (`kullanici_degisti=0`),
     hata sayfalarında forma yalnızca o istekte yazılan ad döner. VLAN ve ileri alanlar kayıtlı değerlerle dolu gelir; PPPoE parolası alanı hep
-    boştur (boş = kayıtlı parola kalır, ipucu "Kayıtlı parola aynı kalır").
+    boştur (boş = kayıtlı parola kalır, ipucu "Kayıtlı parola aynı kalır"). **PPPoE Açık/Kapalı seçimi, kayıtlı ayar kapalı olsa da Açık gelir**
+    (`servis_ilk_alanlar`): Servis'e PPPoE'yi açmak için gelinir, kayıtlı ayar ise çoğu kez kapalıdır (PPPoE hiç ayarlanmamış cihazda varsayılan);
+    seçim kayıtlı değerle gelseydi formu olduğu gibi gönderen teknisyen bilgileri PPPoE kapalıyken kaydeder ve internet gelmezdi. Kapatmak için
+    Kapalı elle seçilir; panelin Portlar formu bundan etkilenmez (orada kayıtlı değer görünür). Reddedilen
+    bir kayıttan sonra (yanlış ya da boş Servis parolası, kilit, doğrulama hatası) form gönderilen seçimi korur (Kapalı seçilmişse Kapalı kalır);
+    hiçbir şey gönderilmediyse (eksik form) kayıtlı ayardan, yani ilk çizim gibi Açık kurulur.
   - **Servis parolası** `merkez.json` → `ap_parola`'dır; merkeze sorulmaz, cihazda SHA-256 özetleri üzerinden sabit sürede karşılaştırılır.
     Yoksa ya da 8 karakterden kısaysa (cihaz bağlanmamış ya da parola eski merkez yüzünden hiç gelmemiş): "Servis parolası tanımlı değil (AP
     yönetim parolası bu cihaza henüz gelmedi); Servis kullanılamıyor." ve form yok.
@@ -931,8 +938,13 @@ hazır, cihazda sahte operatörle denendi; **henüz yayınlanmadı** (`v0.4.17` 
     parolayı kayıtlıyla birleştirir; doğrular; ag.toml'u kaydeder, dosyaları yazar, `nft -f guvenlik.nft` + `hiz.nft`, pppd birimi, tünel MTU'su.
     Ağı yeniden kurmaz (`switch` değil) ve **geri alma zamanlayıcısı kurmaz** (cihaz zaten çevrimdışı; geri almak teknisyenin düzelttiği bilgiyi
     yanlış eskisine döndürürdü). Kayıttan sonra sayfa `/servis?izle=1` durum sayfasına geçer (5 sn'de bir meta yenileme, "Ayarları değiştir"
-    bağlantısı); internet gelince giriş sayfasına döner. Önceki iş sürerken yeniden kaydetmek "iş başlatılamadı; birkaç saniye sonra yeniden
-    deneyin" der; ag.toml yoksa ya da port değişikliği onay bekliyorsa sayfa bunu hemen söyler.
+    bağlantısı); internet gelince giriş sayfasına döner. **Kayıt mesajı kaydedilen seçimi söyler** (kullanıcı adı ve parola hiçbirinde yok):
+    Açık → "Ayar kaydedildi; PPPoE yeniden bağlanıyor. Bu sayfa birkaç saniyede bir yenilenip durumu gösterir (güncel durumun gelmesi bir
+    dakikayı bulabilir); internet gelince giriş sayfası açılır."; Kapalı → "Ayar kaydedildi; PPPoE kapalı. Cihaz internet portundan modemin adres
+    vermesini bekliyor (PPPoE hattı için Ayarları değiştir bağlantısından PPPoE seçimini Açık yapın). Bu sayfa birkaç saniyede bir yenilenip
+    durumu gösterir; internet gelince giriş sayfası açılır." (Kapalıda "bir dakikayı bulabilir" yok: pppd durur, durum DHCP adresinden hemen
+    okunur.) Önceki iş sürerken yeniden kaydetmek "iş başlatılamadı; birkaç saniye sonra yeniden deneyin" der; ag.toml yoksa ya da port
+    değişikliği onay bekliyorsa sayfa bunu hemen söyler.
 - **AP yönetim parolası cihaza 5 dk içinde ulaşır (≥ 0.4.17):** Servis'in parolası yönetimdeki "Yenile"yle değişebilir, o yüzden merkez onu
   5 dk'lık sağlık cevabında da gönderir (`/api/saglik` cevabında `ap_parola`; yalnızca bağlı cihaza ve müşterinin parolası doluysa; `/api/eslesme`
   gibi lisans/askı durumuna bakmaz) ve cihaz (`ctl saglik`) değiştiyse `merkez.json`'a yazar. Cihaz tarafı değeri `merkez::ap_parola_oku` kuralıyla
@@ -975,7 +987,7 @@ hazır, cihazda sahte operatörle denendi; **henüz yayınlanmadı** (`v0.4.17` 
   keşif turu 35 sn; operatör kapanıp gelince yeniden bağlanma ~5 sn; hat kopması ~70 sn (+6 sn) sonra fark edilir, hat gelince ~9 sn. Hat kopması iki
   yönde paket düşürülerek taklit edildi (arayüzler ayakta kalır); gerçek kablo çekme denenmedi (çekirdeğin PPPoE sürücüsü taşıyıcı değişiminde oturumu
   bırakmaz diye değerlendirildi, kaynak okumasına dayanır) → canlı kabulde.
-- **Testler (2026-10-24, sürüm 0.4.17):** cihazda `bash scripts/test.sh wificorrect` → 443 birim testi geçti; merkez `sh
+- **Testler (2026-10-24, sürüm 0.4.17):** cihazda `bash scripts/test.sh wificorrect` → 445 birim testi geçti; merkez `sh
   scripts/sunucu/merkez/tests/hepsi.sh py` → 22/22 dosya `TUM TESTLER GECTI`. Cihaz birim testleri pppd gerektirmez (sahte `/sys`, sahte komut
   çalıştırıcı, gerçek pppd günlük örnekleri); testler `ag::Yollar`'a geçici dizin verir (canlı `/etc/ppp` ve `/etc/wireguard` yolları yerine).
 - **Paket ve kurulum sırası:** `paket/control.in` Depends'e **`ppp`** (Debian 13: 2.5.2, PPPoE eklentisi içinde); uzaktan güncelleme `apt-get install
@@ -1028,6 +1040,9 @@ hazır, cihazda sahte operatörle denendi; **henüz yayınlanmadı** (`v0.4.17` 
   - *Servis:* panelden bilerek yanlış parola (ya da bu hattın VLAN'ı yanlış) → durum "Kullanıcı adı ya da parola reddedildi"; telefonla misafir Wi-Fi'ına bağlanın:
     telefon "internet yok" uyarısına rağmen Wi-Fi'da kalıyor mu (iOS ve Android), `10.50.0.1:8080` ve `10.50.0.1:8080/servis` açılıyor mu, uyarı + Servis bağlantısı
     görünüyor mu; AP yönetim parolasıyla doğru bilgiyi yazın → izleme sayfası → bağlanma → giriş sayfasına dönüş; yanlış Servis parolası 5 kez → kilit mesajı ve
-    `SERVIS_GIRIS` satırları; kayıtlı kullanıcı adı hiçbir Servis sayfasında görünmüyor.
+    `SERVIS_GIRIS` satırları; kayıtlı kullanıcı adı hiçbir Servis sayfasında görünmüyor. **PPPoE seçimi:** PPPoE hiç ayarlanmamış (Kapalı) bir cihazda Servis
+    formunda Açık/Kapalı seçimi **Açık hazır geliyor mu** (panelin Portlar kutusunda aynı cihazda Kapalı görünür); bilgileri girip kaydedince "Ayar
+    kaydedildi; PPPoE yeniden bağlanıyor" ve durum PPPoE'ye geçiyor mu; Kapalı seçip kaydedince "Ayar kaydedildi; PPPoE kapalı…" mesajı ve durum "Modemden adres
+    alınamadı…"/"PPPoE kapalı (modemden DHCP)"; reddedilen bir kayıtta (yanlış Servis parolası) seçilen Kapalı/Açık formda korunuyor mu.
   - *Yükseltme:* PPPoE kapalı Göztepe ve Visavis'te güncelleme sonrası misafir girişi, tünel ve `nft` kuralları eskisi gibi; `dpkg -s ppp` kurulu; sağlık kartında
     "İnternet: Modem (DHCP)" ve yönetimde "Yenile"den 5 dk sonra cihazda yeni AP parolası.

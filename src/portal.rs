@@ -161,6 +161,23 @@ const SERVIS_BIRIMI: &str = "wfc-pppoe-servis";
 /// Kayıttan sonra durum sayfasının yenilenme aralığı (sn).
 const SERVIS_YENILE_SN: u32 = 5;
 const SERVIS_TANIMSIZ: &str = "Servis parolası tanımlı değil (AP yönetim parolası bu cihaza henüz gelmedi); Servis kullanılamıyor.";
+/// Kayıttan sonraki durum sayfasının mesajı, kaydedilen PPPoE seçimine göre. Açık: pppd yeniden başlar (pppd günlüğünün
+/// semantiği yüzünden güncel durum bir dakikayı bulabilir). Kapalı: pppd durur, cihaz modemden DHCP bekler (durum hemen
+/// okunur); PPPoE hattında yanlışlıkla kapalı kaydedilmişse çıkış yolu da söylenir. Kullanıcı adı ve parola yazılmaz.
+const SERVIS_KAYIT_ACIK: &str = "Ayar kaydedildi; PPPoE yeniden bağlanıyor. Bu sayfa birkaç saniyede bir yenilenip durumu gösterir (güncel durumun \
+     gelmesi bir dakikayı bulabilir); internet gelince giriş sayfası açılır.";
+const SERVIS_KAYIT_KAPALI: &str = "Ayar kaydedildi; PPPoE kapalı. Cihaz internet portundan modemin adres vermesini bekliyor (PPPoE hattı için \
+     Ayarları değiştir bağlantısından PPPoE seçimini Açık yapın). Bu sayfa birkaç saniyede bir yenilenip durumu gösterir; internet gelince giriş \
+     sayfası açılır.";
+
+/// Servis formunun kayıtlı ayardan kurulan hâli (ilk çizim; eksik formdan sonra da): **PPPoE seçimi Açık gelir**, kayıtlı ayar kapalı
+/// olsa da. Teknisyen Servis'e PPPoE'yi açmak için gelir, kayıtlı ayar ise çoğu kez kapalıdır (PPPoE hiç ayarlanmamış cihaz, ya da
+/// kapatılmış); seçim kayıtlı değerle gelseydi formu olduğu gibi gönderen kişi bilgileri PPPoE kapalıyken kaydeder, internet gelmez.
+/// Kapatmak için Kapalı elle seçilir. Öteki alanlar kayıtlı değerlerle dolu kalır; kullanıcı adı yine yazılmaz (`servis_formu`'na
+/// boş verilir). Panelin Portlar formu bundan etkilenmez: orada seçim kayıtlı değeri gösterir.
+fn servis_ilk_alanlar(kayitli: &ag::Pppoe) -> ag::Pppoe {
+    ag::Pppoe { acik: true, ..kayitli.clone() }
+}
 
 /// Servis parolası yanlış deneme sayaçları (bellekte; portal yeniden başlayınca sıfırlanır, misafir kodu sayaçları gibi).
 /// Yalnızca yanlış parola sayılır; sınıra ulaşan yanlış deneme kilidi başlatır, kilit süresi o andan sayılır.
@@ -1267,9 +1284,14 @@ impl Portal {
     }
 
     /// Hatayla form yeniden: girilen değerler geri gelir (parolalar hariç; kullanıcı adı yalnızca bu istekte yazılan, kayıtlı ad
-    /// hiçbir zaman: parola doğrulandıktan sonraki hatalarda da). Parola ipucu kayıtlı parolaya göre (boş = aynı kalır).
+    /// hiçbir zaman: parola doğrulandıktan sonraki hatalarda da). PPPoE seçimi de gönderilen seçimdir: "Kapalı" seçilmişse Kapalı
+    /// kalır. Hiçbir şey gönderilmediyse (eksik form) form kayıtlı ayardan kurulur, yani ilk çizim gibi (`servis_ilk_alanlar`).
+    /// Parola ipucu kayıtlı parolaya göre (boş = aynı kalır).
     fn servis_hata(&self, durum: &Durum, hata: &str, girilen: Option<&ag::Pppoe>, kayitli: &ag::Pppoe) -> Page {
-        let alanlar = ag::Pppoe { parola: kayitli.parola.clone(), ..girilen.unwrap_or(kayitli).clone() };
+        let alanlar = match girilen {
+            Some(g) => ag::Pppoe { parola: kayitli.parola.clone(), ..g.clone() },
+            None => servis_ilk_alanlar(kayitli),
+        };
         let kullanici = girilen.map_or("", |g| g.kullanici.as_str());
         self.servis_page(Some(durum), hata, "", self.servis_formu(&alanlar, kullanici), false)
     }
@@ -1288,9 +1310,10 @@ impl Portal {
             return Some(self.servis_izle(Some(&durum), "Bu sayfa birkaç saniyede bir yenilenir; internet gelince giriş sayfası açılır."));
         }
         Some(match self.servis_parolasi() {
-            // VLAN ve ileri alanlar kayıtlı değerlerle dolu ("kapalı" gönderilince silinmesin); kayıtlı kullanıcı adı (çoğu kez abone
-            // telefon numarası) parola doğrulanmadan gösterilmez: alan boş, boş gönderilirse kayıtlı ad kalır
-            Some(_) => self.servis_page(Some(&durum), "", "", self.servis_formu(&ag::load(&self.ag_yollar.ag).pppoe, ""), false),
+            // VLAN ve ileri alanlar kayıtlı değerlerle dolu ("kapalı" gönderilince silinmesin) ama PPPoE seçimi Açık gelir
+            // (`servis_ilk_alanlar`); kayıtlı kullanıcı adı (çoğu kez abone telefon numarası) parola doğrulanmadan gösterilmez:
+            // alan boş, boş gönderilirse kayıtlı ad kalır
+            Some(_) => self.servis_page(Some(&durum), "", "", self.servis_formu(&servis_ilk_alanlar(&ag::load(&self.ag_yollar.ag).pppoe), ""), false),
             None => self.servis_page(Some(&durum), SERVIS_TANIMSIZ, "", String::new(), false),
         })
     }
@@ -1405,11 +1428,9 @@ impl Portal {
         self.audit("SERVIS_PPPOE", ip, mac_s, "", &ozet);
         // yeni durum hemen yoklansın: internet geldiyse izleme sayfası giriş sayfasına döner
         *lock(&self.internet_onbellek) = None;
-        Some(self.servis_izle(
-            None,
-            "Ayar kaydedildi; PPPoE yeniden bağlanıyor. Bu sayfa birkaç saniyede bir yenilenip durumu gösterir (güncel durumun gelmesi \
-             bir dakikayı bulabilir); internet gelince giriş sayfası açılır.",
-        ))
+        // mesaj kaydedilen ayarı söyler (kullanıcı adı ve parola yazılmaz): PPPoE kapalı kaydedildiyse "yeniden bağlanıyor" demez
+        let mesaj = if yeni.acik { SERVIS_KAYIT_ACIK } else { SERVIS_KAYIT_KAPALI };
+        Some(self.servis_izle(None, mesaj))
     }
 
     /// Hazırlık dosyası (600; ag.toml'daki adlarla `[pppoe]` tablosu) + `ctl pppoe-servis` ayrı bir işte: portal ProtectSystem=full
@@ -2885,6 +2906,113 @@ mod tests {
         // durum satırı; yalnızca Türkçe (dil seçimi yok), JS yok, form sayfası kendini yenilemez
         assert!(html.contains("Durum: Kullanıcı adı ya da parola reddedildi"), "{html}");
         assert!(!html.contains("<nav class=\"dil\"") && !html.contains("<script") && !html.contains("http-equiv=\"refresh\""), "{html}");
+    }
+
+    /// PPPoE Açık/Kapalı kutusunda seçili seçenek: `acik` | `kapali` (tam biri seçili değilse test düşer)
+    fn secili_pppoe(html: &str) -> &'static str {
+        match (html.contains("<option value=\"acik\" selected>"), html.contains("<option value=\"kapali\" selected>")) {
+            (true, false) => "acik",
+            (false, true) => "kapali",
+            _ => panic!("PPPoE kutusunda tek seçenek seçili olmalı: {html}"),
+        }
+    }
+
+    #[test]
+    fn servis_pppoe_secimi_acik_gelir() {
+        // Servis'e PPPoE'yi açmak için gelinir: ilk çizimde seçim, kayıtlı ayar kapalı (ya da hiç yok) olsa da Açık gelir; yoksa formu
+        // olduğu gibi gönderen teknisyen bilgileri PPPoE kapalıyken kaydeder ve internet gelmez
+        let t = setup(|_| {});
+        t.ap_parola(AP_PAROLA);
+        t.internet_yok(Some(Durum::DhcpYok));
+        assert_eq!(secili_pppoe(&t.servis_html(false)), "acik", "ag.toml yok (varsayılan: kapalı)");
+        t.ag_kaydet(crate::ag::Pppoe::default());
+        assert_eq!(secili_pppoe(&t.servis_html(false)), "acik", "hiç ayarlanmamış cihaz");
+        // kapalı kaydedilmiş, bilgileri duran cihaz: seçim Açık; VLAN ve ileri alanlar kayıtlı değerlerle, kullanıcı adı ve parola yok
+        t.ag_kaydet(crate::ag::Pppoe { acik: false, vlan: 35, mtu: 1400, ..eski_pppoe() });
+        let html = t.servis_html(false);
+        assert_eq!(secili_pppoe(&html), "acik", "{html}");
+        assert!(html.contains("name=\"pppoe_vlan\" value=\"35\"") && html.contains("name=\"pppoe_mtu\" value=\"1400\""), "{html}");
+        assert!(!html.contains("eski@isp") && !html.contains("eski-parola-77") && html.contains("Kayıtlı parola aynı kalır"), "{html}");
+        t.ag_kaydet(eski_pppoe());
+        assert_eq!(secili_pppoe(&t.servis_html(false)), "acik", "kayıtlı ayar açık");
+        // ortak çizim değişmedi: panelin Portlar formu (ve `servis_form_html`'in kendisi) kayıtlı değeri gösterir; Açık'ı Servis seçer
+        let varsayilan = crate::ag::Pppoe::default();
+        assert_eq!(secili_pppoe(&crate::pppoe::form_html(&varsayilan)), "kapali");
+        assert_eq!(secili_pppoe(&crate::pppoe::servis_form_html(&varsayilan, "")), "kapali");
+        assert_eq!(secili_pppoe(&crate::pppoe::form_html(&eski_pppoe())), "acik");
+
+        // reddedilen kayıtta gönderilen seçim korunur: Kapalı seçilmişse Kapalı, Açık seçilmişse Açık kalır (kayıtlı ayar kapalı)
+        t.ag_kaydet(crate::ag::Pppoe { acik: false, ..eski_pppoe() });
+        for (i, secim) in ["kapali", "acik"].into_iter().enumerate() {
+            let mac = format!("aa:bb:cc:dd:ee:1{i}");
+            let ad = [("pppoe_acik", secim), ("pppoe_kullanici", "k@isp"), ("pppoe_parola", "p")];
+            // yanlış Servis parolası
+            let html = t.kaydet(IP, Some(&mac), &servis_form("yanlis-parola", &ad));
+            assert!(html.contains("Servis parolası yanlış."), "{html}");
+            assert_eq!(secili_pppoe(&html), secim, "yanlış parola: {html}");
+            // boş Servis parolası
+            let html = t.kaydet(IP, Some(&mac), &servis_form("", &ad));
+            assert!(html.contains("Servis parolasını girin."), "{html}");
+            assert_eq!(secili_pppoe(&html), secim, "boş parola: {html}");
+            // doğru paroladan sonra doğrulama hatası
+            let vlan = [("pppoe_acik", secim), ("pppoe_kullanici", "k@isp"), ("pppoe_parola", "p"), ("pppoe_vlan", "4095")];
+            let html = t.kaydet(IP, Some(&mac), &servis_form(AP_PAROLA, &vlan));
+            assert!(html.contains("VLAN 1-4094 arasında olmalı"), "{html}");
+            assert_eq!(secili_pppoe(&html), secim, "doğrulama hatası: {html}");
+            assert!(html.contains("name=\"pppoe_kullanici\" value=\"k@isp\"") && !html.contains("eski@isp"), "yazılan ad döner, kayıtlı ad hiç: {html}");
+        }
+        // kilit: 5 yanlış denemeden sonra (doğru parolayla da) kilit sayfası da gönderilen seçimi korur
+        let mac = "aa:bb:cc:dd:ee:20";
+        for _ in 0..5 {
+            t.kaydet(IP, Some(mac), &servis_form("yanlis-parola", &[("pppoe_acik", "kapali")]));
+        }
+        let html = t.kaydet(IP, Some(mac), &servis_form(AP_PAROLA, &[("pppoe_acik", "kapali")]));
+        assert!(html.contains("15 dakika sonra"), "{html}");
+        assert_eq!(secili_pppoe(&html), "kapali", "kilit: {html}");
+        // hiçbir şey gönderilmedi (eksik form: pppoe_acik yok): form kayıtlı ayardan kurulur, ilk çizim gibi Açık gelir
+        let html = t.kaydet(IP, Some("aa:bb:cc:dd:ee:21"), &servis_form("yanlis-parola", &[("pppoe_kullanici", "k@isp")]));
+        assert!(html.contains("Form eksik"), "{html}");
+        assert_eq!(secili_pppoe(&html), "acik", "eksik form: {html}");
+        assert!(!html.contains("eski@isp") && !html.contains("k@isp"), "eksik formda hiçbir ad gösterilmez: {html}");
+        // hiçbiri uygulanmadı
+        assert!(t.calls.lock().unwrap().is_empty() && !t.servis_dosyasi().exists());
+    }
+
+    #[test]
+    fn servis_kayit_mesaji_acik_kapali() {
+        // kayıt mesajı kaydedilen ayarı söyler: Açık → "yeniden bağlanıyor"; Kapalı → "PPPoE kapalı" (bağlanmaz, modemden adres bekler)
+        let t = setup(|_| {});
+        t.ap_parola(AP_PAROLA);
+        t.ag_kaydet(crate::ag::Pppoe::default());
+        t.internet_yok(Some(Durum::SunucuYok));
+        const GIZLI: [&str; 6] = ["yeni@isp", "yeni-parola-35", "yeni-parola-99", "eski@isp", "eski-parola-77", AP_PAROLA];
+        let html = t.kaydet(IP, Some(MAC), &servis_form(AP_PAROLA, &YENI));
+        assert!(html.contains("Ayar kaydedildi; PPPoE yeniden bağlanıyor."), "{html}");
+        assert!(html.contains("güncel durumun gelmesi bir dakikayı bulabilir") && !html.contains("PPPoE kapalı") && !html.contains("modemin adres"), "{html}");
+        assert!(html.contains("birkaç saniyede bir yenilenip durumu gösterir") && html.contains("http-equiv=\"refresh\"") && !html.contains("<form"), "{html}");
+        assert!(t.hazir().acik);
+        assert!(GIZLI.iter().all(|g| !html.contains(g)), "{html}");
+        // Kapalı kaydedildi (kullanıcı adı ve parola yine yazılmış olabilir): mesaj bunu söyler, "yeniden bağlanıyor" demez
+        let f = servis_form(AP_PAROLA, &[("pppoe_acik", "kapali"), ("pppoe_kullanici", "yeni@isp"), ("pppoe_parola", "yeni-parola-99")]);
+        let html = t.kaydet(IP, Some(MAC), &f);
+        assert!(html.contains("Ayar kaydedildi; PPPoE kapalı.") && html.contains("modemin adres vermesini bekliyor"), "{html}");
+        assert!(!html.contains("yeniden bağlanıyor") && !html.contains("bir dakikayı bulabilir"), "{html}");
+        // Açık yapmanın yolu söylenir; durum sayfası yine yenilenir, internet gelince giriş sayfası açılır
+        assert!(html.contains("PPPoE seçimini Açık yapın") && html.contains("Ayarları değiştir"), "{html}");
+        assert!(html.contains("birkaç saniyede bir yenilenip durumu gösterir") && html.contains("internet gelince giriş sayfası açılır"), "{html}");
+        assert!(html.contains("http-equiv=\"refresh\"") && !html.contains("<form"), "{html}");
+        assert!(GIZLI.iter().all(|g| !html.contains(g)), "{html}");
+        // kaydedilen gerçekten kapalı (hazırlık dosyası ve denetim özeti)
+        assert!(!t.hazir().acik);
+        let a = t.audit_text();
+        assert!(a.lines().filter(|l| l.contains(";SERVIS_PPPOE;")).last().unwrap().ends_with(";pppoe=kapali vlan=0 kullanici_degisti=1 parola_degisti=1"), "{a}");
+        assert!(GIZLI.iter().all(|g| !a.contains(g)), "{a}");
+        // yeniden Açık: bugünkü mesaj geri gelir (test ağında ag.toml'u ctl yazmaz: kayıtlı parola hâlâ boş, bu yüzden parola yazılır)
+        let f = servis_form(AP_PAROLA, &[("pppoe_acik", "acik"), ("pppoe_kullanici", "yeni@isp"), ("pppoe_parola", "yeni-parola-35")]);
+        let html = t.kaydet(IP, Some(MAC), &f);
+        assert!(html.contains("Ayar kaydedildi; PPPoE yeniden bağlanıyor.") && !html.contains("PPPoE kapalı"), "{html}");
+        assert!(t.hazir().acik);
+        assert_eq!(t.systemd_run().len(), 3);
     }
 
     #[test]

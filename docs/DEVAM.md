@@ -55,7 +55,7 @@ Repo `bilgisayargoztepe-lgtm/wificorrect` (avsharbeyi'den devredildi). Her şey 
 **v0.4.16** yayında (2026-10-18; tarihler gün.ay.yıl; ISO + .deb, `release.yml`; `WFC_SSH_PUB` = `~/.ssh/bocafe.pub`). İki canlı
 cihaz da 0.4.16 (merkezden uzaktan güncellemeyle); merkez main'i çalıştırıyor.
 **v0.4.17 (PPPoE) `pppoe` dalında yayına hazır, YAYINLANMADI** (2026-10-24; dal `pppoe`, çalışma ağacı
-`C:\Users\hp\Desktop\claudecode\wificorrect-pppoe`, main `f92ec7e`'den): sürüm 0.4.17, cihaz testleri 443/443 ve merkez testleri 22/22
+`C:\Users\hp\Desktop\claudecode\wificorrect-pppoe`, main `f92ec7e`'den): sürüm 0.4.17, cihaz testleri 445/445 ve merkez testleri 22/22
 dosya geçti, sahte operatörle cihazda 18/18 PASS; gerçek PPPoE hattında denenmedi. Sırada (her adım kullanıcı onayıyla): dalın `main`'e birleştirilmesi (PR),
 `v0.4.17` etiketi, merkezin güncellenmesi (`merkez-guncelle.sh`, kullanıcı), uzaktan güncelleme; ayrıntı ve canlı kabul listesi
 KURULUM_GUNLUGU "PPPoE".

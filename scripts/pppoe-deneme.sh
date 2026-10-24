@@ -5,11 +5,14 @@
 #   scp scripts/pppoe-deneme.sh wificorrect:/root/ && ssh wificorrect bash /root/pppoe-deneme.sh   (hepsi ~4,5 dk)
 #   Yalnızca bazı senaryolar: bash /root/pppoe-deneme.sh bagli vlan   (adlar: aşağıda TUMU)
 #   Kurulu sürümde `ctl pppoe-peers` yoksa: WFC=/root/rza/target/debug/wificorrect bash /root/pppoe-deneme.sh
+#   Güvenlik duvarı kuralları (nft_kurallari, mss) varsayılan olarak kurulu sürümden (/etc/wificorrect); dalınkiler için
+#   (scripts/test.sh /root/rza'ya gönderir): KURALLAR=/root/rza/deploy/debian/etc/wificorrect
 #   Yarıda kalmış bir denemenin artıkları: bash /root/pppoe-deneme.sh --temizle
 # Canlı ağa dokunulmaz:
 # - Her şey wfc-isp (operatör), wfc-cpe (cihaz) ve wfc-lan (MSS denemesinde misafir) ad alanlarında. Sanal kablolar (veth)
 #   ad alanının içinde doğar, kök ad alanında hiç görünmez; cihazın arayüzlerine (enp*, br-hotspot, wfc) dokunulmaz.
-#   Kök ad alanında yalnızca okuma (ip, nft list) ve ad alanı yönetimi (ip netns add/del/pids) yapılır.
+#   Kök ad alanında yalnızca okuma (ip, nft list) ve ad alanı yönetimi (ip netns add/del/pids) yapılır; güvenlik duvarı
+#   kurallarının denetimi (nft -c) de cihaz ad alanında.
 # - /etc/ppp iki tarafta da yalıtılır: /etc/netns/<ad alanı>/ppp, `ip netns exec` ile /etc/ppp'nin üstüne bağlanır (sistemin
 #   /etc/ppp'si, ip-up.d kancaları kullanılmaz); /etc/resolv.conf da aynı yolla örtülür, cihaz tarafının dosyasından
 #   `usepeerdns` satırı çıkarılır. pppd ve pppoe-server /run'ın üstüne kendi tmpfs'ini bağlar (pid dosyaları, pppd
@@ -26,6 +29,7 @@ set -euo pipefail
 export LC_ALL=C.UTF-8
 
 WFC=${WFC:-/usr/local/bin/wificorrect}
+KURALLAR=${KURALLAR:-/etc/wificorrect} # guvenlik.nft ve hiz.nft (yalnızca okunur; denetim cihaz ad alanında)
 CIKTI=/root/pppoe-deneme
 ISP=wfc-isp
 CPE=wfc-cpe
@@ -50,7 +54,7 @@ VLAN=35
 ONCELIK=3
 AC=wfc-ac
 SERVIS=wfc-servis
-# deploy/debian/etc/wificorrect/guvenlik.nft, chain forward'ın ilk kuralı (cihazdaki dosyada varsa o kullanılır)
+# deploy/debian/etc/wificorrect/guvenlik.nft, chain forward'ın ilk kuralı (KURALLAR'daki dosyada varsa o kullanılır)
 MSS_VARSAYILAN='tcp flags syn / syn,rst tcp option maxseg size set rt mtu'
 ISARET=wfc-pppoe-deneme # yalıtım dosyalarının işareti
 
@@ -142,7 +146,7 @@ if [ "${1:-}" = --temizle ]; then
     echo "Temizlendi: $LAN $CPE $ISP ad alanları, /etc/netns/wfc-*."
     exit 0
 fi
-TUMU=(bagli kimlik_hatasi kimlik_hatasi_pap sunucu_yok vlan ac_servis kimlik_yontemi yeniden_baglanma hat_kopmasi mss)
+TUMU=(bagli kimlik_hatasi kimlik_hatasi_pap sunucu_yok vlan ac_servis kimlik_yontemi yeniden_baglanma hat_kopmasi mss nft_kurallari)
 SECILEN=("$@")
 [ $# -gt 0 ] || SECILEN=("${TUMU[@]}")
 for s in "${SECILEN[@]}"; do
@@ -518,14 +522,51 @@ senaryo_ac_servis() {
     sunucu_durdur
 }
 
+ip_var_ya_da_cikti() { ip_var || ! istemci_calisiyor; }
+# Yanlış kimlik YÖNTEMİ (operatör öbürünü ister): LCP hiç kalkmaz, operatör "peer refused to authenticate" ile kapatır, holdoff
+# işlemez (~3,3 sn'de bir yeni oturum). Bağlantı dosyasındaki maxfail 3 ile pppd üç başarısız denemeden sonra kendiliğinden çıkar
+# (sistemde birim onu gecikmeyle yeniden başlatır); "hâlâ çalışıyor" şartı bu yüzden yok. PASS: süre boyunca IP yok, günlükte
+# operatörün reddi ve pppd ya hâlâ deniyor ya da kendiliğinden çıktı. Seçenek hatasıyla çıkan pppd PASS sayılmaz: o oturum açmaz
+# (günlükte ret olmaz) ve 1-4 koduyla çıkar (ölümcül/seçenek hatası; 5 ve üstü bağlantı sonuçlarıdır, pppd(8) EXIT STATUS).
+# $1 ad, $2 en çok bekleme (sn), $3 ag.toml metni, $4 PASS açıklamasının başı
+yontem_reddi() {
+    local ad=$1 sn=$2 n rc=0 t0 ms
+    if ! istemci_baslat "$ad" "$V_CPE" "$3"; then
+        sonuc FAIL "$ad" "pppd başlatılamadı"
+        return
+    fi
+    t0=$(simdi_ms)
+    bekle "$sn" ip_var_ya_da_cikti || true
+    ms=$(($(simdi_ms) - t0))
+    n=$(grep -c 'peer refused to authenticate' "$GUNLUK" 2>/dev/null || true)
+    if ip_var; then
+        sonuc FAIL "$ad" "bağlanmamalıydı ama $(ppp_ip) aldı"
+    elif [ "${n:-0}" = 0 ]; then
+        sonuc FAIL "$ad" "günlükte operatörün reddi ('peer refused to authenticate') yok"
+        gunluk_goster
+    elif istemci_calisiyor; then
+        sonuc PASS "$ad" "$4: $n ret, pppd $(sure "$ms") sonra hâlâ deniyor"
+    else
+        # timeout sarmalayıcısı pppd'nin çıkış kodunu geçirir (124 ve üstü: zaman aşımı ya da sinyal)
+        wait "$ISTEMCI_PID" 2>/dev/null || rc=$?
+        if [ "$rc" -lt 124 ] && ! [[ $rc =~ ^[1-4]$ ]]; then
+            sonuc PASS "$ad" "$4: $n ret, pppd $(sure "$ms") sonra kendiliğinden çıktı (kod $rc, maxfail 3)"
+        else
+            sonuc FAIL "$ad" "pppd hatayla çıktı (kod $rc, $n ret)"
+            gunluk_goster
+        fi
+    fi
+    istemci_durdur
+}
+
 # Kimlik yöntemi seçimi: kimlik=pap → refuse-chap/mschap/mschap-v2/eap, kimlik=chap → refuse-pap/eap.
 # $1 operatörün istediği (pap|chap), $2 cihazda uyan seçim, $3 uymayan seçim
 senaryo_kimlik_yontemi() {
     local op=$1 uyan=$2 uymayan=$3
     sunucu_baslat "$op" "$V_ISP" || { sonuc FAIL "kimlik_$uyan" "operatör başlamadı"; return; }
     baglanmali "kimlik_$uyan" "$V_CPE" "$(ag_toml "$PAROLA" "kimlik = \"$uyan\"")" "operatör $op, kimlik=$uyan"
-    baglanmamali "kimlik_${uymayan}_red" 12 "$(ag_toml "$PAROLA" "kimlik = \"$uymayan\"")" \
-        "operatör yalnızca $op isterken kimlik=$uymayan 12 sn'de bağlanmadı"
+    yontem_reddi "kimlik_${uymayan}_red" 20 "$(ag_toml "$PAROLA" "kimlik = \"$uymayan\"")" \
+        "operatör yalnızca $op isterken kimlik=$uymayan bağlanmadı"
     sunucu_durdur
 }
 
@@ -631,10 +672,10 @@ syn_gonder() { # $1 hedef port; bağlantı reddedilir (dinleyen yok), yalnızca 
 }
 senaryo_mss() {
     local kural s
-    kural=$(sed -n 's/^[[:space:]]*\([^#]*maxseg size set[^#]*[^#[:space:]]\)[[:space:]]*$/\1/p' /etc/wificorrect/guvenlik.nft 2>/dev/null | head -1 || true)
-    if [ -n "$kural" ]; then echo "  MSS kuralı (/etc/wificorrect/guvenlik.nft): $kural"; else
+    kural=$(sed -n 's/^[[:space:]]*\([^#]*maxseg size set[^#]*[^#[:space:]]\)[[:space:]]*$/\1/p' "$KURALLAR/guvenlik.nft" 2>/dev/null | head -1 || true)
+    if [ -n "$kural" ]; then echo "  MSS kuralı ($KURALLAR/guvenlik.nft): $kural"; else
         kural=$MSS_VARSAYILAN
-        echo "  MSS kuralı (betikteki kopya; cihazdaki guvenlik.nft'te yok): $kural"
+        echo "  MSS kuralı (betikteki kopya; $KURALLAR/guvenlik.nft'te yok): $kural"
     fi
     ip netns add "$LAN"
     ip -n "$LAN" link set lo up
@@ -711,6 +752,55 @@ EOF
     fi
     istemci_durdur
     sunucu_durdur
+}
+
+# Güvenlik duvarı ve hız kuralları (KURALLAR'daki guvenlik.nft, hiz.nft) iki WAN tanımıyla da geçerli mi: eski tek ad
+# (0.4.16'nın yazdığı arayuzler.nft; yükseltmeden sonra ilk PPPoE ayarına ya da port değişikliğine kadar diskte o durur, açılışta
+# guvenlik.nft onunla yüklenir) ve küme (internet portu + wfcppp). Yalnızca denetim (nft -c), cihaz ad alanında (wfc-cpe; kök ad
+# alanının kurallarına dokunulmaz). Karşı sınama: bilerek bozulmuş bir kopya reddedilmeli (denetim gerçekten bir şey denetliyor).
+# $1 kaynak, $2 tanım (tek|kume), $3 çıktı: include satırı geçici WAN tanımına çevrilmiş kopya (satır yoksa başarısız)
+nft_kopya() {
+    sed "s|^include \"/etc/wificorrect/arayuzler.nft\"|include \"$IS/arayuzler-$2.nft\"|" "$1" >"$3" &&
+        grep -qxF "include \"$IS/arayuzler-$2.nft\"" "$3"
+}
+senaryo_nft_kurallari() {
+    local f tanim hata= gecen=() yonetim
+    for f in guvenlik.nft hiz.nft; do
+        if [ ! -f "$KURALLAR/$f" ]; then
+            sonuc FAIL nft_kurallari "$KURALLAR/$f yok"
+            return
+        fi
+    done
+    printf 'define WAN = "%s"\n' "$V_CPE" >"$IS/arayuzler-tek.nft"
+    printf 'define WAN = { "%s", "%s" }\n' "$V_CPE" "$PPP" >"$IS/arayuzler-kume.nft"
+    for tanim in tek kume; do
+        for f in guvenlik.nft hiz.nft; do
+            if ! nft_kopya "$KURALLAR/$f" "$tanim" "$IS/$tanim-$f"; then
+                hata="$f: include satırı bulunamadı"
+            elif ip netns exec "$CPE" nft -c -f "$IS/$tanim-$f" >"$IS/nft.cikti" 2>&1; then
+                gecen+=("$tanim/$f")
+                continue
+            else
+                hata="$tanim/$f: $(head -3 "$IS/nft.cikti" | paste -sd' ' -)"
+            fi
+            break 2
+        done
+    done
+    if [ -z "$hata" ]; then
+        # karşı sınama: guvenlik.nft'nin bozuk kopyası (giriş zincirinin politikası) reddedilmeli
+        sed 's/policy drop;/policy dorp;/' "$IS/kume-guvenlik.nft" >"$IS/bozuk-guvenlik.nft"
+        if ! grep -q 'policy dorp;' "$IS/bozuk-guvenlik.nft"; then
+            hata="karşı sınama kurulamadı (policy drop; yok)"
+        elif ip netns exec "$CPE" nft -c -f "$IS/bozuk-guvenlik.nft" >"$IS/nft.cikti" 2>&1; then
+            hata="bozuk kopya da kabul edildi: denetim çalışmıyor"
+        fi
+    fi
+    if [ -n "$hata" ]; then
+        sonuc FAIL nft_kurallari "$hata"
+    else
+        yonetim=$(grep -cF "iifname \$WAN iifname != \"$PPP\" " "$KURALLAR/guvenlik.nft" || true)
+        sonuc PASS nft_kurallari "${gecen[*]} nft -c ile geçerli, bozuk kopya reddedildi; yönetim kurallarında $PPP hariç: ${yonetim:-0} satır"
+    fi
 }
 
 # ------------------------------------------------------------------ hazırlık
@@ -805,6 +895,10 @@ for s in "${SECILEN[@]}"; do
         mss)
             echo "-- MSS"
             senaryo_mss
+            ;;
+        nft_kurallari)
+            echo "-- güvenlik duvarı kuralları (eski tek adlı ve yeni küme WAN tanımıyla, nft -c, cihaz ad alanında)"
+            senaryo_nft_kurallari
             ;;
     esac
 done

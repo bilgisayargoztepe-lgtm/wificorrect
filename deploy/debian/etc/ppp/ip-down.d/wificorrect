@@ -1,0 +1,30 @@
+#!/bin/sh
+# WifiCorrect (docs/KURULUM_GUNLUGU.md "PPPoE düzeltmeleri"): PPPoE (wfcppp) koptuğunda DNS'i internet portunun DHCP'sinden yeniden
+# kurdurur. Bağlıyken /etc/resolv.conf'ta operatörün (PPP) sunucuları durur (0000usepeerdns, /etc/dhcpcd.exit-hook); kopunca o
+# sunucular başka hatta (ör. kablo modeme geri takıldı) çalışmayabilir. Debian'ın 0000usepeerdns'i bağlanma anındaki dosyayı geri
+# koyardı, o da bayattı (2026-10-24, Göztepe: ONT'nin VLAN'sız ağının DNS'i); o yedeği /etc/ppp/ip-up.d/wificorrect siler. Burada
+# internet portunun çalışan dhcpcd'sine `-n` (yeniden bağlan) denir: dhcpcd kirasını yeniler, kancaları resolv.conf'u DHCP'nin
+# DNS'iyle yazar (wfcppp o sırada kapalıdır, /etc/dhcpcd.exit-hook PPP sunucularını geri yazmaz).
+# Yalnızca o portun dhcpcd'si çalışıyorsa (denetim soketi ve yaşayan süreç): çalışmıyorken `dhcpcd -n` yeni bir dhcpcd başlatırdı,
+# o da pppd'nin biriminde doğup pppd yeniden başlayınca ölürdü (2026-10-03 dersi: internet portunun dhcpcd'si ifup@<port>
+# biriminde yaşar). Port, pppd'nin verdiği aygıttan (PPP_TTY ya da 2. argüman: `enp3s0`, VLAN'lıysa `enp3s0.35`).
+# /etc/ppp/ip-down çalıştırır (run-parts, 0000usepeerdns'ten sonra). pppd'yi bekletmez ve hata vermez: dhcpcd arka planda ve
+# çıktısız çalışır, kanca sonuç ne olursa olsun 0 ile çıkar.
+# Yol sınama için değiştirilebilir (WFC_DHCPCD_RUN); gerçek cihazda /run/dhcpcd.
+case "${PPP_IFACE:-$1}" in
+wfcppp)
+	_aygit=${PPP_TTY:-$2}
+	_aygit=${_aygit#nic-}
+	_port=${_aygit%%.*}
+	_run=${WFC_DHCPCD_RUN:-/run/dhcpcd}
+	case $_port in
+	'' | *[!A-Za-z0-9_-]*) ;;
+	*)
+		if [ -S "$_run/$_port.sock" ] && _pid=$(cat "$_run/$_port.pid" 2>/dev/null) && kill -0 "$_pid" 2>/dev/null; then
+			dhcpcd -n "$_port" </dev/null >/dev/null 2>&1 &
+		fi
+		;;
+	esac
+	;;
+esac
+exit 0

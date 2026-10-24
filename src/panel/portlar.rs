@@ -59,7 +59,7 @@ impl Panel {
         let pppoe_kutu = format!(
             "<section class=\"kart grup\"><h2>PPPoE</h2><div><p>Durum: {}</p>\
              <p class=\"not\">Dükkânda PPPoE bağlanmaz; ONT'ye takılınca bağlanır.</p>{}</div></section>",
-            pppoe_durum_html(&pppoe::durum(&cur, &self.sys, &*self.komut)),
+            pppoe_durum_html(&pppoe::durum(&cur, &self.sys, &*self.komut, &*self.internet)),
             pppoe::form_html(&cur.pppoe)
         );
         let body = format!(

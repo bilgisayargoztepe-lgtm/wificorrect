@@ -12,6 +12,7 @@ install -D -m 755 "$ikili" "$kok/usr/local/bin/wificorrect"
 chmod 755 "$kok/usr/local/lib/wificorrect/dhcp-script"  # dnsmasq doğrudan çalıştırır; git/Windows modu ne olursa olsun
 chmod 755 "$kok/usr/local/lib/wificorrect/efi-baslangic"  # postinst ve kurucu sh ile çağırır; elle de çalışsın
 chmod 755 "$kok/etc/ppp/ip-up.d/wificorrect"  # pppd'nin ip-up'ı run-parts ile çalıştırır: çalıştırılabilir değilse atlanır
+chmod 755 "$kok/etc/ppp/ip-down.d/wificorrect"  # ip-down da run-parts ile
 chmod 644 "$kok/etc/dhcpcd.exit-hook"  # dhcpcd-run-hooks "source" eder (çalıştırmaz); yalnızca root yazabilir
 mkdir -p "$kok/DEBIAN"
 sed "s/@SURUM@/$surum/" paket/control.in > "$kok/DEBIAN/control"

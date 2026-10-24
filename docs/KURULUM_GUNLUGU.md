@@ -786,8 +786,8 @@ Dal `pppoe`; tasarım `docs/superpowers/specs/2026-10-23-pppoe-design.md`, plan 
 **0.4.17**. Bazı işletmelerde araya modem girmeyecek: internet alan Ethernet portuna doğrudan ONT'den ya da binanın merkezinden
 gelen kablo takılır ve hat adresi DHCP ile değil **PPPoE** ile (operatörün verdiği kullanıcı adı ve parolayla) verir. Kapsam
 yalnızca **internet alan portta PPPoE** (işletme ağı, personel Wi-Fi'ı, ONT'nin yerine geçmek ve PPPoE üzerinden IPv6 yok). Kod
-hazır, cihazda sahte operatörle denendi; **henüz yayınlanmadı** (`v0.4.17` etiketi yok) ve gerçek bir PPPoE hattında denenmedi
-(aşağıda "Canlı kabul listesi").
+hazır, cihazda sahte operatörle denendi; 2026-10-24'te `main`'e birleşti (PR #27) ve `v0.4.17` etiketlendi; canlı cihazlara henüz
+kurulmadı ve gerçek bir PPPoE hattında denenmedi (aşağıda "Canlı kabul listesi").
 - **Akış:** (1) *Dükkânda hazırlık:* cihaz modemle (DHCP) çalışırken panel → Ayarlar → Portlar → **PPPoE** kutusunda Açık, operatörün
   kullanıcı adı (ör. `5321234567@turk.net`), parola, gerekirse VLAN (Türk Telekom altyapısındaki hatlarda genelde 35) → Uygula → 3 dk
   içinde Onayla (mevcut port değişikliği akışı). Dükkânda PPPoE sunucusu olmadığı için durum "PPPoE sunucusu yanıt vermiyor" görünür,

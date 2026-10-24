@@ -468,7 +468,7 @@ pub fn switch(cfg: &Config, ag: &Ag, y: &Yollar, runner: &Runner) -> Vec<String>
 
 /// `switch` (ağ geçişi) ile `pppoe_uygula`'nın (Servis) ortak sonu: yeni ag.toml'a göre güvenlik duvarı, hız sayaçları, pppd birimi
 /// ve WireGuard tünelinin MTU'su ayara getirilir. İki yol aynı sonla bitsin, yeni bir adım yalnızca birine eklenip öbürü unutulmasın
-/// diye tek yerde durur. Yavaş adımlar (birim ve tünel yeniden başlatma) sondadır: `switch`te dnsmasq ve Wi-Fi onları beklemez.
+/// diye tek yerde durur. Yavaş adım (pppd biriminin yeniden başlatılması) sondadır: `switch`te dnsmasq ve Wi-Fi onu beklemez.
 /// Dönen: kalan hatalar.
 fn ortak_kuyruk(cfg: &Config, ag: &Ag, y: &Yollar, runner: &Runner) -> Vec<String> {
     let mut errs = vec![];
@@ -482,8 +482,9 @@ fn ortak_kuyruk(cfg: &Config, ag: &Ag, y: &Yollar, runner: &Runner) -> Vec<Strin
     runner(&cmd(&["nft", "-f", "/etc/wificorrect/hiz.nft"]));
     // PPPoE: pppd ayrı birimde. Açıksa yeni bağlantı dosyasıyla yeniden başlar; kapalıysa durur ve açılışta başlamaz.
     errs.extend(pppoe::birim_uygula(ag, runner));
-    // Tünel MTU'su hattı izler (PPPoE açıkken hat MTU'su − 80, kapalıyken satır yok). Sonuç yalnızca denetime yazılır: başarısız
-    // yeniden başlatma ağ/PPPoE hatası değildir, tünel gözcüsü (kaydedici) arayüz yoksa tüneli dosyadaki MTU ile yeniden kurar.
+    // Tünel MTU'su hattı izler (PPPoE açıkken hat MTU'su − 80, kapalıyken satır yok); tünel yeniden başlatılmadan canlı değişir
+    // (çevrimdışı Servis'te DNS yok, yeniden başlatma tüneli kaldırırdı). Sonuç yalnızca denetime yazılır: tünel MTU'sunun
+    // değişmemesi ağ/PPPoE hatası değildir, dosya günceldir ve tünel bir sonraki başlatılışında MTU'yu oradan alır.
     if let Some(r) = uzak::mtu_esitle(cfg, &y.uzak_key, &y.uzak_conf, uzak::tunel_mtu(ag), runner) {
         uzak::audit(cfg, ortak::wall(), &r);
     }
@@ -1234,7 +1235,9 @@ mod tests {
         uzak::uygula(&cfg, &y.uzak_key, &y.uzak_conf, None, &sahte(&[]).0).unwrap();
         save(&y.ag, &Ag::default()).unwrap();
         let conf = || fs::read_to_string(&y.uzak_conf).unwrap();
-        let tunel = |c: &Arc<Mutex<Vec<String>>>| c.lock().unwrap().iter().filter(|x| x.contains("wg-quick@wfc")).count();
+        // tünele dokunan komutlar: wg-quick (yeniden başlatma) ya da arayüzün canlı MTU'su
+        let tunel = |c: &Arc<Mutex<Vec<String>>>| c.lock().unwrap().iter().filter(|x| x.contains("wg-quick@wfc") || x.split_whitespace().any(|w| w == "wfc")).count();
+        let yeniden = |c: &Arc<Mutex<Vec<String>>>| c.lock().unwrap().iter().any(|x| x.contains("wg-quick"));
         let denetim = || fs::read_to_string(ortak::day_file(&cfg.main.log_root, ortak::day_of(&ortak::now_iso(ortak::wall())), "denetim.csv")).unwrap_or_default();
 
         // PPPoE'siz ayarı yeniden uygulamak tünele dokunmaz (yükseltilen cihazlarda tünel kesilmez, denetim gürültüsü olmaz)
@@ -1244,13 +1247,15 @@ mod tests {
         assert_eq!((tunel(&c), conf().contains("MTU")), (0, false));
         assert!(!denetim().contains("UZAK_ERISIM"), "{}", denetim());
 
-        // Servis yolu: PPPoE açılınca tünel MTU'su 1412 olur; tünel, pppd birimi yeniden başladıktan SONRA yeniden başlar
+        // Servis yolu: PPPoE açılınca tünel MTU'su 1412 olur; pppd birimi yeniden başladıktan SONRA çalışan tünele canlı uygulanır,
+        // tünel yeniden başlamaz (çevrimdışı cihazda DNS yok: yeniden başlatma sunucu adını çözemeyip tüneli kaldırırdı)
         let (r, c) = sahte(&[]);
         assert_eq!(pppoe_uygula(&cfg, &y, &pppoe_acik(), &r), Ok(vec![]));
         assert!(conf().contains("Address = 10.99.0.17/24\nMTU = 1412\n"), "{}", conf());
-        sirayla(&c.lock().unwrap(), &["systemctl restart wificorrect-pppoe.service", "systemctl restart wg-quick@wfc.service"]);
-        assert!(denetim().lines().any(|l| l.contains("UZAK_ERISIM") && l.contains("MTU 1412")), "{}", denetim());
-        // aynı ayarı yeniden uygulamak tüneli yeniden başlatmaz
+        sirayla(&c.lock().unwrap(), &["systemctl restart wificorrect-pppoe.service", "ip link show dev wfc", "ip link set dev wfc mtu 1412"]);
+        assert!(!yeniden(&c), "{:?}", c.lock().unwrap());
+        assert!(denetim().lines().any(|l| l.contains("UZAK_ERISIM") && l.contains("(MTU 1412)")), "{}", denetim());
+        // aynı ayarı yeniden uygulamak tünele dokunmaz
         let (r, c) = sahte(&[]);
         assert_eq!(pppoe_uygula(&cfg, &y, &pppoe_acik(), &r), Ok(vec![]));
         assert_eq!(tunel(&c), 0);
@@ -1258,29 +1263,34 @@ mod tests {
         let (r, c) = sahte(&[]);
         assert_eq!(pppoe_uygula(&cfg, &y, &Pppoe { mtu: 1400, ..pppoe_acik() }, &r), Ok(vec![]));
         assert!(conf().contains("\nMTU = 1320\n") && !conf().contains("1412"), "{}", conf());
-        sirayla(&c.lock().unwrap(), &["systemctl restart wificorrect-pppoe.service", "systemctl restart wg-quick@wfc.service"]);
-        // PPPoE kapanınca satır kalkar
+        sirayla(&c.lock().unwrap(), &["systemctl restart wificorrect-pppoe.service", "ip link set dev wfc mtu 1320"]);
+        assert!(!yeniden(&c));
+        // PPPoE kapanınca satır kalkar; çalışan tünele dokunulmaz (eski MTU'sunda kalır, sonraki başlatılışta wg-quick seçer)
         let (r, c) = sahte(&[]);
         assert_eq!(pppoe_uygula(&cfg, &y, &Pppoe { acik: false, ..Pppoe::default() }, &r), Ok(vec![]));
         assert!(!conf().contains("MTU"), "{}", conf());
-        sirayla(&c.lock().unwrap(), &["systemctl disable --now wificorrect-pppoe.service", "systemctl restart wg-quick@wfc.service"]);
+        sirayla(&c.lock().unwrap(), &["systemctl disable --now wificorrect-pppoe.service"]);
+        assert_eq!(tunel(&c), 0);
+        assert!(denetim().lines().any(|l| l.contains("UZAK_ERISIM") && l.contains("(MTU otomatik)")), "{}", denetim());
 
         // switch yolu (panel geçişi, geri alma, fabrika dönüşü): ağ adımlarından sonra aynı eşitleme
         let acik = Ag { pppoe: pppoe_acik(), ..Ag::default() };
         let (r, c) = sahte(&[]);
         assert_eq!(switch(&cfg, &acik, &y, &r), Vec::<String>::new());
         assert!(conf().contains("Address = 10.99.0.17/24\nMTU = 1412\n"), "{}", conf());
-        sirayla(&c.lock().unwrap(), &["systemctl restart dnsmasq", "systemctl restart wificorrect-pppoe.service", "systemctl restart wg-quick@wfc.service"]);
+        sirayla(&c.lock().unwrap(), &["systemctl restart dnsmasq", "systemctl restart wificorrect-pppoe.service", "ip link set dev wfc mtu 1412"]);
+        assert!(!yeniden(&c));
         let (r, c) = sahte(&[]);
         assert_eq!(switch(&cfg, &Ag::default(), &y, &r), Vec::<String>::new());
         assert!(!conf().contains("MTU"), "{}", conf());
-        sirayla(&c.lock().unwrap(), &["systemctl disable --now wificorrect-pppoe.service", "systemctl restart wg-quick@wfc.service"]);
+        sirayla(&c.lock().unwrap(), &["systemctl disable --now wificorrect-pppoe.service"]);
+        assert_eq!(tunel(&c), 0);
 
-        // tünel yeniden başlatılamazsa: ağ/PPPoE hatası sayılmaz (tünel gözcüsü yeniden dener), denetime yazılır; dosya yine güncel
-        let (r, _) = sahte(&["systemctl restart wg-quick"]);
+        // canlı MTU değiştirilemezse: ağ/PPPoE hatası sayılmaz, denetime yazılır; dosya yine güncel (sonraki başlatılışta geçerli)
+        let (r, _) = sahte(&["ip link set dev wfc"]);
         assert_eq!(pppoe_uygula(&cfg, &y, &pppoe_acik(), &r), Ok(vec![]));
         assert!(conf().contains("\nMTU = 1412\n"));
-        assert!(denetim().lines().any(|l| l.contains("UZAK_ERISIM") && l.contains("hata=tünel başlatılamadı")), "{}", denetim());
+        assert!(denetim().lines().any(|l| l.contains("UZAK_ERISIM") && l.contains("hata=tünel MTU'su değiştirilemedi")), "{}", denetim());
     }
 
     #[test]
@@ -1290,7 +1300,7 @@ mod tests {
         let (r, c) = sahte(&[]);
         assert_eq!(pppoe_uygula(&cfg, &y, &pppoe_acik(), &r), Ok(vec![]));
         assert_eq!(switch(&cfg, &Ag { pppoe: pppoe_acik(), ..Ag::default() }, &y, &r), Vec::<String>::new());
-        assert!(!c.lock().unwrap().iter().any(|x| x.contains("wg-quick")), "{:?}", c.lock().unwrap());
+        assert!(!c.lock().unwrap().iter().any(|x| x.contains("wg-quick") || x.split_whitespace().any(|w| w == "wfc")), "{:?}", c.lock().unwrap());
         assert!(!y.uzak_conf.exists() && !y.uzak_key.exists());
     }
 

@@ -176,16 +176,44 @@ pub fn uygula(cfg: &Config, key: &Path, conf: &Path, mtu: Option<u16>, runner: &
     Ok(format!("tünel kuruldu: {} → {} (MTU {mtu})", cfg.uzak.adres, cfg.uzak.sunucu))
 }
 
-/// PPPoE açılıp kapanınca (ya da hattın MTU'su değişince) çalışan tüneli yeni MTU'ya getirir. Uzak erişim kapalıysa ya da yapılandırma
-/// dosyasındaki `MTU` satırı istenenle aynıysa (ikisi de yoksa dahil) `None`: tünel boşuna kesilmez (çoğu cihaz PPPoE'siz; onlarda
-/// hiçbir şey olmaz). Değilse `uygula` (yapılandırmayı yazar, tüneli yeniden başlatır). Sonucu çağıran denetime yazar (`audit`).
-/// Yeniden başlatma başarısız olsa da dosya günceldir: tünel gözcüsü (kaydedici) arayüz yoksa tüneli yeniden başlatır ve MTU'yu dosyadan alır.
+/// PPPoE açılıp kapanınca (ya da hattın MTU'su değişince) tünelin MTU'sunu yeni değere getirir, **tüneli yeniden başlatmadan**:
+/// yapılandırma yeniden yazılır ve tünel arayüzü varsa MTU canlı değiştirilir (`ip link set dev wfc mtu N`). `wg-quick@wfc` yeniden
+/// başlatılmaz: Servis'te PPPoE'yi açan çevrimdışı cihazda DNS yoktur, yeniden başlatma sunucu adını çözemeyip arayüzü kaldırırdı ve
+/// tünel ancak gözcünün (kaydedici, en çok 10 dk'da bir) denemesinde dönerdi; panelden açarken de uzak yönetici kısa süre kopardı.
+/// "Otomatik"e dönüşte (satır yok, PPPoE kapandı) yalnızca dosya yazılır: çalışan tünel eski MTU'sunda kalır (zararsız), bir sonraki
+/// başlatılışında `wg-quick` MTU'yu kendisi seçer. Arayüz yoksa (tünel kalkmamış) MTU tünelin sonraki başlatılışında dosyadan gelir.
+/// Uzak erişim kapalıysa ya da dosyadaki `MTU` satırı istenenle aynıysa (ikisi de yoksa dahil) `None`: hiçbir şey yapılmaz (çoğu cihaz
+/// PPPoE'siz). Yapılandırma hiç yoksa (uzak erişim açık ama tünel kurulmamış) eşitlenecek tünel yoktur: `uygula` kurar. Sonucu
+/// çağıran denetime yazar (`audit`).
 pub fn mtu_esitle(cfg: &Config, key: &Path, conf: &Path, mtu: Option<u16>, runner: &Runner) -> Option<Result<String, String>> {
     if !cfg.uzak.enabled {
         return None;
     }
-    let mevcut = std::fs::read_to_string(conf).ok().and_then(|metin| okunan_mtu(&metin));
-    (mevcut != mtu).then(|| uygula(cfg, key, conf, mtu, runner))
+    let Ok(metin) = std::fs::read_to_string(conf) else {
+        return mtu.is_some().then(|| uygula(cfg, key, conf, mtu, runner));
+    };
+    (okunan_mtu(&metin) != mtu).then(|| mtu_canli(cfg, key, conf, mtu, runner))
+}
+
+/// `mtu_esitle`'nin yeniden başlatmasız yolu: dosya yazılır, MTU verildiyse ve tünel arayüzü varsa canlı uygulanır.
+fn mtu_canli(cfg: &Config, key: &Path, conf: &Path, mtu: Option<u16>, runner: &Runner) -> Result<String, String> {
+    let cmd = |a: &[&str]| a.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+    if let Some(e) = eksik(cfg) {
+        return Err(format!("eksik ya da geçersiz: {e}"));
+    }
+    let private = ensure_key(key)?;
+    ortak::write_atomic(conf, conf_text(cfg, &private, mtu).as_bytes()).map_err(|e| format!("{}: {e}", conf.display()))?;
+    let yol = format!("{} → {}", cfg.uzak.adres, cfg.uzak.sunucu);
+    let Some(n) = mtu else {
+        return Ok(format!("tünel yapılandırması yazıldı, çalışan tünel sonraki başlatılışına kadar eski MTU'sunda: {yol} (MTU otomatik)"));
+    };
+    if !runner(&cmd(&["ip", "link", "show", "dev", IFACE])) {
+        return Ok(format!("tünel yapılandırması yazıldı, tünel arayüzü yok (MTU sonraki başlatılışta): {yol} (MTU {n})"));
+    }
+    if !runner(&cmd(&["ip", "link", "set", "dev", IFACE, "mtu", &n.to_string()])) {
+        return Err(format!("tünel MTU'su değiştirilemedi (yapılandırma yazıldı, sonraki başlatılışta geçerli): {yol} (MTU {n})"));
+    }
+    Ok(format!("tünel MTU'su yeniden başlatmadan değiştirildi: {yol} (MTU {n})"))
 }
 
 /// `wg show wfc latest-handshakes` çıktısından son el sıkışmanın zamanı (epoch).
@@ -403,36 +431,48 @@ mod tests {
         let cfg = acik_ayar();
         let (r, c) = sahte(&[]);
         let oku = || std::fs::read_to_string(&conf).unwrap();
-        // PPPoE'siz cihazın tüneli (MTU satırı yok) → PPPoE açıldı: 1412 yazılır, tünel yeniden başlar
+        let tunel_yeniden = |cagrilar: &[String]| cagrilar.iter().any(|x| x.contains("wg-quick"));
+        // PPPoE'siz cihazın tüneli (MTU satırı yok) → PPPoE açıldı: 1412 yazılır ve çalışan tünele canlı uygulanır; tünel YENİDEN
+        // BAŞLAMAZ (çevrimdışı Servis'te DNS yok: yeniden başlatma sunucu adını çözemeyip tüneli kaldırırdı)
         uygula(&cfg, &key, &conf, None, &r).unwrap();
         al(&c);
         let sonuc = mtu_esitle(&cfg, &key, &conf, Some(1412), &r);
-        assert!(matches!(&sonuc, Some(Ok(m)) if m.contains("MTU 1412")), "{sonuc:?}");
+        assert!(matches!(&sonuc, Some(Ok(m)) if m.ends_with("(MTU 1412)") && m.contains("yeniden başlatmadan")), "{sonuc:?}");
         assert!(oku().contains("Address = 10.99.0.17/24\nMTU = 1412\n"), "{}", oku());
-        assert_eq!(al(&c), ["systemctl enable wg-quick@wfc.service", "systemctl restart wg-quick@wfc.service"]);
+        assert_eq!(al(&c), ["ip link show dev wfc", "ip link set dev wfc mtu 1412"]);
         // hattın MTU'su değişti (1400): 1412 → 1320
-        assert!(matches!(mtu_esitle(&cfg, &key, &conf, Some(1320), &r), Some(Ok(_))));
+        assert!(matches!(mtu_esitle(&cfg, &key, &conf, Some(1320), &r), Some(Ok(m)) if m.ends_with("(MTU 1320)")));
         assert!(oku().contains("\nMTU = 1320\n") && !oku().contains("1412"), "{}", oku());
-        assert!(al(&c).contains(&"systemctl restart wg-quick@wfc.service".to_string()));
-        // PPPoE kapandı: satır kalkar, dosya bugünküyle aynı
-        assert!(matches!(mtu_esitle(&cfg, &key, &conf, None, &r), Some(Ok(_))));
+        assert_eq!(al(&c), ["ip link show dev wfc", "ip link set dev wfc mtu 1320"]);
+        // PPPoE kapandı ("otomatik"): satır kalkar, dosya bugünküyle aynı; çalışan tünele dokunulmaz (sonraki başlatılışta wg-quick seçer)
+        let sonuc = mtu_esitle(&cfg, &key, &conf, None, &r);
+        assert!(matches!(&sonuc, Some(Ok(m)) if m.ends_with("(MTU otomatik)")), "{sonuc:?}");
         assert_eq!(oku(), conf_text(&cfg, K, None));
-        assert!(al(&c).contains(&"systemctl restart wg-quick@wfc.service".to_string()));
-        // yapılandırma hiç yokken (uzak erişim açık ama tünel kurulmamış) MTU isteniyorsa tünel kurulur
+        assert!(al(&c).is_empty());
+        // tünel arayüzü yok (tünel kalkmamış): dosya yazılır, MTU sonraki başlatılışta dosyadan gelir; hata değil
+        let (r2, c2) = sahte(&["ip link show"]);
+        let sonuc = mtu_esitle(&cfg, &key, &conf, Some(1412), &r2);
+        assert!(matches!(&sonuc, Some(Ok(m)) if m.contains("arayüzü yok") && m.ends_with("(MTU 1412)")), "{sonuc:?}");
+        assert!(oku().contains("\nMTU = 1412\n"));
+        assert_eq!(al(&c2), ["ip link show dev wfc"]);
+        // canlı değiştirilemezse hata döner (denetime yazılır); dosya yine güncel
+        let (r3, c3) = sahte(&["ip link set"]);
+        let sonuc = mtu_esitle(&cfg, &key, &conf, Some(1320), &r3);
+        assert!(matches!(&sonuc, Some(Err(e)) if e.contains("değiştirilemedi") && e.ends_with("(MTU 1320)")), "{sonuc:?}");
+        assert!(oku().contains("\nMTU = 1320\n"));
+        assert!(!tunel_yeniden(&al(&c3)));
+        // yapılandırma hiç yokken (uzak erişim açık ama tünel kurulmamış) eşitlenecek tünel yok: MTU isteniyorsa tünel kurulur
         std::fs::remove_file(&conf).unwrap();
         assert!(matches!(mtu_esitle(&cfg, &key, &conf, Some(1412), &r), Some(Ok(_))));
         assert!(oku().contains("\nMTU = 1412\n"));
-        // tünel yeniden başlatılamazsa hata döner; dosya yine güncel (tünel gözcüsü arayüz yoksa yeniden başlatır, MTU'yu dosyadan alır)
-        let (r2, _) = sahte(&["systemctl restart"]);
-        let sonuc = mtu_esitle(&cfg, &key, &conf, Some(1320), &r2);
-        assert!(matches!(&sonuc, Some(Err(e)) if e.contains("tünel başlatılamadı")), "{sonuc:?}");
-        assert!(oku().contains("\nMTU = 1320\n"));
-        // ayar eksikse (sunucu adresi yok) hata, dosyaya dokunulmaz
+        assert_eq!(al(&c), ["systemctl enable wg-quick@wfc.service", "systemctl restart wg-quick@wfc.service"]);
+        // ayar eksikse (sunucu adresi yok) hata, dosyaya ve tünele dokunulmaz
         let mut eksik_ayar = cfg.clone();
         eksik_ayar.uzak.sunucu.clear();
         let once = oku();
         assert!(matches!(mtu_esitle(&eksik_ayar, &key, &conf, None, &r), Some(Err(e)) if e.contains("eksik")));
         assert_eq!(oku(), once);
+        assert!(al(&c).is_empty());
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

@@ -28,8 +28,8 @@ ve parolayla) verir. Bugün cihazın internet alan portu yalnızca DHCP biliyor;
 ## Kullanım akışı
 1. **Dükkânda hazırlık:** cihaz ISO'dan kurulur, modeme takılı (DHCP), müşteriye bağlanır (kolay bağlama). Panel → Portlar →
    İnternet alan port → **PPPoE: Açık**, operatörün verdiği kullanıcı adı, parola, gerekirse VLAN → Uygula → 3 dk içinde Onayla
-   (mevcut onay/geri alma akışı). Dükkânda PPPoE sunucusu olmadığı için durum "PPPoE sunucusu yanıt vermiyor" görünür; cihaz DHCP
-   ile çalışmaya devam eder. Panelde bunu açıklayan not: "Dükkânda PPPoE bağlanmaz; ONT'ye takılınca bağlanır."
+   (mevcut onay/geri alma akışı). Dükkânda PPPoE sunucusu olmadığı için durum "Modemden bağlı (DHCP); PPPoE ONT'ye takılınca bağlanır"
+   görünür (ek, 2026-10-24, 0.4.18; önce kırmızı "PPPoE sunucusu yanıt vermiyor"); cihaz DHCP ile çalışmaya devam eder. Panelde bunu açıklayan not: "Dükkânda PPPoE bağlanmaz; ONT'ye takılınca bağlanır."
 2. **Müşteride:** internet alan port ONT'ye / bina kablosuna takılır. PPPoE bağlanır, varsayılan rota PPPoE'den gider, tünel ve
    merkez bağlantısı gelir. Panelde durum "PPPoE bağlı (dış IP …)".
 3. **Bağlanamazsa:** cihazın kullanılabilir varsayılan rotası yoktur (dhcpcd'nin 169.254 rotası sayılmaz). Teknisyen telefonla misafir Wi-Fi'ına bağlanır ("internet yok" uyarısına
@@ -134,6 +134,7 @@ Cihaz PPPoE durumunu şu değerlerle bilir (nasıl çıkarılacağı — pppd g�
 | `kablo_yok` | internet portunda kablo yok | Kablo takılı değil |
 | `dhcp_yok` | PPPoE kapalı ve DHCP'den adres alınamıyor | Modemden adres alınamadı (modem kapalı ya da kablo yanlış porta takılı) |
 | `sunucu_yok` | PPPoE sunucusu yanıt vermiyor | PPPoE sunucusu yanıt vermiyor (kablo doğru porta mı, VLAN gerekli mi?) |
+| `modemden` | PPPoE açık ama bağlı değil (sunucu yok ya da deneniyor), internet portunda DHCP adresi var: modemli hat, sorun değil (ek, 2026-10-24, 0.4.18; kimlik reddi bunun önüne geçer) | Modemden bağlı (DHCP); PPPoE ONT'ye takılınca bağlanır |
 | `kimlik_hatasi` | operatör kullanıcı adını/parolayı reddetti | Kullanıcı adı ya da parola reddedildi |
 | `baglaniyor` | deneniyor | Bağlanıyor… |
 | `bagli` | bağlı | PPPoE bağlı (dış IP …) |

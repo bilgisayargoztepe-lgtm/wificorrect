@@ -292,6 +292,8 @@ def test_cihaz_kartinda_internet():
         assert internet(_rapor(wan_tur="pppoe", pppoe="bagli")) == "PPPoE bağlı"
         assert internet(_rapor(wan_tur="pppoe", pppoe="baglaniyor")) == "PPPoE: bağlanıyor"
         assert internet(_rapor(wan_tur="pppoe", pppoe="sunucu_yok")) == kotu("PPPoE: sunucu yanıt vermiyor")
+        # PPPoE açık ama internet modemden (0.4.18): sorun değil, kötü işaretli değil
+        assert internet(_rapor(wan_tur="pppoe", pppoe="modemden")) == "Modemden bağlı (DHCP); PPPoE ONT&#x27;ye takılınca bağlanır"
         assert internet(_rapor(wan_tur="pppoe", pppoe="kablo_yok")) == kotu("kablo yok")
         assert internet(_rapor(wan_tur="dhcp", pppoe="kablo_yok")) == kotu("kablo yok")
         assert internet(_rapor(wan_tur="dhcp", pppoe="dhcp_yok")) == kotu("modemden adres alınamadı")

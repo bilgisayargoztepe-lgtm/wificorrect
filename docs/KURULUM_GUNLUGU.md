@@ -790,8 +790,8 @@ hazır, cihazda sahte operatörle denendi; 2026-10-24'te `main`'e birleşti (PR 
 kurulmadı ve gerçek bir PPPoE hattında denenmedi (aşağıda "Canlı kabul listesi").
 - **Akış:** (1) *Dükkânda hazırlık:* cihaz modemle (DHCP) çalışırken panel → Ayarlar → Portlar → **PPPoE** kutusunda Açık, operatörün
   kullanıcı adı (ör. `5321234567@turk.net`), parola, gerekirse VLAN (Türk Telekom altyapısındaki hatlarda genelde 35) → Uygula → 3 dk
-  içinde Onayla (mevcut port değişikliği akışı). Dükkânda PPPoE sunucusu olmadığı için durum "PPPoE sunucusu yanıt vermiyor" görünür,
-  cihaz DHCP ile çalışmaya devam eder (kutuda not: "Dükkânda PPPoE bağlanmaz; ONT'ye takılınca bağlanır."). (2) *Müşteride:* internet
+  içinde Onayla (mevcut port değişikliği akışı). Dükkânda PPPoE sunucusu olmadığı için durum (0.4.18'den beri yeşil) "Modemden bağlı
+  (DHCP); PPPoE ONT'ye takılınca bağlanır" görünür (0.4.17'de kırmızı "PPPoE sunucusu yanıt vermiyor"), cihaz DHCP ile çalışmaya devam eder (kutuda not: "Dükkânda PPPoE bağlanmaz; ONT'ye takılınca bağlanır."). (2) *Müşteride:* internet
   portu ONT'ye / bina kablosuna takılır; PPPoE bağlanır, tünel ve merkez gelir, panelde "PPPoE bağlı (dış IP …)". (3) *Bağlanamazsa:*
   teknisyen müşteride, internet ve SMS olmadan, telefonla misafir Wi-Fi'ına bağlanıp giriş sayfasındaki **Servis** ile düzeltir
   (aşağıda). **DHCP hep açık kalır** (dhcpcd ve WAN DHCP bekçisi bugünkü gibi): hangisi bağlıysa o kullanılır, ikisi de bağlıysa
@@ -897,16 +897,18 @@ kurulmadı ve gerçek bir PPPoE hattında denenmedi (aşağıda "Canlı kabul li
   uygulamasında düzelir.
 - **Durum** (`pppoe::durum`; panel Portlar, sağlık raporu ve giriş sayfası uyarısı aynı yerden): `kapali` "PPPoE kapalı (modemden DHCP)" ·
   `kablo_yok` "Kablo takılı değil" · `dhcp_yok` "Modemden adres alınamadı (modem kapalı ya da kablo yanlış porta takılı)" · `sunucu_yok`
-  "PPPoE sunucusu yanıt vermiyor (kablo doğru porta mı, VLAN gerekli mi?)" · `kimlik_hatasi` "Kullanıcı adı ya da parola reddedildi" ·
+  "PPPoE sunucusu yanıt vermiyor (kablo doğru porta mı, VLAN gerekli mi?)" · `modemden` "Modemden bağlı (DHCP); PPPoE ONT'ye takılınca
+  bağlanır" (0.4.18, aşağıda "PPPoE: modemli hatta yeşil durum") · `kimlik_hatasi` "Kullanıcı adı ya da parola reddedildi" ·
   `baglaniyor` "Bağlanıyor…" · `bagli` "PPPoE bağlı (dış IP …)". **Çözüm sırası** (`durum_coz`): internet portunda kablo yoksa her şeyden önce
   `kablo_yok` (pppd kablo çekilince eski adresi ~70 sn daha tutar); PPPoE kapalıysa DHCP adresi varsa `kapali`, yoksa `dhcp_yok`; açıkken
   `wfcppp`'de adres varsa `bagli` (günlükteki eski hatalar geçersiz); yoksa pppd birim günlüğünün son 10 dk'sı (`journalctl -u
   wificorrect-pppoe.service --since -10min -o cat`) sondan taranır ve kararı veren ilk iz belirler: `authentication failed` ya da `refused to
   authenticate` (yanlış kimlik yöntemi) → `kimlik_hatasi`; `timeout waiting for pado` ya da `unable to complete pppoe discovery` →
-  `sunucu_yok`; `authentication succeeded` taramayı bitirir (oturum düşmüş, pppd yeniden deniyor); iz yoksa `baglaniyor`. Satırlar küçük
+  `sunucu_yok`; `authentication succeeded` taramayı bitirir (oturum düşmüş, pppd yeniden deniyor); iz yoksa `baglaniyor`; günlük
+  `kimlik_hatasi` demiyorsa ve internet portunda DHCP adresi varsa `sunucu_yok`/`baglaniyor` yerine `modemden` (0.4.18). Satırlar küçük
   harfe çevrilip alt dizgiyle eşlenir: systemd altında pppd satırları çift (syslog + stdout) ve birimin başlangıç satırlarıyla gelebilir,
   tekrar sonucu değiştirmez. 169.254/16 (dhcpcd'nin IPv4LL'i), loopback ve 0.0.0.0 adres sayılmaz. Okumalar tembeldir (kapalıyken günlük,
-  bağlıyken DHCP adresi okunmaz) ve komut başına 5 sn sınırlıdır. Gerçek pppd 2.5.2 satırları (sahte operatörden, parola ve kullanıcı adı
+  bağlıyken ya da günlükte kimlik reddi varken DHCP adresi okunmaz) ve komut başına 5 sn sınırlıdır. Gerçek pppd 2.5.2 satırları (sahte operatörden, parola ve kullanıcı adı
   içermez): `tests/fixtures/pppoe/{bagli,kimlik_hatasi,kimlik_hatasi_pap,sunucu_yok}.log`. **Gecikmeler:** ayar değişince önceki sonuç
   yenisi gelene kadar gösterilir (`sunucu_yok` ≤ ~35 sn, `kimlik_hatasi` ≤ ~13 sn); birim hiç başlayamazsa (`ExecStartPre` hatası, ör. VLAN
   arayüzü kurulamadı) günlükte pppd satırı olmaz → `baglaniyor` kalır; ölü hat ~70 sn (LCP yankı 10 sn × 6) + 6 sn sonra fark edilir, bu
@@ -998,7 +1000,8 @@ kurulmadı ve gerçek bir PPPoE hattında denenmedi (aşağıda "Canlı kabul li
   (`api.py`) iki alanı bağımsız ve isteğe bağlı doğrular: **bilinmeyen ya da bozuk değer raporu reddetmez, yalnızca o alanı atar** (ileride
   eklenecek bir durum kodu eski merkezde "Rapor gelmiyor" uyarısı/SMS'i doğurmasın; öteki alanlar yine sıkı doğrulanır, bilinmeyen anahtarlar
   zaten atılır). Yönetim → müşteri sayfası sağlık kartında "WAN"dan sonra, "SMS"ten önce **"İnternet"** satırı, yalnızca `pppoe` koduna bakar:
-  Modem (DHCP) · kablo yok · modemden adres alınamadı · PPPoE: sunucu yanıt vermiyor · PPPoE: parola reddedildi · PPPoE: bağlanıyor · PPPoE bağlı;
+  Modem (DHCP) · kablo yok · modemden adres alınamadı · PPPoE: sunucu yanıt vermiyor · Modemden bağlı (DHCP); PPPoE ONT'ye takılınca
+  bağlanır (0.4.18; kırmızı değil) · PPPoE: parola reddedildi · PPPoE: bağlanıyor · PPPoE bağlı;
   sorunlular (kablo yok, adres yok, sunucu yok, parola reddedildi) kırmızı; kod yoksa "—" (eski cihaz ya da atılmış değer). **Yeni sağlık kuralı
   yok:** PPPoE bağlanamayan cihaz zaten "ulaşılamıyor" olur ve mevcut uyarı SMS'i gider.
 - **Denetim olayları:** `PANEL_PORT` satırı `ag::describe` metnine (`… , PPPoE açık (VLAN 35)`) ek olarak ` pppoe=acik|kapali vlan=N
@@ -1084,7 +1087,8 @@ kurulmadı ve gerçek bir PPPoE hattında denenmedi (aşağıda "Canlı kabul li
     `pppoe-temizle` çalıştırdığı için normal akışta olmaz); internet portu başka porta geçerken eski portun `<port>.<vlan>` arayüzü yeniden başlatmaya
     kadar artık kalabilir; PPPoE'li müşteride de ekransız açılış için sahte ekran fişi ve BIOS "Restore on AC Power Loss" gerekir (ayrı konu, docs/DEVAM.md).
 - **Canlı kabul listesi** (henüz yapılmadı; ilk PPPoE'li müşteride, **yanında yedek modemle**; cihazlar 0.4.17, merkez güncel):
-  - *Dükkânda (DHCP):* panelde PPPoE kutusu görünüyor mu; uydurma bilgiyle Açık → Uygula → Onayla: durum "PPPoE sunucusu yanıt vermiyor (…)", DHCP
+  - *Dükkânda (DHCP):* panelde PPPoE kutusu görünüyor mu; uydurma bilgiyle Açık → Uygula → Onayla: durum yeşil "Modemden bağlı (DHCP); PPPoE ONT'ye
+    takılınca bağlanır" (0.4.18; yönetimdeki kartta da aynısı, kırmızı değil), DHCP
     internet ve tünel sürüyor (kopmuyor), kapatınca `/etc/ppp/peers/wificorrect` siliniyor, VLAN arayüzü gidiyor, tünel yapılandırmasındaki `MTU` satırı kalkıyor.
     Cihazın AP yönetim parolası geldi mi (panel → AP kurulumu → Takılan cihaz; yönetimdekiyle aynı olmalı: cihaz çevrimdışı kalınca Servis'in tek anahtarı).
   - *ONT'ye takınca:* PPPoE bağlanıyor mu; `ip -o route show default` → `default dev wfcppp scope link metric 100` (yanında dhcpcd'nin IPv4LL satırı
@@ -1119,3 +1123,19 @@ kurulmadı ve gerçek bir PPPoE hattında denenmedi (aşağıda "Canlı kabul li
     alınamadı…"/"PPPoE kapalı (modemden DHCP)"; reddedilen bir kayıtta (yanlış Servis parolası) seçilen Kapalı/Açık formda korunuyor mu.
   - *Yükseltme:* PPPoE kapalı Göztepe ve Visavis'te güncelleme sonrası misafir girişi, tünel ve `nft` kuralları eskisi gibi; `dpkg -s ppp` kurulu; sağlık kartında
     "İnternet: Modem (DHCP)" ve yönetimde "Yenile"den 5 dk sonra cihazda yeni AP parolası.
+
+## PPPoE: modemli hatta yeşil durum (2026-10-24, 0.4.18)
+Dal `pppoe-modem-durumu`. Kullanıcı isteği: cihaz çoğu zaman modemin arkasında (DHCP) çalışacak, ONT'ye takılınca da PPPoE ile internet
+alabilecek. 0.4.17 bunu zaten yapıyordu (DHCP hep açık, ikisi de bağlıysa PPPoE metrik 100 ile önde; kablo değişince ayara dokunulmaz), ama
+PPPoE açık bir cihaz modemdeyken durum satırı internet olduğu halde kırmızı "PPPoE sunucusu yanıt vermiyor" diyordu (yönetimdeki sağlık
+kartında da kırmızı "PPPoE: sunucu yanıt vermiyor"); "çoğu zaman modem" düzeninde bu kırmızı yazı sürekli ekranda kalırdı.
+- **Yeni durum `modemden`** "Modemden bağlı (DHCP); PPPoE ONT'ye takılınca bağlanır": PPPoE açık, `wfcppp`'de adres yok, pppd günlüğü kimlik
+  reddi demiyor (sunucu yok ya da deneme sürüyor) ve internet portunda DHCP adresi var (dhcpcd'nin 169.254 adresi sayılmaz: DHCP vermeyen ONT'de
+  durum `sunucu_yok` kalır). Panel → Portlar'da yeşil; yönetimdeki kartta aynı metin, kırmızı değil. Giriş sayfasındaki uyarı ve Servis
+  yalnızca kullanılabilir varsayılan rota yokken açıldığından orada görünmez (DHCP adresi olup rotası olmayan nadir hat hariç; PPPoE kapalıyken
+  `kapali` için de aynı).
+- **Kimlik reddi önceliklidir:** DHCP çalışsa da `kimlik_hatasi` kırmızı kalır (bir PPPoE sunucusu yanıt verdi, bilgi yanlış; ör. PPPoE
+  geçirgen bir modem). Okuma sırası: `wfcppp` adresi → (yoksa) pppd günlüğü → (kimlik reddi yoksa) internet portunun adresi.
+- **Sağlık raporu:** `pppoe=modemden`; merkezde `SAGLIK_PPPOE_DURUMLARI` ve kart metni eklendi. Eski merkez bilinmeyen kodu atar (rapor
+  reddedilmez), kartta "—" görünür; merkez güncellenince düzelir. Yeni sağlık kuralı yok.
+- **Testler:** cihazda `bash scripts/test.sh wificorrect` 453/453 (uyarısız), merkez 22/22 dosya.

@@ -14,7 +14,7 @@ fn rol_secim(name: &str, cur: &str, opts: &[(&str, &str)]) -> String {
 fn pppoe_durum_html(d: &Durum) -> String {
     let metin = h(&d.metin());
     match d {
-        Durum::Kapali | Durum::Bagli(_) => format!("<span class=\"durum\">{metin}</span>"),
+        Durum::Kapali | Durum::Modemden | Durum::Bagli(_) => format!("<span class=\"durum\">{metin}</span>"),
         Durum::Baglaniyor => format!("<span>{metin}</span>"),
         _ => format!("<span class=\"durum kotu\">{metin}</span>"),
     }

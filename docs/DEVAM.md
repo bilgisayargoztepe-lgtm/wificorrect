@@ -54,7 +54,11 @@ kararlı kanal; numarası yönetimde; aşağıda "Visavis").
 Repo `bilgisayargoztepe-lgtm/wificorrect` (avsharbeyi'den devredildi). Her şey **`main`**'de (PR #3–#27 birleşti; #2 kapatıldı).
 **v0.4.17** etiketlendi (2026-10-24, `0581a31` = PR #27'nin birleştirmesi; tarihler gün.ay.yıl; ISO + .deb, `release.yml`;
 `WFC_SSH_PUB` = `~/.ssh/bocafe.pub`). Önceki sürüm v0.4.16 (2026-10-18). İki canlı cihaz **hâlâ 0.4.16** (merkezden uzaktan
-güncellemeyle kurulmuştu); merkez PPPoE öncesi main'i çalıştırıyor (PPPoE'nin merkez parçası henüz kurulmadı).
+güncellemeyle kurulmuştu); merkez 2026-10-24 10:48'de main `4f9f9b9`'dan güncellendi (PPPoE'nin merkez parçası dahil; veritabanı yedeği
+`merkez.db.yedek-20261024-104816`).
+**v0.4.18 (PPPoE modemli hatta yeşil durum):** PPPoE açık cihaz modemdeyken (PPPoE sunucusu yok, DHCP adresi var) durum kırmızı "PPPoE
+sunucusu yanıt vermiyor" yerine yeşil "Modemden bağlı (DHCP); PPPoE ONT'ye takılınca bağlanır" (`pppoe=modemden`, merkez kartında da);
+kimlik reddi yine kırmızı. Ayrıntı KURULUM_GUNLUGU "PPPoE: modemli hatta yeşil durum".
 **v0.4.17 (PPPoE): `main`'de, canlıda değil** (PR #27, 2026-10-24; CI 7/7 geçti;
 spec `docs/superpowers/specs/2026-10-23-pppoe-design.md`, ayrıntı ve canlı kabul listesi KURULUM_GUNLUGU "PPPoE", teknisyen notu
 `docs/AP_KURULUM.md` 5. bölüm). İçerik: internet alan portta PPPoE (`ag.toml [pppoe]`, ayrı `wificorrect-pppoe.service` + pppd, VLAN, DHCP hep
@@ -63,10 +67,9 @@ açık ve PPPoE metrik 100 ile önde), panel → Ayarlar → Portlar kutusu (3 d
 yönetimde "İnternet" satırı, tünel MTU 1412 (yeniden başlatmadan), yavaşlatma etkin çıkış arayüzünde, MSS düzeltmesi, yönetim `wfcppp`'de
 kapalı, dhcpcd çıkış kancası (operatör DNS'i) ve ppp ip-up kancası (yeniden deneme sayacı). Son incelemenin düzeltmelerinden sonra cihaz
 testleri 453/453 ve sahte operatörle cihazda (`scripts/pppoe-deneme.sh`, ağ ad alanlarında) 19/19 PASS; merkez testleri 22/22 dosya (merkez son
-düzeltmelerde değişmedi); gerçek PPPoE hattında denenmedi. Sırada (sırası önemsiz, ikisi de kullanıcıda): merkezin güncellenmesi
-(`merkez-guncelle.sh`, main'den, sudo) ve uzaktan güncelleme (Sürümler → "GitHub'dan yeni sürümleri al" → test ve kararlı hedefi
-0.4.17 → "Şimdi güncelle" ya da 03:00–06:00); sonra ilk PPPoE'li müşteride canlı kabul. Servis parolasının 5 dk'da inmesi için
-merkez ve cihaz ikisi de 0.4.17 olmalı (eski merkezde parola günlük eşitlemeyle gelir).
+düzeltmelerde değişmedi); gerçek PPPoE hattında denenmedi. Sırada (kullanıcıda): uzaktan güncelleme (Sürümler → "GitHub'dan yeni
+sürümleri al" → test ve kararlı hedefi en yeni sürüm → "Şimdi güncelle" ya da 03:00–06:00); sonra ilk PPPoE'li müşteride canlı kabul.
+Servis parolasının 5 dk'da inmesi için merkez ve cihaz ikisi de ≥ 0.4.17 olmalı (eski merkezde parola günlük eşitlemeyle gelir).
 **Cihaza kurulum `gelistir.sh` ile değil**: yeni sürüm → `v*` etiketi (release ~20–25 dk) → Yönetim → Sürümler → "GitHub'dan
 yeni sürümleri al" → kanal hedefi (Göztepe **test**, Visavis **kararlı**: ikisinin de hedefini seç) → müşteri sayfasında
 "Şimdi güncelle" (kullanıcı basar) ya da 03:00–06:00 penceresi. Acil yerel deneme: cihazda `scripts/paket.sh` ile .deb, sunucuda

@@ -83,7 +83,7 @@ SAGLIK_BOOL = ("kayit_boslugu_1s", "wan", "sms_sorunu", "hiz_hata")
 # PPPoE (spec 2026-10-23 "Durum ve teşhis"): internet portunun türü ve durumu; cihaz her raporda ikisini de gönderir.
 # Bilinen değerler; başkası (ör. ileride eklenen bir durum kodu) raporu bozmaz, saglik_temizle yalnızca o alanı atar.
 SAGLIK_WAN_TURLERI = ("dhcp", "pppoe")
-SAGLIK_PPPOE_DURUMLARI = ("kapali", "kablo_yok", "dhcp_yok", "sunucu_yok", "kimlik_hatasi", "baglaniyor", "bagli")
+SAGLIK_PPPOE_DURUMLARI = ("kapali", "kablo_yok", "dhcp_yok", "sunucu_yok", "modemden", "kimlik_hatasi", "baglaniyor", "bagli")
 
 
 def _tam(v, alt, ust=None):

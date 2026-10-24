@@ -165,6 +165,9 @@ pub enum Durum {
     DhcpYok,
     /// PPPoE sunucusu yanıt vermiyor (keşif zaman aşımı)
     SunucuYok,
+    /// PPPoE açık ama bağlı değil (sunucu yanıt vermiyor ya da deneme sürüyor) ve internet portu modemden DHCP adresi almış:
+    /// modemli hatta internet modemden gelir, ONT'ye takılınca PPPoE bağlanır (sorun değil; 0.4.18)
+    Modemden,
     /// operatör kullanıcı adını/parolayı (ya da kimlik doğrulama yöntemini) reddetti
     KimlikHatasi,
     /// pppd deniyor
@@ -181,6 +184,7 @@ impl Durum {
             Durum::KabloYok => "kablo_yok",
             Durum::DhcpYok => "dhcp_yok",
             Durum::SunucuYok => "sunucu_yok",
+            Durum::Modemden => "modemden",
             Durum::KimlikHatasi => "kimlik_hatasi",
             Durum::Baglaniyor => "baglaniyor",
             Durum::Bagli(_) => "bagli",
@@ -194,6 +198,7 @@ impl Durum {
             Durum::KabloYok => "Kablo takılı değil".into(),
             Durum::DhcpYok => "Modemden adres alınamadı (modem kapalı ya da kablo yanlış porta takılı)".into(),
             Durum::SunucuYok => "PPPoE sunucusu yanıt vermiyor (kablo doğru porta mı, VLAN gerekli mi?)".into(),
+            Durum::Modemden => "Modemden bağlı (DHCP); PPPoE ONT'ye takılınca bağlanır".into(),
             Durum::KimlikHatasi => "Kullanıcı adı ya da parola reddedildi".into(),
             Durum::Baglaniyor => "Bağlanıyor…".into(),
             Durum::Bagli(ip) => format!("PPPoE bağlı (dış IP {ip})"),
@@ -236,10 +241,11 @@ fn gunluk_durumu(gunluk: &str) -> Durum {
 
 /// Durumu girdilerden çıkarır (saf işlev; `durum` girdileri toplar).
 /// `acik`: ag.toml `pppoe.acik`. `kablo`: internet portunda taşıyıcı var. `ppp_ip`: `wfcppp`'nin IPv4 adresi (varsa).
-/// `dhcp_adres`: internet portunun DHCP'den aldığı IPv4 adresi var (yalnız PPPoE kapalıyken anlamlı: açıkken DHCP bağlı olsa da
-/// durum PPPoE'ninkidir). `gunluk`: pppd birim günlüğünün son dakikaları (`journalctl -o cat`).
+/// `dhcp_adres`: internet portunun DHCP'den aldığı IPv4 adresi var. `gunluk`: pppd birim günlüğünün son dakikaları (`journalctl -o cat`).
 /// Sıra: kablo yoksa her şeyden önce `KabloYok` (kablo yeni çekildiyse pppd ~70 sn daha eski adresi tutar); kapalıysa DHCP; açıkta
-/// PPP adresi varsa `Bagli` (günlükteki eski hatalar geçersiz); yoksa günlük.
+/// PPP adresi varsa `Bagli` (günlükteki eski hatalar geçersiz); yoksa günlük: kimlik reddi DHCP çalışsa da gösterilir (bir PPPoE
+/// sunucusu yanıt verdi, bilgi yanlış); sunucu yoksa ya da deneme sürüyorsa ve DHCP adresi varsa `Modemden` (modemli hat: internet
+/// modemden gelir, ONT'ye takılınca PPPoE bağlanır; 0.4.18'den önce bu durumda kırmızı `SunucuYok` görünüyordu).
 pub fn durum_coz(acik: bool, kablo: bool, ppp_ip: Option<&str>, dhcp_adres: bool, gunluk: &str) -> Durum {
     if !kablo {
         return Durum::KabloYok;
@@ -247,9 +253,11 @@ pub fn durum_coz(acik: bool, kablo: bool, ppp_ip: Option<&str>, dhcp_adres: bool
     if !acik {
         return if dhcp_adres { Durum::Kapali } else { Durum::DhcpYok };
     }
-    match ppp_ip {
-        Some(ip) => Durum::Bagli(ip.to_string()),
-        None => gunluk_durumu(gunluk),
+    match (ppp_ip, gunluk_durumu(gunluk)) {
+        (Some(ip), _) => Durum::Bagli(ip.to_string()),
+        (None, Durum::KimlikHatasi) => Durum::KimlikHatasi,
+        (None, _) if dhcp_adres => Durum::Modemden,
+        (None, d) => d,
     }
 }
 
@@ -267,17 +275,20 @@ fn adres_coz(ip_addr: &str) -> Option<String> {
 
 /// Canlı durum. Kablo `sys/<internet portu>/carrier`; adresler `ip -4 -o addr show dev …`; PPPoE açık ve bağlı değilse pppd birim
 /// günlüğünün son 10 dakikası. `komut`: süre sınırlı komut çıktısı (`None`: çalışmadı / zaman aşımı → adres/günlük yok sayılır).
-/// Yalnızca kararı etkileyecek veri okunur: kapalıyken günlük, bağlıyken DHCP adresi, kablo yokken hiçbiri okunmaz.
+/// Yalnızca kararı etkileyecek veri okunur: kapalıyken günlük, bağlıyken ya da günlükte kimlik reddi varken DHCP adresi, kablo
+/// yokken hiçbiri okunmaz.
 pub fn durum(ag: &Ag, sys: &Path, komut: &dyn Fn(&[&str]) -> Option<String>) -> Durum {
     let adres = |arayuz: &str| komut(&["ip", "-4", "-o", "addr", "show", "dev", arayuz]).and_then(|o| adres_coz(&o));
     let (acik, kablo) = (ag.pppoe.acik, crate::ag::link(sys, &ag.wan).0);
     let ppp_ip = if acik && kablo { adres(ARAYUZ) } else { None };
-    let dhcp_adres = !acik && kablo && adres(&ag.wan).is_some();
     let gunluk = if acik && kablo && ppp_ip.is_none() {
         komut(&["journalctl", "-u", BIRIM, "--since", "-10min", "-o", "cat", "--no-pager", "-q"]).unwrap_or_default()
     } else {
         String::new()
     };
+    // DHCP adresi kapalıyken `Kapali`/`DhcpYok`, açıkken (bağlı değil, kimlik reddi yok) `Modemden` için gerekir
+    let dhcp_sor = kablo && (!acik || (ppp_ip.is_none() && gunluk_durumu(&gunluk) != Durum::KimlikHatasi));
+    let dhcp_adres = dhcp_sor && adres(&ag.wan).is_some();
     durum_coz(acik, kablo, ppp_ip.as_deref(), dhcp_adres, &gunluk)
 }
 
@@ -984,10 +995,20 @@ mod tests {
     fn durum_dhcp_ve_pppoe_birlikte() {
         // DHCP adresi de var, PPPoE de bağlı: PPPoE tercih edilir
         assert_eq!(durum_coz(true, true, Some("85.1.2.3"), true, ""), Durum::Bagli("85.1.2.3".into()));
-        // DHCP çalışıyor ama PPPoE bağlanamıyor (dükkân: modemde PPPoE sunucusu yok): durum PPPoE'nindir, DHCP'ninki değil
-        assert_eq!(durum_coz(true, true, None, true, SUNUCU_YOK), Durum::SunucuYok);
-        assert_eq!(durum_coz(true, true, None, true, ""), Durum::Baglaniyor);
-        assert_eq!(durum_coz(true, true, None, false, ""), Durum::Baglaniyor); // açıkken "DHCP yok" durumu yoktur
+        assert_eq!(durum_coz(true, true, Some("85.1.2.3"), true, KIMLIK_CHAP), Durum::Bagli("85.1.2.3".into()));
+        // modemli hat (dükkân ya da modemi olan müşteri): PPPoE sunucusu yok ya da deneme sürüyor, internet modemden geliyor
+        assert_eq!(durum_coz(true, true, None, true, SUNUCU_YOK), Durum::Modemden);
+        assert_eq!(durum_coz(true, true, None, true, ""), Durum::Modemden);
+        assert_eq!(durum_coz(true, true, None, true, &format!("{BAGLI}{DUSTU}")), Durum::Modemden); // ONT'den modeme geçildi
+        assert_eq!(durum_coz(true, true, None, true, &format!("{KIMLIK_CHAP}{SUNUCU_YOK}")), Durum::Modemden); // en son olay: sunucu yok
+        // kimlik reddi DHCP çalışsa da gösterilir (bir PPPoE sunucusu yanıt verdi, bilgi yanlış)
+        assert_eq!(durum_coz(true, true, None, true, KIMLIK_CHAP), Durum::KimlikHatasi);
+        assert_eq!(durum_coz(true, true, None, true, KIMLIK_YONTEMI), Durum::KimlikHatasi);
+        // DHCP adresi yoksa PPPoE'nin kendi durumu (açıkken "DHCP yok" durumu yoktur)
+        assert_eq!(durum_coz(true, true, None, false, SUNUCU_YOK), Durum::SunucuYok);
+        assert_eq!(durum_coz(true, true, None, false, ""), Durum::Baglaniyor);
+        // kablo yoksa DHCP adresi önemsiz
+        assert_eq!(durum_coz(true, false, None, true, SUNUCU_YOK), Durum::KabloYok);
     }
 
     #[test]
@@ -1052,6 +1073,7 @@ mod tests {
             (Durum::KabloYok, "kablo_yok", "Kablo takılı değil"),
             (Durum::DhcpYok, "dhcp_yok", "Modemden adres alınamadı (modem kapalı ya da kablo yanlış porta takılı)"),
             (Durum::SunucuYok, "sunucu_yok", "PPPoE sunucusu yanıt vermiyor (kablo doğru porta mı, VLAN gerekli mi?)"),
+            (Durum::Modemden, "modemden", "Modemden bağlı (DHCP); PPPoE ONT'ye takılınca bağlanır"),
             (Durum::KimlikHatasi, "kimlik_hatasi", "Kullanıcı adı ya da parola reddedildi"),
             (Durum::Baglaniyor, "baglaniyor", "Bağlanıyor\u{2026}"),
             (Durum::Bagli("85.1.2.3".into()), "bagli", "PPPoE bağlı (dış IP 85.1.2.3)"),
@@ -1137,17 +1159,22 @@ mod tests {
         // wfcppp'nin adresi var: bağlı; günlük okunmaz, DHCP sorulmaz
         let (d, c) = durum_dene(&a, &sys, &[(IP_PPP, PPP_ADRES), (IP_WAN, DHCP_ADRES)]);
         assert_eq!((d, c), (Durum::Bagli("203.0.113.10".into()), vec![IP_PPP.to_string()]));
-        // adres yok: pppd birim günlüğünün son 10 dakikası okunur
-        for (gunluk, beklenen) in [
-            (KIMLIK_CHAP, Durum::KimlikHatasi),
-            (KIMLIK_PAP, Durum::KimlikHatasi),
-            (KIMLIK_YONTEMI, Durum::KimlikHatasi),
-            (SUNUCU_YOK, Durum::SunucuYok),
-            ("", Durum::Baglaniyor),
+        // adres yok: pppd birim günlüğünün son 10 dakikası okunur; kimlik reddi yoksa internet portunun (DHCP) adresi de sorulur
+        let yok = "Device \"wfcppp\" does not exist.\n";
+        for (gunluk, dhcp, beklenen) in [
+            (KIMLIK_CHAP, DHCP_ADRES, Durum::KimlikHatasi),
+            (KIMLIK_PAP, DHCP_ADRES, Durum::KimlikHatasi),
+            (KIMLIK_YONTEMI, "", Durum::KimlikHatasi),
+            (SUNUCU_YOK, "", Durum::SunucuYok),
+            (SUNUCU_YOK, YEREL_ADRES, Durum::SunucuYok), // dhcpcd'nin 169.254 adresi modem sayılmaz (ONT DHCP vermiyor)
+            (SUNUCU_YOK, DHCP_ADRES, Durum::Modemden),
+            ("", "", Durum::Baglaniyor),
+            ("", DHCP_ADRES, Durum::Modemden),
         ] {
-            let (d, c) = durum_dene(&a, &sys, &[(IP_PPP, "Device \"wfcppp\" does not exist.\n"), (GUNLUK_KOMUTU, gunluk)]);
-            assert_eq!(d, beklenen);
-            assert_eq!(c, [IP_PPP, GUNLUK_KOMUTU]);
+            let (d, c) = durum_dene(&a, &sys, &[(IP_PPP, yok), (GUNLUK_KOMUTU, gunluk), (IP_WAN, dhcp)]);
+            assert_eq!(d, beklenen, "{gunluk:?} {dhcp:?}");
+            let sorulan = if beklenen == Durum::KimlikHatasi { vec![IP_PPP, GUNLUK_KOMUTU] } else { vec![IP_PPP, GUNLUK_KOMUTU, IP_WAN] };
+            assert_eq!(c, sorulan, "{gunluk:?} {dhcp:?}");
         }
         // komutlar çalışmadı (zaman aşımı): bağlanıyor
         assert_eq!(durum_dene(&a, &sys, &[]).0, Durum::Baglaniyor);

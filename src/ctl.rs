@@ -322,6 +322,45 @@ fn uzak_uygula(cfg: &Config, ag_yolu: &std::path::Path, key: &std::path::Path, c
     }
 }
 
+/// `ctl pppoe-hazirla` (`wificorrect-pppoe.service` ExecStartPre): önce bağlantı dosyası ag.toml'daki ayardan yenilenir
+/// (`pppoe::dosya_yenile`: paket güncellemesiyle gelen pppd seçenekleri bu başlangıçta geçerli olsun), sonra internet portu ve VLAN
+/// hazırlanır (`pppoe::hazirla`). Dosya değiştiyse denetime `PPPOE_DOSYA_YENILENDI` (programın sürümüyle; kullanıcı adı ve parola
+/// yazılmaz). PPPoE kapalıysa dosya kaldırılır ve çıkış 1: pppd başlamaz. ag.toml yoksa ya da bozuksa, ya da PPPoE ayarı geçersizse
+/// dosyaya dokunulmaz: pppd son geçerli dosyayla başlar (ag.toml okunamazsa hazırlık eskisi gibi varsayılan ayarla).
+fn pppoe_hazirla(cfg: &Config, y: &crate::ag::Yollar, runner: &Runner, now: f64) -> ExitCode {
+    use crate::pppoe::Yenileme;
+    let ag = match crate::ag::load_kesin(&y.ag) {
+        Ok(ag) => {
+            match crate::pppoe::dosya_yenile(&ag, &y.peers) {
+                Ok(Yenileme::Ayni) => {}
+                Ok(Yenileme::Yazildi) => {
+                    println!("PPPoE bağlantı dosyası ag.toml'dan yeniden yazıldı");
+                    let ek = format!("surum={}", env!("CARGO_PKG_VERSION"));
+                    ortak::audit(&cfg.main.log_root, Row::new("PPPOE_DOSYA_YENILENDI", &ortak::now_iso(now)).set("ek", ek));
+                }
+                Ok(Yenileme::Kapali) => {
+                    eprintln!("PPPoE ag.toml'da kapalı: bağlantı dosyası kaldırıldı, pppd başlatılmadı");
+                    return ExitCode::from(1);
+                }
+                Err(e) => eprintln!("PPPoE bağlantı dosyası yenilenmedi (eskisi kullanılır): {e}"),
+            }
+            ag
+        }
+        Err(e) => {
+            let neden = if e == crate::ag::AgDosyasi::Yok { "yok" } else { "okunamadı (bozuk)" };
+            eprintln!("ag.toml {neden}: PPPoE bağlantı dosyası yenilenmedi (eskisi kullanılır)");
+            crate::ag::Ag::default()
+        }
+    };
+    match crate::pppoe::hazirla(&ag, runner) {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(e) => {
+            eprintln!("{e}");
+            ExitCode::from(1)
+        }
+    }
+}
+
 /// `ctl pppoe-peers AG.TOML ARAYUZ` (ağ ad alanındaki sahte operatör denemesi, `scripts/pppoe-deneme.sh`): AG.TOML'daki PPPoE
 /// ayarından pppd bağlantı dosyasının metnini üretir; yalnızca Ethernet arayüzü ARAYUZ'dür (VLAN soneki eklenmez). Dosya yazmaz.
 /// Üretilen dosya kullanılabilir olmalı: ayar açıkmış gibi doğrulanır (boş / satır sokan kullanıcı adı ve parola reddedilir).
@@ -834,13 +873,7 @@ pub fn run(cfg: Config, args: &[String]) -> ExitCode {
             }
         }
         // PPPoE (spec 2026-10-23): wificorrect-pppoe.service pppd'den önce ve sonra çalıştırır
-        Some("pppoe-hazirla") => match crate::pppoe::hazirla(&crate::ag::load(&crate::ag::Yollar::sistem().ag), &runner) {
-            Ok(()) => ExitCode::SUCCESS,
-            Err(e) => {
-                eprintln!("{e}");
-                ExitCode::from(1)
-            }
-        },
+        Some("pppoe-hazirla") => pppoe_hazirla(&cfg, &crate::ag::Yollar::sistem(), &runner, now),
         Some("pppoe-temizle") => {
             let ip_link = ortak::capture(&["ip", "-o", "link", "show", "type", "vlan"]);
             crate::pppoe::temizle(&crate::ag::load(&crate::ag::Yollar::sistem().ag), &ip_link, &runner);
@@ -1257,6 +1290,69 @@ mod tests {
         let yok = root.join("yok.toml").to_string_lossy().to_string();
         assert_eq!(kod(run(c.clone(), &a(&["pppoe-peers", &yok, "vethcpe"]))), kod(ExitCode::from(1))); // komuta gitti: dosya yok
         assert_eq!(kod(run(c.clone(), &a(&["pppoe-servis", &yok]))), kod(ExitCode::from(1)));
+    }
+
+    #[test]
+    fn pppoe_hazirla_baglanti_dosyasini_ayardan_yeniler() {
+        // wificorrect-pppoe.service ExecStartPre: paket güncellemesi bağlantı dosyasını yeniden üretmez; pppd her başlarken ayardan yenilenir
+        let (c, root) = cfg();
+        let y = pppoe_yollar(&root);
+        let ag = crate::ag::Ag { pppoe: crate::ag::Pppoe { acik: true, kullanici: "5321234567@turk.net".into(), parola: "gizli-parola".into(), vlan: 35, ..Default::default() }, ..Default::default() };
+        crate::ag::save(&y.ag, &ag).unwrap();
+        let yeni = crate::pppoe::peers_text(&ag);
+        let eski = yeni.replace("maxfail 1\n", "maxfail 3\n"); // 0.4.19'un yazdığı dosya
+        std::fs::write(&y.peers, &eski).unwrap();
+        let calls = Arc::new(Mutex::new(Vec::<String>::new()));
+        let c2 = calls.clone();
+        let runner = move |x: &[String]| {
+            c2.lock().unwrap().push(x.join(" "));
+            true
+        };
+        let kod = |k: ExitCode| format!("{k:?}");
+        let denetim = || std::fs::read_to_string(ortak::day_file(&c.main.log_root, ortak::day_of(&ortak::now_iso(NOW)), "denetim.csv")).unwrap_or_default();
+        let yenilendi = || denetim().lines().filter(|l| l.contains("PPPOE_DOSYA_YENILENDI")).count();
+        let vlan = ["ip link set dev enp3s0 up", "ip link add link enp3s0 name enp3s0.35 type vlan id 35", "ip link set dev enp3s0.35 up"];
+
+        // eski dosya: yeniden yazılır, denetimde programın sürümüyle (kullanıcı adı / parola yok), sonra VLAN arayüzü kurulur
+        assert_eq!(kod(pppoe_hazirla(&c, &y, &runner, NOW)), kod(ExitCode::SUCCESS));
+        assert_eq!(std::fs::read_to_string(&y.peers).unwrap(), yeni);
+        let d = denetim();
+        assert_eq!(yenilendi(), 1, "{d}");
+        assert!(d.contains(&format!("surum={}", env!("CARGO_PKG_VERSION"))) && !d.contains("turk.net") && !d.contains("gizli-parola"), "{d}");
+        assert_eq!(calls.lock().unwrap().clone(), vlan);
+        // dosya güncel: dokunulmaz, denetime yazılmaz
+        calls.lock().unwrap().clear();
+        assert_eq!(kod(pppoe_hazirla(&c, &y, &runner, NOW + 1.0)), kod(ExitCode::SUCCESS));
+        assert_eq!((yenilendi(), calls.lock().unwrap().clone()), (1, vlan.map(String::from).to_vec()));
+
+        // ag.toml yok ya da bozuk: dosyaya dokunulmaz, hazırlık eskisi gibi varsayılan ayarla (VLAN'sız)
+        std::fs::write(&y.peers, &eski).unwrap();
+        for icerik in [None, Some("[pppoe\nparola = \"gizli-parola\"\n")] {
+            match icerik {
+                Some(t) => std::fs::write(&y.ag, t).unwrap(),
+                None => std::fs::remove_file(&y.ag).unwrap(),
+            }
+            calls.lock().unwrap().clear();
+            assert_eq!(kod(pppoe_hazirla(&c, &y, &runner, NOW + 2.0)), kod(ExitCode::SUCCESS), "{icerik:?}");
+            assert_eq!(std::fs::read_to_string(&y.peers).unwrap(), eski);
+            assert_eq!(calls.lock().unwrap().clone(), ["ip link set dev enp3s0 up"]);
+        }
+        // geçersiz PPPoE ayarı (elle bozulmuş ag.toml): dosyaya dokunulmaz, pppd son geçerli dosyayla başlar
+        let kotu = crate::ag::Ag { pppoe: crate::ag::Pppoe { kullanici: "kotu\"k".into(), ..ag.pppoe.clone() }, ..ag.clone() };
+        crate::ag::save(&y.ag, &kotu).unwrap();
+        assert_eq!(kod(pppoe_hazirla(&c, &y, &runner, NOW + 3.0)), kod(ExitCode::SUCCESS));
+        assert_eq!(std::fs::read_to_string(&y.peers).unwrap(), eski);
+        // PPPoE kapalı: dosya kaldırılır, pppd başlamaz (çıkış 1), arayüzlere dokunulmaz
+        crate::ag::save(&y.ag, &crate::ag::Ag { pppoe: crate::ag::Pppoe { acik: false, ..ag.pppoe.clone() }, ..ag.clone() }).unwrap();
+        calls.lock().unwrap().clear();
+        assert_eq!(kod(pppoe_hazirla(&c, &y, &runner, NOW + 4.0)), kod(ExitCode::from(1)));
+        assert!(!y.peers.exists() && calls.lock().unwrap().is_empty());
+        assert_eq!(yenilendi(), 1);
+        // VLAN arayüzü kurulamazsa çıkış 1 (birim başlamaz, systemd yeniden dener); dosya önce yazıldı
+        crate::ag::save(&y.ag, &ag).unwrap();
+        let hata = |x: &[String]| x.get(2).map(String::as_str) != Some("add");
+        assert_eq!(kod(pppoe_hazirla(&c, &y, &hata, NOW + 5.0)), kod(ExitCode::from(1)));
+        assert_eq!((std::fs::read_to_string(&y.peers).unwrap(), yenilendi()), (yeni, 2));
     }
 
     #[test]

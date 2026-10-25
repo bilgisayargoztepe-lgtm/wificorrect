@@ -816,7 +816,7 @@ kurulmadı ve gerçek bir PPPoE hattında denenmedi (aşağıda "Canlı kabul li
   `/run/ppp`'ye yazar. **Postinst birimi etkinleştirmez**; açık/kapalıyı program yönetir (`pppoe::birim_uygula`: açıkken `systemctl
   enable` + `restart`, kapalıyken `disable --now`) ve `switch` (panel geçişi, geri alma, fabrika dönüşü) ile `pppoe_uygula` (Servis)
   ikisi de çağırır. **Bağlantı dosyası** `/etc/ppp/peers/wificorrect` (600; yalnızca PPPoE açıkken var, kapanınca ve fabrika dönüşünde
-  silinir) ag.toml'dan üretilir: `plugin pppoe.so`, `nic-<arayüz>`, `ifname wfcppp`, `user "…"`, `password "…"`, `noauth`, `hide-password`,
+  silinir; 0.4.21'den beri pppd her başlarken de yeniden üretilir: "PPPoE bağlantı dosyası her başlangıçta yenilenir") ag.toml'dan üretilir: `plugin pppoe.so`, `nic-<arayüz>`, `ifname wfcppp`, `user "…"`, `password "…"`, `noauth`, `hide-password`,
   `noipdefault`, `defaultroute`, `defaultroute-metric 100`, `usepeerdns`, `persist`, `maxfail 3` (0.4.20'den beri `maxfail 1`: "PPPoE düzeltmeleri"), `holdoff 10`, `lcp-echo-interval 10`,
   `lcp-echo-failure 6`, `mtu N`, `mru N`, `noipv6`; `kimlik=pap` → `refuse-chap/-mschap/-mschap-v2/-eap`, `chap` → `refuse-pap/-eap`;
   AC/servis adı doluysa `pppoe-ac "…"` ve `pppoe-service "…"` (eklenti seçenekleri, `plugin` satırından sonra; `pppoe-ac-name` diye bir
@@ -1181,6 +1181,29 @@ Dal `pppoe-duzeltmeler`. İlk gerçek PPPoE denemesi (Göztepe, Türk.net, VLAN 
     yok, misafir SMS'i ve DNS çalışıyor (elle `dhcpcd -n` gerekmeden).
   - ONT'nin VLAN'sız ağında (PPPoE'de VLAN boş): giriş sayfasında uyarı + Servis, panelde kırmızı "PPPoE sunucusu yanıt vermiyor".
   - Bilerek yanlış parola: denemeler 10 sn'den 5 dk'ya açılan aralıklarla (dakikada 9 değil).
+
+## PPPoE bağlantı dosyası her başlangıçta yenilenir (2026-10-25, 0.4.21)
+Dal `pppoe-dosya-yenile`. Göztepe 0.4.20'ye uzaktan güncellemeyle geçti (2026-10-24 23:29; 10 dk denetimi 23:42 `tamam`), ama
+`/etc/ppp/peers/wificorrect`'te `maxfail 3` kaldı: bağlantı dosyasını yalnızca ayar uygulanınca `ag::write_files` yazar (panel → Portlar,
+Servis, geri alma, fabrika dönüşü), paket güncellemesi yazmaz; yeni sürümün pppd seçenekleri ancak bir sonraki ayar değişikliğinde
+gelirdi. Dosya elle yeniden üretildi (23:37, `ctl pppoe-peers` ile; `cmp` kimlik satırlarının aynı kaldığını gösterdi, tek fark `maxfail`).
+- **Düzeltme:** `ctl pppoe-hazirla` (birimin `ExecStartPre`'i) önce bağlantı dosyasını ag.toml'dan yeniden üretir (`pppoe::dosya_yenile`),
+  sonra internet portunu ve VLAN'ı hazırlar. pppd seçeneklerini yalnızca başlarken okur: güncellemeyle gelen seçenek bir sonraki pppd
+  başlangıcında geçerli olur; çalışan pppd'ye ve bağlantıya dokunulmaz (postinst pppd birimini yeniden başlatmaz). Kurallar:
+  - metin ve izin (600) aynıysa dosyaya dokunulmaz; farklıysa yeniden yazılır (geçici dosya + taşıma, 600), denetime
+    `PPPOE_DOSYA_YENILENDI` ek `surum=<programın sürümü>` (kullanıcı adı ve parola yazılmaz), birim günlüğüne "PPPoE bağlantı dosyası
+    ag.toml'dan yeniden yazıldı";
+  - ag.toml'da PPPoE kapalıysa dosya kaldırılır ve çıkış 1: pppd başlamaz, birimin sonraki denemesi `ConditionPathExists`'e takılır (ayar
+    kaydı ile `write_files` arasındaki an ya da elle `systemctl start`);
+  - ag.toml yoksa ya da bozuksa, ya da PPPoE ayarı geçersizse (`ag::pppoe_dogrula`; panel ve Servis geçersizini kaydetmez, yalnızca elle
+    bozulmuş ag.toml) dosyaya dokunulmaz ve neden birim günlüğüne yazılır: pppd son geçerli dosyayla başlar (ag.toml okunamazsa hazırlık
+    eskisi gibi varsayılan ayarla).
+  Ayarı uygulayan bütün yollar ag.toml'u bağlantı dosyasından önce kaydeder (yalnızca `ag-ilk` sonra kaydeder; orada PPPoE kapalı):
+  yenileme `write_files`'ın yazdığı metni üretir (ikisi de `pppoe::peers_text`). Birim dosyasındaki eski `maxfail 3` yorumu düzeltildi.
+- **Testler:** cihazda `bash scripts/test.sh wificorrect` → 462/462 (uyarısız); yeni `pppoe::tests::dosya_ayardan_yenilenir` ve
+  `ctl::tests::pppoe_hazirla_baglanti_dosyasini_ayardan_yeniler` (geçici yollar, sahte komut çalıştırıcı). Merkezde değişiklik yok.
+- **Canlı kabul** (0.4.21 kurulunca): Göztepe'de dosya zaten güncel (elle üretildi): pppd'nin sonraki başlangıçlarında denetimde
+  `PPPOE_DOSYA_YENILENDI` olmamalı, dosyanın izni 600 kalmalı; birim eskisi gibi döngüde (modem ağında PPPoE sunucusu yok).
 
 ## Yönetim sol menü ve AP joker DNS kaydı (2026-10-24)
 Dal `yonetim-menu`; yalnızca merkez (cihazda değişiklik yok).

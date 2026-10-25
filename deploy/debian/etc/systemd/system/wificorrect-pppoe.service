@@ -7,15 +7,18 @@ ConditionPathExists=/etc/ppp/peers/wificorrect
 After=network.target
 
 [Service]
-# VLAN varsa <internet portu>.<vlan> arayüzünü kurar; pppd'den sonra (ExecStopPost) kaldırılır
+# Önce bağlantı dosyasını ag.toml'dan yeniden yazar (paket güncellemesiyle gelen pppd seçenekleri bu başlangıçta geçerli olsun;
+# PPPoE kapalıysa dosyayı kaldırır, pppd başlamaz), sonra VLAN varsa <internet portu>.<vlan> arayüzünü kurar; pppd'den sonra
+# (ExecStopPost) kaldırılır
 ExecStartPre=/usr/local/bin/wificorrect ctl pppoe-hazirla
 ExecStart=/usr/sbin/pppd call wificorrect nodetach
 ExecStopPost=/usr/local/bin/wificorrect ctl pppoe-temizle
 Restart=always
-# pppd bağlantı dosyasındaki maxfail 3 ile 3 başarısız denemeden sonra çıkar; yeniden başlatma aralığı 10 sn'den başlayıp 5 adımda
+# pppd bağlantı dosyasındaki maxfail 1 ile her başarısız denemeden sonra çıkar; yeniden başlatma aralığı 10 sn'den başlayıp 5 adımda
 # 5 dk'ya çıkar (systemd 254+): yanlış kullanıcı adı/parola/kimlik yöntemiyle operatörü saniyede bir yoklayıp hesabı kilitletmeyelim.
 # systemd bu sayacı birim kendiliğinden yeniden başladıkça sıfırlamaz (aradaki sağlıklı bağlantılar sayılmaz); her başarılı
-# bağlantıdan sonra /etc/ppp/ip-up.d/wificorrect sıfırlar (systemctl reset-failed): sonraki kopmada gecikme yeniden 10 sn.
+# bağlantıdan sonra /etc/ppp/ip-up.d/wificorrect sıfırlar (systemctl reset-failed): sonraki kopmada gecikme yeniden 10 sn. Kablo
+# internet portuna takılınca /etc/dhcpcd.exit-hook sıfırlayıp birimi hemen yeniden başlatır.
 RestartSec=10
 RestartSteps=5
 RestartMaxDelaySec=300

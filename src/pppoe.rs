@@ -69,6 +69,43 @@ pub fn peers_text_nic(ag: &Ag, nic: &str) -> String {
     s
 }
 
+/// `dosya_yenile` sonucu.
+#[derive(Debug, PartialEq)]
+pub enum Yenileme {
+    /// Dosya zaten ayardan üretilen metinle aynı (izni 600): dokunulmadı.
+    Ayni,
+    /// Dosya ayardan yeniden yazıldı (ör. paket güncellemesi pppd seçeneklerini değiştirdi).
+    Yazildi,
+    /// Ayarda PPPoE kapalı: dosya kaldırıldı (pppd başlamamalı; birimin sonraki denemesi `ConditionPathExists`'e takılır).
+    Kapali,
+}
+
+/// Birim başlarken (`ctl pppoe-hazirla`, `hazirla`'dan önce): bağlantı dosyasını ag.toml'daki ayardan yeniden üretir. Dosyayı ayar
+/// uygulanınca `ag::write_files` yazar, paket güncellemesi yazmaz: yeni sürümün pppd seçenekleri (0.4.20'de `maxfail 3` → 1) ancak
+/// bir sonraki ayar değişikliğinde gelirdi (2026-10-24, Göztepe: dosya elle yeniden üretildi). pppd seçenekleri yalnızca başlarken
+/// okur: her başlangıçta yenilemek güncellemeyle gelen seçeneği bir sonraki pppd başlangıcında geçerli kılar (çalışan pppd'ye ve
+/// bağlantıya dokunulmaz). Metin ve izin (600: kullanıcı adı ve parola içerir) aynıysa dosyaya dokunulmaz. PPPoE kapalıysa dosya
+/// kaldırılır: ayar kapalıyken pppd çalışmaz. Ayar geçersizse (`ag::pppoe_dogrula`; panel ve Servis geçersizini kaydetmez, ancak elle
+/// bozulmuş ag.toml) dosyaya dokunulmaz ve hata döner: pppd son geçerli dosyayla başlar. Hata metinleri kullanıcı adını ve parolayı
+/// taşımaz.
+pub fn dosya_yenile(ag: &Ag, peers: &Path) -> Result<Yenileme, String> {
+    use std::os::unix::fs::PermissionsExt;
+    if !ag.pppoe.acik {
+        return match std::fs::remove_file(peers) {
+            Err(e) if e.kind() != std::io::ErrorKind::NotFound => Err(format!("{} silinemedi: {e}", peers.display())),
+            _ => Ok(Yenileme::Kapali),
+        };
+    }
+    crate::ag::pppoe_dogrula(&ag.pppoe)?;
+    let metin = peers_text(ag);
+    let izin_600 = std::fs::metadata(peers).is_ok_and(|m| m.permissions().mode() & 0o777 == 0o600);
+    if izin_600 && std::fs::read(peers).is_ok_and(|eski| eski == metin.as_bytes()) {
+        return Ok(Yenileme::Ayni);
+    }
+    crate::ortak::write_atomic(peers, metin.as_bytes()).map_err(|e| format!("{} yazılamadı: {e}", peers.display()))?;
+    Ok(Yenileme::Yazildi)
+}
+
 fn cmd(parts: &[&str]) -> Vec<String> {
     parts.iter().map(|s| s.to_string()).collect()
 }
@@ -500,6 +537,46 @@ mod tests {
         assert!(t.contains("pppoe-ac \"AC1\"\n") && !t.contains("pppoe-service"), "{t}");
         let t = peers_text(&ag(Pppoe { servis_adi: "srv".into(), ..acik() }));
         assert!(t.contains("pppoe-service \"srv\"\n") && !t.contains("pppoe-ac"), "{t}");
+    }
+
+    #[test]
+    fn dosya_ayardan_yenilenir() {
+        use std::os::unix::fs::{MetadataExt, PermissionsExt};
+        let d = kanca_klasoru("peers");
+        let peers = d.join("peers");
+        let izin = || std::fs::metadata(&peers).unwrap().permissions().mode() & 0o777;
+        let a = ag(acik());
+        let yeni = peers_text(&a);
+        // önceki sürümün yazdığı dosya (0.4.19: maxfail 3), yanlış izinle: ayardan yeniden yazılır, izni 600
+        std::fs::write(&peers, yeni.replace("maxfail 1\n", "maxfail 3\n")).unwrap();
+        std::fs::set_permissions(&peers, std::fs::Permissions::from_mode(0o644)).unwrap();
+        assert_eq!(dosya_yenile(&a, &peers), Ok(Yenileme::Yazildi));
+        assert_eq!((std::fs::read_to_string(&peers).unwrap(), izin()), (yeni.clone(), 0o600));
+        // metin ve izin aynı: dosyaya dokunulmaz (aynı inode)
+        let inode = std::fs::metadata(&peers).unwrap().ino();
+        assert_eq!(dosya_yenile(&a, &peers), Ok(Yenileme::Ayni));
+        assert_eq!(std::fs::metadata(&peers).unwrap().ino(), inode);
+        // yalnızca izin farklı: yeniden yazılır
+        std::fs::set_permissions(&peers, std::fs::Permissions::from_mode(0o640)).unwrap();
+        assert_eq!(dosya_yenile(&a, &peers), Ok(Yenileme::Yazildi));
+        assert_eq!(izin(), 0o600);
+        // ayar değişti (VLAN): yeni arayüzle
+        assert_eq!(dosya_yenile(&ag(Pppoe { vlan: 7, ..acik() }), &peers), Ok(Yenileme::Yazildi));
+        assert!(std::fs::read_to_string(&peers).unwrap().contains("\nnic-enp3s0.7\n"));
+        // geçersiz ayar (elle bozulmuş ag.toml): dosyaya dokunulmaz, hata metninde kullanıcı adı ve parola yok
+        let once = std::fs::read(&peers).unwrap();
+        let kotu = ag(Pppoe { kullanici: "kotu\nconnect /bin/sh".into(), parola: "sirli-parola".into(), ..acik() });
+        let e = dosya_yenile(&kotu, &peers).unwrap_err();
+        assert!(!e.contains("kotu") && !e.contains("connect") && !e.contains("sirli-parola"), "{e}");
+        assert_eq!(std::fs::read(&peers).unwrap(), once);
+        // PPPoE kapalı: dosya kaldırılır; zaten yoksa da hata değil
+        assert_eq!(dosya_yenile(&ag(Pppoe { acik: false, ..acik() }), &peers), Ok(Yenileme::Kapali));
+        assert!(!peers.exists());
+        assert_eq!(dosya_yenile(&ag(Pppoe::default()), &peers), Ok(Yenileme::Kapali));
+        // dosya yokken açık ayar: yazılır
+        assert_eq!(dosya_yenile(&a, &peers), Ok(Yenileme::Yazildi));
+        assert_eq!((std::fs::read_to_string(&peers).unwrap(), izin()), (yeni, 0o600));
+        let _ = std::fs::remove_dir_all(&d);
     }
 
     #[test]

@@ -1251,6 +1251,35 @@ Dal `ozet-veri`. Kullanıcı: "günlük harcanan GB da özette yazsın."
 - **Testler:** `trafik::tests::bugun_toplam_yalnizca_bugunun_kaydi`, `panel::tests::gb_uc_anlamli_basamak`,
   `panel::tests::ozet_bugun_kullanilan_veri` (bugünün toplamı, dünün kaydı ve kayıt yokken "—"); cihazda `bash scripts/test.sh
   wificorrect` → 467/467 (uyarısız).
+- **Canlı (2026-10-26):** iki cihaz da 0.4.23 ("Şimdi güncelle"; Visavis 20:12, 10 dk denetimi 20:28 tamam; Göztepe 20:16, 20:26
+  tamam).
+
+## Yönetimde müşteri sayfası: açılır bölümler (2026-10-26)
+Dal `musteri-sayfasi`; yalnızca merkez (yonetim.wificorrect.com → müşteri sayfası `/m/<numara>`), cihazda değişiklik yok. Kullanıcı:
+"müşteriler sayfasındaki her menüyü açılır pencere şeklinde yap, çok karmaşık olmuş; bazı şeyleri ortak menüde topla; AP yazısı falan
+çok uzun, onu tıklayarak açılır yap, diğer uzun yazıları da." Sayfa yedi büyük kutuydu (bilgi + parolalar, Cihaz, Sağlık, Güncelleme,
+Sorun geçmişi, İşlemler, Cihaz geçmişi), bütün formlar ve açıklamalar hep açıktı.
+- **Üstte hep görünen kutu:** "Müşteri <numara> · <işletme adı>", not, kısa durum (Cihaz: çevrimiçi / son eşitleme …, sorunluysa
+  kırmızı; Lisans: Aktif · bitiş; Sürüm; üyelik bittiyse kırmızı "Üyelik bitti") ve **ortak menü**: Cihaz paneline git (ulaşılamıyorsa
+  gri "Cihaz paneline şu an ulaşılamıyor", nedeni üzerine gelince), Kayıtlar, Raporlar, Hareketler (eskiden İşlemler'in altındaydı).
+- **Açılır bölümler** (`<details>`, JS yok; `web.bolum`; hepsi kapalı gelir, başlığın yanında kısa durum): **Parolalar** (müşteri
+  parolası + "Parolayı değiştir"; AP yönetim parolası + Yenile + "Açıklama") · **Lisans ve üyelik** (lisans, üyelik, oluşturma, son
+  giriş; "Lisansı 1 yıl uzat", askıdaysa "Askıdan çıkar", üyelik bittiyse "Üyeliği yeniden aç", bitiş tarihi; "Açıklama"; tehlikeli
+  işlemler "Askıya al / Üyeliği bitir" ayrıca açılır) · **Cihaz** (cihaz bilgileri; "Cihazı serbest bırak" ayrıca açılır; "Cihaz
+  geçmişi") · **Sağlık** (son rapor + merkezin doğrulama SMS'i sayaçları; başlıkta son raporun yaşı, disk, duran servis) ·
+  **Güncelleme** (kurulu/hedef/son sonuç/şimdi güncelle; kanal ve "Şimdi güncelle" yan yana; notta "önce Sürümler'de kanalın hedefini
+  seçin"; "Geçmiş"; başlıkta kanal, kurulu, hedef ve bekleyen "şimdi güncelle") · **Sorun geçmişi** (başlıkta kayıt ve açık sorun sayısı).
+  Bölüm içindeki uzun yazılar ve nadir/tehlikeli işlemler `web.acilir` (mavi ya da kırmızı bağlantı gibi; tıklayınca açılır).
+- **İşlemden dönüş:** lisans, üyelik, parola, AP parolası, kanal, şimdi güncelle ve serbest bırakma sayfaya o bölüm açık döner
+  (`/m/<n>?acik=<bölüm>#<bölüm>`; bilinmeyen değer hiçbir bölümü açmaz, sayfaya yazılmaz).
+- **Biçim:** bölüm içi bilgi tablolarında başlık sütunu yazısı kadar dar; telefonda (≤ 760 px) kapalı bölümün durumu başlığın altına
+  iner, form ya da açılır içeren satırlarda başlık üstte, değer altta (`tr:has(form,details)`); kısa satırlar yan yana kalır.
+  `form.satir-ici` artık tanımlı (AP parolasının "Yenile" düğmesi parolanın yanında).
+- **Testler:** merkez `sh scripts/sunucu/merkez/tests/hepsi.sh py` → 23/23 dosya `TUM TESTLER GECTI`; yeni
+  `test_yonetim.test_musteri_sayfasi_acilir_bolumler` (bölüm sırası, hepsi kapalı, `?acik=`, açıklama ve tehlikeli işlemlerin ayrı
+  açılırda olması, işlemlerden dönüş adresleri, askıda ve üyelik bitti hâlleri, başlık durumları). Masaüstü ve telefon (390 px) ekran
+  görüntüsüyle denetlendi (örnek veriyle, test yardımcılarından).
+- **Kurulum:** `merkez-guncelle.sh` (kullanıcı, sudo); merkez yeniden başlar, yönetime yeniden giriş gerekir.
 
 ## Yönetim sol menü ve AP joker DNS kaydı (2026-10-24)
 Dal `yonetim-menu`; yalnızca merkez (cihazda değişiklik yok).

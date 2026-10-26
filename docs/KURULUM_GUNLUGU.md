@@ -1237,6 +1237,20 @@ Dal `metin-onizleme`. Kullanıcı: "captive portala wificorrect logosunu ekle, b
 - **Test:** `portal::tests::alt_bilgide_wificorrect_logosu` (logo bir kez ve alt bilgi yazısının üstünde; üst bant → kart → alt bilgi
   sırası aynı). Cihazda `bash scripts/test.sh wificorrect` → 464 test geçti (aynı turda iki geçici önizleme testiyle 466/466; o testler
   işlenmedi). Giriş sayfası telefon genişliğinde (390 px) ve panel sayfası ekran görüntüsüyle denetlendi: telefonda yatay kaydırma yok.
+- **Canlı (2026-10-26):** iki cihaz da 0.4.22 ("Şimdi güncelle"; Göztepe 13:06, 10 dk denetimi 13:22 tamam; Visavis 13:49, 13:59
+  tamam); iki cihazda da `curl http://10.50.0.1:8080/` çıktısında alt bilgide logo (`class="wc-logo"`) bir kez var.
+
+## Özette bugün kullanılan veri (2026-10-26, 0.4.23)
+Dal `ozet-veri`. Kullanıcı: "günlük harcanan GB da özette yazsın."
+- Cihaz paneli → Özet → sayılar kutusunda "Bugün yeni üye"nin altında **Bugün kullanılan veri**: bütün cihazların bugün (TR günü)
+  kullandığı veri, indirme + yükleme, GB (10⁹; üç anlamlı basamak, ondalık virgül: "0,04 GB", "3,46 GB", "12,3 GB", "125 GB"). Kaynak
+  kaydedicinin günlük toplamı `state/trafik_gun.json` (MAC başına bugünkü bayt; Kullanıcılar tablosundaki "Bugün MB" ile aynı `inet
+  wfc_hiz` sayaçları): oturumu kapanmış cihazlar ve kirada IP'si olan izinli cihazlar da içinde (`trafik::bugun_toplam`). Kaydedici
+  dosyayı dakikada bir yazar; sayı en çok ~1 dk geriden gelir. Dosya bugüne ait değilse (kaydedici bugün hiç yazmadı: durmuş ya da gece
+  yarısından sonraki ilk dakika) "—". Yalnızca cihaz; merkezde değişiklik yok.
+- **Testler:** `trafik::tests::bugun_toplam_yalnizca_bugunun_kaydi`, `panel::tests::gb_uc_anlamli_basamak`,
+  `panel::tests::ozet_bugun_kullanilan_veri` (bugünün toplamı, dünün kaydı ve kayıt yokken "—"); cihazda `bash scripts/test.sh
+  wificorrect` → 467/467 (uyarısız).
 
 ## Yönetim sol menü ve AP joker DNS kaydı (2026-10-24)
 Dal `yonetim-menu`; yalnızca merkez (cihazda değişiklik yok).

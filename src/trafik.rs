@@ -69,6 +69,12 @@ pub fn gun_yaz(state_root: &str, g: &GunToplam) -> std::io::Result<()> {
     ortak::write_atomic(&gun_yolu(state_root), &data)
 }
 
+/// Bugün bütün cihazların kullandığı veri (indirme + yükleme, bayt): kaydedicinin günlük toplamı (dakikada bir yazılır; oturumu
+/// kapanmış cihazlar da içinde). Toplam bugüne ait değilse (kaydedici bugün hiç yazmadı: durmuş ya da gün yeni döndü) None.
+pub fn bugun_toplam(g: &GunToplam, bugun: &str) -> Option<u64> {
+    (g.gun == bugun).then(|| g.bayt.values().sum())
+}
+
 pub fn oku(path: &Path) -> Option<Durum> {
     serde_json::from_str(&std::fs::read_to_string(path).ok()?).ok()
 }
@@ -248,6 +254,15 @@ mod tests {
         assert_eq!(o.gun_toplam().gun, "2026-10-11");
         let d = o.ornek(15.0, "2026-10-11", &harita(IP, 4500), &harita(IP, 700), &m);
         assert_eq!(d.cihazlar[A].bugun_bayt, 500);
+    }
+
+    #[test]
+    fn bugun_toplam_yalnizca_bugunun_kaydi() {
+        let g = GunToplam { gun: "2026-10-10".into(), bayt: BTreeMap::from([(A.to_string(), 2_500_000_000), (B.to_string(), 960_000_000)]) };
+        assert_eq!(bugun_toplam(&g, "2026-10-10"), Some(3_460_000_000));
+        assert_eq!(bugun_toplam(&g, "2026-10-11"), None, "dünün toplamı bugün sayılmaz");
+        assert_eq!(bugun_toplam(&GunToplam { gun: "2026-10-11".into(), ..Default::default() }, "2026-10-11"), Some(0));
+        assert_eq!(bugun_toplam(&GunToplam::default(), "2026-10-11"), None, "dosya yok");
     }
 
     #[test]

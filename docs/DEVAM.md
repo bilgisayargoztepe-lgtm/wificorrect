@@ -65,7 +65,9 @@ değişiklik getirmedi).
 **Dal `metin-onizleme` (0.4.22, PR #37; birleştirme ve yayın kullanıcının kararıyla):** panel → Ayarlar → Portal metinleri, metinleri
 giriş sayfasında göründüğü gibi işletme bilgileriyle doldurulmuş gösterir (kullanıcı 2026-10-26: "işletme adını ve unvanını yazdık,
 aşağıdaki alanlar dolmamış"; giriş sayfası zaten dolduruyordu, panel ham şablonu gösteriyordu). Düzenleme kutusu "Metni düzenle"nin
-altında, şablonla. Yalnızca cihaz. Ayrıntı KURULUM_GUNLUGU "Portal metinleri panelde doldurulmuş görünür".
+altında, şablonla. Aynı dalda giriş sayfasının alt bilgisine wificorrect_ logosu (kullanıcı: "bir şeylerin yerini
+değiştirmeden"; üst bant ve kart aynı). Yalnızca cihaz. Ayrıntı KURULUM_GUNLUGU "Portal metinleri panelde doldurulmuş görünür",
+"Giriş sayfasında wificorrect_ logosu".
 **v0.4.18 (PPPoE modemli hatta yeşil durum, PR #28):** PPPoE açık cihaz modemdeyken (PPPoE sunucusu yok, DHCP adresi var) durum kırmızı "PPPoE
 sunucusu yanıt vermiyor" yerine yeşil "Modemden bağlı (DHCP); PPPoE ONT'ye takılınca bağlanır" (`pppoe=modemden`, merkez kartında da);
 kimlik reddi yine kırmızı. Ayrıntı KURULUM_GUNLUGU "PPPoE: modemli hatta yeşil durum".

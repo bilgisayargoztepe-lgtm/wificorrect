@@ -1225,6 +1225,19 @@ Visavis'te dolmamış." Ayarlar sayfasında İşletme bölümünün altındaki P
 - **Testler:** cihazda `bash scripts/test.sh wificorrect` → 463/463; yeni `panel::tests::portal_metinleri_isletme_bilgileriyle_dolu_gorunur`
   (önizlemede yer tutucu yok, isteğe bağlı boş bilginin satırı yok, önizleme giriş sayfasının HTML'iyle aynı, kutuda şablon duruyor).
 
+## Giriş sayfasında wificorrect_ logosu (2026-10-26, 0.4.22)
+Dal `metin-onizleme`. Kullanıcı: "captive portala wificorrect logosunu ekle, bir şeylerin yerini değiştirmeden."
+- Logo yalnızca alt bilgide, "WifiCorrect bir Göztepe Bilgisayar ürünüdür. Tüm hakları saklıdır." yazısının üstünde, ortada
+  (açık zemin logosu `logo-acik.svg`, 139×20 px, `footer .wc-logo`; `logo::alt_bilgi_logo`). Üst bant (gökyüzü, işletme adı, dil
+  seçimi) ve kart hiç değişmedi: alt bilgi sayfanın dibine yaslı olduğundan kısa sayfada yazı da yerinde kalır, logo boşluğa girer;
+  uzun sayfada yazı logonun boyu kadar (28 px) aşağı iner. Bütün giriş sayfalarında (giriş, kod, başarılı, hata, misafir kodu,
+  Servis) aynı alt bilgi. Satır içi SVG: giriş sayfasının CSP'si (`default-src 'none'; img-src data:`) dosya yüklemez, SVG işaretlemesi
+  serbest. Bağlantısız ve süs (ekran okuyucudan gizli; ürünün adını alt bilgi yazısı söyler); misafir giriş yapmadan internete
+  çıkamadığı için wificorrect.com'a bağlantı verilmedi.
+- **Test:** `portal::tests::alt_bilgide_wificorrect_logosu` (logo bir kez ve alt bilgi yazısının üstünde; üst bant → kart → alt bilgi
+  sırası aynı). Cihazda `bash scripts/test.sh wificorrect` → 464 test geçti (aynı turda iki geçici önizleme testiyle 466/466; o testler
+  işlenmedi). Giriş sayfası telefon genişliğinde (390 px) ve panel sayfası ekran görüntüsüyle denetlendi: telefonda yatay kaydırma yok.
+
 ## Yönetim sol menü ve AP joker DNS kaydı (2026-10-24)
 Dal `yonetim-menu`; yalnızca merkez (cihazda değişiklik yok).
 - **Menü** (kullanıcı kararı): yonetim.wificorrect.com'da üst şerit yerine sol menü, gruplu: **Müşteriler** (Müşteri listesi `/`,
@@ -1274,4 +1287,5 @@ gerekmez): wificorrect_ = "wifi" Nunito ExtraBold dik + "correct_" Nunito ExtraB
   kart. W_ işareti (`w-koyu.svg`) cihazda kullanılmıyor (merkez testi iki kopyayı karşılaştırdığı için klasörde duruyor).
 - **Merkez** (`web._cerceve`): yönetimde sol menünün başında ve telefondaki üst şeritte koyu logo; müşteri paneli, giriş sayfaları ve
   AP geçidinin sade sayfalarında (beyaz şerit) açık logo. Logo dosyası okunamazsa "WifiCorrect" yazısı.
-- Misafirlerin giriş sayfası (işletmenin sayfası) değişmedi. Testler: cihazda `src/logo.rs` + panel testleri, merkezde `test_logo.py`.
+- Misafirlerin giriş sayfası (işletmenin sayfası) 0.4.21'e kadar logosuzdu; 0.4.22'den beri alt bilgide ("Giriş sayfasında
+  wificorrect_ logosu"). Testler: cihazda `src/logo.rs` + panel testleri, merkezde `test_logo.py`.

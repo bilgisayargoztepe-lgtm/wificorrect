@@ -612,6 +612,8 @@ impl Portal {
         outer.insert("internet_uyari_html", internet_yok.map_or_else(String::new, |durum| internet_uyarisi(&durum, d)));
         outer.insert("dil_kod", d.kod().into());
         outer.insert("dil_secim_html", self.dil_secimi(page));
+        // wificorrect_ logosu alt bilginin yazısının üstünde: üst bant ve kart yerinde kalır
+        outer.insert("logo_html", crate::logo::alt_bilgi_logo().to_string());
         substitute(&yerel(template("_sayfa"), d), &outer)
     }
 
@@ -1971,6 +1973,19 @@ mod tests {
         let pg = login(&t, MAC, "10.50.0.99", "5334553132");
         assert_eq!((pg.tpl, pg.get("mesaj")), ("hata", "Bağlantı açılamadı, lütfen tekrar deneyin."));
         assert!(ortak::load_sessions(&t.p.cfg.main.state_root).is_empty());
+    }
+
+    #[test]
+    fn alt_bilgide_wificorrect_logosu() {
+        // logo yalnızca alt bilgide, yazının üstünde (2026-10-26): üst bant, kart ve alt bilgi yazısı yerinde
+        let t = setup(|_| {});
+        for html in [t.p.render(&t.p.form_page(&Form::new(), vec![], "")), t.p.render(&t.p.error_page("x", Dil::Tr))] {
+            assert_eq!(html.matches("<svg class=\"wc-logo\"").count(), 1, "{html}");
+            let alt = html.split("<footer>").nth(1).unwrap();
+            assert!(alt.find("<svg class=\"wc-logo\"").unwrap() < alt.find("WifiCorrect bir Göztepe Bilgisayar ürünüdür").unwrap(), "{alt}");
+            let yer = |s: &str| html.find(s).unwrap();
+            assert!(yer("<header class=\"gok\">") < yer("<main>") && yer("</main>") < yer("<footer>"));
+        }
     }
 
     #[test]

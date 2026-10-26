@@ -249,7 +249,8 @@ def test_ap_yonetim_parolasi_musteri_sayfasinda():
         assert Y.gonder(app, f"/m/{n}/ap-parola", c, {})[0] == 403 and v.musteri(n)["ap_parola"] == ap  # CSRF'siz
         r = Y.gonder(app, f"/m/{n}/ap-parola", c, {"csrf": Y.csrf(Y.al(app, f"/m/{n}", c))})
         yeni = v.musteri(n)["ap_parola"]
-        assert r[0] == 303 and r[1]["Location"] == f"/m/{n}" and yeni != ap and yeni in Y.al(app, f"/m/{n}", c)[2].decode()
+        assert r[0] == 303 and r[1]["Location"] == f"/m/{n}?acik=parolalar#parolalar"  # Parolalar bölümü açık döner
+        assert yeni != ap and yeni in Y.al(app, f"/m/{n}", c)[2].decode()
         h = v.hareketler(n)[0]
         assert (h["olay"], h["kim"]) == ("AP_PAROLASI_YENILENDI", "admin") and yeni not in h["ayrinti"] and ap not in h["ayrinti"]
 
@@ -266,6 +267,71 @@ def test_ap_parolasi_yenile_notu():
         hucre = re.search(r"<tr><th>AP yönetim parolası</th><td>(.*?)</td></tr>", s, re.S).group(1)
         assert f'action="/m/{n}/ap-parola"' in hucre and "Cihaz çevrimdışıyken yenilerseniz" in hucre  # Yenile ile aynı hücrede
         assert "cihaza 5 dk içinde ulaşır (0.4.17'den eski cihazlarda her gün 06:00'da)" in hucre  # eski cihazlar için de doğru
+
+
+def _bolumler(s):
+    """Müşteri sayfasının açılır bölümleri, sayfadaki sırayla: kimlik → (açık mı, başlık satırı, bölümün HTML'i)."""
+    out = {}
+    for p in s.split('<details class="bolum" id="')[1:]:
+        kimlik, geri = p.split('"', 1)
+        out[kimlik] = (geri.startswith(" open>"), geri.split("<summary>", 1)[1].split("</summary>", 1)[0], geri.split("</main>")[0])
+    return out
+
+
+def test_musteri_sayfasi_acilir_bolumler():
+    """Kullanıcı isteği (2026-10-26): müşteri sayfası çok karmaşıktı. Üstte hep görünen özet ve ortak menü (cihaz paneli,
+    kayıtlar, raporlar, hareketler); ayrıntılar kapalı gelen açılır bölümlerde, başlıklarının yanında kısa durum; uzun
+    açıklamalar ve tehlikeli işlemler bölüm içinde ayrıca tıklayınca açılır; işlemden dönüşte işlemin bölümü açık gelir."""
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        app, v, _, c, _ = kur(tmp)
+        n, _ = v.musteri_ekle("Ahmet Bey", parola="musteri-parola-1")
+        v.cihaz_bagla(n, WG, SSH, "Kafe Örnek")
+        f = Y.al(app, f"/m/{n}", c)
+        s, t = f[2].decode(), Y.csrf(f)
+        ust = s.split('<details class="bolum"')[0]
+        assert "Kafe Örnek" in ust and "Not: Ahmet Bey" in ust and "Lisans: <b>Aktif</b> · bitiş" in ust
+        assert all(f'<a class="dugme" href="/m/{n}/{y}">' in ust for y in ("kayitlar/", "raporlar", "hareketler"))
+        b = _bolumler(s)
+        assert list(b) == ["parolalar", "lisans", "cihaz", "saglik", "guncelleme", "sorunlar"]
+        assert not any(acik for acik, _, _ in b.values())  # hepsi kapalı gelir
+        assert "<h2>Lisans ve üyelik</h2>" in b["lisans"][1] and "<b>Aktif</b> · bitiş" in b["lisans"][1]
+        assert "henüz rapor yok" in b["saglik"][1] and "kayıt yok" in b["sorunlar"][1]
+        # uzun açıklamalar ve nadir/tehlikeli işlemler bölümün içinde ayrıca açılır
+        assert '<details class="ic"><summary>Açıklama</summary><div><p class="alt">AP&#x27;nin' not in b["parolalar"][2]
+        assert '<details class="ic"><summary>Açıklama</summary><div><p class="alt">AP\'nin (modemin)' in b["parolalar"][2]
+        assert '<details class="ic"><summary>Parolayı değiştir</summary>' in b["parolalar"][2]
+        ana, _, tehlike = b["lisans"][2].partition('<details class="ic tehlikeli"><summary>Askıya al / Üyeliği bitir</summary>')
+        assert 'value="askiya"' in tehlike and 'value="bitir"' in tehlike and 'value="askiya"' not in ana and 'value="uzat"' in ana
+        ana, _, tehlike = b["cihaz"][2].partition('<details class="ic tehlikeli"><summary>Cihazı serbest bırak</summary>')
+        assert f'action="/m/{n}/serbest"' in tehlike and f'action="/m/{n}/serbest"' not in ana
+        # ?acik= ile yalnızca o bölüm açık gelir; bilinmeyen değer hiçbirini açmaz
+        b = _bolumler(Y.al(app, f"/m/{n}?acik=lisans", c)[2].decode())
+        assert [k for k, (acik, _, _) in b.items() if acik] == ["lisans"]
+        assert not any(acik for acik, _, _ in _bolumler(Y.al(app, f"/m/{n}?acik=x%22%3E", c)[2].decode()).values())
+
+        def don(yol, alanlar):  # işlemden dönüşte işlemin bölümü açık gelir (çapa sayfayı oraya kaydırır)
+            r = Y.gonder(app, f"/m/{n}/{yol}", c, dict(alanlar, csrf=t))
+            assert r[0] == 303, (yol, r)
+            return r[1]["Location"]
+        assert don("lisans", {"islem": "uzat"}) == f"/m/{n}?acik=lisans#lisans"
+        assert don("lisans", {"islem": "askiya"}) == f"/m/{n}?acik=lisans#lisans"
+        b = _bolumler(Y.al(app, f"/m/{n}", c)[2].decode())
+        ana, _, tehlike = b["lisans"][2].partition('<details class="ic tehlikeli">')
+        assert "Askıdan çıkar (cihazı aç)" in ana and "<summary>Üyeliği bitir</summary>" in tehlike and 'value="askiya"' not in b["lisans"][2]
+        assert '<b class="kotu">Askıda</b>' in b["lisans"][1]
+        assert don("lisans", {"islem": "ac"}) == f"/m/{n}?acik=lisans#lisans"
+        assert don("parola-sifirla", {"parola": "yeni-musteri-1", "parola2": "yeni-musteri-1"}) == f"/m/{n}?acik=parolalar#parolalar"
+        assert don("guncelleme", {"kanal": "test"}) == f"/m/{n}?acik=guncelleme#guncelleme"
+        assert "kanal test" in _bolumler(Y.al(app, f"/m/{n}", c)[2].decode())["guncelleme"][1]
+        v.sorun_ac(n, "disk_dolu", "Disk dolu (%91)", "uyari")
+        assert '1 kayıt · <b class="kotu">1 açık</b>' in _bolumler(Y.al(app, f"/m/{n}", c)[2].decode())["sorunlar"][1]
+        assert don("serbest", {"onay": str(n)}) == f"/m/{n}?acik=cihaz#cihaz"
+        assert don("uyelik", {"islem": "bitir", "onay": str(n)}) == f"/m/{n}?acik=lisans#lisans"
+        s = Y.al(app, f"/m/{n}", c)[2].decode()
+        b = _bolumler(s)
+        assert '<b class="kotu">Üyelik bitti</b>' in s.split('<details class="bolum"')[0] and "üyelik bitti" in b["lisans"][1]
+        assert "Üyeliği yeniden aç" in b["lisans"][2].partition('<details class="ic')[0]  # ana kısımda, tehlikeli değil
+        assert don("uyelik", {"islem": "ac"}) == f"/m/{n}?acik=lisans#lisans"
 
 
 def test_cihaz_kartinda_internet():

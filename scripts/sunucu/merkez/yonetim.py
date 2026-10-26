@@ -20,7 +20,7 @@ import surumler
 import veri as veri_modulu
 import web
 import yonetici
-from web import bilgi_tablosu, e, kart, yanit_html, yonlendir
+from web import acilir, bilgi_tablosu, bolum, e, kart, yanit_html, yonlendir
 
 NUMARA_RE = guvenlik.NUMARA_RE
 CEVRIMICI_SN = 600
@@ -82,6 +82,16 @@ def parola_formdan(form):
     if pw != pw2:
         return None, "İki parola aynı değil."
     return pw, ""
+
+
+# Müşteri sayfasının açılır bölümleri (kullanıcı isteği 2026-10-26): kimlik → başlık, sayfadaki sırayla
+MUSTERI_BOLUMLERI = (("parolalar", "Parolalar"), ("lisans", "Lisans ve üyelik"), ("cihaz", "Cihaz"), ("saglik", "Sağlık"),
+                     ("guncelleme", "Güncelleme"), ("sorunlar", "Sorun geçmişi"))
+
+
+def musteri_donus(n, kimlik):
+    """İşlemden sonra müşteri sayfasına dönüş: işlemin bölümü açık gelir (betik yok: ?acik=; çapa sayfayı oraya kaydırır)."""
+    return yonlendir(f"/m/{n}?acik={kimlik}#{kimlik}")
 
 
 
@@ -277,18 +287,18 @@ class Yonetim(web.Taban):
             return None
         n, alt = int(m.group(1)), m.group(2) or "/"
         if (yontem, alt) == ("GET", "/"):
-            return self.musteri_sayfasi(ot, n)
+            return self.musteri_sayfasi(ot, n, sorgu)
         if (yontem, alt) == ("POST", "/parola-sifirla"):
             pw, hata = parola_formdan(form)
             if hata:
                 return yanit_html(self.mesaj(ot, "Parola kaydedilmedi", hata), 400)
             self.veri.parola_koy(n, pw)
             self.veri.hareket("admin", ip, "PAROLA_SIFIRLANDI", n)
-            return yonlendir(f"/m/{n}")
+            return musteri_donus(n, "parolalar")
         if (yontem, alt) == ("POST", "/ap-parola"):
             self.veri.ap_parolasi_yenile(n)
             self.veri.hareket("admin", ip, "AP_PAROLASI_YENILENDI", n)  # parola hareket satırına yazılmaz
-            return yonlendir(f"/m/{n}")
+            return musteri_donus(n, "parolalar")
         if (yontem, alt) == ("POST", "/serbest"):
             return self.serbest(ot, n, form, ip)
         if (yontem, alt) == ("POST", "/guncelleme"):
@@ -310,7 +320,7 @@ class Yonetim(web.Taban):
                 self.veri.uyelik(n, "aktif")
                 self.veri.serbest_iptal(n)  # bitirirken başlayan serbest bırakma, cihaz temizlenmediyse geri alınır
                 self.veri.hareket("admin", ip, "UYELIK_ACILDI", n)
-            return yonlendir(f"/m/{n}")
+            return musteri_donus(n, "lisans")
         if (yontem, alt) == ("GET", "/hareketler"):
             return yanit_html(self.sayfa("Hareketler", kart(f"<h1>Müşteri {n} · hareketler</h1>"
                                                             + self._hareket_tablosu(self.veri.hareketler(n))), ot, genis=True))
@@ -486,7 +496,7 @@ class Yonetim(web.Taban):
             return yanit_html(self.mesaj(ot, "Kanal kaydedilmedi", "Geçersiz kanal."), 400)
         self.veri.guncelleme_kanali_koy(n, kanal)
         self.veri.hareket("admin", ip, "GUNCELLEME_KANALI", n, f"kanal={kanal}")
-        return yonlendir(f"/m/{n}")
+        return musteri_donus(n, "guncelleme")
 
     def guncelleme_hemen(self, ot, n, ip):
         hedef = self.veri.cihaz_hedefi(self.veri.musteri(n))
@@ -495,13 +505,18 @@ class Yonetim(web.Taban):
                                          "Bu müşterinin kanalında hedef sürüm yok, kanal kapalı ya da hizmeti kapalı."), 400)
         self.veri.guncelleme_hemen_koy(n, self.saat(), hedef["surum"])
         self.veri.hareket("admin", ip, "GUNCELLEME_HEMEN", n)
-        return yonlendir(f"/m/{n}")
+        return musteri_donus(n, "guncelleme")
 
-    def _guncelleme_karti(self, m, c, cs):
+    def _guncelleme_bolumu(self, m, c, cs):
+        """Dönen: (bölüm başlığının yanındaki kısa durum, bölümün içeriği)."""
         n = m["numara"]
         p = self._kurulu_paket(c)
         kurulu = "—" if p is None else ("Paketsiz kurulum — uzaktan güncellenmez" if p == "" else e(p))
         hedef = self.veri.cihaz_hedefi(m)
+        kanal = {"kararli": "kararlı", "test": "test", "kapali": "kapalı"}.get(m["guncelleme_kanali"], m["guncelleme_kanali"])
+        ozet = (f"kanal {e(kanal)} · kurulu {'—' if p is None else ('paketsiz' if p == '' else e(p))}"
+                f" · hedef {e(hedef['surum']) if hedef else '—'}"
+                + (' · <b class="uyarisi">şimdi güncelle bekleniyor</b>' if hedef and hedef["hemen"] else ""))
         s = self.veri.saglik(c["id"]) if c is not None else None
         g = (s["rapor"] if s and isinstance(s["rapor"], dict) else {}).get("guncelleme")
         if isinstance(g, dict):
@@ -518,14 +533,16 @@ class Yonetim(web.Taban):
         gecmis = detay._tablo(("Zaman", "Ayrıntı"),
                               [(common.tarih_goster(h["zaman"]), h["ayrinti"])
                                for h in self.veri.hareketler(n, 10, olay="GUNCELLEME_SONUC")], "Güncelleme denemesi yok.")
-        return (bilgi_tablosu([("Kurulu paket", kurulu), ("Hedef sürüm", e(hedef["surum"]) if hedef else "—"),
-                               ("Son sonuç", son), ("Şimdi güncelle", bekliyor)])
-                + f'<form method="post" action="/m/{n}/guncelleme" class="ara"><input type="hidden" name="csrf" value="{cs}">'
-                  f'<select name="kanal" aria-label="Güncelleme kanalı">{sec}</select><button>Kanalı kaydet</button></form>'
-                + f'<form method="post" action="/m/{n}/guncelleme-hemen"><input type="hidden" name="csrf" value="{cs}">'
-                  "<button>Şimdi güncelle</button></form>"
-                  '<p class="alt">Cihaz hedefi sağlık raporunda (5 dk) görür; "şimdi güncelle" bekleme penceresini atlar.</p>'
-                + "<h3>Geçmiş</h3>" + gecmis)
+        return ozet, (bilgi_tablosu([("Kurulu paket", kurulu), ("Hedef sürüm", e(hedef["surum"]) if hedef else "—"),
+                                     ("Son sonuç", son), ("Şimdi güncelle", bekliyor)])
+                      + '<div class="dugmeler">'
+                      + f'<form method="post" action="/m/{n}/guncelleme" class="ara"><input type="hidden" name="csrf" value="{cs}">'
+                        f'<select name="kanal" aria-label="Güncelleme kanalı">{sec}</select><button>Kanalı kaydet</button></form>'
+                      + f'<form method="post" action="/m/{n}/guncelleme-hemen"><input type="hidden" name="csrf" value="{cs}">'
+                        "<button>Şimdi güncelle</button></form></div>"
+                        '<p class="alt">Cihaz hedefi sağlık raporunda (5 dk) görür; "şimdi güncelle" bekleme penceresini atlar '
+                        "(önce Sürümler'de kanalın hedefini seçin).</p>"
+                      + acilir("Geçmiş", gecmis))
 
     def _izleme_satiri(self):
         """wc-saglik'in son turu: hep görünür; 15 dk'dan eskiyse ya da hiç yoksa kırmızı (zamanlayıcı durmuş olabilir)."""
@@ -578,12 +595,6 @@ class Yonetim(web.Taban):
     def _cihaz_adresi(self, n):
         return self.musteri_app.cihaz_adresi(n) if self.musteri_app is not None and self.gecis is not None else None
 
-    def _cihaz_paneli_dugmesi(self, n, cs):
-        if not self._cihaz_adresi(n):
-            return '<span class="bos">şu an ulaşılamıyor (cihaz kapalı, tünel yok ya da lisans/üyelik kapalı)</span>'
-        return (f'<form method="post" action="/m/{n}/cihaz-paneli" class="satir-ici"><input type="hidden" name="csrf" value="{cs}">'
-                '<button>Cihaz paneline git</button></form>')
-
     def cihaz_paneli(self, ot, n, ip):
         """Müşteri parolası girmeden cihaz.wificorrect.com'a: tek kullanımlık 60 sn'lik geçiş belirteci (yönetici rolü)."""
         if not self._cihaz_adresi(n):
@@ -593,79 +604,136 @@ class Yonetim(web.Taban):
         self.veri.hareket("admin", ip, "YONETICI_CIHAZ_PANELI", n)
         return yonlendir(cihaz_modulu.CIHAZ_GIRIS + t)
 
-    def musteri_sayfasi(self, ot, n):
+    def musteri_sayfasi(self, ot, n, sorgu=""):
+        """Üstte hep görünen özet (cihaz, lisans, sürüm ve ortak menü: cihaz paneli, kayıtlar, raporlar, hareketler); ayrıntılar
+        açılır bölümlerde (kullanıcı isteği 2026-10-26: sayfa çok karmaşıktı). Uzun açıklamalar, geçmiş tabloları ve tehlikeli
+        işlemler bölümün içinde ayrıca tıklayınca açılır. İşlemden dönüşte (?acik=) o bölüm açık gelir."""
         m, c, d = self.veri.musteri(n), self.veri.bagli_cihaz(n), self._durum().get(str(n), {})
         cs = e(ot["csrf"])
+        csrf = f'<input type="hidden" name="csrf" value="{cs}">'
+        acik = (urllib.parse.parse_qs(sorgu).get("acik") or [""])[0]
         ldurum, lbitis = self.veri.lisans_durumu(m)
+        bitis = e(common.tarih_goster(lbitis) or "—")
+        lisans_metni = {"aktif": "<b>Aktif</b>", "bitti": '<b class="kotu">Süresi doldu</b>', "askida": '<b class="kotu">Askıda</b>'}[ldurum]
+        uyelik_aktif = m["uyelik"] == "aktif"
+        durum, son, sorunlu = self._ozet(m, c, d)
+        durum = f'<b class="kotu">{e(durum)}</b>' if sorunlu else f"<b>{e(durum)}</b>"
+        surum = e(c["surum"] or "—") if c is not None else "—"
+
+        # üst kısım: her zaman görünür; ortak menü
+        if self._cihaz_adresi(n):
+            panel = f'<form method="post" action="/m/{n}/cihaz-paneli">{csrf}<button>Cihaz paneline git</button></form>'
+        else:
+            panel = '<span class="bos" title="Cihaz kapalı, tünel yok ya da lisans/üyelik kapalı">Cihaz paneline şu an ulaşılamıyor</span>'
+        ad = c["isletme_adi"] if c is not None else ""
+        ust = kart(f"<h1>Müşteri {n}" + (f' <span class="alt-baslik">· {e(ad)}</span>' if ad else "") + "</h1>"
+                   + (f'<p class="alt">Not: {e(m["not_"])}</p>' if m["not_"] else "")
+                   + f'<p class="durumlar"><span>Cihaz: {durum}</span><span>Lisans: {lisans_metni} · bitiş {bitis}</span>'
+                     f"<span>Sürüm: <b>{surum}</b></span>"
+                   + ("" if uyelik_aktif else '<span><b class="kotu">Üyelik bitti</b></span>') + "</p>"
+                   + f'<div class="ortak">{panel}<a class="dugme" href="/m/{n}/kayitlar/">Kayıtlar</a>'
+                     f'<a class="dugme" href="/m/{n}/raporlar">Raporlar</a><a class="dugme" href="/m/{n}/hareketler">Hareketler</a></div>')
+
         parola = (f'<span class="sir">{e(m["parola_acik"])}</span>' if m["parola_acik"]
-                  else '<span class="bos">bilinmiyor (bu özellikten önce belirlendi) — parolayı sıfırlayın</span>')
-        lisans_metni = {"aktif": "Aktif", "bitti": '<b class="kotu">Süresi doldu</b>', "askida": '<b class="kotu">Askıda</b>'}[ldurum]
+                  else '<span class="bos">bilinmiyor (bu özellikten önce belirlendi) — parolayı değiştirin</span>')
+        parola += acilir("Parolayı değiştir", f'<form method="post" action="/m/{n}/parola-sifirla">{csrf}'
+                         + parola_alanlari("Yeni müşteri parolası") + '<button>Parolayı değiştir</button><p class="alt">Merkezi '
+                         "panelde hemen, cihazda bir sonraki eşitlemeden (her gün 06:00) sonra geçerlidir.</p></form>")
         # AP'ye (müşterinin erişim noktası/modemi) yönetim parolası olarak bu yazılır, panel parolası değil (final review I1)
-        ap_parola = (f'<span class="sir">{e(m["ap_parola"])}</span>'
-                     f'<form method="post" action="/m/{n}/ap-parola" class="satir-ici"><input type="hidden" name="csrf" value="{cs}">'
-                     '<button class="ikincil">Yenile</button></form><br><span class="alt">AP\'nin (modemin) yönetim parolası; panel '
-                     'parolasını AP\'ye yazmayın. Yenilenirse AP\'de elle değiştirilir; cihaza 5 dk içinde ulaşır (0.4.17\'den eski '
-                     'cihazlarda her gün 06:00\'da) ve cihaz panelinde görünür. Cihaz çevrimdışıyken yenilerseniz cihaz yeniden '
-                     'bağlanana kadar eski parolayı kullanır.</span>')
-        bilgi = bilgi_tablosu([("Numara", str(n)), ("Parola", parola), ("AP yönetim parolası", ap_parola),
-                               ("Lisans", f"{lisans_metni} · bitiş {e(common.tarih_goster(lbitis) or '—')}"),
-                               ("Not", e(m["not_"] or "—")), ("Oluşturma", e(common.tarih_goster(m["olusturma"]))),
-                               ("Son giriş (panel)", e(common.tarih_goster(m["son_giris"]) or "—")),
-                               ("Bugün doğrulama SMS'i", str(self.veri.sms_sayac(n, self.veri.bugun().isoformat()))),
-                               ("Son doğrulama SMS'i", son_sms_metni(self.veri.sms_son(n))),
-                               ("Üyelik", "Aktif" if m["uyelik"] == "aktif" else f"Bitti {e(common.tarih_goster(m['bitis'][:10]))}")])
+        ap_parola = (f'<span class="sir">{e(m["ap_parola"])}</span><form method="post" action="/m/{n}/ap-parola" class="satir-ici">'
+                     f'{csrf}<button class="ikincil">Yenile</button></form>'
+                     + acilir("Açıklama", '<p class="alt">AP\'nin (modemin) yönetim parolası; panel parolasını AP\'ye yazmayın. '
+                              'Yenilenirse AP\'de elle değiştirilir; cihaza 5 dk içinde ulaşır (0.4.17\'den eski cihazlarda her gün '
+                              '06:00\'da) ve cihaz panelinde görünür. Cihaz çevrimdışıyken yenilerseniz cihaz yeniden bağlanana kadar '
+                              "eski parolayı kullanır.</p>"))
+
+        def lisans_formu(islem, etiket, sinif=""):
+            sinif = f' class="{sinif}"' if sinif else ""
+            return (f'<form method="post" action="/m/{n}/lisans">{csrf}<input type="hidden" name="islem" value="{islem}">'
+                    f"<button{sinif}>{etiket}</button></form>")
+        askida = ldurum == "askida"
+        lisans = (bilgi_tablosu([("Lisans", f"{lisans_metni} · bitiş {bitis}"),
+                                 ("Üyelik", "Aktif" if uyelik_aktif else f'<b class="kotu">Bitti</b> {e(common.tarih_goster(m["bitis"][:10]))}'),
+                                 ("Oluşturma", e(common.tarih_goster(m["olusturma"]))),
+                                 ("Son giriş (panel)", e(common.tarih_goster(m["son_giris"]) or "—"))])
+                  + '<div class="dugmeler">' + lisans_formu("uzat", "Lisansı 1 yıl uzat")
+                  + (lisans_formu("ac", "Askıdan çıkar (cihazı aç)") if askida else "")
+                  + ("" if uyelik_aktif else f'<form method="post" action="/m/{n}/uyelik">{csrf}<input type="hidden" name="islem" '
+                                             'value="ac"><button>Üyeliği yeniden aç</button></form>')
+                  + f'</div><form method="post" action="/m/{n}/lisans" class="ara">{csrf}<input type="hidden" name="islem" '
+                    'value="tarih"><input name="tarih" type="date" required aria-label="Lisans bitiş tarihi"><button>Bitişi ayarla</button></form>'
+                  + acilir("Açıklama", '<p class="alt">Lisansı biten ya da askıya alınan cihaz misafirlere internet vermez; cihaz bunu '
+                           "bitiş gününden sonra kendisi uygular, askıya alma/uzatma en geç 30 dakikada (askıdayken) ya da ertesi "
+                           "06:00'da cihaza iner.</p>"))
+        tehlikeli = ([] if askida else [("Askıya al", lisans_formu("askiya", "Askıya al (cihazı kapat)", "tehlike"))]) + (
+            [("Üyeliği bitir", f'<form method="post" action="/m/{n}/uyelik">{csrf}<input type="hidden" name="islem" value="bitir">'
+                               f'<label for="u">Üyeliği bitirmek için müşteri numarasını yazın ({n})</label>'
+                               '<input id="u" name="onay" inputmode="numeric" autocomplete="off" required>'
+                               '<button class="tehlike">Üyeliği bitir</button></form>')] if uyelik_aktif else [])
+        if tehlikeli:
+            lisans += acilir(" / ".join(a for a, _ in tehlikeli), "".join(f for _, f in tehlikeli), "tehlikeli")
+
         if c is None:
+            cihaz_ozet = "bağlı cihaz yok"
             cihaz = '<p class="alt">Bağlı cihaz yok. Müşteri bir cihazın giriş ekranına numarasıyla girince bağlanır.</p>'
         else:
-            metin, son, _ = self._ozet(m, c, d)
-            cihaz = bilgi_tablosu([
-                ("Durum", e(metin)), ("İşletme adı", e(c["isletme_adi"] or "—")), ("İşletme türü", e(isletme_turu(c))),
+            cihaz_ozet = f"{durum} · {surum}"
+            cihaz = (bilgi_tablosu([
+                ("Durum", durum), ("İşletme adı", e(c["isletme_adi"] or "—")), ("İşletme türü", e(isletme_turu(c))),
                 ("Unvan", e(c["unvan"] or "—")), ("Adres", e(c["adres"] or "—")),
-                ("Tünel adresi", e(c["tunel_ip"] or "—")), ("Sürüm", e(c["surum"] or "—")),
+                ("Tünel adresi", e(c["tunel_ip"] or "—")), ("Sürüm", surum),
                 ("Bağlanma", e(common.tarih_goster(c["baglanma"]))), ("Son eşitleme", e(common.tarih_goster(c["son_eslesme"]) or "—")),
-                ("Son gelen gün", son), ("Arşiv", e(detay.boyut(d.get("boyut", 0)))),
-                ("Cihaz paneli", self._cihaz_paneli_dugmesi(n, cs))])
-            cihaz += (f'<form method="post" action="/m/{n}/serbest"><input type="hidden" name="csrf" value="{cs}">'
-                      f'<label for="o">Cihazı serbest bırakmak için müşteri numarasını yazın ({n})</label>'
-                      '<input id="o" name="onay" inputmode="numeric" autocomplete="off" required>'
-                      '<label><input type="checkbox" name="zorla" value="1"> Cihaz ulaşılamaz (arızalı/kayıp): beklemeden ayır. '
-                      'Cihazda kalmış gönderilmemiş günler kaybolabilir.</label>'
-                      '<button class="tehlike">Cihazı serbest bırak</button></form>')
-        uyelik_dugme = ("bitir", "Üyeliği bitir", "tehlike") if m["uyelik"] == "aktif" else ("ac", "Üyeliği yeniden aç", "")
-        askida = ldurum == "askida"
-        islemler = (f'<form method="post" action="/m/{n}/lisans"><input type="hidden" name="csrf" value="{cs}">'
-                    '<input type="hidden" name="islem" value="uzat"><button>Lisansı 1 yıl uzat</button></form>'
-                    f'<form method="post" action="/m/{n}/lisans"><input type="hidden" name="csrf" value="{cs}">'
-                    f'<input type="hidden" name="islem" value="{"ac" if askida else "askiya"}">'
-                    f'<button class="{"" if askida else "tehlike"}">{"Askıdan çıkar (cihazı aç)" if askida else "Askıya al (cihazı kapat)"}</button></form>'
-                    f'<form method="post" action="/m/{n}/lisans" class="ara"><input type="hidden" name="csrf" value="{cs}">'
-                    '<input type="hidden" name="islem" value="tarih"><input name="tarih" type="date" required aria-label="Lisans bitiş tarihi">'
-                    '<button>Bitişi ayarla</button></form>'
-                    '<p class="alt">Lisansı biten ya da askıya alınan cihaz misafirlere internet vermez; cihaz bunu bitiş gününden sonra '
-                    'kendisi uygular, askıya alma/uzatma en geç 30 dakikada (askıdayken) ya da ertesi 06:00\'da cihaza iner.</p>'
-                    f'<form method="post" action="/m/{n}/parola-sifirla"><input type="hidden" name="csrf" value="{cs}">'
-                    + parola_alanlari("Yeni müşteri parolası") +
-                    '<button>Parolayı değiştir</button><p class="alt">Merkezi panelde hemen, cihazda bir sonraki '
-                    'eşitlemeden (her gün 06:00) sonra geçerlidir.</p></form>'
-                    f'<form method="post" action="/m/{n}/uyelik"><input type="hidden" name="csrf" value="{cs}">'
-                    f'<input type="hidden" name="islem" value="{uyelik_dugme[0]}">'
-                    + (f'<label for="u">Üyeliği bitirmek için müşteri numarasını yazın ({n})</label>'
-                       '<input id="u" name="onay" inputmode="numeric" autocomplete="off" required>' if uyelik_dugme[0] == "bitir" else "")
-                    + f'<button class="{uyelik_dugme[2]}">{uyelik_dugme[1]}</button></form>'
-                    f'<p><a href="/m/{n}/kayitlar/">Kayıtlar</a> · <a href="/m/{n}/raporlar">Raporlar</a> · <a href="/m/{n}/hareketler">Hareketler</a></p>')
-        gecmis = detay._tablo(("No", "Durum", "Bağlanma", "Ayrılma", "Tünel"),
-                                  [(x["id"], x["durum"], common.tarih_goster(x["baglanma"]), common.tarih_goster(x["ayrilma"]), x["tunel_ip"])
-                                   for x in self.veri.cihaz_gecmisi(n)], "Henüz cihaz yok.")
-        return yanit_html(self.sayfa(f"Müşteri {n}", kart(f"<h1>Müşteri {n}</h1>{bilgi}") + kart(f"<h2>Cihaz</h2>{cihaz}")
-                                     + kart(f"<h2>Sağlık</h2>{self._saglik_tablosu(c)}")
-                                     + kart(f"<h2>Güncelleme</h2>{self._guncelleme_karti(m, c, cs)}")
-                                     + kart(f"<h2>Sorun geçmişi</h2>{self._sorun_gecmisi(n)}")
-                                     + kart(f"<h2>İşlemler</h2>{islemler}") + kart(f"<h2>Cihaz geçmişi</h2>{gecmis}"), ot, genis=True))
+                ("Son gelen gün", son), ("Arşiv", e(detay.boyut(d.get("boyut", 0))))])
+                + acilir("Cihazı serbest bırak", f'<form method="post" action="/m/{n}/serbest">{csrf}'
+                         f'<label for="o">Cihazı serbest bırakmak için müşteri numarasını yazın ({n})</label>'
+                         '<input id="o" name="onay" inputmode="numeric" autocomplete="off" required>'
+                         '<label><input type="checkbox" name="zorla" value="1"> Cihaz ulaşılamaz (arızalı/kayıp): beklemeden ayır. '
+                         "Cihazda kalmış gönderilmemiş günler kaybolabilir.</label>"
+                         '<button class="tehlike">Cihazı serbest bırak</button></form>', "tehlikeli"))
+        cihaz += acilir("Cihaz geçmişi", detay._tablo(("No", "Durum", "Bağlanma", "Ayrılma", "Tünel"),
+                                                       [(x["id"], x["durum"], common.tarih_goster(x["baglanma"]),
+                                                         common.tarih_goster(x["ayrilma"]), x["tunel_ip"])
+                                                        for x in self.veri.cihaz_gecmisi(n)], "Henüz cihaz yok."))
 
-    def _saglik_tablosu(self, c):
+        guncelleme_ozet, guncelleme = self._guncelleme_bolumu(m, c, cs)
+        sorunlar = self.veri.sorun_gecmisi(n, 50)
+        acik_sorun = sum(1 for x in sorunlar if not x["kapanis"])
+        sorun_ozet = ("kayıt yok" if not sorunlar else f"{'son ' if len(sorunlar) == 50 else ''}{len(sorunlar)} kayıt"
+                      + (f' · <b class="kotu">{acik_sorun} açık</b>' if acik_sorun else ""))
+        bolumler = {
+            "parolalar": ("müşteri ve AP yönetim parolası",
+                          bilgi_tablosu([("Müşteri parolası", parola), ("AP yönetim parolası", ap_parola)])),
+            "lisans": (f"{lisans_metni} · bitiş {bitis}" + ("" if uyelik_aktif else ' · <b class="kotu">üyelik bitti</b>'), lisans),
+            "cihaz": (cihaz_ozet, cihaz),
+            "saglik": (self._saglik_ozeti(c), self._saglik_tablosu(c, [
+                ("Bugün doğrulama SMS'i", str(self.veri.sms_sayac(n, self.veri.bugun().isoformat()))),
+                ("Son doğrulama SMS'i", son_sms_metni(self.veri.sms_son(n)))])),
+            "guncelleme": (guncelleme_ozet, guncelleme),
+            "sorunlar": (sorun_ozet, self._sorun_gecmisi(sorunlar)),
+        }
+        return yanit_html(self.sayfa(f"Müşteri {n}", ust + "".join(bolum(k, b, *bolumler[k], acik=acik == k)
+                                                                 for k, b in MUSTERI_BOLUMLERI), ot, genis=True))
+
+    def _saglik_ozeti(self, c):
+        """Sağlık bölümünün başlık satırı: son raporun yaşı, disk ve duran servis."""
         s = self.veri.saglik(c["id"]) if c is not None else None
         if not s:
-            return '<p class="alt">Henüz rapor yok.</p>'
+            return "henüz rapor yok"
+        r = s["rapor"] if isinstance(s["rapor"], dict) else {}  # cihazdan gelen veri: kaçırılır
+        ep = _epoch(s["zaman"])
+        parca = [f"son rapor {e(once(self.saat() - ep))}" if ep else "son rapor —"]
+        if "disk_yuzde" in r:
+            parca.append(f"disk %{e(r['disk_yuzde'])}")
+        sv = r.get("servisler") if isinstance(r.get("servisler"), dict) else {}
+        if not all(sv.values()):
+            parca.append('<b class="kotu">servis durdu</b>')
+        return " · ".join(parca)
+
+    def _saglik_tablosu(self, c, ek=()):
+        """ek: tablonun sonuna eklenen satırlar (merkezin doğrulama SMS'i sayaçları; rapor yokken de gösterilir)."""
+        s = self.veri.saglik(c["id"]) if c is not None else None
+        if not s:
+            return '<p class="alt">Henüz rapor yok.</p>' + (bilgi_tablosu(ek) if ek else "")
         r = s["rapor"] if isinstance(s["rapor"], dict) else {}  # cihazdan gelen veri: her değer kaçırılır
         sv = r.get("servisler") if isinstance(r.get("servisler"), dict) else {}
         servis = " · ".join(e(ad) + (" çalışıyor" if ok else ' <b class="kotu">DURDU</b>') for ad, ok in sv.items()) or "—"
@@ -680,12 +748,12 @@ class Yonetim(web.Taban):
             ("Son rapor", zaman), ("Sürüm", e(r.get("surum", "—"))), ("Açık kalma", acik), ("Servisler", servis),
             ("Disk", f'%{e(r["disk_yuzde"])}' if "disk_yuzde" in r else "—"), ("Son mühür", e(common.tarih_goster(r.get("son_muhur")) or "—")),
             ("WAN", durum(r.get("wan"), True)), ("İnternet", internet_metni(r)), ("SMS", durum(r.get("sms_sorunu"), False)),
-            ("Bağlı cihaz", e(r.get("bagli", "—")))])
+            ("Bağlı cihaz", e(r.get("bagli", "—"))), *ek])
 
-    def _sorun_gecmisi(self, n):
+    def _sorun_gecmisi(self, sorunlar):
         simdi = self.saat()
         satirlar = [(common.tarih_goster(x["acilis"]), common.tarih_goster(x["kapanis"]) or "açık", x["metin"], ONEM_ETIKET.get(x["onem"], x["onem"]),
-                     *gecmis_sms_etiketleri(x, simdi)) for x in self.veri.sorun_gecmisi(n, 50)]
+                     *gecmis_sms_etiketleri(x, simdi)) for x in sorunlar]
         return detay._tablo(("Açılış", "Kapanış", "Sorun", "Önem", "Açılış SMS'i", "Kapanış SMS'i"), satirlar, "Sorun kaydı yok.")
 
     def sms(self, ot, yontem, form, ip):
@@ -841,7 +909,7 @@ class Yonetim(web.Taban):
             except ValueError:
                 return yanit_html(self.mesaj(ot, "Geçersiz tarih", "Tarih GG.AA.YYYY biçiminde olmalı."), 400)
             self.veri.hareket("admin", ip, "LISANS_TARIHI", n, f"bitis={tarih}")
-        return yonlendir(f"/m/{n}")
+        return musteri_donus(n, "lisans")
 
     def serbest(self, ot, n, form, ip):
         if form.get("onay", "").strip() != str(n):
@@ -855,7 +923,7 @@ class Yonetim(web.Taban):
             self.veri.hareket("admin", ip, "CIHAZ_ZORLA_AYRILDI", n, f"cihaz={c['id'] if c else '-'}")
         else:
             self.veri.hareket("admin", ip, "SERBEST_BIRAKMA_ISTENDI", n, f"cihaz={c['id']}")
-        return yonlendir(f"/m/{n}")
+        return musteri_donus(n, "cihaz")
 
     def _hareket_tablosu(self, hareketler):
         return detay._tablo(("Zaman", "Kim", "IP", "Olay", "Müşteri", "Ayrıntı"),

@@ -1280,6 +1280,22 @@ Sorun geçmişi, İşlemler, Cihaz geçmişi), bütün formlar ve açıklamalar 
   açılırda olması, işlemlerden dönüş adresleri, askıda ve üyelik bitti hâlleri, başlık durumları). Masaüstü ve telefon (390 px) ekran
   görüntüsüyle denetlendi (örnek veriyle, test yardımcılarından).
 - **Kurulum:** `merkez-guncelle.sh` (kullanıcı, sudo); merkez yeniden başlar, yönetime yeniden giriş gerekir.
+- **Canlı (2026-10-26):** PR #39 birleşti (`38395d7`); merkez 23:50'de `main`'den güncellendi (veritabanı yedeği
+  `merkez.db.yedek-20261026-235020`); `wc-merkez`, `wc-kuyruk.path`, `caddy` çalışıyor; sunucudaki 24 merkez dosyası `main` ile aynı.
+
+## Müşteri listesinde üyeliği bitenler gizli (2026-10-27)
+Dal `bitenler-gizli` (PR #40); yalnızca merkez, cihazda değişiklik yok. Kullanıcı (2026-10-26): "4511643 müşteriler listesinden
+kaldır" (Deneme; üyeliği 2026-10-04'te bitirilmişti). Müşteri **silinmedi**: yönetimde müşteri silme yok, arşivi
+(`/srv/wificorrect-arsiv/4511643`), hareketleri ve sorun geçmişi kalır.
+- Yönetim → Müşteri listesi üyeliği biten müşterileri varsayılan göstermez; arama kutusunun altında "Üyeliği biten N müşteri listede
+  gösterilmiyor; aramada görünür. Göster" (`/?bitenler=1`: en altta, "Gizle" ile kapanır). Aramada (numara, işletme adı, not) her
+  zaman çıkarlar; müşteri sayfası (`/m/<numara>`) aynen açılır; "Üyeliği yeniden aç" müşteriyi listeye geri getirir.
+- Müşteri sayfasında "Üyeliği bitir" formunda not: "Cihaz serbest bırakılır, müşteri listede gizlenir; arşivi ve geçmişi silinmez.
+  "Üyeliği yeniden aç" ile geri gelir."
+- Sağlık izleme üyeliği biten müşteride zaten sorun açmıyordu (`saglik.kapsam`).
+- **Testler:** yeni `test_yonetim.test_liste_uyeligi_bitenler_gizli`; merkez `sh scripts/sunucu/merkez/tests/hepsi.sh py` → 23/23
+  dosya `TUM TESTLER GECTI`. Liste örnek veriyle ekran görüntüsünden denetlendi.
+- **Kurulum:** `merkez-guncelle.sh` (kullanıcı, sudo); merkez yeniden başlar, yönetime yeniden giriş gerekir.
 
 ## Yönetim sol menü ve AP joker DNS kaydı (2026-10-24)
 Dal `yonetim-menu`; yalnızca merkez (cihazda değişiklik yok).

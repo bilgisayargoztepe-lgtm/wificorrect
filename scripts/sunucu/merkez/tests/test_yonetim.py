@@ -89,6 +89,28 @@ def test_liste_durumlar_sorunlu_ustte_ve_arama():
         assert "Sağlam kafe" in s and "Gecikmiş kafe" not in s
 
 
+def test_liste_uyeligi_bitenler_gizli():
+    """2026-10-26 kullanıcı: "4511643 müşteriler listesinden kaldır" → üyeliği biten müşteri listede varsayılan gizli (silinmez);
+    "Göster" ile en altta, aramada her zaman çıkar; üyelik yeniden açılınca listeye döner."""
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        app, v, _, c, _ = kur(tmp)
+        n1, _ = v.musteri_ekle("Açık kafe")
+        n2, _ = v.musteri_ekle("Deneme")
+        v.uyelik(n2, "bitti")
+        s = Y.al(app, "/", c)[2].decode()
+        assert f'href="/m/{n1}"' in s and f'href="/m/{n2}"' not in s
+        assert "Üyeliği biten 1 müşteri listede gösterilmiyor" in s and 'href="/?bitenler=1"' in s
+        s = Y.al(app, "/?bitenler=1", c)[2].decode()
+        assert s.index(f'href="/m/{n1}"') < s.index(f'href="/m/{n2}"')  # bitenler en altta
+        assert "Üyeliği biten 1 müşteri de listede" in s and "gösterilmiyor" not in s
+        s = Y.al(app, f"/?q={n2}", c)[2].decode()
+        assert f'href="/m/{n2}"' in s and f'href="/m/{n1}"' not in s and "Üyeliği biten" not in s
+        assert "müşteri listede gizlenir" in Y.al(app, f"/m/{n1}", c)[2].decode()  # "Üyeliği bitir" formundaki not
+        v.uyelik(n2, "aktif")
+        s = Y.al(app, "/", c)[2].decode()
+        assert f'href="/m/{n2}"' in s and "Üyeliği biten" not in s
+
+
 def test_parola_sifirla_serbest_birak_uyelik():
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
         app, v, _, c, isler = kur(tmp)

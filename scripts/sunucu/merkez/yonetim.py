@@ -358,14 +358,20 @@ class Yonetim(web.Taban):
         return yanit_html(self.sayfa("Bekleyen cihazlar", kart(f"<h1>Bekleyen cihazlar</h1>{aciklama}") + kart(tablo), ot, genis=True))
 
     def liste(self, ot, sorgu):
-        q = detay.tr_kucuk((urllib.parse.parse_qs(sorgu).get("q") or [""])[0].strip())
+        alanlar = urllib.parse.parse_qs(sorgu)
+        q = detay.tr_kucuk((alanlar.get("q") or [""])[0].strip())
+        bitenler = (alanlar.get("bitenler") or [""])[0] == "1"  # üyeliği bitenler varsayılan gizli (silinmez); aramada hep çıkar
         durum, cihazlar, satirlar = self._durum(), self.veri.cihazlar(), []
         gunler = [g.isoformat() for g in kayitlar_modulu.son_30_gun(self.saat())[:7]]
         acik, kritik = self.veri.acik_sorunlar(), {}
         for x in acik:
             if x["onem"] == "kritik":
                 kritik.setdefault(x["musteri"], []).append(x["metin"])
-        for m in self.veri.musteriler():
+        musteriler = self.veri.musteriler()
+        biten = sum(m["uyelik"] != "aktif" for m in musteriler)
+        for m in musteriler:
+            if m["uyelik"] != "aktif" and not (bitenler or q):
+                continue
             n, c = m["numara"], cihazlar.get(m["numara"])
             paket = self._paket(m, c)
             ad = c["isletme_adi"] if c is not None else ""
@@ -383,17 +389,22 @@ class Yonetim(web.Taban):
             lisans = {"aktif": e(lbitis), "bitti": f'<b class="kotu">süresi doldu {e(lbitis)}</b>',
                       "askida": f'<b class="kotu">askıda</b> {e(lbitis)}'}[ldurum]
             sorunlu = sorunlu or ldurum != "aktif"
-            satirlar.append((not sorunlu, n,
+            satirlar.append((m["uyelik"] != "aktif", not sorunlu, n,  # üyeliği bitenler en altta
                              f'<tr><td><a href="/m/{n}">{n}</a></td><td>{e(ad or "—")}<br><span class="alt">{e(m["not_"])}</span></td>'
                              f'<td>{e(tur)}</td><td>{cihaz}</td><td>{paket}</td><td>{son}</td><td>{e(yedi)}</td><td>{lisans}</td><td>{e(uyelik)}</td></tr>'))
         satirlar.sort()
         tablo = ('<div class="kaydir"><table class="detay"><tr><th>No</th><th>İşletme / not</th><th>Tür</th><th>Cihaz</th>'
-                 '<th>Sürüm</th><th>Son gelen gün</th><th>Son 7 gün</th><th>Lisans</th><th>Üyelik</th></tr>' + "".join(s[2] for s in satirlar)
+                 '<th>Sürüm</th><th>Son gelen gün</th><th>Son 7 gün</th><th>Lisans</th><th>Üyelik</th></tr>' + "".join(s[3] for s in satirlar)
                  + "</table></div>") if satirlar else '<p class="alt">Müşteri yok.</p>'
         ara = (f'<form class="ara" method="get" action="/"><input name="q" value="{e(q)}" placeholder="Numara, işletme adı ya da not">'
                '<button>Ara</button></form>')
+        gizli = ""
+        if biten and not q:
+            gizli = (f'<p class="alt">Üyeliği biten {biten} müşteri de listede (en altta). <a href="/">Gizle</a></p>' if bitenler else
+                     f'<p class="alt">Üyeliği biten {biten} müşteri listede gösterilmiyor; aramada görünür. '
+                     '<a href="/?bitenler=1">Göster</a></p>')
         return yanit_html(self.sayfa("Müşteriler", self._acik_sorunlar_karti(acik, cihazlar)
-                                     + kart(f"<h1>Müşteriler</h1>{self._izleme_satiri()}{ara}") + kart(tablo), ot, genis=True))
+                                     + kart(f"<h1>Müşteriler</h1>{self._izleme_satiri()}{ara}{gizli}") + kart(tablo), ot, genis=True))
 
     def _kurulu_paket(self, c):
         """Cihazın son raporundaki kurulu paket sürümü: "1.2.0", "" (paketsiz kurulum) ya da None (rapor yok / eski sürüm)."""
@@ -667,6 +678,8 @@ class Yonetim(web.Taban):
                            "06:00'da cihaza iner.</p>"))
         tehlikeli = ([] if askida else [("Askıya al", lisans_formu("askiya", "Askıya al (cihazı kapat)", "tehlike"))]) + (
             [("Üyeliği bitir", f'<form method="post" action="/m/{n}/uyelik">{csrf}<input type="hidden" name="islem" value="bitir">'
+                               '<p class="alt">Cihaz serbest bırakılır, müşteri listede gizlenir; arşivi ve geçmişi silinmez. '
+                               '"Üyeliği yeniden aç" ile geri gelir.</p>'
                                f'<label for="u">Üyeliği bitirmek için müşteri numarasını yazın ({n})</label>'
                                '<input id="u" name="onay" inputmode="numeric" autocomplete="off" required>'
                                '<button class="tehlike">Üyeliği bitir</button></form>')] if uyelik_aktif else [])

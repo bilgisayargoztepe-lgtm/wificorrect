@@ -218,9 +218,9 @@ fn b(v: bool) -> String {
     if v { "1" } else { "0" }.into()
 }
 
-/// bayt → MB (10⁶), tam sayı, binlik nokta ("4.820")
-fn mb(bayt: u64) -> String {
-    let s = ((bayt + 500_000) / 1_000_000).to_string();
+/// Binlik nokta ("12.345.678").
+fn binlik(n: u64) -> String {
+    let s = n.to_string();
     let mut out = String::new();
     for (i, c) in s.chars().enumerate() {
         if i > 0 && (s.len() - i) % 3 == 0 {
@@ -229,6 +229,30 @@ fn mb(bayt: u64) -> String {
         out.push(c);
     }
     out
+}
+
+/// bayt → MB (10⁶), tam sayı, binlik nokta ("4.820")
+fn mb(bayt: u64) -> String {
+    binlik((bayt + 500_000) / 1_000_000)
+}
+
+/// bayt → GB (10⁹), üç anlamlı basamak, ondalık virgül ("0,04", "3,46", "12,3", "125", "1.235")
+fn gb(bayt: u64) -> String {
+    if bayt == 0 {
+        return "0".into();
+    }
+    // ondalık basamak yuvarlanmış değere göre: 9,995 GB → "10,0", 99,95 GB → "100"
+    let basamak: u32 = if bayt < 9_995_000_000 {
+        2
+    } else if bayt < 99_950_000_000 {
+        1
+    } else {
+        0
+    };
+    let birim = 10u64.pow(9 - basamak);
+    let n = (bayt + birim / 2) / birim;
+    let kat = 10u64.pow(basamak);
+    if basamak == 0 { binlik(n) } else { format!("{},{:0w$}", binlik(n / kat), n % kat, w = basamak as usize) }
 }
 
 /// Ölçüm bundan eskiyse kaydedici durmuş sayılır (5 sn'de bir yazar).
@@ -1135,6 +1159,8 @@ impl Panel {
                 (f.len() > 2 && f[1] == "OTURUM_BASLA").then(|| f[2].to_string())
             })
             .collect();
+        // bütün cihazların bugün kullandığı veri (indirme + yükleme; kaydedici dakikada bir yazar); bugünün kaydı yoksa tire
+        let veri = crate::trafik::bugun_toplam(&crate::trafik::gun_oku(&m.state_root), &today).map_or_else(|| "—".to_string(), |b| format!("{} GB", gb(b)));
         let sms = ortak::sms_count(&m.state_root, &today);
         let mut uyarilar = vec![];
         // SMS merkezden gider (spec 2026-10-13); deneme modu bilgisi merkezden gelir
@@ -1193,7 +1219,8 @@ impl Panel {
              <section class=\"kutu\"><h2>Bağlı Kullanıcılar</h2>{bagli_html}</section>\
              <div class=\"ozet-sag\">\
              <section class=\"kutu\"><dl class=\"sayilar\"><div><dt>Bağlı kullanıcı</dt><dd>{}</dd></div>\
-             <div><dt>Bugün farklı kullanıcı</dt><dd>{}</dd></div><div><dt>Bugün yeni üye</dt><dd>{}</dd></div></dl></section>\
+             <div><dt>Bugün farklı kullanıcı</dt><dd>{}</dd></div><div><dt>Bugün yeni üye</dt><dd>{}</dd></div>\
+             <div><dt>Bugün kullanılan veri</dt><dd>{veri}</dd></div></dl></section>\
              <section class=\"kutu\"><h2>Bugün Yeni Üyeler</h2>{yeni_html}</section>\
              </div></div>",
             bagli.len(),
@@ -2616,6 +2643,46 @@ mod tests {
         e.p.handle(&get("/cihazlar", &[("sira", "son"), ("yenile", "1"), ("oto", "1")], &tok2));
         assert_eq!((say("PANEL_OTURUMLAR"), say("PANEL_OTURUMLAR_YENILE")), (4, 1));
         assert_eq!(hareketler::olay_adi("PANEL_OTURUMLAR_YENILE"), "Otomatik yenilemeyi açtı");
+    }
+
+    #[test]
+    fn gb_uc_anlamli_basamak() {
+        let ornekler = [
+            (0, "0"),
+            (40_000_000, "0,04"),
+            (3_456_000_000, "3,46"),
+            (9_994_999_999, "9,99"),
+            (9_995_000_000, "10,0"),
+            (12_345_000_000, "12,3"),
+            (99_949_999_999, "99,9"),
+            (99_950_000_000, "100"),
+            (1_234_500_000_000, "1.235"),
+        ];
+        for (bayt, beklenen) in ornekler {
+            assert_eq!(gb(bayt), beklenen, "{bayt}");
+        }
+    }
+
+    #[test]
+    fn ozet_bugun_kullanilan_veri() {
+        let e = env();
+        let (tok, _) = setup_and_login(&e, "mudur", "sahip-parola-12");
+        let cfg = Config::load(&e.p.cfg_path).unwrap();
+        let veri = || {
+            let s = e.p.handle(&req("GET", "/", &[], Some(&tok))).body;
+            s.split("<dt>Bugün kullanılan veri</dt><dd>").nth(1).expect("satır yok").split("</dd>").next().unwrap().to_string()
+        };
+        assert_eq!(veri(), "—", "kaydedici bugün hiç yazmadı");
+        // bütün cihazların bugünkü toplamı (indirme + yükleme; oturumu kapanmış cihazlar da)
+        let mut g = crate::trafik::GunToplam {
+            gun: "2026-09-29".into(),
+            bayt: std::collections::BTreeMap::from([("aa:bb:cc:dd:ee:01".into(), 2_500_000_000), ("aa:bb:cc:dd:ee:02".into(), 960_000_000)]),
+        };
+        crate::trafik::gun_yaz(&cfg.main.state_root, &g).unwrap();
+        assert_eq!(veri(), "3,46 GB");
+        g.gun = "2026-09-28".into(); // dünün toplamı bugün sayılmaz
+        crate::trafik::gun_yaz(&cfg.main.state_root, &g).unwrap();
+        assert_eq!(veri(), "—");
     }
 
     #[test]

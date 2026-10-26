@@ -63,6 +63,13 @@ pub fn marka_acik() -> &'static str {
     HTML.get_or_init(|| marka(LOGO_ACIK))
 }
 
+/// Giriş sayfasının alt bilgisi (açık zemin, `_sayfa.html` `footer .wc-logo`): bağlantısız, süs; ürünün adını alt bilgi yazısı
+/// söyler. Misafir giriş yapmadan internete çıkamaz, bağlantı verilmez.
+pub fn alt_bilgi_logo() -> &'static str {
+    static HTML: OnceLock<String> = OnceLock::new();
+    HTML.get_or_init(|| sinifli(LOGO_ACIK, "wc-logo"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

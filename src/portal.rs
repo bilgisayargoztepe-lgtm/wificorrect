@@ -439,6 +439,14 @@ pub fn veri_sorumlusu_yerlestir(text: &str, m: &crate::ayar::Main) -> String {
     t
 }
 
+/// Hukuki metni giriş sayfasında göründüğü gibi doldurur: İŞLETMECİ → işletme adı (Türkçede ek ada göre yeniden kurulur;
+/// İngilizcede yalnızca ad, ek eklenmez), veri sorumlusu yer tutucuları → Ayarlar → İşletme'deki bilgiler
+/// (`veri_sorumlusu_yerlestir`). Panel → Portal metinleri de bunu gösterir: panel ile giriş sayfası aynı metni gösterir.
+pub fn metin_doldur(text: &str, m: &crate::ayar::Main, ingilizce: bool) -> String {
+    let t = if ingilizce { text.replace("İŞLETMECİ", &m.site_name) } else { isletme_yerlestir(text, &m.site_name) };
+    veri_sorumlusu_yerlestir(&t, m)
+}
+
 /// Metindeki "İŞLETMECİ" → kafe adı; kesme işaretinden sonraki ek ada göre yeniden kurulur, büyük harfli yerde ad da büyük.
 pub fn isletme_yerlestir(text: &str, name: &str) -> String {
     const KELIME: &str = "İŞLETMECİ";
@@ -604,6 +612,8 @@ impl Portal {
         outer.insert("internet_uyari_html", internet_yok.map_or_else(String::new, |durum| internet_uyarisi(&durum, d)));
         outer.insert("dil_kod", d.kod().into());
         outer.insert("dil_secim_html", self.dil_secimi(page));
+        // wificorrect_ logosu alt bilginin yazısının üstünde: üst bant ve kart yerinde kalır
+        outer.insert("logo_html", crate::logo::alt_bilgi_logo().to_string());
         substitute(&yerel(template("_sayfa"), d), &outer)
     }
 
@@ -658,22 +668,12 @@ impl Portal {
         Page::new("giris", ctx, d)
     }
 
-    /// Metinlerdeki İŞLETMECİ → işletme adı, veri sorumlusu yer tutucuları → Ayarlar'daki bilgiler
-    /// (`veri_sorumlusu_yerlestir`).
-    fn yerlestir(&self, text: &str) -> String {
-        self.unvan_yerlestir(isletme_yerlestir(text, &self.cfg.main.site_name))
-    }
-
-    fn unvan_yerlestir(&self, t: String) -> String {
-        veri_sorumlusu_yerlestir(&t, &self.cfg.main)
-    }
-
-    /// Hukuki metin sayfa dilinde: İngilizcesi yazılmamışsa Türkçesi. İngilizcede İŞLETMECİ yalnızca adla değişir (ek yok).
+    /// Hukuki metin sayfa dilinde, işletme bilgileriyle doldurulmuş (`metin_doldur`): İngilizcesi yazılmamışsa Türkçesi.
     fn hukuki(&self, d: Dil, tr: &str, en: &str) -> String {
         if d == Dil::En && !en.trim().is_empty() {
-            self.unvan_yerlestir(en.replace("İŞLETMECİ", &self.cfg.main.site_name))
+            metin_doldur(en, &self.cfg.main, true)
         } else {
-            self.yerlestir(tr)
+            metin_doldur(tr, &self.cfg.main, false)
         }
     }
 
@@ -1973,6 +1973,19 @@ mod tests {
         let pg = login(&t, MAC, "10.50.0.99", "5334553132");
         assert_eq!((pg.tpl, pg.get("mesaj")), ("hata", "Bağlantı açılamadı, lütfen tekrar deneyin."));
         assert!(ortak::load_sessions(&t.p.cfg.main.state_root).is_empty());
+    }
+
+    #[test]
+    fn alt_bilgide_wificorrect_logosu() {
+        // logo yalnızca alt bilgide, yazının üstünde (2026-10-26): üst bant, kart ve alt bilgi yazısı yerinde
+        let t = setup(|_| {});
+        for html in [t.p.render(&t.p.form_page(&Form::new(), vec![], "")), t.p.render(&t.p.error_page("x", Dil::Tr))] {
+            assert_eq!(html.matches("<svg class=\"wc-logo\"").count(), 1, "{html}");
+            let alt = html.split("<footer>").nth(1).unwrap();
+            assert!(alt.find("<svg class=\"wc-logo\"").unwrap() < alt.find("WifiCorrect bir Göztepe Bilgisayar ürünüdür").unwrap(), "{alt}");
+            let yer = |s: &str| html.find(s).unwrap();
+            assert!(yer("<header class=\"gok\">") < yer("<main>") && yer("</main>") < yer("<footer>"));
+        }
     }
 
     #[test]

@@ -5342,4 +5342,35 @@ mod tests {
         let b = e.p.handle(&req("GET", "/portal-metinleri", &[], Some(&tok))).body;
         assert!(b.contains("İŞLETMECİ’nin → Göztepe Bilgisayar’ın gibi") && !b.contains("Bilgisayar’nin"), "{b}");
     }
+
+    #[test]
+    fn portal_metinleri_isletme_bilgileriyle_dolu_gorunur() {
+        // işletme adı, unvanı ve adresi yazılınca metinler panelde de giriş sayfasındaki gibi dolu görünür (2026-10-26: Göztepe ve
+        // Visavis'te panel şablonu gösteriyordu); düzenleme kutusunda şablon kalır: bilgiler değişince metin de değişsin
+        let e = env();
+        let (tok, _) = setup_and_login(&e, "mudur", "sahip-parola-12");
+        let mut c = Config::load(&e.p.cfg_path).unwrap();
+        c.main.site_name = "Göztepe Bilgisayar".into();
+        c.main.unvan = "Boca Gıda Tic. Ltd. Şti.".into();
+        c.main.adres = "Örnek Mah. 1. Sok. No 2 İzmir".into();
+        c.main.telefon = String::new(); // isteğe bağlı bilgi boş: geçtiği satır gösterilmez
+        c.save(&e.p.cfg_path).unwrap();
+        let b = e.p.handle(&get("/portal-metinleri", &[], &tok)).body;
+        let parcalar = |ac: &str, kapa: &str| b.split(ac).skip(1).map(|p| p.split(kapa).next().unwrap().to_string()).collect::<Vec<_>>();
+        let onizleme = parcalar("<div class=\"metin-onizleme\">", "</div>");
+        let kutular = parcalar("<textarea", "</textarea>");
+        assert_eq!((onizleme.len(), kutular.len()), (6, 6), "{b}");
+        let dolu = onizleme.concat();
+        assert!(dolu.contains("Boca Gıda Tic. Ltd. Şti.") && dolu.contains("Örnek Mah. 1. Sok. No 2 İzmir") && dolu.contains("Göztepe Bilgisayar’ın"), "{dolu}");
+        for y in ["[vergi levhası unvanı]", "[başvuru adresi]", "[irtibat numarası]", "İŞLETMECİ"] {
+            assert!(!dolu.contains(y), "{y}: {dolu}");
+        }
+        // giriş sayfasındakiyle aynı metin (aynı doldurma işlevi ve biçim)
+        let c = Config::load(&e.p.cfg_path).unwrap();
+        assert_eq!(onizleme[0], crate::portal::metin_html_dil(&crate::portal::metin_doldur(&c.portal.aydinlatma, &c.main, false), crate::dil::Dil::Tr));
+        // boş İngilizce metin: giriş sayfası Türkçesini gösterir
+        assert!(onizleme[3].contains("Türkçesi gösterilir"), "{}", onizleme[3]);
+        // düzenleme kutusunda şablon duruyor: dokunmadan kaydetmek yer tutucuları korur
+        assert!(kutular[0].contains("[vergi levhası unvanı]") && kutular[0].contains("[irtibat numarası]") && kutular[2].contains("İŞLETMECİ"));
+    }
 }

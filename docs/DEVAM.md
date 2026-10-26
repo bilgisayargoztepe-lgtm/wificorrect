@@ -51,7 +51,7 @@ Canlı müşteriler: **Göztepe Bilgisayar = 1537344** (cihaz 192.168.1.110, tes
 kararlı kanal; numarası yönetimde; aşağıda "Visavis").
 
 ## Dallar ve durum (2026-10-26)
-Repo `bilgisayargoztepe-lgtm/wificorrect` (avsharbeyi'den devredildi). Her şey **`main`**'de (PR #3–#39 birleşti; #2 kapatıldı).
+Repo `bilgisayargoztepe-lgtm/wificorrect` (avsharbeyi'den devredildi). Her şey **`main`**'de (PR #3–#40 birleşti; #2 kapatıldı).
 **v0.4.23** etiketlendi (2026-10-26 18:46, `0944e74` = PR #38'in birleştirmesi; release 19:04'te bitti, 18 dk; tarihler gün.ay.yıl;
 ISO + .deb, `release.yml`; `WFC_SSH_PUB` = `~/.ssh/bocafe.pub`): cihaz paneli → Özet → sayılar kutusunda "Bugün kullanılan veri"
 (kullanıcı 2026-10-26: "günlük harcanan GB da özette yazsın"; bütün cihazların bugünkü indirme + yükleme toplamı, GB). Ayrıntı
@@ -60,7 +60,7 @@ bilgileriyle doldurulmuş görünür, giriş sayfasının alt bilgisinde wificor
 bağlantı dosyası her pppd başlangıcında ag.toml'dan yenilenir), v0.4.20 (2026-10-24 22:40, `23739c2`: PPPoE düzeltmeleri, cihaz paneli
 yönetim gibi, büyük sekme simgesi), v0.4.19 (19:56, `bdc57b4`, logo), v0.4.18 (12:01), v0.4.17 (11:02, PPPoE; hiçbir cihaza
 kurulmadı), v0.4.16 (2026-10-18). **İki cihaz da 0.4.23** (2026-10-26, ikisi de "Şimdi güncelle"): Visavis 20:12 (10 dk denetimi
-20:28 tamam), Göztepe 20:16 (20:26 tamam). Merkez en son 2026-10-26 23:50'de `main`'den (`38395d7`, PR #39)
+20:28 tamam), Göztepe 20:16 (20:26 tamam). Merkez en son 2026-10-27 00:35'te `main`'den (`2532147`, PR #40)
 güncellendi; sunucudaki merkez dosyaları `main` ile aynı (0.4.21–0.4.23 merkezde değişiklik getirmedi).
 **Yönetimde müşteri sayfası (yalnızca merkez, PR #39; birleşti, merkezde 2026-10-26 23:50'den beri canlı):** yönetimde müşteri
 sayfası sadeleşti (kullanıcı 2026-10-26: "her menüyü açılır pencere şeklinde yap, çok karmaşık olmuş; bazı şeyleri ortak menüde topla;
@@ -69,10 +69,14 @@ AP yazısı gibi uzun yazılar tıklayınca açılsın"): üstte hep görünen �
 Güncelleme, Sorun geçmişi; başlığın yanında kısa durum); uzun açıklamalar, geçmiş tabloları ve tehlikeli işlemler bölümün içinde ayrıca
 açılır; işlemden dönüşte o bölüm açık gelir. Ayrıntı KURULUM_GUNLUGU "Yönetimde
 müşteri sayfası: açılır bölümler".
-**Dal `bitenler-gizli` (yalnızca merkez, PR #40; birleştirme ve merkez güncellemesi kullanıcının kararıyla):** yönetimde müşteri
+**Müşteri listesinde üyeliği bitenler gizli (yalnızca merkez, PR #40; birleşti, merkezde 2026-10-27 00:35'ten beri canlı):** yönetimde müşteri
 listesi üyeliği biten müşterileri varsayılan göstermez (kullanıcı 2026-10-26: "4511643 müşteriler listesinden kaldır"; Deneme
 silinmedi, arşivi ve geçmişi duruyor): "Göster" (`/?bitenler=1`) ile en altta, aramada her zaman çıkar; "Üyeliği bitir" formunda
 bunu söyleyen not. Ayrıntı KURULUM_GUNLUGU "Müşteri listesinde üyeliği bitenler gizli".
+**Dal `kullanicilar-tablo-ustte` (PR #41, sürüm 0.4.24; birleştirme, `v0.4.24` etiketi ve cihaz güncellemesi kullanıcının kararıyla):**
+cihaz paneli → Kullanıcılar → Bağlı kullanıcılar bölümünde tablo başlığın hemen altında; açıklama, denetim notu ve Sırala / "10 sn'de bir
+yenile" düğmeleri tablonun altında, bölümün sonunda (kullanıcı 2026-10-27: "bu yazıları sayfanın en altına al"). Ayrıntı KURULUM_GUNLUGU
+"Kullanıcılar: tablo üstte, açıklamalar altta".
 **v0.4.18 (PPPoE modemli hatta yeşil durum, PR #28):** PPPoE açık cihaz modemdeyken (PPPoE sunucusu yok, DHCP adresi var) durum kırmızı "PPPoE
 sunucusu yanıt vermiyor" yerine yeşil "Modemden bağlı (DHCP); PPPoE ONT'ye takılınca bağlanır" (`pppoe=modemden`, merkez kartında da);
 kimlik reddi yine kırmızı. Ayrıntı KURULUM_GUNLUGU "PPPoE: modemli hatta yeşil durum".
@@ -262,7 +266,7 @@ taksit, otomatik yenileme) · 9 **merkezi Rust'a taşıma** (2026-10-13 kararı;
 ~4.300 satır Python + 3.600 satır test, 9 işe bölünür: veritabanı, güvenlik, web tabanı, cihaz API, yönetim, müşteri paneli,
 arka plan işleri, kurulum/yan yana geçiş, uçtan uca + Python'u kaldırma; aynı SQLite şeması ve parola biçimi korunur). Zaman damgası: kontör alınınca. İki aşamalı giriş istenmedi.
 Ertelenmiş küçük bulgular: `.superpowers/sdd/*/progress.md` (yalnızca bu makinede).
-Bekleyen kullanıcı işleri: Göztepe'de PPPoE düzeltmelerinin (0.4.20/0.4.21) ONT canlı kabulü (KURULUM_GUNLUGU "PPPoE düzeltmeleri"), `bitenler-gizli`'nin birleştirilmesi (PR #40) ve merkezin güncellenmesi (`merkez-guncelle.sh`, sudo), ilk PPPoE'li müşteride canlı kabul (yanında yedek modemle; liste KURULUM_GUNLUGU
+Bekleyen kullanıcı işleri: Göztepe'de PPPoE düzeltmelerinin (0.4.20/0.4.21) ONT canlı kabulü (KURULUM_GUNLUGU "PPPoE düzeltmeleri"), `kullanicilar-tablo-ustte`'nin birleştirilmesi (PR #41), `v0.4.24` etiketi ve iki cihazda "Şimdi güncelle", ilk PPPoE'li müşteride canlı kabul (yanında yedek modemle; liste KURULUM_GUNLUGU
 "PPPoE" sonunda; gerçek SMS yalnızca açık onayla); iki J1900'de BIOS → "Restore on AC Power Loss = Power On" (monitör + klavyeyle; sonra fiş çekip
 kendiliğinden açıldığını dene) ve yeni kutulara sahte ekran fişi; Göztepe'nin TP-Link'inin yönetim
 parolasını AP yönetim parolasına çevirmek (2026-10-16'ya kadarki kural panel parolasıydı); aydınlatma metni (misafir kodu

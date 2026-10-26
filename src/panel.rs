@@ -1363,12 +1363,13 @@ impl Panel {
         };
         // yavaşlatma uygulanamıyorsa tablodaki "≤ N Mb/sn" rozetleri yanıltmasın (Yavaşlatılmış bölümündeki uyarının aynısı)
         let hata = durum.as_ref().and_then(|d| d.hiz_hata.as_ref()).map(|e| format!("<div class=\"mesaj hata\">{}</div>", h(e))).unwrap_or_default();
+        // tablo başlığın hemen altında; sıralama/yenileme, ölçüm zamanı ve açıklamalar tablonun altında (2026-10-27, kullanıcı isteği)
         let body = format!(
-            "{hata}<p class=\"not\">Bağlantısı kesilen cihaz internete çıkamaz; yeniden SMS ile giriş yapması gerekir. \
+            "{hata}{}{sayfalama}{arac}<p class=\"not\">{}</p>\
+             <p class=\"not\">Bağlantısı kesilen cihaz internete çıkamaz; yeniden SMS ile giriş yapması gerekir. \
              <b>Bağlı</b>: cihaz son 5 dakikada ağda görüldü. \
              Bugün: gece 00:00'dan beri indirilen + yüklenen (MB).</p>\
-             <p class=\"not\">Bu sayfadaki her görüntüleme, arama ve indirme kimin yaptığıyla birlikte kaydedilir ve hizmet sağlayıcı tarafından denetlenir.</p>{arac}{}{sayfalama}\
-             <p class=\"not\">{}</p>",
+             <p class=\"not\">Bu sayfadaki her görüntüleme, arama ve indirme kimin yaptığıyla birlikte kaydedilir ve hizmet sağlayıcı tarafından denetlenir.</p>",
             // mobilde ilk dört sütun (durum, ad, son görülme, MB) ekrana sığsın: CSS .kullanici-tablo
             format!(
                 "<div class=\"kullanici-tablo\">{}</div>",
@@ -2593,6 +2594,28 @@ mod tests {
         trafikli(&e, &ayse, &olcum, Some(5.0));
         let s = e.p.handle(&req("GET", "/cihazlar", &[], Some(&tok))).body;
         assert!(satir_of(&s, "Ayşe").contains("<td>4.820</td>") && s.contains("Ölçüm 5 sn önce") && !s.contains("Ölçüm alınamıyor"));
+    }
+
+    #[test]
+    fn bagli_kullanicilar_tablo_ustte_aciklamalar_altta() {
+        // 2026-10-27 kullanıcı: açıklamalar, denetim notu ve Sırala/yenile düğmeleri tablonun altında
+        let e = env();
+        let (tok, _) = setup_and_login(&e, "mudur", "sahip-parola-12");
+        trafikli(&e, &[("aa:bb:cc:dd:ee:01", "Ayşe", 1.0)], &[("aa:bb:cc:dd:ee:01", 38_400_000, 2_100_000, 4_820_000_000)], Some(5.0));
+        for yol in ["/cihazlar", "/oturumlar"] {
+            let s = e.p.handle(&req("GET", yol, &[], Some(&tok))).body;
+            let yer: Vec<usize> = [
+                "<div class=\"kullanici-tablo\">",
+                "<span class=\"not\">Sırala:</span>",
+                "Ölçüm 5 sn önce",
+                "Bağlantısı kesilen cihaz internete çıkamaz",
+                "kimin yaptığıyla birlikte kaydedilir",
+            ]
+            .iter()
+            .map(|m| s.find(m).unwrap_or_else(|| panic!("{yol}: {m} yok")))
+            .collect();
+            assert!(yer.windows(2).all(|w| w[0] < w[1]), "{yol}: {yer:?}");
+        }
     }
 
     #[test]

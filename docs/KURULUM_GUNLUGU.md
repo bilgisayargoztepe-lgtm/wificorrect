@@ -1296,6 +1296,22 @@ kaldır" (Deneme; üyeliği 2026-10-04'te bitirilmişti). Müşteri **silinmedi*
 - **Testler:** yeni `test_yonetim.test_liste_uyeligi_bitenler_gizli`; merkez `sh scripts/sunucu/merkez/tests/hepsi.sh py` → 23/23
   dosya `TUM TESTLER GECTI`. Liste örnek veriyle ekran görüntüsünden denetlendi.
 - **Kurulum:** `merkez-guncelle.sh` (kullanıcı, sudo); merkez yeniden başlar, yönetime yeniden giriş gerekir.
+- **Canlı (2026-10-27):** PR #40 birleşti (`2532147`); merkez 00:35'te `main`'den güncellendi (veritabanı yedeği
+  `merkez.db.yedek-20261027-003541`); `wc-merkez`, `wc-kuyruk.path`, `caddy` çalışıyor; sunucudaki 24 merkez dosyası `main` ile aynı.
+
+## Kullanıcılar: tablo üstte, açıklamalar altta (2026-10-27, 0.4.24)
+Dal `kullanicilar-tablo-ustte` (PR #41); yalnızca cihaz. Kullanıcı: cihaz paneli → Kullanıcılar → Bağlı kullanıcılar bölümündeki açıklama
+("Bağlantısı kesilen cihaz …", "Bağlı: …", "Bugün: …"), denetim notu ("Bu sayfadaki her görüntüleme …") ve Sırala / "10 sn'de bir
+yenile" düğmeleri için "bu yazıları sayfanın en altına al".
+- Bölümde başlığın hemen altında tablo; sonra sayfa numaraları, Sırala / yenile, "Ölçüm N sn önce", açıklama ve denetim notu (bölümün
+  sonu). Aynı sıra tek bölüm sayfasında (`/oturumlar`) da. Metinler aynı; Kullanıcılar sayfasının öteki bölümleri (Yasaklı, İzinli,
+  Yavaşlatılmış cihazlar, Yasaklı siteler) değişmedi. Sayfanın en dibine (Yasaklı siteler'in altına) alınmadı: açıklamalar ve düğmeler
+  bu tabloya ait.
+- **Testler:** yeni `panel::tests::bagli_kullanicilar_tablo_ustte_aciklamalar_altta` (`/cihazlar` ve `/oturumlar`); cihazda
+  `bash scripts/test.sh wificorrect` → 469 geçti (468 + işlenmeyen geçici bir önizleme testi). Masaüstü ve telefon (390 px) görünümü
+  ekran görüntüsüyle denetlendi; telefonda yatay taşma yok. Not: başsız Edge `--window-size=390` ile sayfayı 477 px'te çizip 390 px'i
+  kesiyor (taşıyor gibi görünür); telefon görünümü için sayfa 390 px'lik bir iframe içinde çizilmeli.
+- **Kurulum:** `v0.4.24` etiketi → release → Yönetim → Sürümler → kanal hedefleri → müşteri sayfasında "Şimdi güncelle".
 
 ## Yönetim sol menü ve AP joker DNS kaydı (2026-10-24)
 Dal `yonetim-menu`; yalnızca merkez (cihazda değişiklik yok).

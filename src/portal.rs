@@ -439,6 +439,14 @@ pub fn veri_sorumlusu_yerlestir(text: &str, m: &crate::ayar::Main) -> String {
     t
 }
 
+/// Hukuki metni giriş sayfasında göründüğü gibi doldurur: İŞLETMECİ → işletme adı (Türkçede ek ada göre yeniden kurulur;
+/// İngilizcede yalnızca ad, ek eklenmez), veri sorumlusu yer tutucuları → Ayarlar → İşletme'deki bilgiler
+/// (`veri_sorumlusu_yerlestir`). Panel → Portal metinleri de bunu gösterir: panel ile giriş sayfası aynı metni gösterir.
+pub fn metin_doldur(text: &str, m: &crate::ayar::Main, ingilizce: bool) -> String {
+    let t = if ingilizce { text.replace("İŞLETMECİ", &m.site_name) } else { isletme_yerlestir(text, &m.site_name) };
+    veri_sorumlusu_yerlestir(&t, m)
+}
+
 /// Metindeki "İŞLETMECİ" → kafe adı; kesme işaretinden sonraki ek ada göre yeniden kurulur, büyük harfli yerde ad da büyük.
 pub fn isletme_yerlestir(text: &str, name: &str) -> String {
     const KELIME: &str = "İŞLETMECİ";
@@ -658,22 +666,12 @@ impl Portal {
         Page::new("giris", ctx, d)
     }
 
-    /// Metinlerdeki İŞLETMECİ → işletme adı, veri sorumlusu yer tutucuları → Ayarlar'daki bilgiler
-    /// (`veri_sorumlusu_yerlestir`).
-    fn yerlestir(&self, text: &str) -> String {
-        self.unvan_yerlestir(isletme_yerlestir(text, &self.cfg.main.site_name))
-    }
-
-    fn unvan_yerlestir(&self, t: String) -> String {
-        veri_sorumlusu_yerlestir(&t, &self.cfg.main)
-    }
-
-    /// Hukuki metin sayfa dilinde: İngilizcesi yazılmamışsa Türkçesi. İngilizcede İŞLETMECİ yalnızca adla değişir (ek yok).
+    /// Hukuki metin sayfa dilinde, işletme bilgileriyle doldurulmuş (`metin_doldur`): İngilizcesi yazılmamışsa Türkçesi.
     fn hukuki(&self, d: Dil, tr: &str, en: &str) -> String {
         if d == Dil::En && !en.trim().is_empty() {
-            self.unvan_yerlestir(en.replace("İŞLETMECİ", &self.cfg.main.site_name))
+            metin_doldur(en, &self.cfg.main, true)
         } else {
-            self.yerlestir(tr)
+            metin_doldur(tr, &self.cfg.main, false)
         }
     }
 

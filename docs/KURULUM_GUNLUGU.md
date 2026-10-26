@@ -1202,8 +1202,28 @@ gelirdi. Dosya elle yeniden üretildi (23:37, `ctl pppoe-peers` ile; `cmp` kimli
   yenileme `write_files`'ın yazdığı metni üretir (ikisi de `pppoe::peers_text`). Birim dosyasındaki eski `maxfail 3` yorumu düzeltildi.
 - **Testler:** cihazda `bash scripts/test.sh wificorrect` → 462/462 (uyarısız); yeni `pppoe::tests::dosya_ayardan_yenilenir` ve
   `ctl::tests::pppoe_hazirla_baglanti_dosyasini_ayardan_yeniler` (geçici yollar, sahte komut çalıştırıcı). Merkezde değişiklik yok.
-- **Canlı kabul** (0.4.21 kurulunca): Göztepe'de dosya zaten güncel (elle üretildi): pppd'nin sonraki başlangıçlarında denetimde
-  `PPPOE_DOSYA_YENILENDI` olmamalı, dosyanın izni 600 kalmalı; birim eskisi gibi döngüde (modem ağında PPPoE sunucusu yok).
+- **Canlı kabul — tamam (2026-10-25):** iki cihaz da 0.4.21 ("Şimdi güncelle"; Göztepe 13:26, 10 dk denetimi 13:42 tamam;
+  Visavis 13:54, 14:09 tamam). Göztepe'de pppd yeni sürümle 13:36 ve 13:42'de başladı (birim "Started", yani `pppoe-hazirla`
+  hatasız), bağlantı dosyası zaten günceldi: değişmedi (600, 23:37 tarihli), denetimde `PPPOE_DOSYA_YENILENDI` yok; birim eskisi gibi
+  döngüde (modem ağında PPPoE sunucusu yok). Visavis'te PPPoE kapalı (birim devre dışı, dosya yok).
+
+## Portal metinleri panelde doldurulmuş görünür (2026-10-26, 0.4.22)
+Dal `metin-onizleme`. Kullanıcı: "İşletme adını ve unvanını aşağıdaki alanlar otomatik dolsun diye yazdık; ne Göztepe'de ne
+Visavis'te dolmamış." Ayarlar sayfasında İşletme bölümünün altındaki Portal metinleri kutuları ham şablonu (İŞLETMECİ,
+`[vergi levhası unvanı]`, `[başvuru adresi]` …) gösteriyordu. Giriş sayfası doğruydu: iki cihazda da `curl http://10.50.0.1:8080/`
+çıktısında hiçbir yer tutucu kalmamıştı (Göztepe: ad ve unvan "Göztepe Bilgisayar", adres/telefon/e-posta/KEP dolu; Visavis: ad
+"visavis", unvan "ALVENA GRUP RESTORAN SANAYİ VE TİCARET LİMİTED ŞİRKETİ", adres dolu, telefon/e-posta/KEP boş).
+- **Düzeltme:** her metin, giriş sayfasında göründüğü gibi doldurulmuş ve biçimlenmiş bir önizleme kutusunda gösterilir (en çok
+  18rem, kaydırılır). Panel ile giriş sayfası aynı işlevi kullanır: `portal::metin_doldur(metin, main, ingilizce)` (İŞLETMECİ → işletme
+  adı, Türkçede ek ada göre; veri sorumlusu yer tutucuları → Ayarlar → İşletme; isteğe bağlı bilgi boşsa satırı çıkar); portalın
+  `hukuki` işlevi de bunu çağırır. Boş İngilizce metin için "Boş: giriş sayfasında Türkçesi gösterilir." Açık rıza giriş sayfasındaki
+  gibi satır satır, öbürleri paragraf ve madde listesi.
+- **Düzenleme:** her metnin altında "Metni düzenle" (`<details>`, JS yok); kutuda şablon durur, notu yer tutucuları açıklar. Şablon
+  bilerek korunur: bilgiler (ad, unvan, adres, telefon, e-posta, KEP) sonradan değişince metinler de kendiliğinden değişir; doldurulmuş
+  metni kutuya koyup kaydetmek bilgileri metne sabitlerdi ve boş isteğe bağlı bilginin satırlarını kalıcı olarak silerdi. Kaydetme aynı
+  (değişmeyen metne dokunulmaz, `PANEL_PORTAL_METIN`).
+- **Testler:** cihazda `bash scripts/test.sh wificorrect` → 463/463; yeni `panel::tests::portal_metinleri_isletme_bilgileriyle_dolu_gorunur`
+  (önizlemede yer tutucu yok, isteğe bağlı boş bilginin satırı yok, önizleme giriş sayfasının HTML'iyle aynı, kutuda şablon duruyor).
 
 ## Yönetim sol menü ve AP joker DNS kaydı (2026-10-24)
 Dal `yonetim-menu`; yalnızca merkez (cihazda değişiklik yok).

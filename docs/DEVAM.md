@@ -1,4 +1,4 @@
-# Devir notu — kaldığın yerden devam (2026-10-25)
+# Devir notu — kaldığın yerden devam (2026-10-26)
 
 Bu dosya, projeye yeni bir oturumda/hesapta devam eden ajan içindir. Önce bunu, sonra `CLAUDE.md`'deki belgeleri oku.
 
@@ -50,20 +50,22 @@ merkez .1, Visavis .10, Göztepe .11).
 Canlı müşteriler: **Göztepe Bilgisayar = 1537344** (cihaz 192.168.1.110, test kanalı) ve **Visavis** (tünel 10.99.0.10,
 kararlı kanal; numarası yönetimde; aşağıda "Visavis").
 
-## Dallar ve durum (2026-10-25)
-Repo `bilgisayargoztepe-lgtm/wificorrect` (avsharbeyi'den devredildi). Her şey **`main`**'de (PR #3–#35 birleşti; #2 kapatıldı).
-**v0.4.20** etiketlendi (2026-10-24 22:40, `23739c2` = PR #35'in birleştirmesi; release 23:16'da bitti; tarihler gün.ay.yıl; ISO + .deb,
-`release.yml`; `WFC_SSH_PUB` = `~/.ssh/bocafe.pub`): PPPoE düzeltmeleri (aşağıda "Sıradaki işler"), cihaz paneli yönetim gibi (PR #34),
-büyük sekme simgesi (PR #33). Öncekiler: v0.4.19 (2026-10-24 19:56, `bdc57b4`, logo), v0.4.18 (12:01), v0.4.17 (11:02, PPPoE; hiçbir
-cihaza kurulmadı), v0.4.16 (2026-10-18). **İki cihaz da 0.4.20:** Göztepe 2026-10-24 23:29 ("Şimdi güncelle"; 10 dk denetimi 23:42
-tamam), Visavis 2026-10-25 03:05 (gece penceresi; 03:21 tamam; öncesinde 2026-10-24'te 0.4.16 → 0.4.18 19:45, → 0.4.19 21:12).
-Göztepe'de paket güncellemesi PPPoE bağlantı dosyasını yenilemedi (`maxfail 3` kaldı), dosya elle yeniden üretildi (23:37); kalıcı çözüm
-dal `pppoe-dosya-yenile` (aşağıda). Merkez en son 2026-10-24 22:41'de `pppoe-duzeltmeler` dalından güncellendi (merkez dosyaları
-`23739c2` ile aynı: `internet_yok` durumu; öncesinde 21:50 sekme simgesi).
-**Dal `pppoe-dosya-yenile` (0.4.21, PR #36; birleştirme ve yayın kullanıcının kararıyla):** pppd her başlarken (`ctl pppoe-hazirla`,
-birimin ExecStartPre'i) bağlantı dosyası ag.toml'dan yeniden üretilir: paket güncellemesiyle gelen pppd seçenekleri bir sonraki pppd
-başlangıcında geçerli olur (çalışan pppd'ye dokunulmaz); PPPoE kapalıysa dosya kaldırılır ve pppd başlamaz. Yalnızca cihaz; cihaz
-testleri 462/462. Ayrıntı KURULUM_GUNLUGU "PPPoE bağlantı dosyası her başlangıçta yenilenir".
+## Dallar ve durum (2026-10-26)
+Repo `bilgisayargoztepe-lgtm/wificorrect` (avsharbeyi'den devredildi). Her şey **`main`**'de (PR #3–#36 birleşti; #2 kapatıldı).
+**v0.4.21** etiketlendi (2026-10-25 12:10, `8c69bd3` = PR #36'nın birleştirmesi; release 12:28'de bitti, 18 dk; tarihler gün.ay.yıl;
+ISO + .deb, `release.yml`; `WFC_SSH_PUB` = `~/.ssh/bocafe.pub`): pppd her başlarken (`ctl pppoe-hazirla`, birimin ExecStartPre'i)
+PPPoE bağlantı dosyası ag.toml'dan yeniden üretilir (paket güncellemesiyle gelen pppd seçenekleri bir sonraki pppd başlangıcında
+geçerli; çalışan pppd'ye dokunulmaz; PPPoE kapalıysa dosya kaldırılır, pppd başlamaz). Ayrıntı KURULUM_GUNLUGU "PPPoE bağlantı
+dosyası her başlangıçta yenilenir". Öncekiler: v0.4.20 (2026-10-24 22:40, `23739c2`: PPPoE düzeltmeleri, cihaz paneli yönetim gibi,
+büyük sekme simgesi), v0.4.19 (19:56, `bdc57b4`, logo), v0.4.18 (12:01), v0.4.17 (11:02, PPPoE; hiçbir cihaza kurulmadı), v0.4.16
+(2026-10-18). **İki cihaz da 0.4.21** (2026-10-25, ikisi de "Şimdi güncelle"): Göztepe 13:26 (10 dk denetimi 13:42 tamam; pppd yeni
+sürümle 13:36 ve 13:42'de başladı, bağlantı dosyası zaten günceldi, dokunulmadı), Visavis 13:54 (14:09 tamam; PPPoE kapalı).
+Merkez en son 2026-10-24 22:41'de `pppoe-duzeltmeler` dalından güncellendi (merkez dosyaları `23739c2` ile aynı; 0.4.21 merkezde
+değişiklik getirmedi).
+**Dal `metin-onizleme` (0.4.22, PR #37; birleştirme ve yayın kullanıcının kararıyla):** panel → Ayarlar → Portal metinleri, metinleri
+giriş sayfasında göründüğü gibi işletme bilgileriyle doldurulmuş gösterir (kullanıcı 2026-10-26: "işletme adını ve unvanını yazdık,
+aşağıdaki alanlar dolmamış"; giriş sayfası zaten dolduruyordu, panel ham şablonu gösteriyordu). Düzenleme kutusu "Metni düzenle"nin
+altında, şablonla. Yalnızca cihaz. Ayrıntı KURULUM_GUNLUGU "Portal metinleri panelde doldurulmuş görünür".
 **v0.4.18 (PPPoE modemli hatta yeşil durum, PR #28):** PPPoE açık cihaz modemdeyken (PPPoE sunucusu yok, DHCP adresi var) durum kırmızı "PPPoE
 sunucusu yanıt vermiyor" yerine yeşil "Modemden bağlı (DHCP); PPPoE ONT'ye takılınca bağlanır" (`pppoe=modemden`, merkez kartında da);
 kimlik reddi yine kırmızı. Ayrıntı KURULUM_GUNLUGU "PPPoE: modemli hatta yeşil durum".
@@ -189,8 +191,8 @@ kapatınca pppd'nin holdoff'u işlemiyordu: dakikada 9 deneme) + kablo internet 
 yeniden dener; (3) internet koşulu = rota + etkin yoklama (1.1.1.1 / 8.8.8.8 / 9.9.9.9 :443, en çok 1,5 sn): ONT'nin VLAN'sız ağı ya da
 interneti kesik modem artık giriş sayfasında uyarı + Servis gösterir, panelde yeşil "Modemden" yerine PPPoE'nin kendi durumu; PPPoE
 kapalıyken yeni durum `internet_yok` "Adres alındı ama internete çıkılamıyor…" (merkez kartında "adres var ama internet yok", kırmızı).
-Göztepe'de PPPoE **açık** (Türk.net bilgileri + VLAN 35 kayıtlı; modemdeyken zararsız, durum yeşil "Modemden") ve 0.4.20 kurulu
-(2026-10-24 23:29): ONT denemesinde kablo modeme dönünce DNS kendiliğinden düzelmeli (olmazsa `ssh wificorrect 'dhcpcd -n enp3s0'`).
+Göztepe'de PPPoE **açık** (Türk.net bilgileri + VLAN 35 kayıtlı; modemdeyken zararsız, durum yeşil "Modemden") ve 0.4.21 kurulu
+(2026-10-25 13:26): ONT denemesinde kablo modeme dönünce DNS kendiliğinden düzelmeli (olmazsa `ssh wificorrect 'dhcpcd -n enp3s0'`).
 ONT canlı kabulü henüz yapılmadı; liste KURULUM_GUNLUGU "PPPoE düzeltmeleri" sonunda.
 **SMS merkezden — BİTTİ (2026-10-14, PR #17, v0.4.8):** misafir doğrulama SMS'i (NetGSM OTP + Twilio Verify) merkezden
 (`/api/sms`, `/api/sms-dogrula`; sabit şablon, 6 hane, cihaz başına 300/gün, yabancı 20/gün; merkeze ulaşılamazsa "Şu an kod
@@ -250,7 +252,7 @@ Kullanıcının onayladığı sıra (2026-10-11; donanım bekçisi hariç): ~~1 
 ~4.300 satır Python + 3.600 satır test, 9 işe bölünür: veritabanı, güvenlik, web tabanı, cihaz API, yönetim, müşteri paneli,
 arka plan işleri, kurulum/yan yana geçiş, uçtan uca + Python'u kaldırma; aynı SQLite şeması ve parola biçimi korunur). Zaman damgası: kontör alınınca. İki aşamalı giriş istenmedi.
 Ertelenmiş küçük bulgular: `.superpowers/sdd/*/progress.md` (yalnızca bu makinede).
-Bekleyen kullanıcı işleri: Göztepe'de 0.4.20'nin ONT canlı kabulü (KURULUM_GUNLUGU "PPPoE düzeltmeleri"), 0.4.21'in birleştirilip yayınlanması (PR #36), ilk PPPoE'li müşteride canlı kabul (yanında yedek modemle; liste KURULUM_GUNLUGU
+Bekleyen kullanıcı işleri: Göztepe'de 0.4.20/0.4.21'in ONT canlı kabulü (KURULUM_GUNLUGU "PPPoE düzeltmeleri"), 0.4.22'nin birleştirilip yayınlanması (PR #37), ilk PPPoE'li müşteride canlı kabul (yanında yedek modemle; liste KURULUM_GUNLUGU
 "PPPoE" sonunda; gerçek SMS yalnızca açık onayla); iki J1900'de BIOS → "Restore on AC Power Loss = Power On" (monitör + klavyeyle; sonra fiş çekip
 kendiliğinden açıldığını dene) ve yeni kutulara sahte ekran fişi; Göztepe'nin TP-Link'inin yönetim
 parolasını AP yönetim parolasına çevirmek (2026-10-16'ya kadarki kural panel parolasıydı); aydınlatma metni (misafir kodu

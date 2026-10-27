@@ -42,6 +42,21 @@ nav.yan a{display:block;padding:7px 16px 7px 28px;color:#e3e7ee;text-decoration:
 nav.yan summary:hover,nav.yan a:hover{background:#2a3242}nav.yan .marka:hover{background:none}nav.yan a.secili{background:#0a6ebd;color:#fff}
 nav.yan form{margin:16px 16px 0}nav.yan button{margin:0;width:100%}nav.yan .marka svg.logo{width:180px;height:26px}
 .gizli{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}.ust-mobil{display:none}
+details.bolum{background:#fff;border:1px solid #e3e7ee;border-radius:12px;margin:0 0 12px}details.bolum>div{padding:0 16px 16px}
+details.bolum>summary{display:flex;align-items:center;gap:4px 12px;flex-wrap:wrap;list-style:none;padding:14px 16px}
+details.bolum>summary::-webkit-details-marker{display:none}details.bolum>summary h2{margin:0;flex:none}
+details.bolum>summary .bolum-ozet{flex:1;min-width:0;text-align:right;color:#5b6475;font-size:14px}
+details.bolum>summary::after{content:"";flex:none;width:7px;height:7px;border-right:2px solid #5b6475;border-bottom:2px solid #5b6475;transform:rotate(45deg);margin:-4px 2px 0 4px}
+details.bolum[open]>summary::after{transform:rotate(-135deg);margin-top:4px}details.bolum[open]>summary{border-bottom:1px solid #eef1f5;margin-bottom:12px}
+details.ic{border:0;border-radius:0;margin:6px 0 0;background:none}details.ic>summary{display:inline-block;padding:2px 0;color:#0a6ebd;font-size:14px}
+details.ic>div{padding:4px 0 8px}details.ic.tehlikeli>summary{color:#a4262c}form.satir-ici{display:inline-block;margin:0 0 0 10px;vertical-align:middle}
+h1 .alt-baslik{font-weight:400;color:#5b6475}.durumlar{display:flex;flex-wrap:wrap;gap:4px 20px;margin:8px 0 0;font-size:14px;color:#5b6475}
+.ortak,.dugmeler{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.ortak{margin-top:14px}.dugmeler{margin:12px 0}
+.ortak form,.dugmeler form{margin:0}.ortak button,.dugmeler button{margin:0}
+a.dugme{display:inline-block;background:#fff;color:#0a6ebd;border:1px solid #0a6ebd;border-radius:999px;padding:9px 18px;text-decoration:none}
+details.bolum table:not(.detay) th{width:1%;white-space:nowrap;padding-right:24px}details.bolum form.ara input[type=date]{flex:0 1 13em}
+@media(max-width:760px){details.bolum>summary::after{order:1;margin-left:auto}details.bolum>summary .bolum-ozet{order:2;flex-basis:100%;text-align:left}
+details.bolum tr:has(form,details)>th,details.bolum tr:has(form,details)>td{display:block;width:auto}details.bolum tr:has(form,details)>th{border-bottom:0;padding-bottom:0}}
 @media(max-width:760px){.ust-mobil{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:8px;min-height:52px;padding:0 12px 0 4px;background:#1d2330}
 .ust-mobil .marka{color:#fff}.ust-mobil .marka svg.logo{width:139px;height:20px}.menu-dugme{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;flex:none;margin:0;color:#fff;cursor:pointer}
 .menu-dugme svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
@@ -136,6 +151,18 @@ def kart(icerik):
 
 def bilgi_tablosu(satirlar):
     return "<table>" + "".join(f"<tr><th>{e(k)}</th><td>{v}</td></tr>" for k, v in satirlar) + "</table>"
+
+
+def bolum(kimlik, baslik, ozet, icerik, acik=False):
+    """Açılır bölüm (betik yok: details/summary): kapalıyken başlık ve yanında kısa durum (ozet, HTML) görünür.
+    kimlik: sayfa içi çapa; işlemden dönüşte ?acik=<kimlik> ile bölüm açık gelir."""
+    return (f'<details class="bolum" id="{kimlik}"{" open" if acik else ""}><summary><h2>{e(baslik)}</h2>'
+            f'<span class="bolum-ozet">{ozet}</span></summary><div>{icerik}</div></details>')
+
+
+def acilir(baslik, icerik, sinif=""):
+    """Bölüm içinde tıklayınca açılan kısım: uzun açıklama, geçmiş tablosu, nadir ya da tehlikeli işlem (sinif="tehlikeli")."""
+    return f'<details class="ic{" " + sinif if sinif else ""}"><summary>{e(baslik)}</summary><div>{icerik}</div></details>'
 
 
 def _cerceve(baslik, icerik, nav="", genis=False, yenile=None, yan=""):

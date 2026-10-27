@@ -1251,8 +1251,51 @@ Dal `ozet-veri`. Kullanıcı: "günlük harcanan GB da özette yazsın."
 - **Testler:** `trafik::tests::bugun_toplam_yalnizca_bugunun_kaydi`, `panel::tests::gb_uc_anlamli_basamak`,
   `panel::tests::ozet_bugun_kullanilan_veri` (bugünün toplamı, dünün kaydı ve kayıt yokken "—"); cihazda `bash scripts/test.sh
   wificorrect` → 467/467 (uyarısız).
-- **Canlı (2026-10-26):** v0.4.23 (`0944e74`) iki cihazda da ("Şimdi güncelle"): Göztepe 20:16 (10 dk denetimi 20:26 tamam), Visavis
-  20:12 (20:28 tamam).
+- **Canlı (2026-10-26):** iki cihaz da 0.4.23 ("Şimdi güncelle"; Visavis 20:12, 10 dk denetimi 20:28 tamam; Göztepe 20:16, 20:26
+  tamam).
+
+## Yönetimde müşteri sayfası: açılır bölümler (2026-10-26)
+Dal `musteri-sayfasi`; yalnızca merkez (yonetim.wificorrect.com → müşteri sayfası `/m/<numara>`), cihazda değişiklik yok. Kullanıcı:
+"müşteriler sayfasındaki her menüyü açılır pencere şeklinde yap, çok karmaşık olmuş; bazı şeyleri ortak menüde topla; AP yazısı falan
+çok uzun, onu tıklayarak açılır yap, diğer uzun yazıları da." Sayfa yedi büyük kutuydu (bilgi + parolalar, Cihaz, Sağlık, Güncelleme,
+Sorun geçmişi, İşlemler, Cihaz geçmişi), bütün formlar ve açıklamalar hep açıktı.
+- **Üstte hep görünen kutu:** "Müşteri <numara> · <işletme adı>", not, kısa durum (Cihaz: çevrimiçi / son eşitleme …, sorunluysa
+  kırmızı; Lisans: Aktif · bitiş; Sürüm; üyelik bittiyse kırmızı "Üyelik bitti") ve **ortak menü**: Cihaz paneline git (ulaşılamıyorsa
+  gri "Cihaz paneline şu an ulaşılamıyor", nedeni üzerine gelince), Kayıtlar, Raporlar, Hareketler (eskiden İşlemler'in altındaydı).
+- **Açılır bölümler** (`<details>`, JS yok; `web.bolum`; hepsi kapalı gelir, başlığın yanında kısa durum): **Parolalar** (müşteri
+  parolası + "Parolayı değiştir"; AP yönetim parolası + Yenile + "Açıklama") · **Lisans ve üyelik** (lisans, üyelik, oluşturma, son
+  giriş; "Lisansı 1 yıl uzat", askıdaysa "Askıdan çıkar", üyelik bittiyse "Üyeliği yeniden aç", bitiş tarihi; "Açıklama"; tehlikeli
+  işlemler "Askıya al / Üyeliği bitir" ayrıca açılır) · **Cihaz** (cihaz bilgileri; "Cihazı serbest bırak" ayrıca açılır; "Cihaz
+  geçmişi") · **Sağlık** (son rapor + merkezin doğrulama SMS'i sayaçları; başlıkta son raporun yaşı, disk, duran servis) ·
+  **Güncelleme** (kurulu/hedef/son sonuç/şimdi güncelle; kanal ve "Şimdi güncelle" yan yana; notta "önce Sürümler'de kanalın hedefini
+  seçin"; "Geçmiş"; başlıkta kanal, kurulu, hedef ve bekleyen "şimdi güncelle") · **Sorun geçmişi** (başlıkta kayıt ve açık sorun sayısı).
+  Bölüm içindeki uzun yazılar ve nadir/tehlikeli işlemler `web.acilir` (mavi ya da kırmızı bağlantı gibi; tıklayınca açılır).
+- **İşlemden dönüş:** lisans, üyelik, parola, AP parolası, kanal, şimdi güncelle ve serbest bırakma sayfaya o bölüm açık döner
+  (`/m/<n>?acik=<bölüm>#<bölüm>`; bilinmeyen değer hiçbir bölümü açmaz, sayfaya yazılmaz).
+- **Biçim:** bölüm içi bilgi tablolarında başlık sütunu yazısı kadar dar; telefonda (≤ 760 px) kapalı bölümün durumu başlığın altına
+  iner, form ya da açılır içeren satırlarda başlık üstte, değer altta (`tr:has(form,details)`); kısa satırlar yan yana kalır.
+  `form.satir-ici` artık tanımlı (AP parolasının "Yenile" düğmesi parolanın yanında).
+- **Testler:** merkez `sh scripts/sunucu/merkez/tests/hepsi.sh py` → 23/23 dosya `TUM TESTLER GECTI`; yeni
+  `test_yonetim.test_musteri_sayfasi_acilir_bolumler` (bölüm sırası, hepsi kapalı, `?acik=`, açıklama ve tehlikeli işlemlerin ayrı
+  açılırda olması, işlemlerden dönüş adresleri, askıda ve üyelik bitti hâlleri, başlık durumları). Masaüstü ve telefon (390 px) ekran
+  görüntüsüyle denetlendi (örnek veriyle, test yardımcılarından).
+- **Kurulum:** `merkez-guncelle.sh` (kullanıcı, sudo); merkez yeniden başlar, yönetime yeniden giriş gerekir.
+- **Canlı (2026-10-26):** PR #39 birleşti (`38395d7`); merkez 23:50'de `main`'den güncellendi (veritabanı yedeği
+  `merkez.db.yedek-20261026-235020`); `wc-merkez`, `wc-kuyruk.path`, `caddy` çalışıyor; sunucudaki 24 merkez dosyası `main` ile aynı.
+
+## Müşteri listesinde üyeliği bitenler gizli (2026-10-27)
+Dal `bitenler-gizli` (PR #40); yalnızca merkez, cihazda değişiklik yok. Kullanıcı (2026-10-26): "4511643 müşteriler listesinden
+kaldır" (Deneme; üyeliği 2026-10-04'te bitirilmişti). Müşteri **silinmedi**: yönetimde müşteri silme yok, arşivi
+(`/srv/wificorrect-arsiv/4511643`), hareketleri ve sorun geçmişi kalır.
+- Yönetim → Müşteri listesi üyeliği biten müşterileri varsayılan göstermez; arama kutusunun altında "Üyeliği biten N müşteri listede
+  gösterilmiyor; aramada görünür. Göster" (`/?bitenler=1`: en altta, "Gizle" ile kapanır). Aramada (numara, işletme adı, not) her
+  zaman çıkarlar; müşteri sayfası (`/m/<numara>`) aynen açılır; "Üyeliği yeniden aç" müşteriyi listeye geri getirir.
+- Müşteri sayfasında "Üyeliği bitir" formunda not: "Cihaz serbest bırakılır, müşteri listede gizlenir; arşivi ve geçmişi silinmez.
+  "Üyeliği yeniden aç" ile geri gelir."
+- Sağlık izleme üyeliği biten müşteride zaten sorun açmıyordu (`saglik.kapsam`).
+- **Testler:** yeni `test_yonetim.test_liste_uyeligi_bitenler_gizli`; merkez `sh scripts/sunucu/merkez/tests/hepsi.sh py` → 23/23
+  dosya `TUM TESTLER GECTI`. Liste örnek veriyle ekran görüntüsünden denetlendi.
+- **Kurulum:** `merkez-guncelle.sh` (kullanıcı, sudo); merkez yeniden başlar, yönetime yeniden giriş gerekir.
 
 ## Saat doğrulanmadan kayıt (2026-10-26, 0.4.25)
 Bulgu (2026-10-26): Visavis'te `/srv/5651/gunluk/2026-04-13/` günü var; içinde yalnızca `denetim.csv.gz`, 3 satır (22:38:20 ve 22:38:21

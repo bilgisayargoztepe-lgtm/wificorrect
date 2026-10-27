@@ -51,31 +51,37 @@ Canlı müşteriler: **Göztepe Bilgisayar = 1537344** (cihaz 192.168.1.110, tes
 kararlı kanal; numarası yönetimde; aşağıda "Visavis").
 
 ## Dallar ve durum (2026-10-26)
-Repo `bilgisayargoztepe-lgtm/wificorrect` (avsharbeyi'den devredildi). Her şey **`main`**'de (PR #3–#38 birleşti; #2 kapatıldı).
-**v0.4.23** etiketlendi (`0944e74` = PR #38'in birleştirmesi, dal `ozet-veri`): cihaz paneli → Özet → sayılar kutusunda "Bugün
-kullanılan veri" (kullanıcı 2026-10-26: "günlük harcanan GB da özette yazsın"; bütün cihazların bugünkü indirme + yükleme toplamı, GB;
-yalnızca cihaz; ayrıntı KURULUM_GUNLUGU "Özette bugün kullanılan veri"). **İki cihaz da 0.4.23** (2026-10-26 akşam, "Şimdi güncelle"):
-Göztepe 20:16 (10 dk denetimi 20:26 tamam), Visavis 20:12 (20:28 tamam).
-**Dal `saat-dogrulama` (0.4.25, PR #42; birleştirme ve yayın kullanıcının kararıyla; #41 de 0.4.24 olduğu için 0.4.25):** bulgu: Visavis'te `/srv/5651/gunluk/2026-04-13/` (3 denetim
-satırı, mühürlü, zincirin ilk satırı, merkezde yedekli; **olduğu gibi kalır**). Neden: kurucu saati NTP ile düzeltti ama RTC'ye
-yazamadı (hedefte `hwclock` yok: Debian 13'te `util-linux-extra`); ilk açılışta RTC 2014'teydi, systemd saati kendi paket tarihine
-(13 Nisan 2026 22:38) aldı, NTP 185 gün ileri atınca gün-kapat o günü mühürledi. Düzeltme: kurucu RTC'yi yazar ve doğrular
-(`RTC YAZILDI`) + timesync dosyası + `saat-dogru` işareti; cihazda saat bu açılışta doğrulanmadan (NTP ya da güvenilir RTC) 5651
-satırları `/srv/5651/bekleyen/`de bekler, NTP gelince zamanları düzeltilip doğru güne yazılır (`ham_zaman=`, SAAT_DOGRULANDI); portal
-ve Servis beklemez; gün-kapat/temizlik/fabrika saat doğrulanmadan çalışmaz; mühürlü güne dosya açılmaz; kaydedici aralıkları monoton
-saatle. `wificorrect ctl saat` durumu gösterir. Ayrıntı ve canlı kabul listesi KURULUM_GUNLUGU "Saat doğrulanmadan kayıt".
-**v0.4.22** etiketlendi (2026-10-26 10:59, `4951f31` = PR #37'nin birleştirmesi; release 11:16'da bitti, 17 dk; tarihler gün.ay.yıl;
-ISO + .deb, `release.yml`; `WFC_SSH_PUB` = `~/.ssh/bocafe.pub`): panel → Ayarlar → Portal metinleri, metinleri giriş sayfasında
-göründüğü gibi işletme bilgileriyle doldurulmuş gösterir (kullanıcı 2026-10-26: "işletme adını ve unvanını yazdık, aşağıdaki alanlar
-dolmamış"; giriş sayfası zaten dolduruyordu, panel ham şablonu gösteriyordu; düzenleme kutusu "Metni düzenle"nin altında, şablonla) ve
-giriş sayfasının alt bilgisinde wificorrect_ logosu (kullanıcı: "bir şeylerin yerini değiştirmeden"; üst bant ve kart aynı). Ayrıntı
-KURULUM_GUNLUGU "Portal metinleri panelde doldurulmuş görünür", "Giriş sayfasında wificorrect_ logosu". Öncekiler: v0.4.21 (2026-10-25
-12:10, `8c69bd3`: PPPoE bağlantı dosyası her pppd başlangıcında ag.toml'dan yenilenir), v0.4.20 (2026-10-24 22:40, `23739c2`: PPPoE
-düzeltmeleri, cihaz paneli yönetim gibi, büyük sekme simgesi), v0.4.19 (19:56, `bdc57b4`, logo), v0.4.18 (12:01), v0.4.17 (11:02,
-PPPoE; hiçbir cihaza kurulmadı), v0.4.16 (2026-10-18). 0.4.22 iki cihaza da kurulmuştu (2026-10-26, ikisi de "Şimdi güncelle"): Göztepe
-13:06 (10 dk denetimi 13:22 tamam), Visavis 13:49 (13:59 tamam); iki giriş sayfasının alt bilgisinde logo görüldü. Merkez en son
-2026-10-24 22:41'de `pppoe-duzeltmeler` dalından güncellendi (merkez dosyaları `23739c2` ile aynı; 0.4.21 ve 0.4.22 merkezde
-değişiklik getirmedi).
+Repo `bilgisayargoztepe-lgtm/wificorrect` (avsharbeyi'den devredildi). Her şey **`main`**'de (PR #3–#40 birleşti; #2 kapatıldı).
+**v0.4.23** etiketlendi (2026-10-26 18:46, `0944e74` = PR #38'in birleştirmesi; release 19:04'te bitti, 18 dk; tarihler gün.ay.yıl;
+ISO + .deb, `release.yml`; `WFC_SSH_PUB` = `~/.ssh/bocafe.pub`): cihaz paneli → Özet → sayılar kutusunda "Bugün kullanılan veri"
+(kullanıcı 2026-10-26: "günlük harcanan GB da özette yazsın"; bütün cihazların bugünkü indirme + yükleme toplamı, GB). Ayrıntı
+KURULUM_GUNLUGU "Özette bugün kullanılan veri". Öncekiler: v0.4.22 (2026-10-26 10:59, `4951f31`: panel → Portal metinleri işletme
+bilgileriyle doldurulmuş görünür, giriş sayfasının alt bilgisinde wificorrect_ logosu), v0.4.21 (2026-10-25 12:10, `8c69bd3`: PPPoE
+bağlantı dosyası her pppd başlangıcında ag.toml'dan yenilenir), v0.4.20 (2026-10-24 22:40, `23739c2`: PPPoE düzeltmeleri, cihaz paneli
+yönetim gibi, büyük sekme simgesi), v0.4.19 (19:56, `bdc57b4`, logo), v0.4.18 (12:01), v0.4.17 (11:02, PPPoE; hiçbir cihaza
+kurulmadı), v0.4.16 (2026-10-18). **İki cihaz da 0.4.23** (2026-10-26, ikisi de "Şimdi güncelle"): Visavis 20:12 (10 dk denetimi
+20:28 tamam), Göztepe 20:16 (20:26 tamam). Merkez en son 2026-10-26 23:50'de `main`'den (`38395d7`, PR #39)
+güncellendi; sunucudaki merkez dosyaları `main` ile aynı (0.4.21–0.4.23 merkezde değişiklik getirmedi).
+**Yönetimde müşteri sayfası (yalnızca merkez, PR #39; birleşti, merkezde 2026-10-26 23:50'den beri canlı):** yönetimde müşteri
+sayfası sadeleşti (kullanıcı 2026-10-26: "her menüyü açılır pencere şeklinde yap, çok karmaşık olmuş; bazı şeyleri ortak menüde topla;
+AP yazısı gibi uzun yazılar tıklayınca açılsın"): üstte hep görünen özet (işletme adı, not, cihaz/lisans/sürüm durumu) ve ortak menü
+(Cihaz paneline git, Kayıtlar, Raporlar, Hareketler); altında kapalı gelen açılır bölümler (Parolalar, Lisans ve üyelik, Cihaz, Sağlık,
+Güncelleme, Sorun geçmişi; başlığın yanında kısa durum); uzun açıklamalar, geçmiş tabloları ve tehlikeli işlemler bölümün içinde ayrıca
+açılır; işlemden dönüşte o bölüm açık gelir. Ayrıntı KURULUM_GUNLUGU "Yönetimde
+müşteri sayfası: açılır bölümler".
+**Dal `bitenler-gizli` (yalnızca merkez, PR #40; birleşti, merkez güncellemesi kullanıcının kararıyla):** yönetimde müşteri
+listesi üyeliği biten müşterileri varsayılan göstermez (kullanıcı 2026-10-26: "4511643 müşteriler listesinden kaldır"; Deneme
+silinmedi, arşivi ve geçmişi duruyor): "Göster" (`/?bitenler=1`) ile en altta, aramada her zaman çıkar; "Üyeliği bitir" formunda
+bunu söyleyen not. Ayrıntı KURULUM_GUNLUGU "Müşteri listesinde üyeliği bitenler gizli".
+**Dal `saat-dogrulama` (0.4.25, PR #42; birleştirme ve yayın kullanıcının kararıyla; #41 de 0.4.24 olduğu için 0.4.25):** bulgu:
+Visavis'te `/srv/5651/gunluk/2026-04-13/` (3 denetim satırı, mühürlü, zincirin ilk satırı, merkezde yedekli; **olduğu gibi kalır**).
+Neden: kurucu saati NTP ile düzeltti ama RTC'ye yazamadı (hedefte `hwclock` yok: Debian 13'te `util-linux-extra`); ilk açılışta RTC
+2014'teydi, systemd saati kendi paket tarihine (13 Nisan 2026 22:38) aldı, NTP 185 gün ileri atınca gün-kapat o günü mühürledi.
+Düzeltme: kurucu RTC'yi yazar ve doğrular (`RTC YAZILDI`) + timesync dosyası + `saat-dogru` işareti; cihazda saat bu açılışta
+doğrulanmadan (NTP ya da güvenilir RTC) 5651 satırları `/srv/5651/bekleyen/`de bekler, NTP gelince zamanları düzeltilip doğru güne
+yazılır (`ham_zaman=`, SAAT_DOGRULANDI); portal ve Servis beklemez; gün-kapat/temizlik/fabrika saat doğrulanmadan çalışmaz; mühürlü
+güne dosya açılmaz; kaydedici aralıkları monoton saatle. `wificorrect ctl saat` durumu gösterir. Ayrıntı ve canlı kabul listesi
+KURULUM_GUNLUGU "Saat doğrulanmadan kayıt".
 **v0.4.18 (PPPoE modemli hatta yeşil durum, PR #28):** PPPoE açık cihaz modemdeyken (PPPoE sunucusu yok, DHCP adresi var) durum kırmızı "PPPoE
 sunucusu yanıt vermiyor" yerine yeşil "Modemden bağlı (DHCP); PPPoE ONT'ye takılınca bağlanır" (`pppoe=modemden`, merkez kartında da);
 kimlik reddi yine kırmızı. Ayrıntı KURULUM_GUNLUGU "PPPoE: modemli hatta yeşil durum".
@@ -201,8 +207,8 @@ kapatınca pppd'nin holdoff'u işlemiyordu: dakikada 9 deneme) + kablo internet 
 yeniden dener; (3) internet koşulu = rota + etkin yoklama (1.1.1.1 / 8.8.8.8 / 9.9.9.9 :443, en çok 1,5 sn): ONT'nin VLAN'sız ağı ya da
 interneti kesik modem artık giriş sayfasında uyarı + Servis gösterir, panelde yeşil "Modemden" yerine PPPoE'nin kendi durumu; PPPoE
 kapalıyken yeni durum `internet_yok` "Adres alındı ama internete çıkılamıyor…" (merkez kartında "adres var ama internet yok", kırmızı).
-Göztepe'de PPPoE **açık** (Türk.net bilgileri + VLAN 35 kayıtlı; modemdeyken zararsız, durum yeşil "Modemden") ve 0.4.22 kurulu
-(2026-10-26 13:06): ONT denemesinde kablo modeme dönünce DNS kendiliğinden düzelmeli (olmazsa `ssh wificorrect 'dhcpcd -n enp3s0'`).
+Göztepe'de PPPoE **açık** (Türk.net bilgileri + VLAN 35 kayıtlı; modemdeyken zararsız, durum yeşil "Modemden") ve 0.4.23 kurulu
+(2026-10-26 20:16): ONT denemesinde kablo modeme dönünce DNS kendiliğinden düzelmeli (olmazsa `ssh wificorrect 'dhcpcd -n enp3s0'`).
 ONT canlı kabulü henüz yapılmadı; liste KURULUM_GUNLUGU "PPPoE düzeltmeleri" sonunda.
 **SMS merkezden — BİTTİ (2026-10-14, PR #17, v0.4.8):** misafir doğrulama SMS'i (NetGSM OTP + Twilio Verify) merkezden
 (`/api/sms`, `/api/sms-dogrula`; sabit şablon, 6 hane, cihaz başına 300/gün, yabancı 20/gün; merkeze ulaşılamazsa "Şu an kod
@@ -265,7 +271,7 @@ taksit, otomatik yenileme) · 9 **merkezi Rust'a taşıma** (2026-10-13 kararı;
 ~4.300 satır Python + 3.600 satır test, 9 işe bölünür: veritabanı, güvenlik, web tabanı, cihaz API, yönetim, müşteri paneli,
 arka plan işleri, kurulum/yan yana geçiş, uçtan uca + Python'u kaldırma; aynı SQLite şeması ve parola biçimi korunur). Zaman damgası: kontör alınınca. İki aşamalı giriş istenmedi.
 Ertelenmiş küçük bulgular: `.superpowers/sdd/*/progress.md` (yalnızca bu makinede).
-Bekleyen kullanıcı işleri: Göztepe'de PPPoE düzeltmelerinin (0.4.20/0.4.21) ONT canlı kabulü (KURULUM_GUNLUGU "PPPoE düzeltmeleri"), 0.4.25'in (saat doğrulaması) birleştirilip yayınlanması ve canlı kabulü (KURULUM_GUNLUGU "Saat doğrulanmadan kayıt" sonu), ilk PPPoE'li müşteride canlı kabul (yanında yedek modemle; liste KURULUM_GUNLUGU
+Bekleyen kullanıcı işleri: Göztepe'de PPPoE düzeltmelerinin (0.4.20/0.4.21) ONT canlı kabulü (KURULUM_GUNLUGU "PPPoE düzeltmeleri"), merkezin `bitenler-gizli` (PR #40, birleşti) ile güncellenmesi (`merkez-guncelle.sh`, sudo), 0.4.25'in (saat doğrulaması, PR #42) birleştirilip yayınlanması ve canlı kabulü (KURULUM_GUNLUGU "Saat doğrulanmadan kayıt" sonu), ilk PPPoE'li müşteride canlı kabul (yanında yedek modemle; liste KURULUM_GUNLUGU
 "PPPoE" sonunda; gerçek SMS yalnızca açık onayla); iki J1900'de BIOS → "Restore on AC Power Loss = Power On" (monitör + klavyeyle; sonra fiş çekip
 kendiliğinden açıldığını dene) ve yeni kutulara sahte ekran fişi; Göztepe'nin TP-Link'inin yönetim
 parolasını AP yönetim parolasına çevirmek (2026-10-16'ya kadarki kural panel parolasıydı); aydınlatma metni (misafir kodu

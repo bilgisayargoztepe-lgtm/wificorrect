@@ -1251,6 +1251,87 @@ Dal `ozet-veri`. Kullanıcı: "günlük harcanan GB da özette yazsın."
 - **Testler:** `trafik::tests::bugun_toplam_yalnizca_bugunun_kaydi`, `panel::tests::gb_uc_anlamli_basamak`,
   `panel::tests::ozet_bugun_kullanilan_veri` (bugünün toplamı, dünün kaydı ve kayıt yokken "—"); cihazda `bash scripts/test.sh
   wificorrect` → 467/467 (uyarısız).
+- **Canlı (2026-10-26):** v0.4.23 (`0944e74`) iki cihazda da ("Şimdi güncelle"): Göztepe 20:16 (10 dk denetimi 20:26 tamam), Visavis
+  20:12 (20:28 tamam).
+
+## Saat doğrulanmadan kayıt (2026-10-26, 0.4.25)
+Bulgu (2026-10-26): Visavis'te `/srv/5651/gunluk/2026-04-13/` günü var; içinde yalnızca `denetim.csv.gz`, 3 satır (22:38:20 ve 22:38:21
+SERVIS_BASLADI portal/kaydedici, 22:38:22 MERKEZ_BEKLIYOR). Gün 2026-10-16 18:16'da mühürlendi, `zincir.txt`'nin ilk satırı, 2026-10-17
+02:00'de merkeze yedeklendi. Cihaz 2026-10-16'da ISO 0.4.13 ile kuruldu.
+- **Kök neden** (cihazlarda yalnızca okunarak; Visavis `/var/log/installer/syslog`):
+  - Kurucu açıldığında RTC **2014-01-02 01:21 UTC**'deydi (CMOS bir ara sıfırlanmış olmalı). `clock-setup` saati NTP ile düzeltti
+    (`rdate: adjust local clock by 403533117 seconds`, `system-time-changed=true`): kurulum doğru saatle yapıldı (dpkg.log 16 Ekim).
+  - Sonda RTC'ye yazamadı: `finish-install.d/10clock-setup` → `chroot: can't execute 'hwclock': No such file or directory`. Debian
+    13'te `hwclock` `util-linux-extra` paketinde; preseed'de standart görev yok, paket kurulmuyordu (Visavis'te yok; Göztepe elle
+    kurulduğu için var). `clock-setup/ntp` çalıştı, RTC adımı çalışmadı.
+  - İlk açılışta çekirdek saati RTC'den (2014) aldı; systemd 257 (PID 1) saat kendi "epoch"undan eskiyse ileri alır: epoch = paketin
+    derleme tarihi, `/usr/lib/clock-epoch` ve `/var/lib/systemd/timesync/clock`'un değişiklik zamanlarının en büyüğü. Yeni kurulumda
+    timesync dosyası yoktu → systemd 257.13-1~deb13u1'in changelog tarihi **13 Nisan 2026 21:38:05 +0200 = 22:38:05 +03**. Satırlar
+    bundan 15 sn sonra.
+  - ~25 sn sonra timesyncd saati 16 Ekim 18:16:46'ya attı (≈185 gün 19 sa 38 dk). Kalıcı zamanlayıcılar "kaçırılmış" 00:15'i ve
+    02:00'ı görüp hemen çalıştı: gün-kapat 2026-04-13'ü mühürledi (yedek o an kapalıydı). Aynı sıçramada journald (`MaxRetentionSec`
+    14 gün) Nisan tarihli günlük dosyasını sildi: o açılışın günlüğü 18:16:46'dan başlar. Panelin yeniden başlama sayacına göre üç
+    satırın gerçek zamanı ≈ **2026-10-16 18:16:21–23**.
+  - RTC pili iki cihazda da sağlam görünüyor: sonraki bütün açılışlarda (Göztepe'nin 19 Ekim fiş çekme denemeleri dahil) çekirdeğin
+    okuduğu RTC doğruydu (`/proc/driver/rtc` batt_status okay). QEMU duman testi yakalayamazdı: QEMU'nun RTC'si ana makinenin saatiyle başlar.
+- **Visavis'teki 2026-04-13 günü olduğu gibi kalır** (mühürlü, zincirin ilk satırı, merkezde yedekli; değiştirmek zinciri bozar,
+  `/srv/5651`'de silme/değiştirme yok). Gerçek zamanı bu notta.
+- **Kurulum:** `pkgsel/include`'a `util-linux-extra` (kurucunun kendi `10clock-setup`'ı da artık yazar). `son.sh` kurucunun saati
+  makulse (kurulum belleğindeki paketten yeni: NTP tutmuş) RTC'yi `hwclock --systohc --utc` ile yazar (gerekirse `/dev` bağlanır),
+  `/sys/class/rtc/rtc0/since_epoch` ile geri okur (±5 sn) ve seriye `RTC YAZILDI` / `RTC YAZILAMADI`; `/var/lib/systemd/timesync/clock`'u
+  kurulum anıyla oluşturur (RTC yine bozuksa ilk açılış Nisan'a değil kurulum anına gelir); RTC doğrulandıysa
+  `/var/lib/wificorrect/saat-dogru` işaretini bırakır (ilk açılış RTC'ye güvenir). Saat makul değilse hiçbiri yazılmaz
+  (`SAAT DOGRULANMADI`); ilk açılışta satırlar NTP'ye kadar bekler.
+- **Çalışma anı (`src/saat.rs`):** her açılışın ilk 5651 yazımında karar (`/run/wificorrect/saat.json`, `kaynak`):
+  - `ntp`: `/run/systemd/timesync/synchronized` var ya da çekirdek eşitlenmiş diyor (adjtimex, STA_UNSYNC yok);
+  - `rtc`: `saat-dogru` işareti var (önceki açılış doğrulandı), sistem saati RTC ile ±10 sn aynı (systemd/timesyncd ileri almamış:
+    alırlarsa RTC sıfırlanmıştır) ve RTC, timesync dosyasının ve programın değişiklik zamanından geride değil;
+  - `bekliyor`: işaret silinir; satırlar gün dosyalarına değil `/srv/5651/bekleyen/<açılış kimliği>.jsonl`'a (700/600), satır başına
+    hedef (gün klasörüne göre yol), yazım anındaki CLOCK_BOOTTIME ve gerçek zaman − CLOCK_BOOTTIME farkıyla.
+  - Kararı ilk yazan süreç verir (kilit `/run/wificorrect/saat.kilit`); bütün 5651 yazımları `ortak::append_rows`'tan geçtiği için
+    portal, kaydedici, panel, `ctl dhcp-olay` aynı kuralla. **Portal ve Servis saati beklemez** (`time-sync.target`'a bağlanmadı:
+    systemd-time-wait-sync kapalı olduğundan zaten beklemezdi; açılsaydı internetsiz cihazda giriş sayfası ve Servis açılmazdı).
+- **Düzeltip aktarma** (`saat::ilerle`; kaydedici her döngüde, ayrıca gün-kapat/temizlik/fabrika öncesinde): timesyncd eşitleyince
+  bu açılışın satırları `zaman + (şimdiki fark − satırın farkı)` ile düzeltilir, doğru güne yazılır, `ek`'e `ham_zaman=<eski>`
+  (1 sn'den küçük fark düzeltilmez). Eşitleme anında kuyrukta bekleyen olay (eski farkla zamanlanmış, yeni farkla yazılmış) satırın
+  zamanının yazım anına uyduğu fark seçilerek bulunur (en çok 10 dk gecikme); hiçbiri uymazsa (bitişi eski bir oturum) zaman kalır,
+  `saat=duzeltilmedi`. O açılışta bekletilerek açılan oturumların başlangıcı ve bitişi (misafir kodunda bitiş koda bağlı, kaymaz)
+  ve kişi listesindeki ilk/son tarih de kayar. Kişi dosyasının hangi güne düşeceği bilinmediğinden KAYIT başlığı süreç başına kişi
+  başına bir kez bekletilir; aktarımda her yeni gün dosyasının başına (satırın zamanıyla) konur, dolu dosyaya yazılmaz. Satırlar
+  5000'lik parçalarla yazılır. Önceki açılışlardan kalan dosyalar (saat hiç doğrulanmadan cihaz yeniden başladı) düzeltilemez:
+  ham zamanıyla, `saat=dogrulanamadi acilis=<8 hane>`; günü gelecekte ya da okunamıyorsa bugüne (`asil_zaman=`). Yarım satır
+  (elektrik kesintisi) silinmez, `<dosya>.bozuk`'a. Durum `ntp` olur, işaret yazılır, denetime **SAAT_DOGRULANDI** `kaynak=ntp
+  fark=+Nsn satir=N onceki=N acilis=…`. RTC'ye güvenilen açılışta NTP 120 sn'den büyük fark bulursa **SAAT_SICRAMA** `kaynak=rtc
+  fark=…` (o açılışta doğrudan yazılmış satırlar o kadar kaymış olabilir; düzeltilemez, belgelenir).
+- **Mühürleme ve temizlik:** gün-kapat (zamanlayıcı, panel, `ctl`), `temizle` (kayıtlar ve misafir kodları) ve fabrika dönüşü saat bu
+  açılışta doğrulanmadan ve bekleyenler yazılmadan çalışmaz: `GUN_KAPAT_ERTELENDI neden=saat` (`--zorla` da), `FABRIKA_IPTAL
+  neden=saat`; ertelenen gün-kapat'ı saat doğrulanınca kaydedici başlatır (`/run/wificorrect/gun-kapat-bekliyor`). **Mühürlü günün
+  klasörüne dosya açılmaz** (`ortak::gun_dosyasina_ekle`): satır bugüne, `asil_zaman=` ile (bugüne kadar yalnızca OTURUM_BITIS'te vardı).
+- **Kaydedici:** bakım (30 sn) ve hız turu (5 sn) monoton saatle zamanlanır; duvar saati 2 sn'den fazla sıçrarsa (duvar − monoton farkı)
+  bekçilerin son zamanları, açık akışların başlangıcı ve hız ölçerin örnekleri sıçrama kadar kayar: geri sıçramada bakım, WAN/tünel
+  bekçileri, merkez eşitlemesi durmaz, sıçramayı kesen bağlantının süresi doğru çıkar.
+- **`wificorrect ctl saat`:** "Saat: doğrulandı (NTP|RTC) / doğrulanmadı, NTP eşitlemesi bekleniyor", açılış kimliği, bekleyen satır.
+- **Bilinen sınırlar:** düzeltilen satırın `ek`'indeki zamanlar (`bitis=`, `baslangic=`) düzeltilmez, `ham_zaman` ile birlikte
+  okunur; misafir kodlarının bitişi kaymaz (saat doğrulanmadan üretilen kod sıçrama kadar erken biter); bekletilen
+  süre boyunca panelin kayıt ve Özet sayıları o satırları göstermez; aktarım yarıda hata verirse dosya kalır, sonraki denemede baştan
+  yazılır (o satırlar iki kez); mühürlü günden bugüne yönlenen kişi satırında KAYIT olmayabilir; sıçrama günü değiştirirse "Bugün MB"
+  toplamı sıfırlanır; uzaktan güncelleme 0.4.25'ten eski bir sürüme geri dönerse bekleme dosyaları yazılmadan kalır (0.4.25'e dönünce yazılır);
+  2014'teki RTC'li ve hiç internete çıkamayan cihazda satırlar internet gelene kadar bekler (`ctl saat`).
+- **Duman testi** (`scripts/iso-test.sh`): kurulumlarda `RTC YAZILDI`; iç diskten açılış `-rtc base=2014-01-02T01:20:00` ile (pil bitmiş
+  gibi): karar `bekliyor` (bekleme dosyası var) ya da `ntp` (SAAT_DOGRULANDI var), dünden eski gün klasörü yok; USB bellekten açılış
+  doğru RTC ile: `rtc` ya da `ntp` (SSH denetimi; CI'da NTP yoksa `bekliyor` dalı sınanır).
+- **Testler:** `saat::tests` (karar kaynakları; açılış başına bir karar ve işaret; bekletme → NTP → düzeltme, SAAT_DOGRULANDI, sonra
+  doğrudan yazım; eşitleme anında kuyruktaki olay; önceki açılış, gelecek ve mühürlü gün, yarım satır; tek KAYIT, oturum ve kişi listesi
+  kayması; gün değişince yeni kişi dosyasına KAYIT; RTC açılışında SAAT_SICRAMA bir kez; gün-kapat/temizlik ertelenir, doğrulanınca
+  gün-kapat istenir), `ortak::tests`
+  (`gun_hedefi`, mühürlü güne yazılmaz), `kaydedici::tests::saat_sicrayinca_bekci_ve_akis_suresi_monoton_kalir`; cihazda
+  `bash scripts/test.sh wificorrect` → 479/479 (uyarısız; Göztepe, 2026-10-26).
+- **Canlı kabul listesi** (0.4.25 yayınlanıp kurulunca): `ssh wificorrect 'wificorrect ctl saat'` → güncellemeden sonraki ilk karar
+  "doğrulandı (NTP)"; bir sonraki yeniden başlatmada "doğrulandı (RTC)" (işaret güncellemede yazıldı). İsteğe bağlı, Göztepe'de
+  (util-linux-extra var; misafirler birkaç dk kopar, kullanıcının onayıyla): `hwclock --set --date '2014-01-02 01:20' --utc && systemctl
+  reboot` → açılışta `ctl saat` "doğrulanmadı" (systemd saati son kayıtlı zamana getirdi), NTP sonrası "doğrulandı (NTP)", denetimde
+  `SAAT_DOGRULANDI fark=+…sn`, `/srv/5651/gunluk`'ta 2014 ya da 2026-04 günü yok, `/srv/5651/bekleyen` boş. Yeni ISO ile ilk gerçek
+  kurulumda seri/ekran günlüğünde `RTC YAZILDI`.
 
 ## Yönetim sol menü ve AP joker DNS kaydı (2026-10-24)
 Dal `yonetim-menu`; yalnızca merkez (cihazda değişiklik yok).

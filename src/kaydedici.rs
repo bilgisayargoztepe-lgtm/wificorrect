@@ -206,6 +206,11 @@ pub struct Kaydedici {
     /// ayar dosyası (panel izinli listeyi buraya yazar); değişince yalnızca izinli liste yeniden okunur
     pub ayar_yolu: PathBuf,
     ayar_mtime: Option<SystemTime>,
+    /// saat doğrulaması (src/saat.rs; testte yok): doğrulanınca bekletilen 5651 satırları yazılır
+    pub saat: Option<crate::saat::Yollar>,
+    saat_bitti: bool,
+    /// son döngüdeki duvar saati − monoton saat: değişirse saat sıçramıştır
+    saat_farki: Option<f64>,
 }
 
 impl Kaydedici {
@@ -244,7 +249,61 @@ impl Kaydedici {
             capture: Box::new(|c: &[&str]| ortak::capture_timeout(c, 5)),
             ayar_yolu: ayar_yolu.clone(),
             ayar_mtime: std::fs::metadata(&ayar_yolu).and_then(|m| m.modified()).ok(),
+            saat: crate::saat::ortam(),
+            saat_bitti: false,
+            saat_farki: None,
         }
+    }
+
+    /// Saat bu açılışta doğrulanınca (NTP) bekletilen 5651 satırları düzeltilip gün dosyalarına yazılır (src/saat.rs);
+    /// saat yüzünden ertelenmiş gün-kapat o an çalıştırılır. İş bitince (RTC açılışında NTP'ye de bakılınca) durur.
+    pub fn saat_adimi(&mut self) {
+        if self.saat_bitti {
+            return;
+        }
+        let Some(y) = self.saat.clone() else {
+            self.saat_bitti = true;
+            return;
+        };
+        let r = crate::saat::ilerle(&self.cfg, &y, crate::saat::simdi());
+        if let Some(m) = &r.ileti {
+            eprintln!("kaydedici: {m}");
+        }
+        if r.dogru && crate::saat::gun_kapat_istendi(&y) {
+            let c: Vec<String> = ["systemctl", "start", "--no-block", "wificorrect-gun-kapat.service"].iter().map(|s| s.to_string()).collect();
+            (self.runner)(&c);
+        }
+        self.saat_bitti = r.bitti;
+    }
+
+    /// Duvar saati sıçradıysa (NTP eşitlemesi, elle ayar) aralık zamanlayıcıları ve açık akışların başlangıcı sıçrama kadar
+    /// kaydırılır: bekçiler ve süreler monoton saatle ölçülmüş gibi sürer (geri sıçramada bekçiler sıçrama boyunca durmaz,
+    /// sıçramayı kesen bağlantının süresi doğru çıkar). `fark`: duvar saati − monoton saat.
+    pub fn saat_izle(&mut self, fark: f64) {
+        if let Some(d) = self.saat_farki.map(|o| fark - o).filter(|d| d.abs() > 2.0) {
+            for t in [
+                &mut self.last_disk_warn,
+                &mut self.wan_last_fix,
+                &mut self.uzak_last_fix,
+                &mut self.merkez_son,
+                &mut self.saglik_son,
+                &mut self.bekleme_son,
+                &mut self.gun_son,
+                &mut self.hiz_hata_zaman,
+                &mut self.kok_son,
+            ] {
+                *t += d;
+            }
+            if let Some(t) = self.wan_bad_since.as_mut() {
+                *t += d;
+            }
+            for v in self.flow_start.values_mut() {
+                v.0 += d;
+            }
+            self.olcer.kaydir(d);
+            eprintln!("kaydedici: duvar saati {d:+.0} sn sıçradı; aralıklar kaydırıldı");
+        }
+        self.saat_farki = Some(fark);
     }
 
     /// DHCP kiraları her döngüde; oturumlar yalnızca dosya değişince yeniden okunur.
@@ -762,8 +821,10 @@ pub fn run(cfg: Config) -> ExitCode {
     }
     drop(tx);
     eprintln!("kaydedici: başladı");
-    let (mut next_maint, mut next_hiz, mut last_loop) = (0.0, 0.0, Instant::now());
+    let (mut next_maint, mut next_hiz, mut last_loop) = (Instant::now(), Instant::now(), Instant::now());
     loop {
+        k.saat_izle(ortak::wall() - ortak::monotonic());
+        k.saat_adimi();
         k.refresh();
         let mut items = vec![];
         let deadline = Instant::now() + Duration::from_secs(1);
@@ -785,13 +846,14 @@ pub fn run(cfg: Config) -> ExitCode {
         let n = items.len();
         k.write(items);
         let now = ortak::wall();
-        if now >= next_maint {
+        // aralıklar monoton saatle: duvar saati geri sıçrasa da bakım ve hız turu durmaz
+        if t0 >= next_maint {
             k.maintain(now);
-            next_maint = now + 30.0;
+            next_maint = t0 + Duration::from_secs(30);
         }
-        if now >= next_hiz {
+        if t0 >= next_hiz {
             k.hiz_turu(now); // ilk turda (açılışta) sayaç tablosu da denetlenir
-            next_hiz = now + 5.0;
+            next_hiz = t0 + Duration::from_secs(5);
         }
         let took = t0.elapsed().as_secs_f64();
         if took > 3.0 {
@@ -972,6 +1034,42 @@ mod tests {
         let no_delta = DESTROY.replace(" delta-time=183", "");
         assert_eq!(k.handle(Kaynak::Ct, &no_delta, 0.0, 0, 0.0)[0].1.get("sure_sn"), "183");
         assert_eq!(k.handle(Kaynak::Ct, &no_delta, 0.0, 0, 0.0)[0].1.get("sure_sn"), ""); // NEW görülmedi
+    }
+
+    #[test]
+    fn saat_sicrayinca_bekci_ve_akis_suresi_monoton_kalir() {
+        let (mut k, root, _) = setup();
+        let sys = root.join("sys");
+        std::fs::create_dir_all(sys.join("enp3s0")).unwrap();
+        std::fs::write(sys.join("enp3s0/carrier"), "1\n").unwrap();
+        k.sys = sys;
+        k.ag_path = root.join("yok-ag.toml");
+        let calls = Arc::new(Mutex::new(Vec::<String>::new()));
+        let c2 = calls.clone();
+        k.runner = Box::new(move |c: &[String]| {
+            c2.lock().unwrap().push(c.join(" "));
+            c[0] != "pgrep" // dhcpcd yok
+        });
+        let restarts = |calls: &Arc<Mutex<Vec<String>>>| calls.lock().unwrap().iter().filter(|x| *x == "systemctl restart ifup@enp3s0.service").count();
+        k.check_wan(1000.0);
+        k.check_wan(1095.0);
+        assert_eq!(restarts(&calls), 1);
+        // saat 1 saat geri sıçradı: bekçi sıçrama boyunca durmaz, monoton 5 dk sonra yine dener
+        k.saat_izle(5000.0);
+        k.saat_izle(1400.0);
+        k.check_wan(1095.0 + 200.0 - 3600.0);
+        assert_eq!(restarts(&calls), 1);
+        k.check_wan(1095.0 + 310.0 - 3600.0);
+        assert_eq!(restarts(&calls), 2);
+        // NEW eski saatle, DESTROY 1800 sn ileri sıçramadan sonra: süre kernelden gelmese de doğru
+        k.handle(Kaynak::Ct, NEW, 0.0, 0, 0.0);
+        k.saat_izle(1400.0 + 1800.0);
+        let destroy = DESTROY.replace("[1790253190.654321]", "[1790254990.654321]").replace(" delta-time=183", "");
+        assert_eq!(k.handle(Kaynak::Ct, &destroy, 0.0, 0, 0.0)[0].1.get("sure_sn"), "183");
+        // küçük oynama (2 sn'den az) sıçrama sayılmaz
+        let once = k.merkez_son;
+        k.saat_izle(1400.0 + 1800.0 + 1.5);
+        assert_eq!(k.merkez_son, once);
     }
 
     #[test]

@@ -144,6 +144,16 @@ impl Row {
         CSV_HEADER.iter().position(|k| *k == key).map(|i| self.0[i].as_str()).unwrap_or("")
     }
 
+    /// `ek` sütununun sonuna `anahtar=değer` ekler.
+    pub fn ek_ekle(mut self, s: &str) -> Row {
+        let ek = &mut self.0[18];
+        if !ek.is_empty() {
+            ek.push(' ');
+        }
+        ek.push_str(s);
+        self
+    }
+
     fn line(&self) -> String {
         let mut s = self.0.iter().map(|c| csv_cell(c)).collect::<Vec<_>>().join(";");
         s.push_str("\r\n");
@@ -161,10 +171,55 @@ fn flock(f: &File) {
 }
 
 /// Kilitli ekleme. Dosya yoksa 600 izinle BOM + başlıkla oluşur. Birden çok süreç aynı dosyaya güvenle yazar.
+/// 5651 gün dosyasıysa ve saat bu açılışta doğrulanmadıysa satırlar bekletilir (src/saat.rs); doğrulanınca zamanları
+/// düzeltilip doğru güne yazılır.
 pub fn append_rows(path: &Path, rows: &[Row]) -> std::io::Result<()> {
-    if rows.is_empty() {
+    if rows.is_empty() || crate::saat::biriktir_gerekirse(path, rows)? {
         return Ok(());
     }
+    gun_dosyasina_ekle(path, rows)
+}
+
+/// `YYYY-MM-DD` biçiminde bir gün klasörü adı mı.
+pub fn gun_adi(s: &str) -> bool {
+    let b = s.as_bytes();
+    b.len() == 10 && b.iter().enumerate().all(|(i, c)| if i == 4 || i == 7 { *c == b'-' } else { c.is_ascii_digit() })
+}
+
+/// `<kök>/gunluk/<gün>/<göreli>` (göreli: `dhcp.csv`, `kullanicilar/<kişi>.csv`).
+pub struct GunHedefi {
+    pub kok: PathBuf,
+    pub gun: String,
+    pub goreli: String,
+}
+
+pub fn gun_hedefi(path: &Path) -> Option<GunHedefi> {
+    let p: Vec<String> = path.iter().map(|c| c.to_string_lossy().into_owned()).collect();
+    let i = (0..p.len().saturating_sub(2)).rev().find(|&i| p[i] == "gunluk" && gun_adi(&p[i + 1]))?;
+    Some(GunHedefi { kok: path.iter().take(i).collect(), gun: p[i + 1].clone(), goreli: p[i + 2..].join("/") })
+}
+
+/// Saati doğrulanmış yazım. Mühürlü günün klasörüne dosya açılmaz (MANIFEST'te olmayan dosya zincirin dışında kalırdı):
+/// satır bugüne yazılır, asıl zamanı `ek`'te `asil_zaman=`.
+pub fn gun_dosyasina_ekle(path: &Path, rows: &[Row]) -> std::io::Result<()> {
+    if let Some(h) = gun_hedefi(path) {
+        if h.kok.join("gunluk").join(&h.gun).join("MANIFEST.sha256").exists() {
+            let simdi = now_iso(wall());
+            let rows: Vec<Row> = rows
+                .iter()
+                .map(|r| {
+                    let mut r = r.clone().ek_ekle(&format!("asil_zaman={}", r.0[0]));
+                    r.0[0] = simdi.clone();
+                    r
+                })
+                .collect();
+            return dosyaya_ekle(&h.kok.join("gunluk").join(day_of(&simdi)).join(&h.goreli), &rows);
+        }
+    }
+    dosyaya_ekle(path, rows)
+}
+
+fn dosyaya_ekle(path: &Path, rows: &[Row]) -> std::io::Result<()> {
     if let Some(dir) = path.parent() {
         mkdirs(dir)?;
     }
@@ -206,7 +261,8 @@ pub fn append_user_rows(root: &str, s: &Session, mac: &str, rows: &[Row]) -> std
     }
     for (day, mut list) in by_day {
         let path = user_file(root, &day, &s.phone);
-        if !path.exists() {
+        // saat doğrulanmadıysa satırların düşeceği gün henüz bilinmez: KAYIT kişi başına bir kez bekletilir (src/saat.rs)
+        if crate::saat::kayit_bekletmesi(&path).unwrap_or_else(|| !path.exists()) {
             // ponytail: iki süreç aynı anda açarsa KAYIT iki kez yazılabilir; zararsız
             let kayit = Row::new("KAYIT", &list[0].0[0].clone())
                 .set("telefon", &s.phone)
@@ -262,6 +318,29 @@ pub fn upsert_index(root: &str, phone: &str, ad: &str, soyad: &str, zaman: &str)
     let first = rows.get(phone).map(|r| r[3].clone()).unwrap_or_else(|| zaman.to_string());
     rows.insert(phone.into(), [phone.into(), ad.into(), soyad.into(), first, zaman.into()]);
     write_index(root, &rows)
+}
+
+/// Saat doğrulanınca (src/saat.rs): bekletilen girişin zamanı kişi listesinde de düzeltilir. (telefon, ham, düzeltilmiş)
+pub fn index_zaman_duzelt(root: &str, duzeltmeler: &[(String, String, String)]) -> std::io::Result<()> {
+    if duzeltmeler.is_empty() {
+        return Ok(());
+    }
+    let mut rows = read_index(root);
+    let mut degisti = false;
+    for (tel, ham, yeni) in duzeltmeler {
+        if let Some(r) = rows.get_mut(tel) {
+            for i in [3, 4] {
+                if r[i] == *ham {
+                    r[i] = yeni.clone();
+                    degisti = true;
+                }
+            }
+        }
+    }
+    if degisti {
+        write_index(root, &rows)?;
+    }
+    Ok(())
 }
 
 pub fn remove_from_index(root: &str, phones: &[String]) -> std::io::Result<()> {
@@ -833,6 +912,33 @@ mod tests {
         assert_eq!(csv_cell("a;b\nc\r\"d"), "a b c d");
         assert_eq!(csv_cell("-1"), "'-1");
         assert_eq!(csv_cell(""), "");
+    }
+
+    #[test]
+    fn gun_hedefi_cozumlenir() {
+        let h = gun_hedefi(Path::new("/srv/5651/gunluk/2026-10-26/kullanicilar/905334553132.csv")).unwrap();
+        assert_eq!((h.kok, h.gun.as_str(), h.goreli.as_str()), (PathBuf::from("/srv/5651"), "2026-10-26", "kullanicilar/905334553132.csv"));
+        let h = gun_hedefi(&day_file("/srv/5651", "2026-04-13", "denetim.csv")).unwrap();
+        assert_eq!((h.kok, h.goreli.as_str()), (PathBuf::from("/srv/5651"), "denetim.csv"));
+        assert!(gun_hedefi(Path::new("/srv/5651/kullanicilar/index.csv")).is_none());
+        assert!(gun_hedefi(Path::new("/srv/5651/gunluk/bekleyen/x.csv")).is_none());
+        assert!(gun_adi("2026-10-26") && !gun_adi("2026-1-026") && !gun_adi("2026/10/26") && !gun_adi("bekleyen"));
+    }
+
+    #[test]
+    fn muhurlu_gune_dosya_acilmaz_bugune_yazilir() {
+        let root = std::env::temp_dir().join(format!("wfc-ortak-muhur-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        let kok = root.to_string_lossy().to_string();
+        let d = root.join("gunluk/2026-09-27");
+        fs::create_dir_all(&d).unwrap();
+        fs::write(d.join("MANIFEST.sha256"), "# gun=2026-09-27\n").unwrap();
+        let r = Row::new("OTURUM_BITIS", "2026-09-27T23:59:59+03:00").set("ek", "neden=sure_doldu");
+        append_rows(&day_file(&kok, "2026-09-27", "oturum.csv"), &[r]).unwrap();
+        assert!(!d.join("oturum.csv").exists());
+        let bugun = fs::read_to_string(day_file(&kok, day_of(&now_iso(wall())), "oturum.csv")).unwrap();
+        assert!(bugun.contains("neden=sure_doldu asil_zaman=2026-09-27T23:59:59+03:00"), "{bugun}");
+        let _ = fs::remove_dir_all(&root);
     }
 
     #[test]

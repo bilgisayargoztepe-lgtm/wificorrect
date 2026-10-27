@@ -71,6 +71,11 @@ pub fn fabrika(
         audit(&m.log_root, "FABRIKA_IPTAL", now, "neden=yedek_kapali");
         return Err(e.into());
     }
+    // bugün dahil bütün günler mühürlenir: saat doğrulanmadan ve bekletilen satırlar yazılmadan olmaz (src/saat.rs)
+    if let Err(e) = crate::saat::hazir(cfg) {
+        audit(&m.log_root, "FABRIKA_IPTAL", now, &format!("neden=saat hata={e}"));
+        return Err(format!("Fabrika ayarlarına dönülmedi: {e}"));
+    }
     // 0) önce mühürlü günler gönderilir: sunucuya ulaşılamıyorsa misafirler düşürülmeden, bugün mühürlenmeden iptal
     //    (merkezin serbest bırakması 30 dk'da bir yeniden denendiğinde dükkân her seferinde kesilmesin)
     if let Err(e) = crate::muhur::backup(cfg, now, runner) {

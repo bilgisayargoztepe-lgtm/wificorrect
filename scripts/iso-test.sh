@@ -3,11 +3,13 @@
 # Rufus DD gibi ham ISO). Ayrıca hep takılı küçük bir yabancı USB bellek (64 MB, bilinen içerik) değişmemeli:
 #  0) Yalnız kurulum belleği (+ küçük bellek): kurucu "KURULACAK DISK YOK" deyip durmalı (partman başlamamalı).
 #  1) + boş 8 GB virtio disk (iç disk): menü kendiliğinden başlamamalı; /cdrom = kurulum belleği (kimlik); kurulum
-#     /dev/vda'ya (iç disk USB'ye tercih edilir); "Kurulum bitti" mesajı; kapanır.
-#  2) Diskten açılış: panel servisi + IP'li yönetim adresi (seri konsol); WFC_TEST_SSH_KEY (özel anahtar dosyası)
-#     verildiyse o anahtarla root SSH.
+#     /dev/vda'ya (iç disk USB'ye tercih edilir); kurucu saati RTC'ye yazdı ("RTC YAZILDI"); "Kurulum bitti" mesajı; kapanır.
+#  2) Diskten açılış, RTC 2014'te (pil bitmiş gibi): panel servisi + IP'li yönetim adresi (seri konsol); WFC_TEST_SSH_KEY
+#     (özel anahtar dosyası) verildiyse o anahtarla root SSH ve saat kararı: RTC'ye güvenilmez, 5651 satırları bekletilir
+#     ya da NTP ile düzeltilmiştir, eski güne kayıt yok (saat_bak).
 #  3) İç disk yok, ikinci boş USB bellek (8 GB) var: kurulum o belleğe; sonra kurulum belleği çıkarılmış ve UEFI
-#     kayıtları sıfır (yalnızca çıkarılabilir ortam yolu) makinede o bellekten açılış + panel.
+#     kayıtları sıfır (yalnızca çıkarılabilir ortam yolu) makinede o bellekten açılış + panel; RTC doğru: ilk açılış
+#     kurucunun işaretiyle RTC'ye güvenir (saat_bak).
 # Her aşamadan sonra küçük USB belleğin sha256'sı değişmemiş olmalı.
 # KVM yoksa atlar (rapora yazılır). Seri günlükler + ekran görüntüleri ./iso-test-gunluk/ altına (her durumda).
 # Kullanım: scripts/iso-test.sh dist/wificorrect-kurulum-X.iso
@@ -97,9 +99,40 @@ kur() {
   grep -aq "WIFICORRECT: KURULUM ORTAMI ADAYI: /dev/sd" "$d/$log" || hata "kurulum belleği kimlikle seçilmedi"
   [ -n "$bitti" ] || hata "'Kurulum bitti' mesajı görünmedi"
   grep -aq "FIRMWARE-REALTEK KURULU" "$d/$log" || hata "firmware-realtek kurulan sisteme kurulmadı"
+  grep -aq "RTC YAZILDI" "$d/$log" || hata "kurucu saati RTC'ye yazmadı: $(grep -a 'RTC YAZILAMADI\|SAAT DOGRULANMADI' "$d/$log" | tail -1 | tr -d '\r')"
   grep -aq "KURULUM BITTI .* noatime," "$d/$log" || hata "kök dosya sistemi noatime değil"
   grep -aq "EFI BASLANGIC YAZILDI" "$d/$log" || hata "EFI bölümüne startup.nsh yazılmadı"
   usb_ayni "kurulumda ($log)"
+}
+# ssh_cihaz <komut>: deneme anahtarıyla root (iki ağ kartından hangisi açıksa)
+ssh_cihaz() {
+  for p in 2222 2223; do
+    ssh -q -i "$WFC_TEST_SSH_KEY" -p $p -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=no \
+      -o UserKnownHostsFile=/dev/null root@127.0.0.1 "$1" && return 0
+  done
+  return 1
+}
+# saat_bak <rtc_bozuk|rtc_dogru>: açılışın saat kararı (src/saat.rs). RTC 2014'teyken (pil bitmiş gibi) systemd saati
+# kurulum anına getirir (kurucunun yazdığı timesync/clock), RTC'ye güvenilmez: 5651 satırları bekletilir, NTP gelince
+# düzeltilir (SAAT_DOGRULANDI). RTC doğruyken ilk açılış kurucunun işaretiyle RTC'ye güvenir. Dünden eski gün klasörü olmamalı.
+saat_bak() {
+  sleep 45 # kaydedici ilk satırını yazsın, NTP (varsa) eşitlesin
+  s=$(ssh_cihaz 'cat /run/wificorrect/saat.json; echo; ls /srv/5651/gunluk 2>/dev/null | tr "\n" " "; echo
+    ls /srv/5651/bekleyen 2>/dev/null | grep -c "jsonl$"; grep -h ";SAAT_DOGRULANDI;" /srv/5651/gunluk/*/denetim.csv 2>/dev/null | tail -1') ||
+    hata "saat durumu okunamadı ($1)"
+  printf '%s\n' "$s" | tr -d '\r'
+  durum=$(printf '%s\n' "$s" | sed -n 1p)
+  dun=$(TZ=Europe/Istanbul date -d yesterday +%F)
+  for g in $(printf '%s\n' "$s" | sed -n 2p); do
+    [ "$g" = "$dun" ] || [ "$(printf '%s\n%s\n' "$g" "$dun" | sort | head -n 1)" != "$g" ] || hata "saat doğrulanmadan eski güne kayıt yazıldı: $g ($1)"
+  done
+  case "$1:$durum" in
+    rtc_bozuk:*'"kaynak":"bekliyor"'*) [ "$(printf '%s\n' "$s" | sed -n 3p)" -ge 1 ] || hata "saat bekliyor ama bekletilen satır yok" ;;
+    rtc_bozuk:*'"kaynak":"ntp"'*) [ -n "$(printf '%s\n' "$s" | sed -n 4p)" ] || hata "RTC bozukken satırlar bekletilmedi (SAAT_DOGRULANDI yok)" ;;
+    rtc_dogru:*'"kaynak":"rtc"'* | rtc_dogru:*'"kaynak":"ntp"'*) ;;
+    *) hata "beklenmeyen saat kararı ($1): $durum" ;;
+  esac
+  echo "saat: $1 tamam"
 }
 # acilis <seri-günlük> [ek argümanlar]: systemd durum satırı (açıklama konsol genişliğine kırpılır → birim adıyla
 # aranır) + getty'nin yazdığı yönetim adresi (seri konsol ttyS0). Makine açık kalır ($q).
@@ -139,8 +172,8 @@ echo "disk yok: kurucu durdu, USB'ler değişmedi"
 kur kurulum.log -drive file="$d/disk.qcow2",if=virtio
 grep -aq "WIFICORRECT: KURULUM DISKI: /dev/vda (ic)" "$d/kurulum.log" || hata "kurulum /dev/vda'ya gitmedi"
 
-# 2) iç diskten açılış (kurulum belleği çıkarılmış)
-acilis acilis.log -drive file="$d/disk.qcow2",if=virtio
+# 2) iç diskten açılış (kurulum belleği çıkarılmış); RTC 2014'te: kurulum sonrası pil bitmiş ya da CMOS sıfırlanmış gibi
+acilis acilis.log -drive file="$d/disk.qcow2",if=virtio -rtc base=2014-01-02T01:20:00
 if [ -n "${WFC_TEST_SSH_KEY:-}" ]; then
   n=0
   until for p in 2222 2223; do
@@ -149,6 +182,7 @@ if [ -n "${WFC_TEST_SSH_KEY:-}" ]; then
     done | grep -a "SSH ANAHTARI CALISIYOR"; do
     sleep 5; n=$((n + 5)); [ $n -lt 120 ] || hata "SSH anahtarıyla root girişi olmadı"
   done
+  saat_bak rtc_bozuk
 fi
 kill "$q" 2>/dev/null || true; wait "$q" 2>/dev/null || true
 usb_ayni "açılışta"
@@ -159,6 +193,7 @@ kur kurulum-usb.log $HEDEF
 grep -aq "WIFICORRECT: KURULUM DISKI: /dev/sd[a-z]* (usb)" "$d/kurulum-usb.log" || hata "kurulum ikinci USB belleğe gitmedi"
 cp /usr/share/OVMF/OVMF_VARS_4M.fd "$d/vars.fd"
 acilis acilis-usb.log $HEDEF
+[ -z "${WFC_TEST_SSH_KEY:-}" ] || saat_bak rtc_dogru
 kill "$q" 2>/dev/null || true; wait "$q" 2>/dev/null || true
 usb_ayni "USB bellekten açılışta"
 gunluk; rm -rf "$d"

@@ -115,22 +115,24 @@ ssh_cihaz() {
 # saat_bak <rtc_bozuk|rtc_dogru>: açılışın saat kararı (src/saat.rs). RTC 2014'teyken (pil bitmiş gibi) systemd saati
 # kurulum anına getirir (kurucunun yazdığı timesync/clock), RTC'ye güvenilmez: 5651 satırları bekletilir, NTP gelince
 # düzeltilir (SAAT_DOGRULANDI). RTC doğruyken ilk açılış kurucunun işaretiyle RTC'ye güvenir. Dünden eski gün klasörü olmamalı.
+# sh'de işlev değişkenleri yerel değildir: adlar saat_ ile başlar (g = günlük klasörü, d = geçici klasör ezilmesin).
 saat_bak() {
   sleep 45 # kaydedici ilk satırını yazsın, NTP (varsa) eşitlesin
-  s=$(ssh_cihaz 'cat /run/wificorrect/saat.json; echo; ls /srv/5651/gunluk 2>/dev/null | tr "\n" " "; echo
+  saat_cikti=$(ssh_cihaz 'cat /run/wificorrect/saat.json; echo; ls /srv/5651/gunluk 2>/dev/null | tr "\n" " "; echo
     ls /srv/5651/bekleyen 2>/dev/null | grep -c "jsonl$"; grep -h ";SAAT_DOGRULANDI;" /srv/5651/gunluk/*/denetim.csv 2>/dev/null | tail -1') ||
     hata "saat durumu okunamadı ($1)"
-  printf '%s\n' "$s" | tr -d '\r'
-  durum=$(printf '%s\n' "$s" | sed -n 1p)
-  dun=$(TZ=Europe/Istanbul date -d yesterday +%F)
-  for g in $(printf '%s\n' "$s" | sed -n 2p); do
-    [ "$g" = "$dun" ] || [ "$(printf '%s\n%s\n' "$g" "$dun" | sort | head -n 1)" != "$g" ] || hata "saat doğrulanmadan eski güne kayıt yazıldı: $g ($1)"
+  printf '%s\n' "$saat_cikti" | tr -d '\r'
+  saat_durum=$(printf '%s\n' "$saat_cikti" | sed -n 1p)
+  saat_dun=$(TZ=Europe/Istanbul date -d yesterday +%F)
+  for saat_gun in $(printf '%s\n' "$saat_cikti" | sed -n 2p); do
+    [ "$saat_gun" = "$saat_dun" ] || [ "$(printf '%s\n%s\n' "$saat_gun" "$saat_dun" | sort | head -n 1)" != "$saat_gun" ] ||
+      hata "saat doğrulanmadan eski güne kayıt yazıldı: $saat_gun ($1)"
   done
-  case "$1:$durum" in
-    rtc_bozuk:*'"kaynak":"bekliyor"'*) [ "$(printf '%s\n' "$s" | sed -n 3p)" -ge 1 ] || hata "saat bekliyor ama bekletilen satır yok" ;;
-    rtc_bozuk:*'"kaynak":"ntp"'*) [ -n "$(printf '%s\n' "$s" | sed -n 4p)" ] || hata "RTC bozukken satırlar bekletilmedi (SAAT_DOGRULANDI yok)" ;;
+  case "$1:$saat_durum" in
+    rtc_bozuk:*'"kaynak":"bekliyor"'*) [ "$(printf '%s\n' "$saat_cikti" | sed -n 3p)" -ge 1 ] || hata "saat bekliyor ama bekletilen satır yok" ;;
+    rtc_bozuk:*'"kaynak":"ntp"'*) [ -n "$(printf '%s\n' "$saat_cikti" | sed -n 4p)" ] || hata "RTC bozukken satırlar bekletilmedi (SAAT_DOGRULANDI yok)" ;;
     rtc_dogru:*'"kaynak":"rtc"'* | rtc_dogru:*'"kaynak":"ntp"'*) ;;
-    *) hata "beklenmeyen saat kararı ($1): $durum" ;;
+    *) hata "beklenmeyen saat kararı ($1): $saat_durum" ;;
   esac
   echo "saat: $1 tamam"
 }

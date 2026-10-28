@@ -151,7 +151,14 @@ pub fn close_day(cfg: &Config, day: &str, now: f64, force: bool) -> std::io::Res
 }
 
 /// Bugünden önceki mühürsüz bütün günler (cihaz 00:15'te kapalıysa kaçanlar da) ya da verilen gün.
+/// Saat bu açılışta doğrulanmadıysa (src/saat.rs) "bugün" bilinmez, bekletilen satırlar da yazılmamıştır: ertelenir
+/// (zorla da), saat doğrulanınca kaydedici gün-kapat'ı yeniden çalıştırır.
 pub fn gun_kapat(cfg: &Config, day: Option<&str>, now: f64, force: bool) -> Vec<String> {
+    if let Err(e) = crate::saat::hazir(cfg) {
+        audit(cfg, "GUN_KAPAT_ERTELENDI", now, &format!("neden=saat hata={e}"));
+        crate::saat::gun_kapat_ertele();
+        return vec![format!("saat doğrulanmadı, mühürleme ertelendi: {e}")];
+    }
     let today = ortak::day_of(&ortak::now_iso(now)).to_string();
     let root = &cfg.main.log_root;
     let list: Vec<String> = match day {
@@ -225,6 +232,10 @@ pub fn format_verify(results: &[(String, Vec<String>, String)]) -> String {
 /// Saklama süresini aşmış ve yedeklenmiş (.yedeklendi) günleri siler; yedeksiz gün asla silinmez.
 /// Kişi listesinden son oturumu süreyi aşanlar çıkarılır (KVKK). `dry`: yalnızca listeler.
 pub fn prune(cfg: &Config, now: f64, dry: bool) -> Vec<String> {
+    // ileri kaymış saat yedeklenmiş günleri vaktinden önce silerdi
+    if let Err(e) = crate::saat::hazir(cfg) {
+        return vec![format!("saat doğrulanmadı, temizlik yapılmadı: {e}")];
+    }
     let root = &cfg.main.log_root;
     let cutoff = ortak::day_of(&ortak::now_iso(now - cfg.main.retention_days as f64 * 86400.0)).to_string();
     let mut actions = vec![];

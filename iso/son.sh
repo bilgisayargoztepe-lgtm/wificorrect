@@ -33,6 +33,33 @@ EOF
     sleep 1
   done
 fi
+# Saat (2026-10-26; Visavis'te ilk açılış 2026-04-13 günü yazdı, KURULUM_GUNLUGU "Saat doğrulanmadan kayıt"): kurucu
+# saati NTP ile düzeltir (clock-setup) ama RTC'ye yazamıyordu (hedefte hwclock yoktu; artık util-linux-extra
+# pkgsel/include'da). Burada da yazılır ve geri okunur (duman testi "RTC YAZILDI" arar). timesyncd'nin zaman dosyası
+# kurulum anıyla oluşturulur: systemd açılışta saati en az bunun zamanına getirir (yoksa kendi paket tarihine; RTC yine
+# bozuksa ilk açılış Nisan 2026'da başlıyordu). "saat-dogru" işareti ilk açılışın RTC'ye güvenmesini sağlar (src/saat.rs).
+# Kurucunun saati kurulum belleğindeki paketten eskiyse NTP tutmamıştır: hiçbiri yazılmaz, ilk açılışta 5651 satırları
+# saat NTP ile doğrulanana kadar bekletilir.
+touch /tmp/wfc-simdi
+if [ /tmp/wfc-simdi -nt "$(ls /cdrom/wificorrect/wificorrect_*_amd64.deb | head -n 1)" ]; then
+  dev_bagli=
+  if [ ! -e /target/dev/rtc0 ] && mount --bind /dev /target/dev; then dev_bagli=1; fi
+  chroot /target hwclock --systohc --utc >/tmp/wfc-hwclock.log 2>&1 || true
+  [ -z "$dev_bagli" ] || umount /target/dev || true
+  rtc=$(cat /sys/class/rtc/rtc0/since_epoch 2>/dev/null || true)
+  case "$rtc" in '' | *[!0-9]*) rtc=0 ;; esac
+  simdi=$(date +%s)
+  fark=$((simdi - rtc))
+  if [ "$fark" -ge -5 ] && [ "$fark" -le 5 ]; then
+    logger -t wificorrect "RTC YAZILDI ($rtc)"
+    printf 'dogru kurulum %s\n' "$simdi" >/target/var/lib/wificorrect/saat-dogru || true
+  else
+    logger -t wificorrect "RTC YAZILAMADI (rtc=$rtc saat=$simdi): $(tr '\n' ' ' </tmp/wfc-hwclock.log)"
+  fi
+  { mkdir -p /target/var/lib/systemd/timesync && touch /target/var/lib/systemd/timesync/clock; } || true
+else
+  logger -t wificorrect "SAAT DOGRULANMADI: kurucunun saati $(date -u +%Y-%m-%dT%H:%M:%SZ), RTC yazilmadi"
+fi
 # Realtek ağ kartlarının aygıt yazılımı kurulan sistemde olmalı (pkgsel/include); duman testi bu satırı arar.
 if chroot /target dpkg-query -W -f='${Status}' firmware-realtek 2>/dev/null | grep -q 'install ok installed'; then
   logger -t wificorrect "FIRMWARE-REALTEK KURULU"

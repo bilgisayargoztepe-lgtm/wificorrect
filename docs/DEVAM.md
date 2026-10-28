@@ -73,10 +73,19 @@ müşteri sayfası: açılır bölümler".
 listesi üyeliği biten müşterileri varsayılan göstermez (kullanıcı 2026-10-26: "4511643 müşteriler listesinden kaldır"; Deneme
 silinmedi, arşivi ve geçmişi duruyor): "Göster" (`/?bitenler=1`) ile en altta, aramada her zaman çıkar; "Üyeliği bitir" formunda
 bunu söyleyen not. Ayrıntı KURULUM_GUNLUGU "Müşteri listesinde üyeliği bitenler gizli".
-**Dal `kullanicilar-tablo-ustte` (PR #41, sürüm 0.4.24; birleştirme, `v0.4.24` etiketi ve cihaz güncellemesi kullanıcının kararıyla):**
-cihaz paneli → Kullanıcılar → Bağlı kullanıcılar bölümünde tablo başlığın hemen altında; açıklama, denetim notu ve Sırala / "10 sn'de bir
-yenile" düğmeleri tablonun altında, bölümün sonunda (kullanıcı 2026-10-27: "bu yazıları sayfanın en altına al"). Ayrıntı KURULUM_GUNLUGU
-"Kullanıcılar: tablo üstte, açıklamalar altta".
+**Dal `kullanicilar-tablo-ustte` (PR #41, sürüm 0.4.25; birleştirme, `v0.4.25` etiketi ve cihaz güncellemesi kullanıcının kararıyla):**
+iki iş tek sürümde (kullanıcı 2026-10-28: saat düzeltmesi "niye ayrı dalda, onu içine sok": `saat-dogrulama` (PR #42) bu dala katıldı;
+#41 birleşince #42 de birleşmiş sayılır; 0.4.24 hiç yayınlanmadı). (1) Cihaz paneli → Kullanıcılar → Bağlı kullanıcılar bölümünde tablo
+başlığın hemen altında; açıklama, denetim notu ve Sırala / "10 sn'de bir yenile" düğmeleri tablonun altında, bölümün sonunda (kullanıcı
+2026-10-27: "bu yazıları sayfanın en altına al"; KURULUM_GUNLUGU "Kullanıcılar: tablo üstte, açıklamalar altta"). (2) Saat doğrulaması: bulgu:
+Visavis'te `/srv/5651/gunluk/2026-04-13/` (3 denetim satırı, mühürlü, zincirin ilk satırı, merkezde yedekli; **olduğu gibi kalır**).
+Neden: kurucu saati NTP ile düzeltti ama RTC'ye yazamadı (hedefte `hwclock` yok: Debian 13'te `util-linux-extra`); ilk açılışta RTC
+2014'teydi, systemd saati kendi paket tarihine (13 Nisan 2026 22:38) aldı, NTP 185 gün ileri atınca gün-kapat o günü mühürledi.
+Düzeltme: kurucu RTC'yi yazar ve doğrular (`RTC YAZILDI`) + timesync dosyası + `saat-dogru` işareti; cihazda saat bu açılışta
+doğrulanmadan (NTP ya da güvenilir RTC) 5651 satırları `/srv/5651/bekleyen/`de bekler, NTP gelince zamanları düzeltilip doğru güne
+yazılır (`ham_zaman=`, SAAT_DOGRULANDI); portal ve Servis beklemez; gün-kapat/temizlik/fabrika saat doğrulanmadan çalışmaz; mühürlü
+güne dosya açılmaz; kaydedici aralıkları monoton saatle. `wificorrect ctl saat` durumu gösterir. Ayrıntı ve canlı kabul listesi
+KURULUM_GUNLUGU "Saat doğrulanmadan kayıt".
 **v0.4.18 (PPPoE modemli hatta yeşil durum, PR #28):** PPPoE açık cihaz modemdeyken (PPPoE sunucusu yok, DHCP adresi var) durum kırmızı "PPPoE
 sunucusu yanıt vermiyor" yerine yeşil "Modemden bağlı (DHCP); PPPoE ONT'ye takılınca bağlanır" (`pppoe=modemden`, merkez kartında da);
 kimlik reddi yine kırmızı. Ayrıntı KURULUM_GUNLUGU "PPPoE: modemli hatta yeşil durum".
@@ -266,7 +275,7 @@ taksit, otomatik yenileme) · 9 **merkezi Rust'a taşıma** (2026-10-13 kararı;
 ~4.300 satır Python + 3.600 satır test, 9 işe bölünür: veritabanı, güvenlik, web tabanı, cihaz API, yönetim, müşteri paneli,
 arka plan işleri, kurulum/yan yana geçiş, uçtan uca + Python'u kaldırma; aynı SQLite şeması ve parola biçimi korunur). Zaman damgası: kontör alınınca. İki aşamalı giriş istenmedi.
 Ertelenmiş küçük bulgular: `.superpowers/sdd/*/progress.md` (yalnızca bu makinede).
-Bekleyen kullanıcı işleri: Göztepe'de PPPoE düzeltmelerinin (0.4.20/0.4.21) ONT canlı kabulü (KURULUM_GUNLUGU "PPPoE düzeltmeleri"), `kullanicilar-tablo-ustte`'nin birleştirilmesi (PR #41), `v0.4.24` etiketi ve iki cihazda "Şimdi güncelle", ilk PPPoE'li müşteride canlı kabul (yanında yedek modemle; liste KURULUM_GUNLUGU
+Bekleyen kullanıcı işleri: Göztepe'de PPPoE düzeltmelerinin (0.4.20/0.4.21) ONT canlı kabulü (KURULUM_GUNLUGU "PPPoE düzeltmeleri"), `kullanicilar-tablo-ustte`'nin (PR #41: Kullanıcılar sırası + saat doğrulaması, 0.4.25) birleştirilmesi, `v0.4.25` etiketi, iki cihazda "Şimdi güncelle" ve saat doğrulamasının canlı kabulü (KURULUM_GUNLUGU "Saat doğrulanmadan kayıt" sonu), ilk PPPoE'li müşteride canlı kabul (yanında yedek modemle; liste KURULUM_GUNLUGU
 "PPPoE" sonunda; gerçek SMS yalnızca açık onayla); iki J1900'de BIOS → "Restore on AC Power Loss = Power On" (monitör + klavyeyle; sonra fiş çekip
 kendiliğinden açıldığını dene) ve yeni kutulara sahte ekran fişi; Göztepe'nin TP-Link'inin yönetim
 parolasını AP yönetim parolasına çevirmek (2026-10-16'ya kadarki kural panel parolasıydı); aydınlatma metni (misafir kodu

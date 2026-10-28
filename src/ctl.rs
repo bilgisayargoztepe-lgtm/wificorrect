@@ -644,6 +644,11 @@ pub fn run(cfg: Config, args: &[String]) -> ExitCode {
             if r.iter().any(|(_, p, _)| !p.is_empty()) { ExitCode::from(1) } else { ExitCode::SUCCESS }
         }
         Some("temizle") => {
+            // saat doğrulanmadan ne kayıt ne misafir kodu silinir (ileri kaymış saat vaktinden önce silerdi)
+            if let Err(e) = crate::saat::hazir(&cfg) {
+                println!("saat doğrulanmadı, temizlik yapılmadı: {e}");
+                return ExitCode::SUCCESS;
+            }
             let kuru = args.iter().any(|a| a == "--kuru");
             let mut out = crate::muhur::prune(&cfg, now, kuru);
             // bitişinden 30 gün geçmiş misafir kodları (tam kimlik) her gece silinir; kod üretilmese de birikmesin
@@ -659,6 +664,11 @@ pub fn run(cfg: Config, args: &[String]) -> ExitCode {
                 }
             }
             println!("{}", if out.is_empty() { "Silinecek kayıt yok".to_string() } else { out.join("\n") });
+            ExitCode::SUCCESS
+        }
+        // saatin bu açılıştaki kaynağı (RTC/NTP) ve doğrulanana kadar bekletilen 5651 satırları (src/saat.rs)
+        Some("saat") => {
+            println!("{}", crate::saat::ozet(&cfg, &crate::saat::Yollar::sistem()));
             ExitCode::SUCCESS
         }
         Some("admin-parola") => admin_parola(crate::hesap::PATH),
@@ -984,7 +994,7 @@ pub fn run(cfg: Config, args: &[String]) -> ExitCode {
         _ => {
             eprintln!(
                 "Kullanım: wificorrect ctl <komut>\n  dhcp-olay <add|old|del> <mac> <ip> [ad]\n  yukle\n  oturumlar\n  \
-                 gun-kapat [YYYY-AA-GG] [--zorla]\n  dogrula [--son N]\n  temizle [--kuru]\n  yedekle\n  ara ...  (ayrıntı: ctl ara)\n  disa-aktar --baslangic G --bitis G --cikti DOSYA\n  ag-uygula | ag-gecis DOSYA | ag-onayla | ag-geri-al | ag-ilk\n  pppoe-hazirla | pppoe-temizle | pppoe-peers AG.TOML ARAYUZ | pppoe-servis DOSYA\n  ayar-temizle\n  filtre-uygula\n  liste-uygula | liste-guncelle\n  hiz-uygula\n  admin-parola\n  merkez-eslesme\n  saglik\n  guncelle\n  ap-adres-ekle a.b.c.d/önek [--sure SN]  (AP yan odası)\n  ap-adres-kaldir <elle|sure> [KIMLIK]\n  ap-dhcp-denetle\n  ap-bul KIM ROL IP [HEDEF]"
+                 gun-kapat [YYYY-AA-GG] [--zorla]\n  dogrula [--son N]\n  temizle [--kuru]\n  yedekle\n  saat\n  ara ...  (ayrıntı: ctl ara)\n  disa-aktar --baslangic G --bitis G --cikti DOSYA\n  ag-uygula | ag-gecis DOSYA | ag-onayla | ag-geri-al | ag-ilk\n  pppoe-hazirla | pppoe-temizle | pppoe-peers AG.TOML ARAYUZ | pppoe-servis DOSYA\n  ayar-temizle\n  filtre-uygula\n  liste-uygula | liste-guncelle\n  hiz-uygula\n  admin-parola\n  merkez-eslesme\n  saglik\n  guncelle\n  ap-adres-ekle a.b.c.d/önek [--sure SN]  (AP yan odası)\n  ap-adres-kaldir <elle|sure> [KIMLIK]\n  ap-dhcp-denetle\n  ap-bul KIM ROL IP [HEDEF]"
             );
             ExitCode::from(2)
         }

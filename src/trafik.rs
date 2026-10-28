@@ -156,6 +156,15 @@ impl Olcer {
         &self.gun
     }
 
+    /// Duvar saati sıçradı (kaydedici `saat_izle`): örnek zamanları kayar, hız penceresi bozulmaz.
+    pub fn kaydir(&mut self, d: f64) {
+        for h in self.ipler.values_mut() {
+            for o in h.indir.iter_mut().chain(h.yukle.iter_mut()) {
+                o.0 += d;
+            }
+        }
+    }
+
     /// Bir okuma turu: IP → bayt sayaçlarından cihaz (mac) başına hız ve günlük toplam.
     pub fn ornek(
         &mut self,

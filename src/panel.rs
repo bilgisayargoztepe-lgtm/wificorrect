@@ -535,8 +535,11 @@ fn menu_grubu(path: &str) -> &'static str {
         .map_or("/", |(g, ..)| g)
 }
 
-// çizgi simgeleri (24×24, stroke): telefondaki menü düğmesi ve grup sayfalarının kutucukları (sol menüde simge yok:
-// yönetimdeki gibi yalnızca yazı; 2026-10-24)
+// çizgi simgeleri (24×24, stroke): sol menü (2026-10-29 yeni tasarım; önce yönetimdeki gibi yalnızca yazıydı), telefondaki
+// menü düğmesi ve grup sayfalarının bölüm düğmeleri
+const SIMGE_PANO: &str = "M3 3h7v9H3zM14 3h7v5h-7zM14 12h7v9h-7zM3 16h7v5H3z";
+const SIMGE_BILET: &str = "M4 6h16a1 1 0 0 1 1 1v3a2 2 0 0 0 0 4v3a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-3a2 2 0 0 0 0-4V7a1 1 0 0 1 1-1zM14 7v2M14 11v2M14 15v2";
+const SIMGE_ARSIV: &str = "M3 4h18v4H3zM5 8v12h14V8M10 12h4";
 const SIMGE_WIFI: &str = "M2 8.5a15 15 0 0 1 20 0M5 12a10 10 0 0 1 14 0M8.5 15.5a5 5 0 0 1 7 0M12 19h.01";
 const SIMGE_KAYIT: &str = "M6 2h9l5 5v15H6zM14 2v6h6M9 13h8M9 17h8";
 const SIMGE_AYAR: &str = "M4 6h16M4 12h16M4 18h16M9 4v4M15 10v4M7 16v4";
@@ -561,6 +564,17 @@ const SIMGE_ANAHTAR: &str = "M8 11a4 4 0 1 0 0 8 4 4 0 0 0 0-8zM11 13l9-9M16 8l3
 const SIMGE_GOZ: &str = "M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12zM12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z";
 const SIMGE_HIZ: &str = "M4 15a8 8 0 0 1 16 0M12 15l4-5";
 const SIMGE_RAPOR: &str = "M4 20h16M7 16v-5M12 16V6M17 16v-8";
+
+/// Sol menü bağlantısının simgesi (menü yoluna göre)
+fn menu_simgesi(yol: &str) -> &'static str {
+    match yol {
+        "/cihazlar" => SIMGE_KISILER,
+        "/misafir-kodlari" => SIMGE_BILET,
+        "/kayitlar" => SIMGE_ARSIV,
+        "/ayarlar" => SIMGE_AYAR,
+        _ => SIMGE_PANO,
+    }
+}
 
 /// Grup sayfasının üstündeki bölüm kutucuklarının simgesi (bölüm id'sine göre)
 fn bolum_simgesi(id: &str) -> &'static str {
@@ -677,7 +691,7 @@ impl Panel {
                     .filter(|(p, _)| *p != "/misafir-kodlari" || crate::ayar::misafir_kodu_acik(cfg))
                     .map(|(p, l)| {
                         let act = if *p == grup { " class=\"aktif\" aria-current=\"page\"" } else { "" };
-                        format!("<a href=\"{p}\"{act}>{}</a>", h(l))
+                        format!("<a href=\"{p}\"{act}>{}{}</a>", simge(menu_simgesi(p)), h(l))
                     })
                     .collect();
                 let isletme = if bagli && !cfg.main.site_name.trim().is_empty() {
@@ -1194,7 +1208,7 @@ impl Panel {
             if satirlar.is_empty() {
                 return format!("<p class=\"not\">{}</p>", h(bos));
             }
-            let fazla = if toplam > OZET_SATIR { format!("<a class=\"tumu\" href=\"{tumu}\">Tümü ({toplam}) →</a>") } else { String::new() };
+            let fazla = if toplam > OZET_SATIR { format!("<a class=\"tumu\" href=\"{tumu}\">Tümünü göster ({toplam})</a>") } else { String::new() };
             format!("<ul class=\"liste\">{}</ul>{fazla}", satirlar.concat())
         };
         let bagli_html = liste(
@@ -1213,16 +1227,17 @@ impl Panel {
             "Bugün yeni üye yok.",
             "/kayitlar#kullanicilar",
         );
+        // üstte sayılar grafit göstergede (cihazın ön paneli gibi; 2026-10-29 yeni tasarım), altında uyarılar ve iki liste
         let body = format!(
-            "{uyari_html}\
-             <div class=\"ozet-izgara\">\
-             <section class=\"kutu\"><h2>Bağlı Kullanıcılar</h2>{bagli_html}</section>\
-             <div class=\"ozet-sag\">\
-             <section class=\"kutu\"><dl class=\"sayilar\"><div><dt>Bağlı kullanıcı</dt><dd>{}</dd></div>\
+            "<section class=\"pano\" aria-label=\"Bugünün özeti\"><dl class=\"sayilar\">\
+             <div class=\"canli\"><dt>Bağlı kullanıcı</dt><dd>{}</dd></div>\
              <div><dt>Bugün farklı kullanıcı</dt><dd>{}</dd></div><div><dt>Bugün yeni üye</dt><dd>{}</dd></div>\
              <div><dt>Bugün kullanılan veri</dt><dd>{veri}</dd></div></dl></section>\
-             <section class=\"kutu\"><h2>Bugün Yeni Üyeler</h2>{yeni_html}</section>\
-             </div></div>",
+             {uyari_html}\
+             <div class=\"ozet-izgara\">\
+             <section class=\"kutu\"><h2>Bağlı kullanıcılar</h2>{bagli_html}</section>\
+             <section class=\"kutu\"><h2>Bugün yeni üyeler</h2>{yeni_html}</section>\
+             </div>",
             bagli.len(),
             kisiler.len(),
             yeni.len(),
@@ -2738,12 +2753,15 @@ mod tests {
 
         let s = e.p.handle(&req("GET", "/", &[], Some(&tok))).body;
         let kutu = |baslik: &str| s.split(&format!("<h2>{baslik}</h2>")).nth(1).unwrap().split("</section>").next().unwrap().to_string();
-        let bagli = kutu("Bağlı Kullanıcılar");
+        let bagli = kutu("Bağlı kullanıcılar");
         assert!(bagli.contains("<b><i class=\"nokta\"></i>Ayşe Yılmaz</b><span>25 dk</span>") && !bagli.contains("Mehmet"), "{bagli}");
         assert!(!bagli.contains("10.50.0.23") && !bagli.contains("20:14"), "özette IP ve tarih yok: {bagli}");
-        let yeni = kutu("Bugün Yeni Üyeler");
+        let yeni = kutu("Bugün yeni üyeler");
         assert!(yeni.contains("<b>Zeynep Ak</b><span>19:40</span>") && !yeni.contains("Eski"), "{yeni}");
         assert!(s.contains("<dt>Bağlı kullanıcı</dt><dd>1</dd>") && s.contains("<dt>Bugün yeni üye</dt><dd>1</dd>"));
+        // sayılar en üstte grafit göstergede (2026-10-29 yeni tasarım): uyarılardan ve listelerden önce, bağlı sayısı canlı
+        let pano = s.find("<section class=\"pano\"").expect("gösterge");
+        assert!(pano < s.find("<div class=\"ozet-izgara\">").unwrap() && s.contains("<div class=\"canli\"><dt>Bağlı kullanıcı</dt>"), "{s}");
         assert!(!s.contains("905334553132") && !s.contains("aa:bb:cc"), "özette telefon ve MAC yok");
         // sade özet: kısayol kutuları ve SMS/Disk halkaları yok (menüde zaten var)
         assert!(!s.contains("aria-label=\"Kısayollar\"") && !s.contains("SMS ve Disk") && !s.contains("class=\"halka"), "{s}");
@@ -2754,7 +2772,10 @@ mod tests {
         let sira = [crate::logo::marka_koyu(), "<nav aria-label=\"Menü\">", "<div class=\"yan-isletme\">Bocafe Göztepe</div>", "<button class=\"ikincil\">Çıkış</button>"]
             .map(|p| yan.find(p).unwrap_or_else(|| panic!("{p} yok: {yan}")));
         assert!(sira.is_sorted() && yan.ends_with("</form></div>"), "üstte logo, sonra menü, en altta işletme adı ve çıkış: {yan}");
-        assert!(!yan.contains("<svg class=\"simge\""), "sol menüde simge yok (yönetimdeki gibi yalnızca yazı): {yan}");
+        // menü bağlantıları simgeli (2026-10-29 yeni tasarım; önce yönetimdeki gibi yalnızca yazıydı)
+        let nav = yan.split("<nav aria-label=\"Menü\">").nth(1).unwrap().split("</nav>").next().unwrap();
+        assert!(nav.split("<a ").skip(1).all(|a| a.contains("<svg class=\"simge\"")), "{nav}");
+        assert!(nav.contains(&format!("<a href=\"/\" class=\"aktif\" aria-current=\"page\">{}Özet</a>", simge(SIMGE_PANO))), "{nav}");
         let mobil = s.split("<div class=\"ust-mobil\">").nth(1).unwrap().split("</div>").next().unwrap();
         assert!(mobil.contains("for=\"menu-ac\"") && mobil.contains(crate::logo::marka_koyu()), "{mobil}");
         assert!(s.find("id=\"menu-ac\"").unwrap() < s.find("<div class=\"ust-mobil\">").unwrap(), "onay kutusu şeritten önce");

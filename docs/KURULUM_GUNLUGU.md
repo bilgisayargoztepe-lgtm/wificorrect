@@ -1394,6 +1394,31 @@ SERVIS_BASLADI portal/kaydedici, 22:38:22 MERKEZ_BEKLIYOR). Gün 2026-10-16 18:1
   `SAAT_DOGRULANDI fark=+…sn`, `/srv/5651/gunluk`'ta 2014 ya da 2026-04 günü yok, `/srv/5651/bekleyen` boş. Yeni ISO ile ilk gerçek
   kurulumda seri/ekran günlüğünde `RTC YAZILDI`.
 
+## Cihaz paneli yeni tasarım (2026-10-29, 0.4.26)
+Dal `panel-tasarim`; yalnızca cihaz paneli (görünüm), merkezde değişiklik yok. Kullanıcı: "cihaz panelini daha teknolojik yap müşteriler
+için, çok ilkel duruyor; ai slop durmadan profesyonel bir tasarım diliyle onu tekrar yap; işlevsellik aynı kalsın" ve "önce kendi bildiğin
+gibi yap, beğenmezsem söylerim".
+- **Tasarım dili:** grafit çerçeve (sol menü ve Özet göstergesi logonun antrasiti `#293133`), açık gri sayfa (`#f1f3f4`) üstünde beyaz
+  paneller (1 px çizgi, 8 px köşe, gölge ve degrade yok), etkileşim rengi petrol mavisi (`#0b7285`: bağlantılar, birincil düğmeler, odak
+  halkası), mercan (`#ff6247`) yalnızca logoda ve menüde bulunulan sayfanın imlecinde (logodaki `correct_` gibi). Durumlar LED dili:
+  yeşil bağlı/çalışıyor, amber dikkat, kırmızı arıza, gri boşta. Web yazı tipi yok (panelin ve Caddy'nin CSP'si `default-src 'none'`,
+  yazı tipi yüklenmez): sistem yazısı (Segoe UI Variable / system-ui), MAC/IP/kod eş aralıklı, sayılar tablo rakamı; büyük harfli etiket yok.
+- **Sayfalar:** sol menü simgeli (önce yönetimdeki gibi yalnızca yazıydı), Çıkış çerçeveli sade düğme; sayfa başlığı büyük yazı (gri şerit
+  kalktı); grup sayfalarında büyük bölüm kutucukları yerine başlığın altında simgeli küçük düğmeler (telefonda yana kayar); bölümler başlık
+  çubuklu beyaz panel; tablolar panelin içinde kenardan kenara (başlık satırı zeminli), satırdaki işlem düğmesi (Kaldır, Günü indir) sağ
+  kenarda; mesajlar simgeli şerit; alan grubu (misafir kodu: Kimlik) çerçeveli; bağlama sayfası beyaz kart.
+- **Özet:** sayılar en üstte grafit göstergede (cihazın ön paneli gibi; dar ekranda 2×2): Bağlı kullanıcı (yeşil LED), Bugün farklı
+  kullanıcı, Bugün yeni üye, Bugün kullanılan veri; altında Uyarılar (amber kutu) ve iki liste (başlıklar cümle düzeninde: "Bağlı
+  kullanıcılar", "Bugün yeni üyeler"); "Tümü (N) →" yerine "Tümünü göster (N)".
+- **Kayıtlar:** gün durumu rozet: açık (gri), mühürlü (grafit), mühürlü, yedeklendi (yeşil).
+- **Kod:** işaretleme yalnızca Özet (gösterge en üstte; `ozet-sag` kalktı), sol menü simgesi (`menu_simgesi`) ve Kayıtlar durum rozetinde
+  değişti; gerisi şablondaki CSS (`src/sablon/panel.html`). Değişken adları korundu (misafir kodu fişinin satır içi stili `--cizgi2`,
+  `--soluk`, `--es` kullanır).
+- **Testler:** `ozet_bagli_cihazlar_ve_bugun_yeni_uyeler` (gösterge en üstte ve canlı; menü bağlantıları simgeli); cihazda
+  `bash scripts/test.sh wificorrect` → 480/480. Önizleme: geçici bir test (işlenmedi) sayfaları örnek veriyle döktü; headless Edge ile
+  masaüstü (1440 px) ve telefon (390 px iframe) görüntüleri `.superpowers/onizleme/`.
+- **Kurulum:** kullanıcı beğenirse PR → `v0.4.26` etiketi → release → Sürümler → "Şimdi güncelle".
+
 ## Yönetim sol menü ve AP joker DNS kaydı (2026-10-24)
 Dal `yonetim-menu`; yalnızca merkez (cihazda değişiklik yok).
 - **Menü** (kullanıcı kararı): yonetim.wificorrect.com'da üst şerit yerine sol menü, gruplu: **Müşteriler** (Müşteri listesi `/`,

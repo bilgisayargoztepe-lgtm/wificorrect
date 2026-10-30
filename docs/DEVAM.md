@@ -51,7 +51,11 @@ Canlı müşteriler: **Göztepe Bilgisayar = 1537344** (cihaz 192.168.1.110, tes
 kararlı kanal; numarası yönetimde; aşağıda "Visavis").
 
 ## Dallar ve durum (2026-10-30)
-Repo `bilgisayargoztepe-lgtm/wificorrect` (avsharbeyi'den devredildi). Her şey **`main`**'de (PR #3–#43 birleşti; #2 kapatıldı).
+Repo `bilgisayargoztepe-lgtm/wificorrect` (avsharbeyi'den devredildi). Her şey **`main`**'de (PR #3–#44 birleşti; #2 kapatıldı).
+**v0.4.27** etiketlendi (2026-10-30, PR #44'ün birleştirmesi, dal `ozet-mobil-sira`; kullanıcı: "birleştir ve yayınla"): telefonda
+Özet'te bağlı kullanıcılar Bugün yeni üyelerin üstünde (kullanıcı 2026-10-30: "mobilde özette bağlı kullanıcılar bugün yeni
+kullanıcıların üstünde olsun"; yalnızca CSS + bir sınıf, masaüstü aynı); **cihazlara henüz kurulmadı** (iki cihaz 0.4.23; 0.4.27
+kurulmamış 0.4.25 ve 0.4.26'yı da içerir). Ayrıntı KURULUM_GUNLUGU "Özet telefonda: bağlı kullanıcılar yeni üyelerin üstünde".
 **v0.4.26** etiketlendi (2026-10-30, PR #43'ün birleştirmesi; kullanıcı: "birleştir ve yayınla"): cihaz paneli WhatsApp Web düzeni,
 kırmızı vurgu, bağlı kullanıcılar açılır kartlarda (aşağıda `panel-tasarim`); **cihazlara henüz kurulmadı** (iki cihaz 0.4.23; 0.4.26
 kurulmamış 0.4.25'i de içerir).
@@ -290,7 +294,7 @@ taksit, otomatik yenileme) · 9 **merkezi Rust'a taşıma** (2026-10-13 kararı;
 ~4.300 satır Python + 3.600 satır test, 9 işe bölünür: veritabanı, güvenlik, web tabanı, cihaz API, yönetim, müşteri paneli,
 arka plan işleri, kurulum/yan yana geçiş, uçtan uca + Python'u kaldırma; aynı SQLite şeması ve parola biçimi korunur). Zaman damgası: kontör alınınca. İki aşamalı giriş istenmedi.
 Ertelenmiş küçük bulgular: `.superpowers/sdd/*/progress.md` (yalnızca bu makinede).
-Bekleyen kullanıcı işleri: Göztepe'de PPPoE düzeltmelerinin (0.4.20/0.4.21) ONT canlı kabulü (KURULUM_GUNLUGU "PPPoE düzeltmeleri"), `v0.4.26`'nın iki cihaza kurulması (0.4.25'i de içerir; Sürümler → "GitHub'dan yeni sürümleri al", Test ve Kararlı hedefi 0.4.26, iki müşteri sayfasında "Şimdi güncelle") ve saat doğrulamasının canlı kabulü (KURULUM_GUNLUGU "Saat doğrulanmadan kayıt" sonu), ilk PPPoE'li müşteride canlı kabul (yanında yedek modemle; liste KURULUM_GUNLUGU
+Bekleyen kullanıcı işleri: Göztepe'de PPPoE düzeltmelerinin (0.4.20/0.4.21) ONT canlı kabulü (KURULUM_GUNLUGU "PPPoE düzeltmeleri"), `v0.4.27`'nin iki cihaza kurulması (0.4.25 ve 0.4.26'yı da içerir; Sürümler → "GitHub'dan yeni sürümleri al", Test ve Kararlı hedefi 0.4.27, iki müşteri sayfasında "Şimdi güncelle") ve saat doğrulamasının canlı kabulü (KURULUM_GUNLUGU "Saat doğrulanmadan kayıt" sonu), ilk PPPoE'li müşteride canlı kabul (yanında yedek modemle; liste KURULUM_GUNLUGU
 "PPPoE" sonunda; gerçek SMS yalnızca açık onayla); iki J1900'de BIOS → "Restore on AC Power Loss = Power On" (monitör + klavyeyle; sonra fiş çekip
 kendiliğinden açıldığını dene) ve yeni kutulara sahte ekran fişi; Göztepe'nin TP-Link'inin yönetim
 parolasını AP yönetim parolasına çevirmek (2026-10-16'ya kadarki kural panel parolasıydı); aydınlatma metni (misafir kodu

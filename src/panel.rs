@@ -1341,7 +1341,8 @@ impl Panel {
             "Bugün yeni üye yok.",
             "/kayitlar#kullanicilar",
         );
-        // solda bağlı kullanıcılar (sohbet listesi gibi); sağda başlık çubuğu, günün sayıları, uyarılar ve bugün yeni üyeler
+        // solda bağlı kullanıcılar (sohbet listesi gibi); sağda başlık çubuğu, günün sayıları, uyarılar ve bugün yeni üyeler;
+        // telefonda tek sütun (CSS): sayılar ve uyarılardan sonra bağlı kullanıcılar, en altta bugün yeni üyeler
         let sol = format!(
             "<header class=\"bolme-ust\"><h1>Özet</h1></header><section class=\"kutu sohbetler\"><h2>Bağlı kullanıcılar</h2>{bagli_html}</section>"
         );
@@ -1352,7 +1353,7 @@ impl Panel {
              <div><dt>Bugün farklı kullanıcı</dt><dd>{}</dd></div><div><dt>Bugün yeni üye</dt><dd>{}</dd></div>\
              <div><dt>Bugün kullanılan veri</dt><dd>{veri}</dd></div></dl></section>\
              {uyari_html}\
-             <section class=\"kutu\"><h2>Bugün yeni üyeler</h2>{yeni_html}</section></div>",
+             <section class=\"kutu ozet-yeni\"><h2>Bugün yeni üyeler</h2>{yeni_html}</section></div>",
             simge(SIMGE_PANO),
             h(&ortak::tarih_goster(&today)),
             bagli.len(),
@@ -2847,6 +2848,21 @@ mod tests {
     }
 
     #[test]
+    fn ozet_telefonda_bagli_kullanicilar_yeni_uyelerin_ustunde() {
+        // kullanıcı (2026-10-30): telefonda bağlı kullanıcılar bugün yeni üyelerin üstünde; iki bölme açılır, sıra CSS order ile
+        let tel = TPL.split("@media (max-width:820px){").nth(1).expect("telefon bloğu");
+        let sira = |secici: &str| -> i32 {
+            let kural = tel.split(&format!("
+{secici}{{")).nth(1).and_then(|k| k.split('}').next()).unwrap_or_else(|| panic!("{secici} yok"));
+            kural.split(';').find_map(|d| d.strip_prefix("order:")).and_then(|o| o.parse().ok()).unwrap_or_else(|| panic!("{secici}: order yok"))
+        };
+        assert!(tel.contains("
+.ozet .ayrinti-bolme,.ozet .bolum-govde{display:contents}"), "bölmeler açılmalı");
+        assert!(sira(".ozet .pano") < sira(".ozet .liste-bolme") && sira(".ozet .ozet-uyari") < sira(".ozet .liste-bolme"));
+        assert!(sira(".ozet .liste-bolme") < sira(".ozet .ozet-yeni"));
+    }
+
+    #[test]
     fn ozet_bagli_cihazlar_ve_bugun_yeni_uyeler() {
         let mut e = env();
         let (tok, _) = setup_and_login(&e, "mudur", "sahip-parola-12");
@@ -2888,6 +2904,8 @@ mod tests {
         assert!(sol < s.find("<h2>Bağlı kullanıcılar</h2>").unwrap() && s.find("<h2>Bağlı kullanıcılar</h2>").unwrap() < sag, "{s}");
         assert!(sag < s.find("<section class=\"pano\"").unwrap() && s.find("<section class=\"pano\"").unwrap() < s.find("<h2>Bugün yeni üyeler</h2>").unwrap(), "{s}");
         assert!(s.contains("<div class=\"canli\"><dt>Bağlı kullanıcı</dt>") && s.contains("<div class=\"ikili ozet\">"), "{s}");
+        // telefonda sıralanan kutular (ozet_telefonda_bagli_kullanicilar_yeni_uyelerin_ustunde)
+        assert!(s.contains("<section class=\"kutu sohbetler\"><h2>Bağlı kullanıcılar</h2>") && s.contains("<section class=\"kutu ozet-yeni\"><h2>Bugün yeni üyeler</h2>"), "{s}");
         assert!(!s.contains("905334553132") && !s.contains("aa:bb:cc"), "özette telefon ve MAC yok");
         // sade özet: kısayol kutuları ve SMS/Disk halkaları yok (menüde zaten var)
         assert!(!s.contains("aria-label=\"Kısayollar\"") && !s.contains("SMS ve Disk") && !s.contains("class=\"halka"), "{s}");

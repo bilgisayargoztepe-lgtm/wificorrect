@@ -1427,7 +1427,7 @@ Web'e benzer; ad ve logo bizim (WhatsApp adı ve logosu hiçbir yerde yok); işl
   MAC/IP/kod eş aralıklı.
 - **Telefon (≤ 820 px):** üstte beyaz şerit (logo, işletme adı, Çıkış); altta Android'deki gibi dört sekmeli çubuk (seçilinin simgesi açık
   kırmızı hapta); grup sayfası önce listeyi gösterir, satıra dokununca bölüm açılır, başlıktaki ← listeye döner (`href="#"`); Özet'te önce
-  sayılar, sonra listeler.
+  sayılar, sonra listeler (0.4.27'den bağlı kullanıcılar yeni üyelerin üstünde: "Özet telefonda" aşağıda).
 - **Oturumsuz sayfalar** (bağlama, yerel not): beyaz şerit + logo, altında kırmızı bant üstünde beyaz kart (WhatsApp Web'in giriş sayfası
   gibi); karttaki başlık tekrarı soluk alt başlık.
 - **Bağlı kullanıcılar açılır kartlarda** (kullanıcı 2026-10-30: önce "kullanıcıları yan duran sütunlar içine al" — yan yana kartlar
@@ -1463,6 +1463,23 @@ Web'e benzer; ad ve logo bizim (WhatsApp adı ve logosu hiçbir yerde yok); işl
 - **Kurulum:** kullanıcı (2026-10-30): "birleştir ve yayınla". PR #43 birleşti, `v0.4.26` etiketlendi; cihazlara Sürümler →
   "GitHub'dan yeni sürümleri al" → kanal hedefleri 0.4.26 → müşteri sayfasında "Şimdi güncelle" (kullanıcı basar). 0.4.26, kurulmamış
   0.4.25'i de içerir.
+
+## Özet telefonda: bağlı kullanıcılar yeni üyelerin üstünde (2026-10-30, 0.4.27)
+Dal `ozet-mobil-sira` (PR #44); yalnızca cihaz paneli (görünüm), merkezde değişiklik yok. Kullanıcı: "mobilde özette bağlı kullanıcılar
+bugün yeni kullanıcıların üstünde olsun". 0.4.26'da telefonda (≤ 820 px) Özet'in ayrıntı bölmesi önce geliyordu (Bugün başlığı, sayılar,
+Uyarılar, Bugün yeni üyeler), bağlı kullanıcılar (liste bölmesi) en altta, beyaz zeminde.
+- Telefonda iki bölme açılır (`display:contents`; grup sayfalarındaki bölüm seçimi de bunu kullanıyor) ve kartlar tek sütunda CSS `order`
+  ile dizilir: Bugün başlığı, mesajlar, sayılar, Uyarılar, **Bağlı kullanıcılar**, en altta Bugün yeni üyeler. Bağlı kullanıcılar da öteki
+  kartlar gibi desenli zeminde yuvarlak köşeli kart (yeni üyeler kartıyla aynı görünüm); "Bugün" başlık çubuğu bütün Özet boyunca üstte
+  kalır; kısa sayfada desen ekranı doldurur. Masaüstü aynı (solda bağlı kullanıcılar, sağda öteki kartlar).
+- HTML'de yalnızca yeni üyeler kutusuna sınıf (`kutu ozet-yeni`); bağlı kullanıcılar kutusu zaten `kutu sohbetler`.
+- **Testler:** yeni `ozet_telefonda_bagli_kullanicilar_yeni_uyelerin_ustunde` (şablonun telefon bloğunda bölmeler açılıyor; sayılar ve
+  uyarılar < bağlı kullanıcılar < yeni üyeler, `order` değerlerinden), Özet testinde iki kutunun sınıfı; cihazda panel testleri
+  (`panel::`) 98/98. Telefon (390 px) ve masaüstü (1440 px) görüntüsü `.superpowers/onizleme/ozet-sira/` (0.4.26'nın dökülmüş Özet
+  sayfasına yeni CSS ile).
+- **Kurulum:** kullanıcı (2026-10-30): "birleştir ve yayınla". PR #44 birleşti, `v0.4.27` etiketlendi; cihazlara Sürümler →
+  "GitHub'dan yeni sürümleri al" → kanal hedefleri 0.4.27 → müşteri sayfasında "Şimdi güncelle" (kullanıcı basar). 0.4.27, kurulmamış
+  0.4.25 ve 0.4.26'yı da içerir.
 
 ## Yönetim sol menü ve AP joker DNS kaydı (2026-10-24)
 Dal `yonetim-menu`; yalnızca merkez (cihazda değişiklik yok).

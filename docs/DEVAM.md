@@ -93,8 +93,9 @@ yeni tasarım (kullanıcı 2026-10-29: "cihaz panelini daha teknolojik yap müş
 bir tasarım diliyle; işlevsellik aynı kalsın", "önce kendi bildiğin gibi yap beğenmezsem söylerim"; ilk deneme grafit çerçeveydi, sonra
 "arayüzü whatsapp web gibi yap"): WhatsApp Web düzeni, ad ve logo bizim: solda simgeli dar şerit (W_ işareti, işletmenin baş harfleri,
 Çıkış), beyaz liste bölmesi (grup sayfalarında bölümler sohbet satırı gibi, seçilen bölüm sağda CSS `:target` ile; Özet'te bağlı
-kullanıcılar), gri başlık çubuklu ve desenli bej zeminli ayrıntı bölmesi, yeşil vurgu; telefonda alt sekme çubuğu ve liste → bölüm (←);
-işlev aynı. Ayrıntı KURULUM_GUNLUGU "Cihaz paneli yeni tasarım: WhatsApp Web düzeni".
+kullanıcılar), gri başlık çubuklu ve desenli bej zeminli ayrıntı bölmesi; telefonda alt sekme çubuğu ve liste → bölüm (←); işlev aynı.
+Vurgu kırmızı (kullanıcı 2026-10-30: "tasarım güzel. yeşil yerine kırmızı ve tonları kullan"; logodaki mercanın koyu tonları), yeşil
+yalnızca "bağlı" gibi durum noktalarında. Ayrıntı KURULUM_GUNLUGU "Cihaz paneli yeni tasarım: WhatsApp Web düzeni".
 **v0.4.18 (PPPoE modemli hatta yeşil durum, PR #28):** PPPoE açık cihaz modemdeyken (PPPoE sunucusu yok, DHCP adresi var) durum kırmızı "PPPoE
 sunucusu yanıt vermiyor" yerine yeşil "Modemden bağlı (DHCP); PPPoE ONT'ye takılınca bağlanır" (`pppoe=modemden`, merkez kartında da);
 kimlik reddi yine kırmızı. Ayrıntı KURULUM_GUNLUGU "PPPoE: modemli hatta yeşil durum".

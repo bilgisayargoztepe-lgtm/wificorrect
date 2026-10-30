@@ -146,15 +146,16 @@ impl Panel {
             .iter()
             .filter_map(|d| kayit::day_info(root, d))
             .map(|i| {
+                // durum rozeti (2026-10-29 yeni tasarım): yazılıyor = gri, mühürlü = grafit, mühürlü ve yedekli = yeşil
                 let durum = match (i.sealed, i.backed_up) {
-                    (false, _) => "açık",
-                    (true, false) => "mühürlü",
-                    (true, true) => "mühürlü, yedeklendi",
+                    (false, _) => "<span class=\"rozet\">açık</span>",
+                    (true, false) => "<span class=\"rozet muhur\">mühürlü</span>",
+                    (true, true) => "<span class=\"rozet tamam\">mühürlü, yedeklendi</span>",
                 };
                 let people = i.files.iter().filter(|(r, _)| r.starts_with("kullanicilar/")).count();
                 vec![
                     format!("<a href=\"{}\">{}</a>", h(&link("/kayitlar/gun", &[("gun", &i.day)])), h(&ortak::tarih_goster(&i.day))),
-                    h(durum),
+                    durum.to_string(),
                     people.to_string(),
                     h(&size(i.files.iter().map(|(_, s)| s).sum())),
                     format!("<a class=\"dugme ikincil\" href=\"{}\">Günü indir</a>", h(&link("/kayitlar/gun-indir", &[("gun", &i.day)]))),

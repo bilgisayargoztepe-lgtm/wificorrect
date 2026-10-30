@@ -63,6 +63,12 @@ pub fn marka_acik() -> &'static str {
     HTML.get_or_init(|| marka(LOGO_ACIK))
 }
 
+/// Sol şeridin üstündeki W_ uygulama işareti (sekme simgesiyle aynı çizim; 2026-10-30 WhatsApp Web benzeri panel), ana sayfaya gider.
+pub fn isaret() -> &'static str {
+    static HTML: OnceLock<String> = OnceLock::new();
+    HTML.get_or_init(|| format!("<a class=\"marka isaret\" href=\"/\" aria-label=\"wificorrect_\">{}</a>", sinifli(FAVICON_SVG, "logo")))
+}
+
 /// Giriş sayfasının alt bilgisi (açık zemin, `_sayfa.html` `footer .wc-logo`): bağlantısız, süs; ürünün adını alt bilgi yazısı
 /// söyler. Misafir giriş yapmadan internete çıkamaz, bağlantı verilmez.
 pub fn alt_bilgi_logo() -> &'static str {

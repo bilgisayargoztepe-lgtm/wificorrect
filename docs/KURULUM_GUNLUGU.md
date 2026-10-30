@@ -1394,6 +1394,76 @@ SERVIS_BASLADI portal/kaydedici, 22:38:22 MERKEZ_BEKLIYOR). Gün 2026-10-16 18:1
   `SAAT_DOGRULANDI fark=+…sn`, `/srv/5651/gunluk`'ta 2014 ya da 2026-04 günü yok, `/srv/5651/bekleyen` boş. Yeni ISO ile ilk gerçek
   kurulumda seri/ekran günlüğünde `RTC YAZILDI`.
 
+## Cihaz paneli yeni tasarım: WhatsApp Web düzeni (2026-10-29/30, 0.4.26)
+Dal `panel-tasarim` (PR #43); yalnızca cihaz paneli (görünüm), merkezde değişiklik yok. Kullanıcı (2026-10-29): "cihaz panelini daha
+teknolojik yap müşteriler için, çok ilkel duruyor; ai slop durmadan profesyonel bir tasarım diliyle onu tekrar yap; işlevsellik aynı
+kalsın", "önce kendi bildiğin gibi yap, beğenmezsem söylerim". İlk deneme grafit çerçeveydi (grafit sol menü, Özet'te grafit gösterge,
+LED durum dili, petrol mavisi vurgu; commit `93ef9ea`); kullanıcı ardından "arayüzü whatsapp web gibi yap" dedi. Düzen WhatsApp
+Web'e benzer; ad ve logo bizim (WhatsApp adı ve logosu hiçbir yerde yok); işlev aynı. Önce WhatsApp'ın yeşiliyle yapıldı; kullanıcı
+(2026-10-30): "tasarım güzel. yeşil yerine kırmızı ve tonları kullan" → vurgu kırmızı (aşağıda "Renkler").
+- **Çerçeve (masaüstü):** solda 64 px'lik dar şerit: en üstte W_ işareti (`logo::isaret`, Özet'e bağlantı), yalnızca simgeli menü (Özet,
+  Kullanıcılar, (Misafir kodları), Kayıtlar, Ayarlar; ad `title` ipucunda ve gizli yazıda; bulunulan sayfanın simgesi gri dairede), en
+  altta işletme adının baş harfleri kırmızı yuvarlakta (`bas_harfler`: "Bocafe Göztepe" → BG, Türkçe i → İ; ad ipucunda; yalnızca bağlı
+  cihazda) ve Çıkış simgesi. Yanında iki bölme (`Duzen::Ikili`): beyaz **liste** (sohbet listesi gibi; `clamp(250px, 21vw, 360px)`) ve
+  **ayrıntı** (gri başlık çubuğu; kendi simgelerimizden — Wi-Fi, kilit, onay, dünya — soluk desenli bej zemin; beyaz kartlar). Öteki
+  sayfalar (`Duzen::Tek`: Misafir kodları, kayıt günü, kişi sayfası, raporlar, tek bölüm sayfaları) gri başlık çubuğu + desenli zemin
+  üstünde beyaz kart.
+- **Grup sayfaları** (Kullanıcılar, Kayıtlar, Ayarlar, Admin): listede her bölüm bir sohbet satırı (yuvarlak simge, başlık, tek satırlık
+  açıklama: `bolum_aciklamasi`, ör. "Ağa hiç giremeyen cihazlar"; dar listede üç noktayla kısalır); Ayarlar'da sonda Raporlar ve
+  Admin satırı (ayrı sayfalar; Admin eskisi gibi hizmet sağlayıcı parolasıyla açılır). Satıra tıklayınca bölüm sağda açılır: bağlantılar `#bölüm` çapası, seçim CSS `:target` ile
+  (JS yok; panelin CSP'si betik yüklemez); çapa yoksa ilk bölüm görünür; seçili satır gri (sayfaya özel küçük `<style>`). Bölümün içindeki
+  bir alana giden çapa da o bölümü açar (Özet uyarısı `/ayarlar#main-isletme_turu`, sıralama `/cihazlar?sira=mb#oturumlar`). Bölüm başlık
+  çubuğu WhatsApp'taki sohbet başlığı gibi (yuvarlak simge + başlık).
+- **Özet:** listede "Bağlı kullanıcılar" sohbet listesi gibi (kişi avatarı, ad, sağda kırmızı "N dk", altında yeşil nokta + "şu an bağlı");
+  sağda "Bugün" başlığı ve tarih, dört sayılı kart (Bağlı kullanıcı, Bugün farklı kullanıcı, Bugün yeni üye, Bugün kullanılan veri),
+  Uyarılar (sarı not kutusu) ve "Bugün yeni üyeler" (ad, saat, "bugün ilk kez bağlandı").
+- **Renkler:** vurgu kırmızı, logodaki mercanın (`#ff6247`) koyu tonları: `--vurgu` `#d4402b` (birincil düğme, odak, onay kutusu, baş
+  harf yuvarlağı, bağlama bandı, rapor çubukları; beyaz yazıyla 4,6:1), `--vurgu-koyu` `#b23322` (bağlantı, kart başlığı, "N dk", üzerine
+  gelince düğme; beyazda 6,2:1), `--vurgu-acik` `#fde4df` (bölüm simgelerinin ve seçili sekmenin zemini). İkincil düğmeler nötr (koyu gri
+  yazı, gri çerçeve): "Bağlantıyı kes" gibi tehlikeli düğmelerin kırmızı yazısı (`--tehlike` `#ea0038`) birincil kırmızıyla karışmasın.
+  Yeşil yalnızca durum ışığında (`--canli` `#25d366`): "Bağlı" ve "mühürlü, yedeklendi" rozetleri gri zeminde yeşil noktalı, Özet'te
+  bağlı kullanıcı sayısının ve "şu an bağlı"nın noktası, Portlar'daki PPPoE durum noktası (kırmızı nokta orada arıza demek). Gri çubuklar
+  `#f0f2f5`, bej zemin `#efeae2`, yazı `#111b21` / soluk `#667781`; düğmeler hap biçimli. Web yazı tipi yok (CSP): sistem yazısı,
+  MAC/IP/kod eş aralıklı.
+- **Telefon (≤ 820 px):** üstte beyaz şerit (logo, işletme adı, Çıkış); altta Android'deki gibi dört sekmeli çubuk (seçilinin simgesi açık
+  kırmızı hapta); grup sayfası önce listeyi gösterir, satıra dokununca bölüm açılır, başlıktaki ← listeye döner (`href="#"`); Özet'te önce
+  sayılar, sonra listeler.
+- **Oturumsuz sayfalar** (bağlama, yerel not): beyaz şerit + logo, altında kırmızı bant üstünde beyaz kart (WhatsApp Web'in giriş sayfası
+  gibi); karttaki başlık tekrarı soluk alt başlık.
+- **Bağlı kullanıcılar açılır kartlarda** (kullanıcı 2026-10-30: önce "kullanıcıları yan duran sütunlar içine al" — yan yana kartlar
+  denendi —, sonra "liste şeklinde olsun yine ama açılır kartlar olsun ok ile"): tablo yerine alt alta liste, her kişi bir kart
+  (`<ul class="kisiler"><li class="kisi"><details>`, JS yok; `kisi_ogesi`). Kapalıyken kişi avatarı, ad, "Son görülme … · Bugün … MB",
+  sağda yavaşlatıldıysa "≤ N Mb/sn" ve "Bağlı" / "Bağlı değil" rozeti, en sağda ok. Ok (ya da satır) ile açılınca Telefon / Kimlik, MAC,
+  IP ve düğmeler ("Yavaşlat" menüsü ya da "Yavaşlatmayı kaldır", "Bağlantıyı kes"); izinli cihazda telefon ve "Bağlantıyı kes" yok.
+  Sıralama, sayfalama ve 10 sn yenileme aynı; yenileme açıkken sayfa her yenilendiğinde açık kartlar kapanır. Yavaşlat hücresi
+  (`hiz_sayfasi::yavas_hucresi`) ikiye ayrıldı: `yavas_rozeti` (kapalı satır) ve `yavas_dugmesi` (açılan kısım). Telefonda eskiden
+  tablonun yalnızca ilk dört sütunu görünüyordu; kartta hepsi görünüyor.
+- **Logoda yanıp sönen imleç** (kullanıcı 2026-10-30 üç GIF gönderdi — W_ ikonu, koyu ve açık zemin logosu — : "bunları da gif olarak
+  ekle hangisi uygunsa"): GIF'lerde yalnızca alt çizgi değişir, 0,53 sn görünür / 0,53 sn görünmez (iki kare, sonsuz döngü). GIF yerine
+  logonun kendisinde (satır içi SVG + CSS `@keyframes imlec`, `steps(1,end)`, 1,06 sn): GIF'lerin zemini opak (W_ ikonunun köşeleri beyaz,
+  gri şeritte görünürdü; açık logo beyaz, koyu logo antrasit dikdörtgen), panelin CSP'si yüzünden her sayfaya gömülü ~30 KB eklerdi ve
+  küçülünce bulanıklaşırdı. Alt çizgi iki SVG'de de iç `<g>`'nin son yolu (`.marka .logo g g > path:last-child`). Yanıp sönen: sol
+  şeritteki W_ işareti, telefonun ve oturumsuz sayfaların üst şeridindeki logo; misafirlerin giriş sayfası (alt bilgideki logo) durağan.
+  "Hareketi azalt" ayarında durur. Koyu zemin logosu cihaz panelinde kullanılmıyor (koyu yüzey yok; yönetimin koyu sol menüsüne uyar,
+  merkezde değişiklik yapılmadı). Tarayıcıda denetlendi: alt çizginin opaklığı 0,5 sn arayla 1/0.
+- **Kayıtlar:** gün durumu rozeti grafit denemesinden kaldı: açık (gri nokta), mühürlü (koyu nokta), mühürlü, yedeklendi (yeşil nokta).
+- **Kod:** `cerceve` artık `Duzen::Tek(gövde)` ya da `Duzen::Ikili { liste, ayrinti, sinif }` alır (bölüm gövdesi istenirken — PARCA —
+  yalnızca gövde döner); `grup_sayfasi` liste + ayrıntı üretir; telefondaki menü düğmesi (`SIMGE_MENU`) kalktı, yerine alt sekme çubuğu
+  (aynı `nav`, yalnızca CSS). Şablon gövdesi `$ust_html` + `.kabuk` (`$yan_html` + `<main>$icerik_html</main>`). Renk ve düzenin hepsi
+  şablondaki CSS'te (`src/sablon/panel.html`); misafir kodu fişinin kullandığı `--cizgi2`, `--soluk`, `--es` değişkenleri korundu.
+- **Testler:** Özet testi (liste/ayrıntı sırası; şerit sırası: işaret, menü, baş harf, Çıkış; telefon şeridi; `bas_harfler`), yeni
+  `grup_sayfasi_liste_ve_ayrinti` (bölüm satırı listede, seçili satır kuralı ve bölüm ayrıntıda, Ayarlar'da Raporlar/Admin satırı, tek
+  bölmeli sayfada mesaj ve kart), menü ve Yavaşlatılmış testleri yeni işaretlemeyle; cihazda `bash scripts/test.sh wificorrect` →
+  481/481; kırmızıya geçişten sonra panel testleri (`panel::`) 97/97; yan yana kartlardan (yalnızca CSS) sonra 97/97; imleçten (yalnızca CSS) sonra 97/97; açılır kartlardan sonra
+  97/97 (`satir_of` artık kişi kartını döndürür; `hiz_ve_mb_sutunlari`, `izinli_cihaz_satiri`, `olcum_yoksa_tire_ve_not`,
+  `bagli_kullanicilar_tablo_ustte_aciklamalar_altta` ve `yavaslat_kaydeder_ve_uygular` yeni işaretlemeyle; rozet kapalı satırda, kaldır
+  düğmesi açılan kısımda). Önizleme: geçici bir test (işlenmedi) sayfaları örnek veriyle
+  döktü; headless Edge ile masaüstü (1440 ve 1366 px) ve telefon (390 px iframe) görüntüleri `.superpowers/onizleme/ws2/` (yeşil) ve
+  `.superpowers/onizleme/kr/` (kırmızı), yan yana kartlar `.superpowers/onizleme/kart/`, açılır kartlar `.superpowers/onizleme/acilir/`.
+- **Kurulum:** kullanıcı (2026-10-30): "birleştir ve yayınla". PR #43 birleşti, `v0.4.26` etiketlendi; cihazlara Sürümler →
+  "GitHub'dan yeni sürümleri al" → kanal hedefleri 0.4.26 → müşteri sayfasında "Şimdi güncelle" (kullanıcı basar). 0.4.26, kurulmamış
+  0.4.25'i de içerir.
+
 ## Yönetim sol menü ve AP joker DNS kaydı (2026-10-24)
 Dal `yonetim-menu`; yalnızca merkez (cihazda değişiklik yok).
 - **Menü** (kullanıcı kararı): yonetim.wificorrect.com'da üst şerit yerine sol menü, gruplu: **Müşteriler** (Müşteri listesi `/`,

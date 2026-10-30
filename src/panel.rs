@@ -546,10 +546,59 @@ const SIMGE_AYAR: &str = "M4 6h16M4 12h16M4 18h16M9 4v4M15 10v4M7 16v4";
 const SIMGE_KILIT: &str = "M6 11h12v10H6zM8 11V7a4 4 0 0 1 8 0v4";
 const SIMGE_ARA: &str = "M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zM16 16l5 5";
 const SIMGE_YASAK: &str = "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM5.6 5.6l12.8 12.8";
-const SIMGE_MENU: &str = "M3 6h18M3 12h18M3 18h18";
+const SIMGE_CIKIS: &str = "M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9";
+const SIMGE_GERI: &str = "M19 12H5M12 19l-7-7 7-7";
 
 fn simge(d: &str) -> String {
     format!("<svg class=\"simge\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"{d}\"/></svg>")
+}
+
+/// Fotoğrafı olmayan kişinin yuvarlak avatarındaki dolu silüet (Özet listeleri; WhatsApp'taki gibi gri zeminde beyaz)
+const KISI_AVATAR: &str = "<span class=\"avatar kisi\" aria-hidden=\"true\"><svg viewBox=\"0 0 40 40\"><circle cx=\"20\" cy=\"15.5\" r=\"7.5\"/><path d=\"M5.5 40c.8-9.3 6.8-14.5 14.5-14.5S33.7 30.7 34.5 40z\"/></svg></span>";
+
+/// Sayfanın içerik düzeni (2026-10-30 WhatsApp Web benzeri panel)
+enum Duzen<'a> {
+    /// başlık çubuklu tek panel (ayrıntı sayfaları, formlar)
+    Tek(&'a str),
+    /// solda liste paneli (başlığı kendinde), sağda ayrıntı paneli; `sinif` dış kutuya eklenir (ör. "bolumlu", "ozet")
+    Ikili { liste: &'a str, ayrinti: &'a str, sinif: &'a str },
+}
+
+/// İşletme adının baş harfleri (şeritteki avatar): ilk iki sözcüğün ilk harfleri, Türkçe büyük harfle ("Bocafe Göztepe" → "BG")
+fn bas_harfler(ad: &str) -> String {
+    ad.split_whitespace()
+        .filter_map(|s| s.chars().find(|c| c.is_alphanumeric()))
+        .take(2)
+        .map(|c| match c {
+            'i' => "İ".to_string(),
+            'ı' => "I".to_string(),
+            c => c.to_uppercase().collect(),
+        })
+        .collect()
+}
+
+/// Grup sayfasının bölüm listesinde başlığın altındaki kısa açıklama (bölüm id'sine göre)
+fn bolum_aciklamasi(id: &str) -> &'static str {
+    match id {
+        "oturumlar" => "Ağdaki misafirler, hız ve bağlantı",
+        "yasak" => "Ağa hiç giremeyen cihazlar",
+        "izinli" => "SMS'siz internete çıkan cihazlar",
+        "yavaslatilmis" => "Hızı sınırlanan cihazlar",
+        "yasakli-siteler" => "Engellenen siteler ve kelimeler",
+        "gunler" => "Günlük 5651 kayıtları ve indirme",
+        "site-ara" => "Bir siteye kimin girdiğini bulun",
+        "kullanicilar" => "Misafirler ve kişi kayıtları",
+        "talep" => "Resmi talep için kayıt arama",
+        "isletme" => "Unvan, adres, oturum süresi",
+        "portal-metinleri" => "Giriş sayfasındaki yasal metinler",
+        "portlar" => "İnternet, PPPoE ve Wi-Fi",
+        "ap-kurulum" => "Erişim noktasını bulun ve yönetin",
+        "sistem" => "Servisler, mühür ve doğrulama",
+        "sifre-degistir" => "Panel parolanız",
+        "admin-ayarlari" => "SMS sınırları, yedek, uzak erişim",
+        "panel-hareketleri" => "Panel hesaplarının yaptıkları",
+        _ => "",
+    }
 }
 
 const SIMGE_TAMAM: &str = "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM8 12l3 3 5-6";
@@ -671,16 +720,24 @@ impl Panel {
 
     /// `page`, başa (head) ek: ör. AP arayüzüne geçişin meta yenilemesi
     fn page_ek(&self, cfg: &Config, req: &Req, o: Option<&Oturum>, title: &str, body: &str, bas: &str) -> Resp {
+        self.cerceve(cfg, req, o, title, Duzen::Tek(body), bas)
+    }
+
+    /// Sayfa çerçevesi (2026-10-30, kullanıcı isteği: "arayüzü WhatsApp Web gibi yap"): solda dar simge şeridi (üstte W_ işareti,
+    /// altta işletmenin baş harfleri ve çıkış), içerik tek panel ya da liste + ayrıntı. Telefonda şerit alt sekme çubuğu olur,
+    /// üstte logo ve çıkışlı ince şerit. Oturumsuz sayfada beyaz şeritte logo, şerit yok.
+    fn cerceve(&self, cfg: &Config, req: &Req, o: Option<&Oturum>, title: &str, duzen: Duzen, bas: &str) -> Resp {
         if PARCA.with(std::cell::Cell::get) {
-            return Resp { status: 200, body: body.into(), headers: vec![], file: None };
+            let body = match duzen {
+                Duzen::Tek(b) => b.to_string(),
+                Duzen::Ikili { liste, ayrinti, .. } => format!("{liste}{ayrinti}"),
+            };
+            return Resp { status: 200, body, headers: vec![], file: None };
         }
         // cihaz bir müşteriye bağlanmadan işletme adı yok (eski/örnek ayardaki ad görünmesin): sekme başlığında "WifiCorrect",
-        // menünün altında ad yok
+        // şeritte ad yok (müşteri numarası hiç gösterilmez)
         let bagli = crate::merkez::oku(&self.merkez_path).is_some();
-        // yönetimdeki gibi (2026-10-24, kullanıcı isteği): üst şerit yok; sol menüde üstte logo, en altta işletme adı ve çıkış
-        // (müşteri numarası gösterilmez). Telefonda menü gizli, ince üst şeritteki düğme açar/kapatır: betik yok (CSP), gizli
-        // onay kutusu + etiket (kutu, şeritten ve .kabuk'tan önce gelmeli). Oturumsuz sayfada beyaz şeritte logo, menü yok.
-        let (dugme, ust, yan) = match o {
+        let (ust, yan) = match o {
             Some(o) => {
                 let grup = match menu_grubu(&req.path) {
                     ADMIN_YOLU => "/ayarlar",
@@ -691,28 +748,30 @@ impl Panel {
                     .filter(|(p, _)| *p != "/misafir-kodlari" || crate::ayar::misafir_kodu_acik(cfg))
                     .map(|(p, l)| {
                         let act = if *p == grup { " class=\"aktif\" aria-current=\"page\"" } else { "" };
-                        format!("<a href=\"{p}\"{act}>{}{}</a>", simge(menu_simgesi(p)), h(l))
+                        format!("<a href=\"{p}\"{act} title=\"{l}\">{}<span>{l}</span></a>", simge(menu_simgesi(p)), l = h(l))
                     })
                     .collect();
-                let isletme = if bagli && !cfg.main.site_name.trim().is_empty() {
-                    format!("<div class=\"yan-isletme\">{}</div>", h(&cfg.main.site_name))
+                let ad = cfg.main.site_name.trim();
+                let isletme = if bagli && !ad.is_empty() {
+                    format!("<div class=\"yan-isletme\" title=\"{a}\"><span class=\"avatar\" aria-hidden=\"true\">{}</span><span class=\"gizli\">{a}</span></div>", h(&bas_harfler(ad)), a = h(ad))
                 } else {
                     String::new()
                 };
-                let logo = crate::logo::marka_koyu();
+                let cikis = format!(
+                    "<form method=\"post\" action=\"/cikis\">{}<button class=\"cikis\" title=\"Çıkış\">{}<span>Çıkış</span></button></form>",
+                    csrf_input(o),
+                    simge(SIMGE_CIKIS)
+                );
+                let ust_ad = if bagli && !ad.is_empty() { format!("<span class=\"ust-isletme\">{}</span>", h(ad)) } else { String::new() };
                 (
-                    "<input type=\"checkbox\" id=\"menu-ac\" class=\"gizli\">".to_string(),
+                    format!("<header class=\"ust-mobil\">{}{ust_ad}{cikis}</header>", crate::logo::marka_acik()),
                     format!(
-                        "<div class=\"ust-mobil\"><label for=\"menu-ac\" class=\"menu-dugme\" title=\"Menü\"><span class=\"gizli\">Menüyü aç/kapat</span>{}</label>{logo}</div>",
-                        simge(SIMGE_MENU)
-                    ),
-                    format!(
-                        "<aside class=\"yan\">{logo}<nav aria-label=\"Menü\">{links}</nav><div class=\"yan-alt\">{isletme}<form method=\"post\" action=\"/cikis\">{}<button class=\"ikincil\">Çıkış</button></form></div></aside>\n",
-                        csrf_input(o)
+                        "<aside class=\"yan\">{}<nav aria-label=\"Menü\">{links}</nav><div class=\"yan-alt\">{isletme}{cikis}</div></aside>\n",
+                        crate::logo::isaret()
                     ),
                 )
             }
-            None => (String::new(), format!("<header class=\"ust-acik\">{}</header>", crate::logo::marka_acik()), String::new()),
+            None => (format!("<header class=\"ust-acik\">{}</header>", crate::logo::marka_acik()), String::new()),
         };
         let msg = req.query.get("m").map(|m| {
             let cls = if req.query.get("e").is_some_and(|e| e == "1") { "mesaj hata" } else { "mesaj" };
@@ -724,7 +783,6 @@ impl Panel {
         v.insert("bas_ek", if o.is_some() { yenile_meta(req) + bas } else { bas.to_string() });
         v.insert("site", h(if bagli { &cfg.main.site_name } else { "WifiCorrect" }));
         v.insert("govde", if o.is_some() { String::new() } else { "yalin".into() });
-        v.insert("menu_dugme_html", dugme);
         v.insert("ust_html", ust);
         v.insert("yan_html", yan);
         let mut uyari = String::new();
@@ -746,8 +804,19 @@ impl Panel {
                 ));
             }
         }
-        v.insert("mesaj_html", uyari + &msg.unwrap_or_default());
-        v.insert("icerik_html", body.into());
+        let mesaj = uyari + &msg.unwrap_or_default();
+        // tek panel: başlık çubuğu + gövde (mesajlar gövdenin başında); iki panel: solda liste (başlığı kendinde), sağda ayrıntı
+        // (mesajlar ayrıntının başında)
+        let icerik = match duzen {
+            Duzen::Tek(body) => format!(
+                "<div class=\"bolme tek\"><header class=\"bolme-ust\"><h1>{}</h1></header><div class=\"bolme-govde\">{mesaj}<div class=\"icerik-kart\">{body}</div></div></div>",
+                h(title)
+            ),
+            Duzen::Ikili { liste, ayrinti, sinif } => {
+                format!("<div class=\"ikili {sinif}\"><div class=\"liste-bolme\">{liste}</div><div class=\"ayrinti-bolme\">{mesaj}{ayrinti}</div></div>")
+            }
+        };
+        v.insert("icerik_html", icerik);
         Resp { status: 200, body: substitute(TPL, &v), headers: vec![("Content-Type".into(), "text/html; charset=utf-8".into())], file: None }
     }
 
@@ -784,20 +853,39 @@ impl Panel {
             })
             .collect();
         drop(parca);
-        let mut atla: String = bolumler.iter().map(|(_, _, id, baslik, _)| format!("<a href=\"#{id}\">{}{}</a>", simge(bolum_simgesi(id)), h(baslik))).collect();
+        // WhatsApp Web gibi (2026-10-30): solda bölümler sohbet listesi gibi (simge, başlık, kısa açıklama), sağda seçilen bölüm
+        // başlık çubuğuyla. Seçim adres çubuğundaki #bölüm'le (CSS :target, betik yok); hedef yoksa ilk bölüm. Form dönüşleri ve
+        // sıralama bağlantıları zaten #bölüm taşır. Telefonda önce liste, bölüme girince ayrıntı ve geri oku.
+        let satir = |href: &str, ikon: &str, baslik: &str, aciklama: &str| {
+            format!(
+                "<a class=\"sohbet\" href=\"{href}\"><span class=\"avatar\">{}</span><span class=\"satir-metin\"><b>{}</b><small>{}</small></span></a>",
+                simge(ikon),
+                h(baslik),
+                h(aciklama)
+            )
+        };
+        let mut satirlar: String = bolumler.iter().map(|(_, _, id, baslik, _)| satir(&format!("#{id}"), bolum_simgesi(id), baslik, bolum_aciklamasi(id))).collect();
         if req.path == "/ayarlar" {
-            atla.push_str(&format!("<a href=\"/raporlar\">{}Raporlar</a>", simge(SIMGE_RAPOR)));
-            atla.push_str(&format!("<a href=\"{ADMIN_YOLU}\">{}Admin</a>", simge(SIMGE_KILIT)));
+            satirlar.push_str(&satir("/raporlar", SIMGE_RAPOR, "Raporlar", "Haftalık ve aylık raporlar"));
+            satirlar.push_str(&satir(ADMIN_YOLU, SIMGE_KILIT, "Admin", "Hizmet sağlayıcının ayarları"));
         }
-        let mut body = format!("<nav class=\"kisayol\" aria-label=\"Bu sayfadaki bölümler\">{atla}</nav>");
+        let baslik = if req.path == ADMIN_YOLU { "Admin" } else { MENU.iter().find(|(p, _)| *p == req.path).map_or("", |(_, l)| l) };
+        let liste = format!("<header class=\"bolme-ust\"><h1>{}</h1></header><nav class=\"kisayol\" aria-label=\"Bu sayfadaki bölümler\">{satirlar}</nav>", h(baslik));
+        // seçili satır: hedeflenen bölüm ya da içinde hedeflenen bir alan olan bölüm (ör. #main-isletme_turu)
+        let mut ayrinti = String::from("<style>");
+        for (_, _, id, ..) in &bolumler {
+            ayrinti.push_str(&format!(".ikili:has(#{id}:target,#{id} :target) .sohbet[href=\"#{id}\"]{{background:var(--secili)}}"));
+        }
+        ayrinti.push_str("</style>");
         for ((_, _, id, baslik, _), govde) in bolumler.iter().zip(&govdeler) {
-            body.push_str(&format!(
-                "<section class=\"bolum\" id=\"{id}\" aria-labelledby=\"b-{id}\"><h2 class=\"bolum-baslik\" id=\"b-{id}\">{}</h2>{govde}</section>",
+            ayrinti.push_str(&format!(
+                "<section class=\"bolum\" id=\"{id}\" aria-labelledby=\"b-{id}\"><h2 class=\"bolum-baslik\" id=\"b-{id}\"><a class=\"geri\" href=\"#\" title=\"Bölümler\">{}<span class=\"gizli\">Bölümlere dön</span></a><span class=\"avatar\">{}</span>{}</h2><div class=\"bolum-govde\">{govde}</div></section>",
+                simge(SIMGE_GERI),
+                simge(bolum_simgesi(id)),
                 h(baslik)
             ));
         }
-        let baslik = if req.path == ADMIN_YOLU { "Admin" } else { MENU.iter().find(|(p, _)| *p == req.path).map_or("", |(_, l)| l) };
-        self.page(cfg, req, Some(o), baslik, &body)
+        self.cerceve(cfg, req, Some(o), baslik, Duzen::Ikili { liste: &liste, ayrinti: &ayrinti, sinif: "bolumlu" }, "")
     }
 
     fn audit(&self, cfg: &Config, req: &Req, o: Option<&Oturum>, olay: &str, ek: &str) {
@@ -1211,38 +1299,49 @@ impl Panel {
             let fazla = if toplam > OZET_SATIR { format!("<a class=\"tumu\" href=\"{tumu}\">Tümünü göster ({toplam})</a>") } else { String::new() };
             format!("<ul class=\"liste\">{}</ul>{fazla}", satirlar.concat())
         };
+        // satırlar sohbet listesi gibi (2026-10-30 WhatsApp Web benzeri): avatar, ad, sağ üstte süre/saat, altında kısa durum
+        let kisi = |ad: &str, sag: &str, alt: &str| {
+            format!(
+                "<li>{KISI_AVATAR}<span class=\"satir-metin\"><span class=\"satir-ust\"><b>{}</b><span class=\"zaman\">{}</span></span><small>{alt}</small></span></li>",
+                h(ad),
+                h(sag)
+            )
+        };
         let bagli_html = liste(
             bagli
                 .iter()
                 .take(OZET_SATIR)
-                .map(|(s, dk)| format!("<li><b><i class=\"nokta\"></i>{}</b><span>{dk} dk</span></li>", h(&format!("{} {}", s.ad, s.soyad))))
+                .map(|(s, dk)| kisi(&format!("{} {}", s.ad, s.soyad), &format!("{dk} dk"), "<i class=\"nokta\"></i>şu an bağlı"))
                 .collect(),
             bagli.len(),
             "Şu an bağlı kullanıcı yok.",
             "/cihazlar#oturumlar",
         );
         let yeni_html = liste(
-            yeni.iter().take(OZET_SATIR).map(|r| format!("<li><b>{}</b><span>{}</span></li>", h(&format!("{} {}", r[1], r[2])), h(&kisa_zaman(&r[3], &today)))).collect(),
+            yeni.iter().take(OZET_SATIR).map(|r| kisi(&format!("{} {}", r[1], r[2]), &kisa_zaman(&r[3], &today), "bugün ilk kez bağlandı")).collect(),
             yeni.len(),
             "Bugün yeni üye yok.",
             "/kayitlar#kullanicilar",
         );
-        // üstte sayılar grafit göstergede (cihazın ön paneli gibi; 2026-10-29 yeni tasarım), altında uyarılar ve iki liste
-        let body = format!(
-            "<section class=\"pano\" aria-label=\"Bugünün özeti\"><dl class=\"sayilar\">\
+        // solda bağlı kullanıcılar (sohbet listesi gibi); sağda başlık çubuğu, günün sayıları, uyarılar ve bugün yeni üyeler
+        let sol = format!(
+            "<header class=\"bolme-ust\"><h1>Özet</h1></header><section class=\"kutu sohbetler\"><h2>Bağlı kullanıcılar</h2>{bagli_html}</section>"
+        );
+        let sag = format!(
+            "<header class=\"bolum-baslik\"><span class=\"avatar\">{}</span>Bugün<span class=\"ust-not\">{}</span></header>\
+             <div class=\"bolum-govde\"><section class=\"pano\" aria-label=\"Bugünün özeti\"><dl class=\"sayilar\">\
              <div class=\"canli\"><dt>Bağlı kullanıcı</dt><dd>{}</dd></div>\
              <div><dt>Bugün farklı kullanıcı</dt><dd>{}</dd></div><div><dt>Bugün yeni üye</dt><dd>{}</dd></div>\
              <div><dt>Bugün kullanılan veri</dt><dd>{veri}</dd></div></dl></section>\
              {uyari_html}\
-             <div class=\"ozet-izgara\">\
-             <section class=\"kutu\"><h2>Bağlı kullanıcılar</h2>{bagli_html}</section>\
-             <section class=\"kutu\"><h2>Bugün yeni üyeler</h2>{yeni_html}</section>\
-             </div>",
+             <section class=\"kutu\"><h2>Bugün yeni üyeler</h2>{yeni_html}</section></div>",
+            simge(SIMGE_PANO),
+            h(&ortak::tarih_goster(&today)),
             bagli.len(),
             kisiler.len(),
             yeni.len(),
         );
-        self.page(cfg, req, Some(o), "Özet", &body)
+        self.cerceve(cfg, req, Some(o), "Özet", Duzen::Ikili { liste: &sol, ayrinti: &sag, sinif: "ozet" }, "")
     }
 
     /// Meta yenilemesinden (oto=1) gelen istek ve bu oturumda yenileme 15 dk içinde açılmış/yenilenmiş: bakış kaydedilmez.
@@ -2754,31 +2853,34 @@ mod tests {
         let s = e.p.handle(&req("GET", "/", &[], Some(&tok))).body;
         let kutu = |baslik: &str| s.split(&format!("<h2>{baslik}</h2>")).nth(1).unwrap().split("</section>").next().unwrap().to_string();
         let bagli = kutu("Bağlı kullanıcılar");
-        assert!(bagli.contains("<b><i class=\"nokta\"></i>Ayşe Yılmaz</b><span>25 dk</span>") && !bagli.contains("Mehmet"), "{bagli}");
+        assert!(bagli.contains("<b>Ayşe Yılmaz</b><span class=\"zaman\">25 dk</span></span><small><i class=\"nokta\"></i>şu an bağlı</small>") && !bagli.contains("Mehmet"), "{bagli}");
         assert!(!bagli.contains("10.50.0.23") && !bagli.contains("20:14"), "özette IP ve tarih yok: {bagli}");
         let yeni = kutu("Bugün yeni üyeler");
-        assert!(yeni.contains("<b>Zeynep Ak</b><span>19:40</span>") && !yeni.contains("Eski"), "{yeni}");
+        assert!(yeni.contains("<b>Zeynep Ak</b><span class=\"zaman\">19:40</span>") && !yeni.contains("Eski"), "{yeni}");
         assert!(s.contains("<dt>Bağlı kullanıcı</dt><dd>1</dd>") && s.contains("<dt>Bugün yeni üye</dt><dd>1</dd>"));
-        // sayılar en üstte grafit göstergede (2026-10-29 yeni tasarım): uyarılardan ve listelerden önce, bağlı sayısı canlı
-        let pano = s.find("<section class=\"pano\"").expect("gösterge");
-        assert!(pano < s.find("<div class=\"ozet-izgara\">").unwrap() && s.contains("<div class=\"canli\"><dt>Bağlı kullanıcı</dt>"), "{s}");
+        // WhatsApp Web gibi (2026-10-30): solda bağlı kullanıcılar sohbet listesi gibi, sağda başlık çubuğu, sayılar (bağlı sayısı
+        // canlı), uyarılar ve yeni üyeler
+        let (sol, sag) = (s.find("<div class=\"liste-bolme\">").expect("liste"), s.find("<div class=\"ayrinti-bolme\">").expect("ayrıntı"));
+        assert!(sol < s.find("<h2>Bağlı kullanıcılar</h2>").unwrap() && s.find("<h2>Bağlı kullanıcılar</h2>").unwrap() < sag, "{s}");
+        assert!(sag < s.find("<section class=\"pano\"").unwrap() && s.find("<section class=\"pano\"").unwrap() < s.find("<h2>Bugün yeni üyeler</h2>").unwrap(), "{s}");
+        assert!(s.contains("<div class=\"canli\"><dt>Bağlı kullanıcı</dt>") && s.contains("<div class=\"ikili ozet\">"), "{s}");
         assert!(!s.contains("905334553132") && !s.contains("aa:bb:cc"), "özette telefon ve MAC yok");
         // sade özet: kısayol kutuları ve SMS/Disk halkaları yok (menüde zaten var)
         assert!(!s.contains("aria-label=\"Kısayollar\"") && !s.contains("SMS ve Disk") && !s.contains("class=\"halka"), "{s}");
-        // yönetimdeki gibi (2026-10-24, kullanıcı isteği): üst şerit yok; sol menüde üstte logo, sonra menü, en altta işletme adı
-        // ve çıkış; telefondaki ince şeritte menü düğmesi ve logo
-        assert!(!s.contains("<header") && !s.contains("wc-logo"), "üst şerit yok: {s}");
+        // sol şerit: üstte W_ işareti, simgeli menü, altta işletmenin baş harfleri (adı ipucunda) ve çıkış; oturumlu sayfada beyaz
+        // logo şeridi yok, telefondaki ince şeritte logo ve çıkış
+        assert!(!s.contains("<header class=\"ust-acik\">") && !s.contains("class=\"wc-logo\""), "{s}");
         let yan = s.split("<aside class=\"yan\">").nth(1).unwrap().split("</aside>").next().unwrap();
-        let sira = [crate::logo::marka_koyu(), "<nav aria-label=\"Menü\">", "<div class=\"yan-isletme\">Bocafe Göztepe</div>", "<button class=\"ikincil\">Çıkış</button>"]
+        let sira = [crate::logo::isaret(), "<nav aria-label=\"Menü\">", "<div class=\"yan-isletme\" title=\"Bocafe Göztepe\"><span class=\"avatar\" aria-hidden=\"true\">BG</span>", "<button class=\"cikis\" title=\"Çıkış\">"]
             .map(|p| yan.find(p).unwrap_or_else(|| panic!("{p} yok: {yan}")));
-        assert!(sira.is_sorted() && yan.ends_with("</form></div>"), "üstte logo, sonra menü, en altta işletme adı ve çıkış: {yan}");
-        // menü bağlantıları simgeli (2026-10-29 yeni tasarım; önce yönetimdeki gibi yalnızca yazıydı)
+        assert!(sira.is_sorted() && yan.ends_with("</form></div>"), "üstte işaret, sonra menü, en altta işletme ve çıkış: {yan}");
         let nav = yan.split("<nav aria-label=\"Menü\">").nth(1).unwrap().split("</nav>").next().unwrap();
         assert!(nav.split("<a ").skip(1).all(|a| a.contains("<svg class=\"simge\"")), "{nav}");
-        assert!(nav.contains(&format!("<a href=\"/\" class=\"aktif\" aria-current=\"page\">{}Özet</a>", simge(SIMGE_PANO))), "{nav}");
-        let mobil = s.split("<div class=\"ust-mobil\">").nth(1).unwrap().split("</div>").next().unwrap();
-        assert!(mobil.contains("for=\"menu-ac\"") && mobil.contains(crate::logo::marka_koyu()), "{mobil}");
-        assert!(s.find("id=\"menu-ac\"").unwrap() < s.find("<div class=\"ust-mobil\">").unwrap(), "onay kutusu şeritten önce");
+        assert!(nav.contains(&format!("<a href=\"/\" class=\"aktif\" aria-current=\"page\" title=\"Özet\">{}<span>Özet</span></a>", simge(SIMGE_PANO))), "{nav}");
+        let mobil = s.split("<header class=\"ust-mobil\">").nth(1).unwrap().split("</header>").next().unwrap();
+        assert!(mobil.contains(crate::logo::marka_acik()) && mobil.contains("<span class=\"ust-isletme\">Bocafe Göztepe</span>") && mobil.contains("action=\"/cikis\""), "{mobil}");
+        assert_eq!(bas_harfler("visavis"), "V");
+        assert_eq!(bas_harfler("ilker ışık kafe"), "İI");
         assert!(!s.contains("class=\"kim\"") && !yan.contains("mudur") && !yan.contains("İşletme sahibi") && !yan.contains(MUSTERI), "müşteri numarası/hesap gösterilmez: {yan}");
         // menüde ve sekme başlığında yalnızca işletme adı ("Yönetim" eki yok; 2026-10-24, kullanıcı isteği)
         assert!(!yan.contains("Yönetim") && !s.contains("Yönetim</title>") && s.contains("<title>Özet · Bocafe Göztepe</title>"), "{yan}");
@@ -2787,6 +2889,29 @@ mod tests {
         let audit = std::fs::read_to_string(e.root.join("5651/gunluk/2026-09-29/denetim.csv")).unwrap();
         assert!(audit.contains("PANEL_OZET"));
         assert_eq!(kisa_zaman("2026-09-28T08:05:00+03:00", "2026-09-29"), "28.09.2026 08:05");
+    }
+
+    #[test]
+    fn grup_sayfasi_liste_ve_ayrinti() {
+        // WhatsApp Web gibi (2026-10-30): solda bölümler sohbet listesi gibi, sağda seçilen bölüm (CSS :target)
+        let e = env();
+        let (tok, _) = setup_and_login(&e, "mudur", "sahip-parola-12");
+        let s = e.p.handle(&req("GET", "/cihazlar", &[], Some(&tok))).body;
+        assert!(s.contains("<div class=\"ikili bolumlu\"><div class=\"liste-bolme\"><header class=\"bolme-ust\"><h1>Kullanıcılar</h1></header>"), "{s}");
+        let satir = format!(
+            "<a class=\"sohbet\" href=\"#yasak\"><span class=\"avatar\">{}</span><span class=\"satir-metin\"><b>Yasaklı cihazlar</b><small>Ağa hiç giremeyen cihazlar</small></span></a>",
+            simge(SIMGE_YASAK)
+        );
+        let ayrinti = s.find("<div class=\"ayrinti-bolme\">").unwrap();
+        assert!(s.find(&satir).is_some_and(|i| i < ayrinti), "{s}");
+        assert!(s[ayrinti..].contains(".ikili:has(#yasak:target,#yasak :target) .sohbet[href=\"#yasak\"]{background:var(--secili)}"), "seçili satır kuralı");
+        assert!(s[ayrinti..].contains("<section class=\"bolum\" id=\"yasak\""), "{s}");
+        // Ayarlar'da Raporlar ve Admin satırları başka sayfaya gider
+        let a = e.p.handle(&req("GET", "/ayarlar", &[], Some(&tok))).body;
+        assert!(a.contains("<a class=\"sohbet\" href=\"/raporlar\">") && a.contains("<a class=\"sohbet\" href=\"/admin\">"), "{a}");
+        // tek panelli sayfa: başlık çubuğu, mesaj ve içerik kartı
+        let r = e.p.handle(&get("/oturumlar", &[("m", "Tamam.")], &tok)).body;
+        assert!(r.contains("<div class=\"bolme tek\"><header class=\"bolme-ust\"><h1>") && r.contains("<div class=\"bolme-govde\"><div class=\"mesaj\">Tamam.</div><div class=\"icerik-kart\">"), "{r}");
     }
 
     #[test]
@@ -3849,7 +3974,7 @@ mod tests {
         // Admin sol menüde yok: Ayarlar'ın en son kutucuğu; admin sayfasında menüde Ayarlar seçili
         let ay = e.p.handle(&req("GET", "/ayarlar", &[], Some(&tok))).body;
         let kutular = ay.split("aria-label=\"Bu sayfadaki bölümler\">").nth(1).unwrap().split("</nav>").next().unwrap().to_string();
-        assert!(kutular.ends_with("Admin</a>") && kutular.contains("href=\"/admin\""), "{kutular}");
+        assert!(kutular.ends_with("<b>Admin</b><small>Hizmet sağlayıcının ayarları</small></span></a>") && kutular.contains("href=\"/admin\""), "{kutular}");
         assert!(a.contains("href=\"/ayarlar\" class=\"aktif\""), "admin sayfasında Ayarlar vurgulu");
         assert!(!e.p.handle(&req("GET", "/cihazlar", &[], Some(&tok))).body.contains("href=\"/admin\">"), "başka grupta Admin kutucuğu yok");
         assert!(e.p.handle(&req("GET", "/panel-hareketleri", &[], Some(&tok))).body.contains("action=\"/admin-kilidi\""));
@@ -4123,7 +4248,9 @@ mod tests {
         crate::trafik::yaz(&e.p.trafik_path, &d).unwrap();
         let s = e.p.handle(&get("/cihazlar", &[], &tok)).body;
         let b = bolum_of(&s, "yavaslatilmis");
-        assert!(b.starts_with(" aria-labelledby=\"b-yavaslatilmis\"><h2 class=\"bolum-baslik\" id=\"b-yavaslatilmis\">Yavaşlatılmış cihazlar</h2><div class=\"mesaj hata\">Yavaşlatma uygulanamadı: &lt;tc&gt; yok</div>"), "{b}");
+        // bölüm başlık çubuğu (2026-10-30 WhatsApp Web benzeri: telefonda geri oku, avatar) ve hemen altında uyarı
+        assert!(b.starts_with(" aria-labelledby=\"b-yavaslatilmis\"><h2 class=\"bolum-baslik\" id=\"b-yavaslatilmis\"><a class=\"geri\" href=\"#\""), "{b}");
+        assert!(b.contains("Yavaşlatılmış cihazlar</h2><div class=\"bolum-govde\"><div class=\"mesaj hata\">Yavaşlatma uygulanamadı: &lt;tc&gt; yok</div>"), "{b}");
         // Bağlı kullanıcılar tablosunun üstünde de (ölçüm tazeyken)
         let b = bolum_of(&s, "oturumlar");
         let uyari = "<div class=\"mesaj hata\">Yavaşlatma uygulanamadı: &lt;tc&gt; yok</div>";
@@ -4773,7 +4900,7 @@ mod tests {
         let n = rapor_merkezi(&mut e, 200);
         let ay = e.p.handle(&req("GET", "/ayarlar", &[], Some(&tok))).body;
         let kutular = ay.split("aria-label=\"Bu sayfadaki bölümler\">").nth(1).unwrap().split("</nav>").next().unwrap().to_string();
-        assert!(kutular.contains("href=\"/raporlar\"") && kutular.ends_with("Admin</a>"), "{kutular}");
+        assert!(kutular.contains("href=\"/raporlar\"") && kutular.ends_with("<b>Admin</b><small>Hizmet sağlayıcının ayarları</small></span></a>"), "{kutular}");
         let denetim = e.root.join("5651/gunluk/2026-09-29/denetim.csv");
         let once = std::fs::read_to_string(&denetim).unwrap_or_default();
         let l = e.p.handle(&req("GET", "/raporlar", &[], Some(&tok)));

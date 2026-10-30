@@ -88,11 +88,13 @@ doğrulanmadan (NTP ya da güvenilir RTC) 5651 satırları `/srv/5651/bekleyen/`
 yazılır (`ham_zaman=`, SAAT_DOGRULANDI); portal ve Servis beklemez; gün-kapat/temizlik/fabrika saat doğrulanmadan çalışmaz; mühürlü
 güne dosya açılmaz; kaydedici aralıkları monoton saatle. `wificorrect ctl saat` durumu gösterir. Ayrıntı ve canlı kabul listesi
 KURULUM_GUNLUGU "Saat doğrulanmadan kayıt".
-**Dal `panel-tasarim` (sürüm 0.4.26; PR, `v0.4.26` etiketi ve cihaz güncellemesi kullanıcı beğenirse):** cihaz paneli yeni tasarım
-(kullanıcı 2026-10-29: "cihaz panelini daha teknolojik yap müşteriler için, çok ilkel duruyor; ai slop durmadan profesyonel bir tasarım
-diliyle; işlevsellik aynı kalsın", "önce kendi bildiğin gibi yap beğenmezsem söylerim"): grafit sol menü (simgeli, bulunulan sayfada mercan
-imleç), Özet'te en üstte grafit gösterge, başlık çubuklu beyaz paneller, kenardan kenara tablolar, LED durum dili, petrol mavisi vurgu;
-işlev aynı. Ayrıntı KURULUM_GUNLUGU "Cihaz paneli yeni tasarım".
+**Dal `panel-tasarim` (PR #43, sürüm 0.4.26; birleştirme, `v0.4.26` etiketi ve cihaz güncellemesi kullanıcı beğenirse):** cihaz paneli
+yeni tasarım (kullanıcı 2026-10-29: "cihaz panelini daha teknolojik yap müşteriler için, çok ilkel duruyor; ai slop durmadan profesyonel
+bir tasarım diliyle; işlevsellik aynı kalsın", "önce kendi bildiğin gibi yap beğenmezsem söylerim"; ilk deneme grafit çerçeveydi, sonra
+"arayüzü whatsapp web gibi yap"): WhatsApp Web düzeni, ad ve logo bizim: solda simgeli dar şerit (W_ işareti, işletmenin baş harfleri,
+Çıkış), beyaz liste bölmesi (grup sayfalarında bölümler sohbet satırı gibi, seçilen bölüm sağda CSS `:target` ile; Özet'te bağlı
+kullanıcılar), gri başlık çubuklu ve desenli bej zeminli ayrıntı bölmesi, yeşil vurgu; telefonda alt sekme çubuğu ve liste → bölüm (←);
+işlev aynı. Ayrıntı KURULUM_GUNLUGU "Cihaz paneli yeni tasarım: WhatsApp Web düzeni".
 **v0.4.18 (PPPoE modemli hatta yeşil durum, PR #28):** PPPoE açık cihaz modemdeyken (PPPoE sunucusu yok, DHCP adresi var) durum kırmızı "PPPoE
 sunucusu yanıt vermiyor" yerine yeşil "Modemden bağlı (DHCP); PPPoE ONT'ye takılınca bağlanır" (`pppoe=modemden`, merkez kartında da);
 kimlik reddi yine kırmızı. Ayrıntı KURULUM_GUNLUGU "PPPoE: modemli hatta yeşil durum".

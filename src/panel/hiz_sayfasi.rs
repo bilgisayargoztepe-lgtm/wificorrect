@@ -4,14 +4,15 @@
 use super::*;
 use crate::hiz;
 
-/// Bağlı kullanıcılar tablosundaki "Yavaşlat" hücresi: sınırsızsa hız menüsü, sınırlıysa rozet + kaldır.
-pub(super) fn yavas_hucresi(o: &Oturum, mac: &str, sinir: Option<&hiz::Sinir>) -> String {
+/// Bağlı kullanıcılar listesinde yavaşlatılmış cihazın rozeti (kartın kapalı satırında); sınırsızsa boş.
+pub(super) fn yavas_rozeti(sinir: Option<&hiz::Sinir>) -> String {
+    sinir.map_or_else(String::new, |s| format!("<span class=\"rozet sinirli\">≤ {} Mb/sn</span>", s.hiz))
+}
+
+/// Bağlı kullanıcılar listesinde açılan kartın "Yavaşlat" düğmesi: sınırsızsa hız menüsü, sınırlıysa kaldır.
+pub(super) fn yavas_dugmesi(o: &Oturum, mac: &str, sinir: Option<&hiz::Sinir>) -> String {
     match sinir {
-        Some(s) => format!(
-            "<span class=\"rozet sinirli\">≤ {} Mb/sn</span> {}",
-            s.hiz,
-            post_button(o, "/oturumlar/yavaslatma-kaldir", "Yavaşlatmayı kaldır", &[("mac", mac), ("donus", "oturumlar")], "ikincil")
-        ),
+        Some(_) => post_button(o, "/oturumlar/yavaslatma-kaldir", "Yavaşlatmayı kaldır", &[("mac", mac), ("donus", "oturumlar")], "ikincil"),
         None => {
             let secenekler: String = hiz::HIZLAR
                 .iter()

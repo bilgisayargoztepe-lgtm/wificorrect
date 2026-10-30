@@ -49,6 +49,11 @@ main{min-width:0;min-height:0;height:100vh;background:var(--zemin)}
 .marka:hover{text-decoration:none}
 .isaret{margin:0 0 14px}
 .isaret svg{display:block;width:38px;height:38px}
+/* logodaki alt çizgi imleç gibi yanıp söner (2026-10-30, kullanıcının logo GIF'leri: 0,53 sn görünür, 0,53 sn görünmez). GIF yerine
+   logonun kendisinde (SVG): GIF'lerin zemini opak (gri şeritte beyaz köşe kalırdı), her sayfaya gömülü ~30 KB eklerdi ve küçülünce
+   bulanıklaşırdı. Alt çizgi iki logoda da iç <g>'nin son yolu. Hareketi azalt ayarında durur (aşağıda). */
+@keyframes imlec{50%{opacity:0}}
+.marka .logo g g > path:last-child{animation:imlec 1.06s steps(1,end) infinite}
 .yan nav{display:flex;flex-direction:column;align-items:center;gap:8px}
 .yan nav a{display:grid;place-items:center;width:44px;height:44px;border-radius:50%;color:var(--simge);text-decoration:none;transition:background-color var(--hiz),color var(--hiz)}
 .yan nav a span{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
@@ -160,15 +165,33 @@ tbody tr:last-child td{border-bottom:0}
 tbody tr:hover td{background:var(--hover)}
 td:last-child:has(> form.ic,> .dugme){width:1%;text-align:right}
 td code{color:var(--murekkep2)}
-/* bağlı kullanıcılar tablosu iki panelde dar alana sığsın: ad ve yavaşlatma hücresi gerekince alt satıra iner */
-.kullanici-tablo td:nth-child(2){white-space:normal;min-width:6.5rem}
-.kullanici-tablo td:has(details.yavas,.rozet.sinirli){white-space:normal}
-.kullanici-tablo td:has(details.yavas,.rozet.sinirli) > *{margin:2px 4px 2px 0}
-.kullanici-tablo td:has(> .rozet.sinirli) > *{display:flex;width:fit-content}
-/* masaüstünde liste paneli yanında da yana kaymadan sığsın: daha sık sütun, küçük düğmeler */
-@media (min-width:601px){.kullanici-tablo table{font-size:13.5px}.kullanici-tablo th,.kullanici-tablo td{padding-left:6px;padding-right:6px}.kullanici-tablo th:first-child,.kullanici-tablo td:first-child{padding-left:22px}.kullanici-tablo th:last-child,.kullanici-tablo td:last-child{padding-right:22px}.kullanici-tablo td code{font-size:12px}.kullanici-tablo td button,.kullanici-tablo td .dugme,.kullanici-tablo details.yavas summary{padding:0 11px;font-size:12.5px}.kullanici-tablo .rozet{padding:0 8px}.kullanici-tablo td:nth-child(2){min-width:5.5rem}}
-/* Bağlı kullanıcılar: telefonda durum, ad, son görülme ve MB yan kaydırmadan görünsün */
-@media (max-width:600px){.kullanici-tablo table{font-size:12.5px}.kullanici-tablo th{font-size:11.5px}.kullanici-tablo th,.kullanici-tablo td{padding:8px 7px}.kullanici-tablo th:first-child,.kullanici-tablo td:first-child{padding-left:16px}.kullanici-tablo td:nth-child(2){white-space:normal;min-width:5.5rem}.kullanici-tablo .rozet{min-height:20px;padding:0 7px;font-size:11px}}
+/* bağlı kullanıcılar (2026-10-30, kullanıcı isteği: "liste şeklinde olsun yine ama açılır kartlar olsun ok ile"): alt alta açılır
+   kartlar (details/summary, JS yok). Kapalıyken avatar, ad, son görülme · bugünkü MB, durum rozetleri ve ok; açılınca telefon, MAC,
+   IP ve düğmeler. İç içe details var (hız menüsü): seçiciler yalnızca kartın kendi details/summary'sine (>) uyar. */
+.kisiler{display:grid;grid-template-columns:minmax(0,1fr);gap:8px;margin:0 0 16px;padding:0;list-style:none}
+.kisi > details{border:1px solid var(--cizgi2);border-radius:12px;background:var(--zemin);transition:border-color var(--hiz),box-shadow var(--hiz)}
+.kisi > details:hover,.kisi > details[open]{border-color:#c2cbd0}
+.kisi > details[open]{box-shadow:0 1px 3px rgba(11,20,26,.08)}
+.kisi > details > summary{display:flex;align-items:center;gap:12px;min-height:66px;padding:10px 10px 10px 14px;border-radius:12px;list-style:none;cursor:pointer}
+.kisi > details > summary::-webkit-details-marker{display:none}
+.kisi > details > summary:focus-visible{outline-offset:-2px}
+.kisi .avatar{width:42px;height:42px}
+.kisi .satir-metin{align-self:center;padding:0;border:0}
+.kisi .satir-metin b{font-size:15.5px}
+.kisi .satir-metin small{font-size:13.5px}
+.kisi-durum{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:6px;flex:none;max-width:48%}
+.kisi .ok{display:grid;place-items:center;flex:none;width:34px;height:34px;border-radius:50%;color:var(--simge);transition:transform var(--hiz),background-color var(--hiz)}
+.kisi .ok svg{width:20px;height:20px}
+.kisi > details > summary:hover .ok{background:var(--panel)}
+.kisi > details[open] > summary .ok{transform:rotate(180deg)}
+.kisi-ic{margin:0 14px;padding:12px 0 14px 54px;border-top:1px solid var(--cizgi)}
+.kisi-ic .bilgi{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:4px 24px;max-width:none;margin:0 0 12px}
+.kisi-ic .bilgi div{display:block;padding:0}
+.kisi-ic .bilgi div + div{border-top:0}
+.kisi-ic .bilgi dt{font-size:12.5px}
+.kisi-ic .eylemler{align-items:flex-start}
+/* telefonda durum rozetleri adın altına iner: ad ve "Son görülme · Bugün" satırı tam sığsın */
+@media (max-width:600px){.kisi > details > summary{flex-wrap:wrap;gap:4px 10px;padding:10px 6px 10px 12px}.kisi .ok{order:2}.kisi-durum{order:3;flex:1 0 100%;max-width:none;justify-content:flex-start;padding-left:48px}.kisi .avatar{width:38px;height:38px}.kisi-ic{margin:0 12px;padding-left:0}.kisi-ic .bilgi{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}}
 
 /* durum rozeti: bağlı = yeşil nokta, değil = gri */
 .rozet{display:inline-flex;align-items:center;gap:6px;min-height:22px;padding:0 10px;border-radius:999px;background:var(--panel);color:var(--soluk);font-size:12.5px;font-weight:500;white-space:nowrap}
@@ -333,7 +356,7 @@ th:last-child,td:last-child{padding-right:16px}
 .yalin .icerik-kart{padding:8px 20px 24px}
 }
 @media (pointer:coarse){button,.dugme{min-height:44px}td button{min-height:40px}}
-@media (prefers-reduced-motion:reduce){*{transition:none !important}}
+@media (prefers-reduced-motion:reduce){*{transition:none !important;animation:none !important}}
 </style>
 </head>
 <body class="$govde">

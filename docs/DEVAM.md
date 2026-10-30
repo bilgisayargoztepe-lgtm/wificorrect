@@ -50,8 +50,11 @@ merkez .1, Visavis .10, Göztepe .11).
 Canlı müşteriler: **Göztepe Bilgisayar = 1537344** (cihaz 192.168.1.110, test kanalı) ve **Visavis** (tünel 10.99.0.10,
 kararlı kanal; numarası yönetimde; aşağıda "Visavis").
 
-## Dallar ve durum (2026-10-29)
-Repo `bilgisayargoztepe-lgtm/wificorrect` (avsharbeyi'den devredildi). Her şey **`main`**'de (PR #3–#42 birleşti; #2 kapatıldı).
+## Dallar ve durum (2026-10-30)
+Repo `bilgisayargoztepe-lgtm/wificorrect` (avsharbeyi'den devredildi). Her şey **`main`**'de (PR #3–#43 birleşti; #2 kapatıldı).
+**v0.4.26** etiketlendi (2026-10-30, PR #43'ün birleştirmesi; kullanıcı: "birleştir ve yayınla"): cihaz paneli WhatsApp Web düzeni,
+kırmızı vurgu, bağlı kullanıcılar açılır kartlarda (aşağıda `panel-tasarim`); **cihazlara henüz kurulmadı** (iki cihaz 0.4.23; 0.4.26
+kurulmamış 0.4.25'i de içerir).
 **v0.4.25** etiketlendi (2026-10-29 00:33, `0a76837` = PR #41'in birleştirmesi, #42 içinde; release 00:52'de bitti, 18 dk): Kullanıcılar'da
 tablo üstte + saat doğrulanmadan 5651 kaydı yazılmaz (aşağıda); **cihazlara henüz kurulmadı** (iki cihaz 0.4.23).
 **v0.4.23** etiketlendi (2026-10-26 18:46, `0944e74` = PR #38'in birleştirmesi; release 19:04'te bitti, 18 dk; tarihler gün.ay.yıl;
@@ -88,14 +91,16 @@ doğrulanmadan (NTP ya da güvenilir RTC) 5651 satırları `/srv/5651/bekleyen/`
 yazılır (`ham_zaman=`, SAAT_DOGRULANDI); portal ve Servis beklemez; gün-kapat/temizlik/fabrika saat doğrulanmadan çalışmaz; mühürlü
 güne dosya açılmaz; kaydedici aralıkları monoton saatle. `wificorrect ctl saat` durumu gösterir. Ayrıntı ve canlı kabul listesi
 KURULUM_GUNLUGU "Saat doğrulanmadan kayıt".
-**Dal `panel-tasarim` (PR #43, sürüm 0.4.26; birleştirme, `v0.4.26` etiketi ve cihaz güncellemesi kullanıcı beğenirse):** cihaz paneli
+**`panel-tasarim` (PR #43, sürüm 0.4.26; birleşti, `v0.4.26` etiketlendi; cihaz güncellemesi kullanıcının kararıyla):** cihaz paneli
 yeni tasarım (kullanıcı 2026-10-29: "cihaz panelini daha teknolojik yap müşteriler için, çok ilkel duruyor; ai slop durmadan profesyonel
 bir tasarım diliyle; işlevsellik aynı kalsın", "önce kendi bildiğin gibi yap beğenmezsem söylerim"; ilk deneme grafit çerçeveydi, sonra
 "arayüzü whatsapp web gibi yap"): WhatsApp Web düzeni, ad ve logo bizim: solda simgeli dar şerit (W_ işareti, işletmenin baş harfleri,
 Çıkış), beyaz liste bölmesi (grup sayfalarında bölümler sohbet satırı gibi, seçilen bölüm sağda CSS `:target` ile; Özet'te bağlı
 kullanıcılar), gri başlık çubuklu ve desenli bej zeminli ayrıntı bölmesi; telefonda alt sekme çubuğu ve liste → bölüm (←); işlev aynı.
 Vurgu kırmızı (kullanıcı 2026-10-30: "tasarım güzel. yeşil yerine kırmızı ve tonları kullan"; logodaki mercanın koyu tonları), yeşil
-yalnızca "bağlı" gibi durum noktalarında. Ayrıntı KURULUM_GUNLUGU "Cihaz paneli yeni tasarım: WhatsApp Web düzeni".
+yalnızca "bağlı" gibi durum noktalarında. Bağlı kullanıcılar tablo yerine alt alta açılır kartlarda (kullanıcı
+2026-10-30: "liste şeklinde olsun yine ama açılır kartlar olsun ok ile"; kapalıyken ad, son görülme, MB, durum; ok ile telefon, MAC, IP,
+düğmeler). Logodaki alt çizgi imleç gibi yanıp söner (kullanıcının GIF'lerindeki gibi 0,53 sn; GIF yerine SVG + CSS). Ayrıntı KURULUM_GUNLUGU "Cihaz paneli yeni tasarım: WhatsApp Web düzeni".
 **v0.4.18 (PPPoE modemli hatta yeşil durum, PR #28):** PPPoE açık cihaz modemdeyken (PPPoE sunucusu yok, DHCP adresi var) durum kırmızı "PPPoE
 sunucusu yanıt vermiyor" yerine yeşil "Modemden bağlı (DHCP); PPPoE ONT'ye takılınca bağlanır" (`pppoe=modemden`, merkez kartında da);
 kimlik reddi yine kırmızı. Ayrıntı KURULUM_GUNLUGU "PPPoE: modemli hatta yeşil durum".
@@ -285,7 +290,7 @@ taksit, otomatik yenileme) · 9 **merkezi Rust'a taşıma** (2026-10-13 kararı;
 ~4.300 satır Python + 3.600 satır test, 9 işe bölünür: veritabanı, güvenlik, web tabanı, cihaz API, yönetim, müşteri paneli,
 arka plan işleri, kurulum/yan yana geçiş, uçtan uca + Python'u kaldırma; aynı SQLite şeması ve parola biçimi korunur). Zaman damgası: kontör alınınca. İki aşamalı giriş istenmedi.
 Ertelenmiş küçük bulgular: `.superpowers/sdd/*/progress.md` (yalnızca bu makinede).
-Bekleyen kullanıcı işleri: Göztepe'de PPPoE düzeltmelerinin (0.4.20/0.4.21) ONT canlı kabulü (KURULUM_GUNLUGU "PPPoE düzeltmeleri"), `v0.4.25`'in iki cihaza kurulması (Sürümler → "GitHub'dan yeni sürümleri al", Test ve Kararlı hedefi 0.4.25, iki müşteri sayfasında "Şimdi güncelle") ve saat doğrulamasının canlı kabulü (KURULUM_GUNLUGU "Saat doğrulanmadan kayıt" sonu), ilk PPPoE'li müşteride canlı kabul (yanında yedek modemle; liste KURULUM_GUNLUGU
+Bekleyen kullanıcı işleri: Göztepe'de PPPoE düzeltmelerinin (0.4.20/0.4.21) ONT canlı kabulü (KURULUM_GUNLUGU "PPPoE düzeltmeleri"), `v0.4.26`'nın iki cihaza kurulması (0.4.25'i de içerir; Sürümler → "GitHub'dan yeni sürümleri al", Test ve Kararlı hedefi 0.4.26, iki müşteri sayfasında "Şimdi güncelle") ve saat doğrulamasının canlı kabulü (KURULUM_GUNLUGU "Saat doğrulanmadan kayıt" sonu), ilk PPPoE'li müşteride canlı kabul (yanında yedek modemle; liste KURULUM_GUNLUGU
 "PPPoE" sonunda; gerçek SMS yalnızca açık onayla); iki J1900'de BIOS → "Restore on AC Power Loss = Power On" (monitör + klavyeyle; sonra fiş çekip
 kendiliğinden açıldığını dene) ve yeni kutulara sahte ekran fişi; Göztepe'nin TP-Link'inin yönetim
 parolasını AP yönetim parolasına çevirmek (2026-10-16'ya kadarki kural panel parolasıydı); aydınlatma metni (misafir kodu

@@ -1430,9 +1430,22 @@ Web'e benzer; ad ve logo bizim (WhatsApp adı ve logosu hiçbir yerde yok); işl
   sayılar, sonra listeler.
 - **Oturumsuz sayfalar** (bağlama, yerel not): beyaz şerit + logo, altında kırmızı bant üstünde beyaz kart (WhatsApp Web'in giriş sayfası
   gibi); karttaki başlık tekrarı soluk alt başlık.
-- **Bağlı kullanıcılar tablosu** masaüstünde liste bölmesinin yanında yana kaymadan sığsın diye sık: hücre aralığı 6 px, 13,5 px yazı,
-  küçük düğmeler, yavaşlatılmış satırda rozet ve "Yavaşlatmayı kaldır" alt alta. 1366 px'te dokuz sütun da görünür; telefonda eskisi gibi
-  ilk dört sütun ekranda, gerisi yana kayar.
+- **Bağlı kullanıcılar açılır kartlarda** (kullanıcı 2026-10-30: önce "kullanıcıları yan duran sütunlar içine al" — yan yana kartlar
+  denendi —, sonra "liste şeklinde olsun yine ama açılır kartlar olsun ok ile"): tablo yerine alt alta liste, her kişi bir kart
+  (`<ul class="kisiler"><li class="kisi"><details>`, JS yok; `kisi_ogesi`). Kapalıyken kişi avatarı, ad, "Son görülme … · Bugün … MB",
+  sağda yavaşlatıldıysa "≤ N Mb/sn" ve "Bağlı" / "Bağlı değil" rozeti, en sağda ok. Ok (ya da satır) ile açılınca Telefon / Kimlik, MAC,
+  IP ve düğmeler ("Yavaşlat" menüsü ya da "Yavaşlatmayı kaldır", "Bağlantıyı kes"); izinli cihazda telefon ve "Bağlantıyı kes" yok.
+  Sıralama, sayfalama ve 10 sn yenileme aynı; yenileme açıkken sayfa her yenilendiğinde açık kartlar kapanır. Yavaşlat hücresi
+  (`hiz_sayfasi::yavas_hucresi`) ikiye ayrıldı: `yavas_rozeti` (kapalı satır) ve `yavas_dugmesi` (açılan kısım). Telefonda eskiden
+  tablonun yalnızca ilk dört sütunu görünüyordu; kartta hepsi görünüyor.
+- **Logoda yanıp sönen imleç** (kullanıcı 2026-10-30 üç GIF gönderdi — W_ ikonu, koyu ve açık zemin logosu — : "bunları da gif olarak
+  ekle hangisi uygunsa"): GIF'lerde yalnızca alt çizgi değişir, 0,53 sn görünür / 0,53 sn görünmez (iki kare, sonsuz döngü). GIF yerine
+  logonun kendisinde (satır içi SVG + CSS `@keyframes imlec`, `steps(1,end)`, 1,06 sn): GIF'lerin zemini opak (W_ ikonunun köşeleri beyaz,
+  gri şeritte görünürdü; açık logo beyaz, koyu logo antrasit dikdörtgen), panelin CSP'si yüzünden her sayfaya gömülü ~30 KB eklerdi ve
+  küçülünce bulanıklaşırdı. Alt çizgi iki SVG'de de iç `<g>`'nin son yolu (`.marka .logo g g > path:last-child`). Yanıp sönen: sol
+  şeritteki W_ işareti, telefonun ve oturumsuz sayfaların üst şeridindeki logo; misafirlerin giriş sayfası (alt bilgideki logo) durağan.
+  "Hareketi azalt" ayarında durur. Koyu zemin logosu cihaz panelinde kullanılmıyor (koyu yüzey yok; yönetimin koyu sol menüsüne uyar,
+  merkezde değişiklik yapılmadı). Tarayıcıda denetlendi: alt çizginin opaklığı 0,5 sn arayla 1/0.
 - **Kayıtlar:** gün durumu rozeti grafit denemesinden kaldı: açık (gri nokta), mühürlü (koyu nokta), mühürlü, yedeklendi (yeşil nokta).
 - **Kod:** `cerceve` artık `Duzen::Tek(gövde)` ya da `Duzen::Ikili { liste, ayrinti, sinif }` alır (bölüm gövdesi istenirken — PARCA —
   yalnızca gövde döner); `grup_sayfasi` liste + ayrıntı üretir; telefondaki menü düğmesi (`SIMGE_MENU`) kalktı, yerine alt sekme çubuğu
@@ -1441,10 +1454,15 @@ Web'e benzer; ad ve logo bizim (WhatsApp adı ve logosu hiçbir yerde yok); işl
 - **Testler:** Özet testi (liste/ayrıntı sırası; şerit sırası: işaret, menü, baş harf, Çıkış; telefon şeridi; `bas_harfler`), yeni
   `grup_sayfasi_liste_ve_ayrinti` (bölüm satırı listede, seçili satır kuralı ve bölüm ayrıntıda, Ayarlar'da Raporlar/Admin satırı, tek
   bölmeli sayfada mesaj ve kart), menü ve Yavaşlatılmış testleri yeni işaretlemeyle; cihazda `bash scripts/test.sh wificorrect` →
-  481/481; kırmızıya geçişten sonra panel testleri (`panel::`) 97/97. Önizleme: geçici bir test (işlenmedi) sayfaları örnek veriyle
+  481/481; kırmızıya geçişten sonra panel testleri (`panel::`) 97/97; yan yana kartlardan (yalnızca CSS) sonra 97/97; imleçten (yalnızca CSS) sonra 97/97; açılır kartlardan sonra
+  97/97 (`satir_of` artık kişi kartını döndürür; `hiz_ve_mb_sutunlari`, `izinli_cihaz_satiri`, `olcum_yoksa_tire_ve_not`,
+  `bagli_kullanicilar_tablo_ustte_aciklamalar_altta` ve `yavaslat_kaydeder_ve_uygular` yeni işaretlemeyle; rozet kapalı satırda, kaldır
+  düğmesi açılan kısımda). Önizleme: geçici bir test (işlenmedi) sayfaları örnek veriyle
   döktü; headless Edge ile masaüstü (1440 ve 1366 px) ve telefon (390 px iframe) görüntüleri `.superpowers/onizleme/ws2/` (yeşil) ve
-  `.superpowers/onizleme/kr/` (kırmızı).
-- **Kurulum:** kullanıcı beğenirse PR #43 birleşir → `v0.4.26` etiketi → release → Sürümler → "Şimdi güncelle".
+  `.superpowers/onizleme/kr/` (kırmızı), yan yana kartlar `.superpowers/onizleme/kart/`, açılır kartlar `.superpowers/onizleme/acilir/`.
+- **Kurulum:** kullanıcı (2026-10-30): "birleştir ve yayınla". PR #43 birleşti, `v0.4.26` etiketlendi; cihazlara Sürümler →
+  "GitHub'dan yeni sürümleri al" → kanal hedefleri 0.4.26 → müşteri sayfasında "Şimdi güncelle" (kullanıcı basar). 0.4.26, kurulmamış
+  0.4.25'i de içerir.
 
 ## Yönetim sol menü ve AP joker DNS kaydı (2026-10-24)
 Dal `yonetim-menu`; yalnızca merkez (cihazda değişiklik yok).

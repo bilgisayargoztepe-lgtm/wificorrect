@@ -548,6 +548,7 @@ const SIMGE_ARA: &str = "M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zM16 16l5 5";
 const SIMGE_YASAK: &str = "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM5.6 5.6l12.8 12.8";
 const SIMGE_CIKIS: &str = "M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9";
 const SIMGE_GERI: &str = "M19 12H5M12 19l-7-7 7-7";
+const SIMGE_OK: &str = "M6 9l6 6 6-6";
 
 fn simge(d: &str) -> String {
     format!("<svg class=\"simge\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"{d}\"/></svg>")
@@ -555,6 +556,23 @@ fn simge(d: &str) -> String {
 
 /// Fotoğrafı olmayan kişinin yuvarlak avatarındaki dolu silüet (Özet listeleri; WhatsApp'taki gibi gri zeminde beyaz)
 const KISI_AVATAR: &str = "<span class=\"avatar kisi\" aria-hidden=\"true\"><svg viewBox=\"0 0 40 40\"><circle cx=\"20\" cy=\"15.5\" r=\"7.5\"/><path d=\"M5.5 40c.8-9.3 6.8-14.5 14.5-14.5S33.7 30.7 34.5 40z\"/></svg></span>";
+
+/// Bağlı kullanıcılar listesinde bir kişi (2026-10-30 kullanıcı: "liste şeklinde olsun yine ama açılır kartlar olsun ok ile"):
+/// kapalıyken ad, son görülme, bugünkü MB ve durum rozetleri; ok ile açılınca bilgiler (telefon, MAC, IP) ve düğmeler. JS yok.
+/// `durum`, `bilgi` değerleri ve `eylem` güvenli HTML (çağıran kaçışlar); `ad`, `son`, `bugun` düz metin.
+fn kisi_ogesi(ad: &str, son: &str, bugun: &str, durum: &str, bilgi: &[(&str, String)], eylem: &str) -> String {
+    let bugun = if bugun == "—" { "—".to_string() } else { format!("{bugun} MB") };
+    format!(
+        "<li class=\"kisi\"><details><summary>{KISI_AVATAR}<span class=\"satir-metin\"><b>{}</b><small>Son görülme {} · Bugün {}</small></span>\
+         <span class=\"kisi-durum\">{durum}</span><span class=\"ok\">{}</span></summary>\
+         <div class=\"kisi-ic\">{}<div class=\"eylemler\">{eylem}</div></div></details></li>",
+        h(ad),
+        h(son),
+        h(&bugun),
+        simge(SIMGE_OK),
+        facts(bilgi)
+    )
+}
 
 /// Sayfanın içerik düzeni (2026-10-30 WhatsApp Web benzeri panel)
 enum Duzen<'a> {
@@ -1377,32 +1395,34 @@ impl Panel {
             bayt: u64,
             son: Option<f64>,
             bas: f64,
-            hucreler: Vec<String>,
+            oge: String,
         }
         let mut satirlar: Vec<Satir> = vec![];
         for (mac, s) in &ses {
             let c = olcum(mac);
-            let bugun = olcum_hucreleri(c);
-            let hucreler = vec![
-                rozet(mac),
-                h(&format!("{} {}", s.ad, s.soyad)),
-                h(&son(mac)),
-                bugun,
-                hiz_sayfasi::yavas_hucresi(o, mac, sinirlar.get(mac)),
-                post_button(o, "/oturumlar/at", "Bağlantıyı kes", &[("mac", mac)], "tehlike"),
-                h(&crate::kimlik::goster(&s.phone)),
-                format!("<code>{}</code>", h(mac)),
-                if s.ip.is_empty() { "<span class=\"not\">beklemede</span>".into() } else { h(&s.ip) },
-            ];
+            let sinir = sinirlar.get(mac);
+            let ip = if s.ip.is_empty() { "<span class=\"not\">beklemede</span>".into() } else { h(&s.ip) };
+            let oge = kisi_ogesi(
+                &format!("{} {}", s.ad, s.soyad),
+                &son(mac),
+                &olcum_hucreleri(c),
+                &format!("{}{}", hiz_sayfasi::yavas_rozeti(sinir), rozet(mac)),
+                &[("Telefon / Kimlik", h(&crate::kimlik::goster(&s.phone))), ("MAC", format!("<code>{}</code>", h(mac))), ("IP", ip)],
+                &format!(
+                    "{}{}",
+                    hiz_sayfasi::yavas_dugmesi(o, mac, sinir),
+                    post_button(o, "/oturumlar/at", "Bağlantıyı kes", &[("mac", mac)], "tehlike")
+                ),
+            );
             satirlar.push(Satir {
                 bagli: bagli.contains(mac),
                 bayt: c.map_or(0, |c| c.bugun_bayt),
                 son: varlik.get(mac).map(|v| v.son),
                 bas: s.start_epoch,
-                hucreler,
+                oge,
             });
         }
-        // izinli cihazlar portal açmaz (oturum yok): ağda kirası ya da ölçümü varsa tabloda; IP kiradan
+        // izinli cihazlar portal açmaz (oturum yok): ağda kirası ya da ölçümü varsa listede; IP kiradan
         let izinli = Config::devices(&cfg.allow);
         let kiralar = ortak::parse_leases(&std::fs::read_to_string(&cfg.main.leases_file).unwrap_or_default());
         let ip_of: std::collections::BTreeMap<String, String> =
@@ -1411,15 +1431,22 @@ impl Panel {
             let c = olcum(mac);
             let Some(ip) = ip_of.get(mac).or(c.map(|c| &c.ip)).filter(|ip| !ip.is_empty()) else { continue };
             let ad = if not.trim().is_empty() { "İzinli cihaz".to_string() } else { format!("İzinli cihaz · {}", not.trim()) };
-            let bugun = olcum_hucreleri(c);
-            let hucreler = vec![rozet(mac), h(&ad), h(&son(mac)), bugun,
-                                hiz_sayfasi::yavas_hucresi(o, mac, sinirlar.get(mac)), String::new(), String::new(), format!("<code>{}</code>", h(mac)), h(ip)];
+            let sinir = sinirlar.get(mac);
+            // oturumu yok: telefon ve bağlantıyı kes yok
+            let oge = kisi_ogesi(
+                &ad,
+                &son(mac),
+                &olcum_hucreleri(c),
+                &format!("{}{}", hiz_sayfasi::yavas_rozeti(sinir), rozet(mac)),
+                &[("MAC", format!("<code>{}</code>", h(mac))), ("IP", h(ip))],
+                &hiz_sayfasi::yavas_dugmesi(o, mac, sinir),
+            );
             satirlar.push(Satir {
                 bagli: bagli.contains(mac),
                 bayt: c.map_or(0, |c| c.bugun_bayt),
                 son: varlik.get(mac).map(|v| v.son),
                 bas: f64::NEG_INFINITY, // oturumu yok: kaydı olmayanların sonunda
-                hucreler,
+                oge,
             });
         }
         // varsayılan: bağlı olanlar önce, sonra son görülme (yeni üstte); kaydı olmayanlar sonda, oturum başlangıcına göre (yeni üstte)
@@ -1442,7 +1469,7 @@ impl Panel {
         let toplam = satirlar.len();
         let sayfa_say = toplam.div_ceil(OTURUM_SAYFA).max(1);
         let sayfa = sayfa_no(req).min(sayfa_say);
-        let rows: Vec<Vec<String>> = satirlar.into_iter().skip((sayfa - 1) * OTURUM_SAYFA).take(OTURUM_SAYFA).map(|s| s.hucreler).collect();
+        let ogeler: String = satirlar.into_iter().skip((sayfa - 1) * OTURUM_SAYFA).take(OTURUM_SAYFA).map(|s| s.oge).collect();
         let sayfalama = if toplam == 0 {
             String::new()
         } else {
@@ -1475,24 +1502,16 @@ impl Panel {
             Some(d) => format!("Ölçüm {} sn önce", (now - d.zaman).max(0.0).round() as u64),
             None => "Ölçüm alınamıyor: bugünkü kullanım şu an gösterilemiyor.".into(),
         };
-        // yavaşlatma uygulanamıyorsa tablodaki "≤ N Mb/sn" rozetleri yanıltmasın (Yavaşlatılmış bölümündeki uyarının aynısı)
+        // yavaşlatma uygulanamıyorsa listedeki "≤ N Mb/sn" rozetleri yanıltmasın (Yavaşlatılmış bölümündeki uyarının aynısı)
         let hata = durum.as_ref().and_then(|d| d.hiz_hata.as_ref()).map(|e| format!("<div class=\"mesaj hata\">{}</div>", h(e))).unwrap_or_default();
-        // tablo başlığın hemen altında; sıralama/yenileme, ölçüm zamanı ve açıklamalar tablonun altında (2026-10-27, kullanıcı isteği)
+        let liste = if ogeler.is_empty() { "<p class=\"not\">Bağlı kullanıcı yok</p>".to_string() } else { format!("<ul class=\"kisiler\">{ogeler}</ul>") };
+        // liste başlığın hemen altında; sıralama/yenileme, ölçüm zamanı ve açıklamalar listenin altında (2026-10-27, kullanıcı isteği)
         let body = format!(
-            "{hata}{}{sayfalama}{arac}<p class=\"not\">{}</p>\
+            "{hata}{liste}{sayfalama}{arac}<p class=\"not\">{}</p>\
              <p class=\"not\">Bağlantısı kesilen cihaz internete çıkamaz; yeniden SMS ile giriş yapması gerekir. \
              <b>Bağlı</b>: cihaz son 5 dakikada ağda görüldü. \
              Bugün: gece 00:00'dan beri indirilen + yüklenen (MB).</p>\
              <p class=\"not\">Bu sayfadaki her görüntüleme, arama ve indirme kimin yaptığıyla birlikte kaydedilir ve hizmet sağlayıcı tarafından denetlenir.</p>",
-            // mobilde ilk dört sütun (durum, ad, son görülme, MB) ekrana sığsın: CSS .kullanici-tablo
-            format!(
-                "<div class=\"kullanici-tablo\">{}</div>",
-                table(
-                    &["Durum", "Ad soyad", "Son görülme", "Bugün MB", "Yavaşlat", "", "Telefon / Kimlik", "MAC", "IP"],
-                    &rows,
-                    "Bağlı kullanıcı yok"
-                )
-            ),
             h(&olcum_notu)
         );
         self.page(cfg, req, Some(o), "Bağlı kullanıcılar", &body)
@@ -2511,9 +2530,8 @@ mod tests {
         std::fs::create_dir_all(sys.join("wfc")).unwrap();
         e.p.sys = sys;
         let s = e.p.handle(&req("GET", "/cihazlar", &[], Some(&tok))).body;
-        let satir = |ad: &str| s.split("<tr>").find(|r| r.contains(ad)).unwrap().to_string();
-        assert!(satir("Ayşe").contains("<span class=\"rozet bagli\">Bağlı</span>"));
-        assert!(!satir("Mehmet").contains("rozet bagli") && satir("Mehmet").contains("Bağlı değil"));
+        assert!(satir_of(&s, "Ayşe").contains("<span class=\"rozet bagli\">Bağlı</span>"));
+        assert!(!satir_of(&s, "Mehmet").contains("rozet bagli") && satir_of(&s, "Mehmet").contains("Bağlı değil"));
         assert_eq!(ortak::kopruye_bagli(&[1, 2, 3]), BTreeSet::new()); // yarım kayıt yok sayılır
     }
 
@@ -2540,8 +2558,14 @@ mod tests {
         }
     }
 
+    /// Bağlı kullanıcılar listesinde adı (ya da MAC'i) geçen kişinin kartı (`<li class="kisi">` içi)
     fn satir_of(s: &str, ad: &str) -> String {
-        s.split("<tr>").find(|r| r.contains(ad)).unwrap_or_else(|| panic!("{ad} satırı yok")).to_string()
+        s.split("<li class=\"kisi\">")
+            .skip(1)
+            .map(|r| r.split("</li>").next().unwrap())
+            .find(|r| r.contains(ad))
+            .unwrap_or_else(|| panic!("{ad} satırı yok"))
+            .to_string()
     }
 
     #[test]
@@ -2551,27 +2575,28 @@ mod tests {
         trafikli(&e, &[("aa:bb:cc:dd:ee:01", "Ayşe", 1.0)], &[("aa:bb:cc:dd:ee:01", 38_400_000, 2_100_000, 4_820_000_000)], Some(2.0));
         let s = e.p.handle(&req("GET", "/cihazlar", &[], Some(&tok))).body;
         let r = satir_of(&s, "Ayşe");
-        assert!(r.contains("<td>4.820</td>") && !r.contains("38,4") && !r.contains("2,1"), "{r}");
-        let basliklar = ["Durum", "Ad soyad", "Son görülme", "Bugün MB", "Yavaşlat", "", "Telefon / Kimlik", "MAC", "IP"];
-        // hücreler başlıklarla aynı sırada: ad, son görülme, MB, yavaşlat, kes, telefon, MAC, IP
-        let ad = r.find("Ayşe Y").unwrap();
-        let sira_ok = [r.find("<td>—</td>"), r.find("<td>4.820</td>"), r.find("Bağlantıyı kes"),
-                       r.find("+90"), r.find("<code>aa:bb:cc:dd:ee:01</code>"), r.find("10.50.0.23")]
+        assert!(r.contains("Bugün 4.820 MB") && !r.contains("38,4") && !r.contains("2,1"), "{r}");
+        // liste: kişi başına açılır kart (2026-10-30); kapalı satırda ad, son görülme, MB ve durum, ok ile açılınca telefon, MAC, IP
+        // ve düğmeler
+        assert!(s.contains("<ul class=\"kisiler\"><li class=\"kisi\"><details><summary>") && !s.contains("kullanici-tablo"), "liste");
+        assert!(r.contains(&format!("<span class=\"ok\">{}</span></summary>", simge(SIMGE_OK))), "ok: {r}");
+        let ad = r.find("<b>Ayşe Y</b>").unwrap();
+        let sira_ok = [r.find("Son görülme — · Bugün 4.820 MB"), r.find("<span class=\"rozet"), r.find("</summary>"),
+                       r.find("<dt>Telefon / Kimlik</dt><dd>+90"), r.find("<dt>MAC</dt><dd><code>aa:bb:cc:dd:ee:01</code>"),
+                       r.find("<dt>IP</dt><dd>10.50.0.23</dd>"), r.find(">Yavaşlat</summary>"), r.find("Bağlantıyı kes")]
             .iter()
             .try_fold(ad, |onceki, x| x.filter(|&x| x > onceki));
-        assert!(sira_ok.is_some(), "sütun sırası: {r}");
+        assert!(sira_ok.is_some(), "sıra: {r}");
         // son görülme: kayıt yoksa "—", bugünse saat, değilse gün.ay.yıl
-        assert!(r.contains("<td>—</td>") && !r.contains("2026-09-29 20:00"), "{r}");
+        assert!(r.contains("Son görülme — ·") && !r.contains("2026-09-29 20:00"), "{r}");
         let cfg = Config::load(&e.p.cfg_path).unwrap();
         let g = std::collections::BTreeSet::from(["aa:bb:cc:dd:ee:01".to_string()]);
         ortak::varlik_guncelle(&cfg.main.state_root, &g, SAAT - 86_400.0 * 3.0).unwrap();
         let s2 = e.p.handle(&req("GET", "/cihazlar", &[], Some(&tok))).body;
-        assert!(satir_of(&s2, "Ayşe").contains("<td>26.09.2026</td>"), "{}", satir_of(&s2, "Ayşe"));
+        assert!(satir_of(&s2, "Ayşe").contains("Son görülme 26.09.2026 ·"), "{}", satir_of(&s2, "Ayşe"));
         ortak::varlik_guncelle(&cfg.main.state_root, &g, SAAT - 120.0).unwrap();
         let s3 = e.p.handle(&req("GET", "/cihazlar", &[], Some(&tok))).body;
-        assert!(satir_of(&s3, "Ayşe").contains("<td>21:03</td>"), "{}", satir_of(&s3, "Ayşe"));
-        let thead: String = basliklar.iter().map(|b| format!("<th>{}</th>", h(b))).collect();
-        assert!(s.contains(&thead), "başlıklar");
+        assert!(satir_of(&s3, "Ayşe").contains("Son görülme 21:03 ·"), "{}", satir_of(&s3, "Ayşe"));
         assert!(!s.contains("İndirme") && !s.contains("Yükleme") && !s.contains("Mb/sn</th>"), "hız sütunları yok");
         assert_eq!((mb(0), mb(999_999_999), mb(12_345_678_000_000)), ("0".into(), "1.000".into(), "12.345.678".into()));
     }
@@ -2683,12 +2708,11 @@ mod tests {
         trafikli(&e, &[("aa:bb:cc:dd:ee:01", "Ayşe", 1.0)], &[("aa:bb:cc:dd:ee:99", 5_500_000, 300_000, 2_000_000)], Some(1.0));
         let s = e.p.handle(&req("GET", "/cihazlar", &[], Some(&tok))).body;
         let r = satir_of(&s, "İzinli cihaz · Kasa");
-        assert!(r.contains("<code>aa:bb:cc:dd:ee:99</code>") && r.contains("10.50.0.7") && r.contains("<td>2</td>") && !r.contains("5,5"), "{r}");
-        assert!(r.starts_with("<td><span class=\"rozet") && r.contains("</span></td><td>İzinli cihaz · Kasa</td>"), "ad ikinci sütun: {r}");
-        assert!(r.contains("<td></td><td></td><td><code>aa:bb:cc:dd:ee:99</code>"), "bağlantı kes ve telefon boş: {r}");
-        assert!(!r.contains("Bağlantıyı kes"));
+        assert!(r.contains("<code>aa:bb:cc:dd:ee:99</code>") && r.contains("10.50.0.7") && r.contains("Bugün 2 MB") && !r.contains("5,5"), "{r}");
+        assert!(r.contains("<b>İzinli cihaz · Kasa</b>") && r.contains("<span class=\"rozet"), "ad ve durum: {r}");
+        assert!(!r.contains("Telefon / Kimlik") && !r.contains("Bağlantıyı kes"), "bağlantı kes ve telefon yok: {r}");
         let r = satir_of(&s, "aa:bb:cc:dd:ee:98");
-        assert!(r.contains("<td>İzinli cihaz</td>") && r.contains("10.50.0.8") && r.contains("<td>—</td>"), "notsuz, ölçümsüz: {r}");
+        assert!(r.contains("<b>İzinli cihaz</b>") && r.contains("10.50.0.8") && r.contains("Bugün —</small>"), "notsuz, ölçümsüz: {r}");
         assert!(satir_of(&s, "Ayşe").contains("Bağlantıyı kes"));
     }
 
@@ -2702,12 +2726,12 @@ mod tests {
             trafikli(&e, &ayse, &olcum, yas);
             let s = e.p.handle(&req("GET", "/cihazlar", &[], Some(&tok))).body;
             let r = satir_of(&s, "Ayşe");
-            assert_eq!(r.matches("<td>—</td>").count(), 2, "{yas:?}: {r}"); // bugün MB + son görülme yok
+            assert!(r.contains("Son görülme — · Bugün —</small>"), "{yas:?}: {r}"); // bugün MB + son görülme yok
             assert!(!r.contains("4.820") && s.contains("Ölçüm alınamıyor") && !s.contains("sn önce"), "{yas:?}");
         }
         trafikli(&e, &ayse, &olcum, Some(5.0));
         let s = e.p.handle(&req("GET", "/cihazlar", &[], Some(&tok))).body;
-        assert!(satir_of(&s, "Ayşe").contains("<td>4.820</td>") && s.contains("Ölçüm 5 sn önce") && !s.contains("Ölçüm alınamıyor"));
+        assert!(satir_of(&s, "Ayşe").contains("Bugün 4.820 MB") && s.contains("Ölçüm 5 sn önce") && !s.contains("Ölçüm alınamıyor"));
     }
 
     #[test]
@@ -2719,7 +2743,7 @@ mod tests {
         for yol in ["/cihazlar", "/oturumlar"] {
             let s = e.p.handle(&req("GET", yol, &[], Some(&tok))).body;
             let yer: Vec<usize> = [
-                "<div class=\"kullanici-tablo\">",
+                "<ul class=\"kisiler\">",
                 "<span class=\"not\">Sırala:</span>",
                 "Ölçüm 5 sn önce",
                 "Bağlantısı kesilen cihaz internete çıkamaz",
@@ -4128,7 +4152,10 @@ mod tests {
         let r = satir_of(&s, "Ayşe");
         assert!(r.contains("<span class=\"rozet sinirli\">≤ 5 Mb/sn</span>"), "{r}");
         assert!(r.contains("action=\"/oturumlar/yavaslatma-kaldir\"") && r.contains("name=\"donus\" value=\"oturumlar\"") && r.contains(">Yavaşlatmayı kaldır</button>"), "{r}");
-        assert!(!r.contains("<details") && !r.contains(">Yavaşlat</summary>"), "{r}");
+        assert!(!r.contains("<details class=\"yavas\">") && !r.contains(">Yavaşlat</summary>"), "{r}");
+        // rozet kartın kapalı satırında, kaldır düğmesi açılınca
+        let (ozet, ic) = r.split_once("</summary>").unwrap();
+        assert!(ozet.contains("≤ 5 Mb/sn") && ic.contains(">Yavaşlatmayı kaldır</button>") && !ic.contains("rozet sinirli"), "{r}");
 
         // kaldır (satırdan): oturumlara döner
         let k = e.p.handle(&req("POST", "/oturumlar/yavaslatma-kaldir", &[("csrf", &csrf), ("mac", AYSE), ("donus", "oturumlar")], Some(&tok)));

@@ -1477,8 +1477,9 @@ Uyarılar, Bugün yeni üyeler), bağlı kullanıcılar (liste bölmesi) en altt
   uyarılar < bağlı kullanıcılar < yeni üyeler, `order` değerlerinden), Özet testinde iki kutunun sınıfı; cihazda panel testleri
   (`panel::`) 98/98. Telefon (390 px) ve masaüstü (1440 px) görüntüsü `.superpowers/onizleme/ozet-sira/` (0.4.26'nın dökülmüş Özet
   sayfasına yeni CSS ile).
-- **Kurulum:** kullanıcı onaylarsa PR #44 birleşir → `v0.4.27` etiketi → Sürümler → kanal hedefleri 0.4.27 → "Şimdi güncelle". 0.4.26
-  cihazlara kurulmadıysa doğrudan 0.4.27 kurulur (0.4.25 ve 0.4.26'yı da içerir).
+- **Kurulum:** kullanıcı (2026-10-30): "birleştir ve yayınla". PR #44 birleşti, `v0.4.27` etiketlendi; cihazlara Sürümler →
+  "GitHub'dan yeni sürümleri al" → kanal hedefleri 0.4.27 → müşteri sayfasında "Şimdi güncelle" (kullanıcı basar). 0.4.27, kurulmamış
+  0.4.25 ve 0.4.26'yı da içerir.
 
 ## Yönetim sol menü ve AP joker DNS kaydı (2026-10-24)
 Dal `yonetim-menu`; yalnızca merkez (cihazda değişiklik yok).

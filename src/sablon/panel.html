@@ -324,8 +324,18 @@ main{height:auto}
 .ikili{display:flex;flex-direction:column;height:auto}
 .liste-bolme,.ayrinti-bolme{overflow:visible;border:0}
 .ayrinti-bolme{min-height:calc(100vh - 56px - 68px)}
-.ozet .ayrinti-bolme{order:-1;min-height:0}
+/* özet tek sütun: bölmeler açılır (display:contents), sıra Bugün başlığı, mesajlar, sayılar, uyarılar, bağlı kullanıcılar,
+   en altta bugün yeni üyeler; bütün kartlar desenli zeminde */
+.ikili.ozet{min-height:calc(100vh - 56px - 68px);padding-bottom:4px;background:var(--duvar) var(--desen) repeat}
+.ozet .ayrinti-bolme,.ozet .bolum-govde{display:contents}
+.ozet .liste-bolme{order:4;background:none}
 .ozet .liste-bolme > .bolme-ust{display:none}
+.ozet .pano{order:3;margin:12px 10px}
+.ozet .ozet-uyari{order:3}
+.ozet .kutu{margin:0 10px 12px}
+.ozet .sohbetler{border-radius:8px;box-shadow:var(--golge)}
+.ozet .sohbetler > h2{padding:14px 18px 8px}
+.ozet .ozet-yeni{order:5}
 .bolumlu:has(.ayrinti-bolme :target) .liste-bolme{display:none}
 .bolumlu .liste-bolme{min-height:calc(100vh - 56px - 68px)}
 .bolumlu:not(:has(.ayrinti-bolme :target)) .sohbet:first-child{background:none}
@@ -335,7 +345,6 @@ main{height:auto}
 .bolum-baslik{top:56px;padding-left:12px}
 .bolme.tek > .bolme-ust{position:sticky;top:56px;z-index:2;padding:10px 16px}
 .bolum-govde,.icerik-kart{margin:12px 10px 24px;padding:16px}
-.ozet .bolum-govde{margin:12px 10px 8px;padding:0}
 .mesaj{margin:12px 10px 0}
 .tablo{margin-left:-16px;margin-right:-16px}
 th:first-child,td:first-child{padding-left:16px}

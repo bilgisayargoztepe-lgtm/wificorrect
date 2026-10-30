@@ -52,6 +52,10 @@ kararlı kanal; numarası yönetimde; aşağıda "Visavis").
 
 ## Dallar ve durum (2026-10-30)
 Repo `bilgisayargoztepe-lgtm/wificorrect` (avsharbeyi'den devredildi). Her şey **`main`**'de (PR #3–#43 birleşti; #2 kapatıldı).
+**Dal `ozet-mobil-sira` (PR #44, sürüm 0.4.27; birleştirme ve `v0.4.27` etiketi kullanıcı onaylarsa):** telefonda Özet'te bağlı
+kullanıcılar Bugün yeni üyelerin üstünde (kullanıcı 2026-10-30: "mobilde özette bağlı kullanıcılar bugün yeni kullanıcıların üstünde
+olsun"; yalnızca CSS + bir sınıf, masaüstü aynı). Birleşirse cihazlara 0.4.26 yerine doğrudan 0.4.27 kurulur. Ayrıntı KURULUM_GUNLUGU
+"Özet telefonda: bağlı kullanıcılar yeni üyelerin üstünde".
 **v0.4.26** etiketlendi (2026-10-30, PR #43'ün birleştirmesi; kullanıcı: "birleştir ve yayınla"): cihaz paneli WhatsApp Web düzeni,
 kırmızı vurgu, bağlı kullanıcılar açılır kartlarda (aşağıda `panel-tasarim`); **cihazlara henüz kurulmadı** (iki cihaz 0.4.23; 0.4.26
 kurulmamış 0.4.25'i de içerir).

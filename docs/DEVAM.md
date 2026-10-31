@@ -51,16 +51,24 @@ Canlı müşteriler: **Göztepe Bilgisayar = 1537344** (cihaz 192.168.1.110, tes
 kararlı kanal; numarası yönetimde; aşağıda "Visavis").
 
 ## Dallar ve durum (2026-10-30)
-Repo `bilgisayargoztepe-lgtm/wificorrect` (avsharbeyi'den devredildi). Her şey **`main`**'de (PR #3–#44 birleşti; #2 kapatıldı).
+Repo `bilgisayargoztepe-lgtm/wificorrect` (avsharbeyi'den devredildi). Her şey **`main`**'de (PR #3–#45 birleşti; #2 kapatıldı).
+**İki cihaz da 0.4.27** (uzaktan güncellemeyle; denetim kaydından): Göztepe 2026-10-30 22:07'de 0.4.26 (22:22 tamam), 22:48'de 0.4.27
+(22:58 tamam); Visavis 2026-10-31 03:03'te gece penceresinde 0.4.27 (kararlı kanal, 03:14 tamam). Saat doğrulamasının ilk kısmı iki cihazda
+tamam (2026-10-31: `ctl saat` → "doğrulandı (NTP)", bekleyen satır 0).
+**v0.4.28** etiketlendi (2026-10-31, PR #45'in birleştirmesi, dal `sade-raporlar`; kullanıcı: "birleştir ve yayınla"; cihazlara henüz
+kurulmadı): cihaz paneli → Ayarlar → Raporlar
+sadeleşti (kullanıcı 2026-10-31: "raporlar kısmı çok karmaşık ve anlaşılmaz … günlük, haftalık, aylık; toplam kullanılan veri, en çok
+süre bağlı kalanlar, en çok veri tüketenler olsun; sadeleştir"): Günlük / Haftalık / Aylık sekmeleri, dönem okları, toplam veri ve
+kullanıcı sayısı, en çok veri kullananlar ve en uzun bağlı kalanlar (ilk 10, ad + maskeli telefon). Veri cihazın kendi kayıtlarından
+(`src/rapor.rs`; merkez raporları değişmedi), bağlı kalma için kaydedici yeni günlük kayıt tutar; her bakış `PANEL_RAPOR`. Aynı sürümde
+misafir kodu tür Otel/Pansiyon ya da Yurt'a geçince kendiliğinden açılır. Ayrıntı KURULUM_GUNLUGU "Sade raporlar: günlük, haftalık, aylık".
 **v0.4.27** etiketlendi (2026-10-30, PR #44'ün birleştirmesi, dal `ozet-mobil-sira`; kullanıcı: "birleştir ve yayınla"): telefonda
 Özet'te bağlı kullanıcılar Bugün yeni üyelerin üstünde (kullanıcı 2026-10-30: "mobilde özette bağlı kullanıcılar bugün yeni
-kullanıcıların üstünde olsun"; yalnızca CSS + bir sınıf, masaüstü aynı); **cihazlara henüz kurulmadı** (iki cihaz 0.4.23; 0.4.27
-kurulmamış 0.4.25 ve 0.4.26'yı da içerir). Ayrıntı KURULUM_GUNLUGU "Özet telefonda: bağlı kullanıcılar yeni üyelerin üstünde".
+kullanıcıların üstünde olsun"; yalnızca CSS + bir sınıf, masaüstü aynı); iki cihazda da kurulu (yukarıda). Ayrıntı KURULUM_GUNLUGU "Özet telefonda: bağlı kullanıcılar yeni üyelerin üstünde".
 **v0.4.26** etiketlendi (2026-10-30, PR #43'ün birleştirmesi; kullanıcı: "birleştir ve yayınla"): cihaz paneli WhatsApp Web düzeni,
-kırmızı vurgu, bağlı kullanıcılar açılır kartlarda (aşağıda `panel-tasarim`); **cihazlara henüz kurulmadı** (iki cihaz 0.4.23; 0.4.26
-kurulmamış 0.4.25'i de içerir).
+kırmızı vurgu, bağlı kullanıcılar açılır kartlarda (aşağıda `panel-tasarim`); Göztepe'ye 2026-10-30 22:07'de kuruldu, sonra 0.4.27.
 **v0.4.25** etiketlendi (2026-10-29 00:33, `0a76837` = PR #41'in birleştirmesi, #42 içinde; release 00:52'de bitti, 18 dk): Kullanıcılar'da
-tablo üstte + saat doğrulanmadan 5651 kaydı yazılmaz (aşağıda); **cihazlara henüz kurulmadı** (iki cihaz 0.4.23).
+tablo üstte + saat doğrulanmadan 5651 kaydı yazılmaz (aşağıda); cihazlara 0.4.26/0.4.27 ile geldi.
 **v0.4.23** etiketlendi (2026-10-26 18:46, `0944e74` = PR #38'in birleştirmesi; release 19:04'te bitti, 18 dk; tarihler gün.ay.yıl;
 ISO + .deb, `release.yml`; `WFC_SSH_PUB` = `~/.ssh/bocafe.pub`): cihaz paneli → Özet → sayılar kutusunda "Bugün kullanılan veri"
 (kullanıcı 2026-10-26: "günlük harcanan GB da özette yazsın"; bütün cihazların bugünkü indirme + yükleme toplamı, GB). Ayrıntı
@@ -294,7 +302,7 @@ taksit, otomatik yenileme) · 9 **merkezi Rust'a taşıma** (2026-10-13 kararı;
 ~4.300 satır Python + 3.600 satır test, 9 işe bölünür: veritabanı, güvenlik, web tabanı, cihaz API, yönetim, müşteri paneli,
 arka plan işleri, kurulum/yan yana geçiş, uçtan uca + Python'u kaldırma; aynı SQLite şeması ve parola biçimi korunur). Zaman damgası: kontör alınınca. İki aşamalı giriş istenmedi.
 Ertelenmiş küçük bulgular: `.superpowers/sdd/*/progress.md` (yalnızca bu makinede).
-Bekleyen kullanıcı işleri: Göztepe'de PPPoE düzeltmelerinin (0.4.20/0.4.21) ONT canlı kabulü (KURULUM_GUNLUGU "PPPoE düzeltmeleri"), `v0.4.27`'nin iki cihaza kurulması (0.4.25 ve 0.4.26'yı da içerir; Sürümler → "GitHub'dan yeni sürümleri al", Test ve Kararlı hedefi 0.4.27, iki müşteri sayfasında "Şimdi güncelle") ve saat doğrulamasının canlı kabulü (KURULUM_GUNLUGU "Saat doğrulanmadan kayıt" sonu), ilk PPPoE'li müşteride canlı kabul (yanında yedek modemle; liste KURULUM_GUNLUGU
+Bekleyen kullanıcı işleri: Göztepe'de PPPoE düzeltmelerinin (0.4.20/0.4.21) ONT canlı kabulü (KURULUM_GUNLUGU "PPPoE düzeltmeleri"), `v0.4.28`'in iki cihaza kurulması (Sürümler → "GitHub'dan yeni sürümleri al", Test ve Kararlı hedefi 0.4.28, iki müşteri sayfasında "Şimdi güncelle"), saat doğrulamasının canlı kabulünün kalanı (ilk karar iki cihazda "doğrulandı (NTP)"; sıradaki yeniden başlatmada "doğrulandı (RTC)" görülmeli; KURULUM_GUNLUGU "Saat doğrulanmadan kayıt" sonu), ilk PPPoE'li müşteride canlı kabul (yanında yedek modemle; liste KURULUM_GUNLUGU
 "PPPoE" sonunda; gerçek SMS yalnızca açık onayla); iki J1900'de BIOS → "Restore on AC Power Loss = Power On" (monitör + klavyeyle; sonra fiş çekip
 kendiliğinden açıldığını dene) ve yeni kutulara sahte ekran fişi; Göztepe'nin TP-Link'inin yönetim
 parolasını AP yönetim parolasına çevirmek (2026-10-16'ya kadarki kural panel parolasıydı); aydınlatma metni (misafir kodu

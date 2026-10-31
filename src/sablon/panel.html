@@ -283,16 +283,44 @@ code{font:12.5px var(--es)}
 .yalin input{max-width:none}
 .yalin form button{width:100%;min-height:42px;margin-top:14px}
 
-/* raporlar (Ayarlar → Raporlar): çubuk grafik, durum renkleri, yazdırma */
-.rapor td{white-space:normal}
-.rapor td:first-child{white-space:nowrap}
-.rapor td.cubuk{width:100%}
-.rapor td.cubuk span{display:block;height:8px;background:var(--vurgu);border-radius:4px;min-width:2px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-.rapor td.n{text-align:right;font-weight:600}
-.rapor .iyi{color:var(--iyi-yazi);font-weight:600}.rapor .kotu{color:var(--tehlike);font-weight:600}.rapor .uyarisi{color:var(--dikkat);font-weight:600}.rapor .bos{color:var(--soluk)}
-.rapor h3{font-size:14.5px;margin:20px 0 6px}
+/* raporlar (Ayarlar → Raporlar): sekmeler, dönem okları, iki sayı ve iki sıralama kartı (desenli zeminde) */
+.rapor{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin:18px 24px 0}
+.rapor > .rapor-ust,.rapor > .rapor-not{grid-column:1/-1}
+.rapor .kutu{margin:0}
+.rapor-ust{padding:14px 18px 18px}
+.sekmeler{display:flex;width:max-content;max-width:100%;gap:2px;margin:0 auto;padding:3px;background:var(--panel);border-radius:999px}
+.sekmeler a{padding:6px 18px;border-radius:999px;color:var(--murekkep2);font-size:14px;font-weight:500;text-decoration:none}
+.sekmeler a:hover{color:var(--murekkep)}
+.sekmeler a.secili{background:var(--zemin);color:var(--vurgu-koyu);box-shadow:0 1px 2px rgba(11,20,26,.14)}
+.donem{display:flex;align-items:center;gap:6px;margin:14px 0 0}
+.donem-ad{flex:1;min-width:0;text-align:center}
+.donem-ad h2{margin:0;color:var(--murekkep);font-size:19px;font-weight:500}
+.donem-ad small{display:block;color:var(--soluk);font-size:13px}
+.donem .ok{display:grid;place-items:center;flex:none;width:38px;height:38px;border-radius:50%;color:var(--simge)}
+.donem a.ok:hover{background:var(--hover)}
+.donem .ok svg.simge{width:22px;height:22px}
+.donem .ok.bos{visibility:hidden}
+.rapor-sayilar{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));margin:16px 0 0;padding-top:14px;border-top:1px solid var(--cizgi)}
+.rapor-sayilar div{min-width:0;text-align:center}
+.rapor-sayilar div + div{border-left:1px solid var(--cizgi)}
+.rapor-sayilar dt{color:var(--soluk);font-size:13.5px}
+.rapor-sayilar dd{margin:6px 0 0;font-size:30px;font-weight:300;line-height:1.1;font-variant-numeric:tabular-nums;white-space:nowrap}
+.siralama{list-style:none;margin:0;padding:2px 0 8px}
+.siralama li{display:flex;align-items:center;gap:12px;padding:9px 18px}
+.siralama li + li{border-top:1px solid var(--cizgi)}
+.sira-no{display:grid;place-items:center;flex:none;width:28px;height:28px;border-radius:50%;background:var(--panel);color:var(--murekkep2);font-size:13px;font-weight:600}
+.siralama li:nth-child(-n+3) .sira-no{background:var(--vurgu-acik);color:var(--vurgu-koyu)}
+.sira-metin{flex:1;min-width:0}
+.sira-ust{display:flex;align-items:baseline;gap:10px}
+.sira-ust b{flex:1;min-width:0;overflow:hidden;font-weight:500;white-space:nowrap;text-overflow:ellipsis}
+.sira-deger{flex:none;font-weight:500;font-variant-numeric:tabular-nums}
+.sira-metin small{display:block;color:var(--soluk);font-size:12.5px;font-variant-numeric:tabular-nums}
+.cubuk{display:block;height:4px;margin-top:6px;background:var(--panel);border-radius:2px;overflow:hidden}
+.cubuk span{display:block;height:100%;background:var(--vurgu);border-radius:2px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.rapor-not{margin:0 2px;font-size:12.5px}
 @media print{@page{size:A4;margin:12mm}
-.ust-mobil,.ust-acik,.yan,.yazdirma,.geri{display:none !important}
+.ust-mobil,.ust-acik,.yan,.yazdirma,.geri,.sekmeler,.donem .ok{display:none !important}
+.rapor{display:block;margin:0}
 body{background:#fff;font-size:12px;padding:0}
 .kabuk,main,.bolme.tek,.ikili{display:block;height:auto}
 .bolme-govde,.ayrinti-bolme,.liste-bolme{overflow:visible;padding:0;background:none !important}
@@ -336,6 +364,10 @@ main{height:auto}
 .ozet .sohbetler{border-radius:8px;box-shadow:var(--golge)}
 .ozet .sohbetler > h2{padding:14px 18px 8px}
 .ozet .ozet-yeni{order:5}
+.rapor{grid-template-columns:minmax(0,1fr);gap:12px;margin:12px 10px 0}
+.rapor-ust{padding:12px 12px 16px}
+.siralama li{padding:9px 14px}
+.rapor-sayilar dd{font-size:26px}
 .bolumlu:has(.ayrinti-bolme :target) .liste-bolme{display:none}
 .bolumlu .liste-bolme{min-height:calc(100vh - 56px - 68px)}
 .bolumlu:not(:has(.ayrinti-bolme :target)) .sohbet:first-child{background:none}

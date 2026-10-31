@@ -166,10 +166,16 @@ pub fn gun_kapat(cfg: &Config, day: Option<&str>, now: f64, force: bool) -> Vec<
         None => days(root).into_iter().filter(|d| *d < today && !Path::new(root).join("gunluk").join(d).join("MANIFEST.sha256").exists()).collect(),
     };
     list.iter()
-        .map(|d| close_day(cfg, d, now, force).unwrap_or_else(|e| {
-            audit(cfg, "GUN_KAPAT_HATA", now, &format!("gun={d} hata={e}"));
-            format!("{d}: HATA {e}")
-        }))
+        .map(|d| match close_day(cfg, d, now, force) {
+            Ok(s) => {
+                crate::rapor::onbellege_al(cfg, d); // mühürlendiyse raporun gün özeti şimdi (ertelenen güne dokunmaz)
+                s
+            }
+            Err(e) => {
+                audit(cfg, "GUN_KAPAT_HATA", now, &format!("gun={d} hata={e}"));
+                format!("{d}: HATA {e}")
+            }
+        })
         .collect()
 }
 
@@ -267,6 +273,8 @@ pub fn prune(cfg: &Config, now: f64, dry: bool) -> Vec<String> {
                 }
             }
         }
+        // raporun kayıtlardan türettiği veri (bağlı kalma, gün özetleri) kayıtlardan uzun tutulmaz
+        crate::rapor::temizle(&cfg.main.state_root, &cutoff);
         for a in &actions {
             audit(cfg, if a.starts_with("YEDEKSİZ") { "YEDEKSIZ_GUN" } else { "SAKLAMA_SILME" }, now, a);
         }

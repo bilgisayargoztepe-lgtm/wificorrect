@@ -1393,6 +1393,10 @@ SERVIS_BASLADI portal/kaydedici, 22:38:22 MERKEZ_BEKLIYOR). Gün 2026-10-16 18:1
   reboot` → açılışta `ctl saat` "doğrulanmadı" (systemd saati son kayıtlı zamana getirdi), NTP sonrası "doğrulandı (NTP)", denetimde
   `SAAT_DOGRULANDI fark=+…sn`, `/srv/5651/gunluk`'ta 2014 ya da 2026-04 günü yok, `/srv/5651/bekleyen` boş. Yeni ISO ile ilk gerçek
   kurulumda seri/ekran günlüğünde `RTC YAZILDI`.
+- **Canlı (2026-10-31): ilk karar tamam.** Göztepe 0.4.26 (2026-10-30 22:07) ve 0.4.27 (22:48), Visavis 0.4.27 (2026-10-31 03:03, gece
+  penceresi) uzaktan güncellemeyle kuruldu; iki cihazda da `ctl saat` → "Saat: doğrulandı (NTP)", bekleyen satır 0 (saat karar anında
+  zaten eşitlenmişti, bekletilen satır olmadığı için SAAT_DOGRULANDI yazılmadı). Kalan: sıradaki yeniden başlatmada "doğrulandı (RTC)";
+  isteğe bağlı RTC'yi 2014'e çekme denemesi ve yeni ISO'da `RTC YAZILDI`.
 
 ## Cihaz paneli yeni tasarım: WhatsApp Web düzeni (2026-10-29/30, 0.4.26)
 Dal `panel-tasarim` (PR #43); yalnızca cihaz paneli (görünüm), merkezde değişiklik yok. Kullanıcı (2026-10-29): "cihaz panelini daha
@@ -1482,7 +1486,7 @@ Uyarılar, Bugün yeni üyeler), bağlı kullanıcılar (liste bölmesi) en altt
   0.4.25 ve 0.4.26'yı da içerir.
 
 ## Sade raporlar: günlük, haftalık, aylık (2026-10-31, 0.4.28)
-Dal `sade-raporlar`; yalnızca cihaz, merkezde değişiklik yok. Kullanıcı: "raporlar kısmı çok karmaşık ve anlaşılmaz durumda. daha
+Dal `sade-raporlar` (PR #45); yalnızca cihaz, merkezde değişiklik yok. Kullanıcı: "raporlar kısmı çok karmaşık ve anlaşılmaz durumda. daha
 kullanıcı dostu arayüz yap. günlük rapor haftalık rapor ve aylık rapor. toplam kullanılan veri, en çok süre bağlı kalanlar, en çok veri
 tüketenler olsun. sadeleştir görünümü". Eski Raporlar (0.4.10'dan beri: merkezin haftalık/aylık raporu — 5651 kayıt durumu, misafir
 sayıları, saat/gün çubukları, cihaz sorunları — `/api/raporlar`, `/api/rapor`) cihaz panelinden kalktı; merkezdeki raporlar
@@ -1526,8 +1530,9 @@ sayıları, saat/gün çubukları, cihaz sorunları — `/api/raporlar`, `/api/r
   (sayılar, sıralama, maske, izinli cihaz yalnız toplamda, sekmeler ve oklar, denetim, haftalık/aylık toplam, önbellek dosyası, eski
   adres), misafir kodu testleri yeni kuralla; cihazda `bash scripts/test.sh wificorrect` → 485/485 (aynı turda işlenmeyen geçici önizleme testiyle 486/486). Önizleme: geçici bir test (işlenmedi)
   Eylül ayı örnek verisiyle sayfaları döktü; masaüstü (1440 px) ve telefon (390 px) görüntüleri `.superpowers/onizleme/rapor/`.
-- **Kurulum**: kullanıcı onaylarsa PR birleşir → `v0.4.28` → Sürümler → "Şimdi güncelle". Bağlı kalma kaydı güncellemeden sonra
-  başlar; önceki günlerin süreleri tahmindir.
+- **Kurulum**: kullanıcı (2026-10-31): "birleştir ve yayınla". PR #45 birleşti, `v0.4.28` etiketlendi; cihazlara Sürümler → kanal
+  hedefleri 0.4.28 → müşteri sayfasında "Şimdi güncelle" (kullanıcı basar). Bağlı kalma kaydı güncellemeden sonra başlar; önceki günlerin
+  süreleri tahmindir.
 
 ## Yönetim sol menü ve AP joker DNS kaydı (2026-10-24)
 Dal `yonetim-menu`; yalnızca merkez (cihazda değişiklik yok).

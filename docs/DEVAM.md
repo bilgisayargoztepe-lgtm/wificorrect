@@ -52,6 +52,12 @@ kararlı kanal; numarası yönetimde; aşağıda "Visavis").
 
 ## Dallar ve durum (2026-10-30)
 Repo `bilgisayargoztepe-lgtm/wificorrect` (avsharbeyi'den devredildi). Her şey **`main`**'de (PR #3–#44 birleşti; #2 kapatıldı).
+**Dal `sade-raporlar` (sürüm 0.4.28; birleştirme ve `v0.4.28` etiketi kullanıcı onaylarsa):** cihaz paneli → Ayarlar → Raporlar
+sadeleşti (kullanıcı 2026-10-31: "raporlar kısmı çok karmaşık ve anlaşılmaz … günlük, haftalık, aylık; toplam kullanılan veri, en çok
+süre bağlı kalanlar, en çok veri tüketenler olsun; sadeleştir"): Günlük / Haftalık / Aylık sekmeleri, dönem okları, toplam veri ve
+kullanıcı sayısı, en çok veri kullananlar ve en uzun bağlı kalanlar (ilk 10, ad + maskeli telefon). Veri cihazın kendi kayıtlarından
+(`src/rapor.rs`; merkez raporları değişmedi), bağlı kalma için kaydedici yeni günlük kayıt tutar; her bakış `PANEL_RAPOR`. Aynı sürümde
+misafir kodu tür Otel/Pansiyon ya da Yurt'a geçince kendiliğinden açılır. Ayrıntı KURULUM_GUNLUGU "Sade raporlar: günlük, haftalık, aylık".
 **v0.4.27** etiketlendi (2026-10-30, PR #44'ün birleştirmesi, dal `ozet-mobil-sira`; kullanıcı: "birleştir ve yayınla"): telefonda
 Özet'te bağlı kullanıcılar Bugün yeni üyelerin üstünde (kullanıcı 2026-10-30: "mobilde özette bağlı kullanıcılar bugün yeni
 kullanıcıların üstünde olsun"; yalnızca CSS + bir sınıf, masaüstü aynı); **cihazlara henüz kurulmadı** (iki cihaz 0.4.23; 0.4.27

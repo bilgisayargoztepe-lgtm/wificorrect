@@ -225,16 +225,15 @@ fn veri_metni(b: u64) -> String {
     format!("{} MB", s.replace('.', ","))
 }
 
+/// Toplam süre saat ve dakikayla (aylıkta da gün yok: "2 gün 16 sa" kesintisiz bağlı kalmış gibi okunuyordu)
 fn sure_metni(sn: u64) -> String {
     let dk = sn / 60;
     if dk == 0 {
         "1 dk'dan az".into()
     } else if dk < 60 {
         format!("{dk} dk")
-    } else if dk < 1440 {
-        format!("{} sa {} dk", dk / 60, dk % 60)
     } else {
-        format!("{} gün {} sa", dk / 1440, dk % 1440 / 60)
+        format!("{} sa {} dk", dk / 60, dk % 60)
     }
 }
 
@@ -419,7 +418,7 @@ mod tests {
         assert_eq!(sure_metni(30), "1 dk'dan az");
         assert_eq!(sure_metni(45 * 60), "45 dk");
         assert_eq!(sure_metni(200 * 60), "3 sa 20 dk");
-        assert_eq!(sure_metni(3000 * 60), "2 gün 2 sa");
+        assert_eq!(sure_metni(3850 * 60), "64 sa 10 dk");
         assert_eq!(maskeli("905334553132"), "+90 5XX XXX XX 32");
         assert_eq!(maskeli("TC:12345678901"), "123******01");
     }

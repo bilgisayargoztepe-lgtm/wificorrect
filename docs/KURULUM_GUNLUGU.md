@@ -1481,6 +1481,54 @@ Uyarılar, Bugün yeni üyeler), bağlı kullanıcılar (liste bölmesi) en altt
   "GitHub'dan yeni sürümleri al" → kanal hedefleri 0.4.27 → müşteri sayfasında "Şimdi güncelle" (kullanıcı basar). 0.4.27, kurulmamış
   0.4.25 ve 0.4.26'yı da içerir.
 
+## Sade raporlar: günlük, haftalık, aylık (2026-10-31, 0.4.28)
+Dal `sade-raporlar`; yalnızca cihaz, merkezde değişiklik yok. Kullanıcı: "raporlar kısmı çok karmaşık ve anlaşılmaz durumda. daha
+kullanıcı dostu arayüz yap. günlük rapor haftalık rapor ve aylık rapor. toplam kullanılan veri, en çok süre bağlı kalanlar, en çok veri
+tüketenler olsun. sadeleştir görünümü". Eski Raporlar (0.4.10'dan beri: merkezin haftalık/aylık raporu — 5651 kayıt durumu, misafir
+sayıları, saat/gün çubukları, cihaz sorunları — `/api/raporlar`, `/api/rapor`) cihaz panelinden kalktı; merkezdeki raporlar
+(panel.wificorrect.com → Raporlar, yönetimde müşteri sayfası → Raporlar) ve API uçları aynen duruyor.
+- **Sayfa** (cihaz paneli → Ayarlar → Raporlar, `/raporlar`; sahip ve hizmet sağlayıcı): üstte Günlük / Haftalık / Aylık sekmeleri
+  (`?gun=YYYY-MM-DD`, `?hafta=YYYY-MM-DD` = o günün pazartesi–pazar haftası, `?ay=YYYY-MM`; sorgusuz bugün), dönem başlığı ve okları
+  (önceki/sonraki gün, hafta, ay; ilk kayıt gününden öncesine ve geleceğe ok yok; gelecek dönem istenirse bugünün dönemi), iki sayı
+  (**Toplam kullanılan veri**, **Kullanıcı** = dönemde ağı kullanan farklı kişi) ve iki kart: **En çok veri kullananlar**, **En uzun
+  bağlı kalanlar** (ilk 10; ad soyad kişi listesinden, altında maskeli telefon/kimlik, değer ve birinciye göre çubuk; veri 3 anlamlı
+  basamakla GB/MB, süre saat ve dakikayla: aylık toplamda da gün yazılmaz, "2 gün 16 sa" kesintisiz bağlı kalmış gibi okunuyordu). Sekme
+  değişince seçili dönemin bugüne kadarki son günü korunur (ör. bir günden haftalığa geçince o günün haftası). Bozuk sorgu 404;
+  0.4.27'ye kadarki `/rapor/<tür>/<dönem>` adresleri `/raporlar`'a yönlenir. Kartlar desenli zeminde (yeni `Duzen::Serbest`: başlık
+  çubuklu, beyaz kartsız tek panel); masaüstünde iki sıralama yan yana, telefonda alt alta. JS yok.
+- **Veri** (`src/rapor.rs`): 5651 `trafik.csv`'de kapanan bağlantıların (`BAGLANTI_BITIS`) gönderilen + alınan baytları, kişi
+  anahtarı `telefon` sütunu (telefon ya da `TC:…`/`PASAPORT:…`); kişisiz satır (izinli cihaz) `mac:<MAC>`: toplam veriye girer,
+  sıralamalara girmez. Özetteki "Bugün kullanılan veri" (kaydedicinin nft sayaçları) ile aynı trafik: Göztepe 2026-10-31 17:38'de
+  kayıttan 2,1828 GB, sayaçtan 2,1835 GB (%0,03). Açık bağlantı kapanınca eklenir.
+- **Bağlı kalma**: kaydedici 30 sn'lik bakım turunda, özetteki "N dk" ile aynı cihazların (oturumu süren ve köprüde görülen)
+  sahiplerine son turdan beri geçen süreyi ekler (`/srv/hotspot/state/varlik_gun/<gün>.json`; kişi başına bir kez: iki cihazı aynı
+  anda bağlı olan kişide süre iki kez sayılmaz; saat sıçrarsa en çok 90 sn; saat bu açılışta doğrulanmadıysa yazılmaz). Bu kayıt
+  0.4.28'den önceki günlerde yok, güncelleme günü eksik: 5651 kaydındaki etkinlikten (yeni bağlantı ve DNS sorgusu; 30 dk'dan kısa
+  aralar tek ziyaret, ziyaret = ilk olaydan son olaya + 1 dk) de tahmin edilir, ikisinden büyüğü alınır. Ölçüm (Göztepe, 2026-10-31):
+  etkinlik tahmini etkin kullanımda kayda yakın (15:40–17:38 / 15:40–17:39), boşta duran telefonda eksik (son etkinlik 16:30, ağda
+  17:39'a kadar): kayıt bu yüzden tutuluyor.
+- **Önbellek**: mühürlü günün özeti bir kez hesaplanıp `/srv/hotspot/state/rapor_ozet/<gün>.json`'a yazılır (gün-kapat mühürledikten
+  hemen sonra da yazar; biçim sürümlü); açık gün (bugün, mühürlenmemiş dün) her istekte hesaplanır, panel 60 sn bellekte tutar.
+  Temizlik (`ctl temizle`) saklama süresini aşan günlerin bu iki dosyasını siler (yedek beklemez: kayıtlardan türetilmiş veri), fabrika
+  dönüşü ikisini de siler.
+- **Gizlilik**: kişi adı gösterdiği için her bakış denetime `PANEL_RAPOR` (ek: `gun=…`, `hafta=…`, `ay=…`) olarak yazılır ve panel
+  hareketlerinde kişisel veri sayılır ("Raporlara baktı"); telefon/kimlik maskeli. Gerekçe istenmez (Özet gibi).
+- **Misafir kodu** (aynı sürüm; kullanıcı 2026-10-31: "göztepe bilgisayarı kafe restorandan otele pansiyona geçirince kod verme sayfası
+  gelmedi", önerilen değişikliğe "tamam"): tür Otel/Pansiyon ya da Yurt'a geçince (önceki türde misafir kodu kutusu yokken) misafir
+  kodu ile giriş kendiliğinden açılır: menüde Misafir kodları, giriş sayfasında "Otel misafiriyim"; kayıt mesajı bunu söyler, denetimde
+  `PANEL_AYAR giris.misafir_kodu: 0 → 1`. Ayarlar → İşletme → Giriş yöntemleri'nden kapatılabilir; otel ↔ yurt geçişinde kendiliğinden
+  değişmez. Spec 2026-10-11'deki "varsayılan kapalı" böyle değişti. Göztepe'de tür 15:51'de otel yapılmıştı (kutu kapalı): güncellemeden
+  sonra kendiliğinden açılmaz, kutu elle işaretlenir.
+- **Testler**: `rapor::tests` (bayt kapanan bağlantılardan, iki cihaz bir kişi, izinli cihaz MAC'le; süre kayıt/tahmin büyüğü; 30 dk
+  tahmin arası; mühürlü gün önbellekten, açık gün her seferinde, eski biçim yeniden hesaplanır; temizlik ve fabrika),
+  `kaydedici::tests::rapor_icin_bagli_kalma_kisi_basina_kaydedilir` (iki cihaz aynı anda süre bir kez, saat sıçraması en çok 90 sn,
+  geri gitmede eklenmez), `rapor_sayfalari::tests` (takvim, dönem çözümü ve başlıklar, biçimler), `panel::tests::raporlar_gunluk_haftalik_aylik_siralamalar`
+  (sayılar, sıralama, maske, izinli cihaz yalnız toplamda, sekmeler ve oklar, denetim, haftalık/aylık toplam, önbellek dosyası, eski
+  adres), misafir kodu testleri yeni kuralla; cihazda `bash scripts/test.sh wificorrect` → 485/485 (aynı turda işlenmeyen geçici önizleme testiyle 486/486). Önizleme: geçici bir test (işlenmedi)
+  Eylül ayı örnek verisiyle sayfaları döktü; masaüstü (1440 px) ve telefon (390 px) görüntüleri `.superpowers/onizleme/rapor/`.
+- **Kurulum**: kullanıcı onaylarsa PR birleşir → `v0.4.28` → Sürümler → "Şimdi güncelle". Bağlı kalma kaydı güncellemeden sonra
+  başlar; önceki günlerin süreleri tahmindir.
+
 ## Yönetim sol menü ve AP joker DNS kaydı (2026-10-24)
 Dal `yonetim-menu`; yalnızca merkez (cihazda değişiklik yok).
 - **Menü** (kullanıcı kararı): yonetim.wificorrect.com'da üst şerit yerine sol menü, gruplu: **Müşteriler** (Müşteri listesi `/`,

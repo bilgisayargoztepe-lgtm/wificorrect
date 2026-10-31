@@ -25,6 +25,7 @@ mod ortak;
 mod panel;
 mod portal;
 mod pppoe;
+mod rapor;
 mod saat;
 mod saglik;
 mod sms;

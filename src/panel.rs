@@ -469,10 +469,8 @@ pub struct Panel {
     pub http: Box<crate::merkez::Http>,
     /// İlk bağlanma tek seferde (iki eşzamanlı giriş iki ayrı cihaz anahtarı almasın)
     baglan_kilit: std::sync::Mutex<()>,
-    /// Raporlar için merkez istemcisi (kısa süreli; testte sahte)
-    pub rapor_http: Box<crate::merkez::Http>,
-    /// Merkezden alınan rapor cevapları: anahtar → (geçerlilik sonu, cevap)
-    rapor_onbellek: std::sync::Mutex<HashMap<String, (f64, rapor_sayfalari::Sonuc)>>,
+    /// Raporlar: açık günlerin (bugün, mühürlenmemiş dün) özeti, gün → (hesaplandığı an, özet); mühürlü günler diskte (src/rapor.rs)
+    rapor_onbellek: std::sync::Mutex<HashMap<String, (f64, crate::rapor::GunOzeti)>>,
     /// AP kurulumu yan oda durum dosyası (testte geçici)
     ap_yollar: crate::ap::Yollar,
     /// Canlı komut çıktısı (komşu tablosu, aracı birimi durumu, DHCP denetimi; testte sahte)
@@ -580,6 +578,8 @@ enum Duzen<'a> {
     Tek(&'a str),
     /// solda liste paneli (başlığı kendinde), sağda ayrıntı paneli; `sinif` dış kutuya eklenir (ör. "bolumlu", "ozet")
     Ikili { liste: &'a str, ayrinti: &'a str, sinif: &'a str },
+    /// başlık çubuklu tek panel, beyaz kart yok: sayfa kendi kartlarını desenli zemine dizer (Raporlar)
+    Serbest(&'a str),
 }
 
 /// İşletme adının baş harfleri (şeritteki avatar): ilk iki sözcüğün ilk harfleri, Türkçe büyük harfle ("Bocafe Göztepe" → "BG")
@@ -719,7 +719,6 @@ impl Panel {
             trafik_path: crate::trafik::DURUM_YOLU.into(),
             http: Box::new(crate::merkez::curl),
             baglan_kilit: std::sync::Mutex::new(()),
-            rapor_http: Box::new(|yol: &str, govde: &str| crate::merkez::curl_sure(yol, govde, rapor_sayfalari::MERKEZ_SURE)),
             rapor_onbellek: std::sync::Mutex::new(HashMap::new()),
             ap_yollar: crate::ap::Yollar::sistem(),
             ip_oku: Box::new(|c: &[&str]| ortak::capture(c)),
@@ -747,7 +746,7 @@ impl Panel {
     fn cerceve(&self, cfg: &Config, req: &Req, o: Option<&Oturum>, title: &str, duzen: Duzen, bas: &str) -> Resp {
         if PARCA.with(std::cell::Cell::get) {
             let body = match duzen {
-                Duzen::Tek(b) => b.to_string(),
+                Duzen::Tek(b) | Duzen::Serbest(b) => b.to_string(),
                 Duzen::Ikili { liste, ayrinti, .. } => format!("{liste}{ayrinti}"),
             };
             return Resp { status: 200, body, headers: vec![], file: None };
@@ -833,6 +832,10 @@ impl Panel {
             Duzen::Ikili { liste, ayrinti, sinif } => {
                 format!("<div class=\"ikili {sinif}\"><div class=\"liste-bolme\">{liste}</div><div class=\"ayrinti-bolme\">{mesaj}{ayrinti}</div></div>")
             }
+            Duzen::Serbest(body) => format!(
+                "<div class=\"bolme tek\"><header class=\"bolme-ust\"><h1>{}</h1></header><div class=\"bolme-govde\">{mesaj}{body}</div></div>",
+                h(title)
+            ),
         };
         v.insert("icerik_html", icerik);
         Resp { status: 200, body: substitute(TPL, &v), headers: vec![("Content-Type".into(), "text/html; charset=utf-8".into())], file: None }
@@ -884,7 +887,7 @@ impl Panel {
         };
         let mut satirlar: String = bolumler.iter().map(|(_, _, id, baslik, _)| satir(&format!("#{id}"), bolum_simgesi(id), baslik, bolum_aciklamasi(id))).collect();
         if req.path == "/ayarlar" {
-            satirlar.push_str(&satir("/raporlar", SIMGE_RAPOR, "Raporlar", "Haftalık ve aylık raporlar"));
+            satirlar.push_str(&satir("/raporlar", SIMGE_RAPOR, "Raporlar", "Günlük, haftalık ve aylık raporlar"));
             satirlar.push_str(&satir(ADMIN_YOLU, SIMGE_KILIT, "Admin", "Hizmet sağlayıcının ayarları"));
         }
         let baslik = if req.path == ADMIN_YOLU { "Admin" } else { MENU.iter().find(|(p, _)| *p == req.path).map_or("", |(_, l)| l) };
@@ -1151,7 +1154,7 @@ impl Panel {
             (_, p) if p == "/misafir-kodlari" || p.starts_with("/misafir-kodlari/") => self.misafir_kodlari(&cfg, req, &o, now),
             ("GET", "/sifre") => self.sifre(&cfg, req, &o, ""),
             ("GET", "/raporlar") => self.raporlar(&cfg, req, &o, now),
-            ("GET", p) if p.starts_with("/rapor/") => self.rapor(&cfg, req, &o, now),
+            ("GET", p) if p.starts_with("/rapor/") => redirect("/raporlar", None), // 0.4.27'ye kadarki (merkez) rapor adresleri
             ("POST", "/sifre") => self.sifre_post(&cfg, req, &o),
             _ => text(404, "Sayfa bulunamadı"),
         }
@@ -1820,6 +1823,7 @@ impl Panel {
         if changes.is_empty() {
             return redirect(back, Some(("Değişiklik yok.", false)));
         }
+        let eski_tur = crate::ayar::isletme_turu(&cfg).to_string();
         for (k, _, new) in &changes {
             set_field(&mut cfg, k, new);
         }
@@ -1832,6 +1836,14 @@ impl Panel {
                 None => changes.push(("giris.misafir_kodu", b(true), b(false))),
             }
             changes.retain(|(_, old, new)| old != new);
+        }
+        // tür otel/yurt'a geçince misafir kodu kendiliğinden açılır (kullanıcı 2026-10-31: "otele pansiyona geçirince kod verme
+        // sayfası gelmedi"): kutu bu kayıtta sayfada yoktu; Giriş yöntemleri'nden kapatılabilir
+        let mk = crate::ayar::GirisYontemi::MisafirKodu;
+        let kod_acildi = !cfg.giris.misafir_kodu && mk.gorunur(&tur) && !mk.gorunur(&eski_tur);
+        if kod_acildi {
+            cfg.giris.misafir_kodu = true;
+            changes.push(("giris.misafir_kodu", b(false), b(true)));
         }
         if cfg.uzak.enabled {
             if let Some(e) = crate::uzak::eksik(&cfg) {
@@ -1856,7 +1868,13 @@ impl Panel {
             (self.runner)(&cmd(&["systemd-run", "--unit", &unit, "--on-active", "1s", "/usr/local/bin/wificorrect", "ctl", "uzak-uygula"]));
         }
         let ok = (self.runner)(&cmd(&["systemctl", "restart", "wificorrect-portal"]));
-        redirect(back, Some(if ok { ("Ayarlar kaydedildi. Giriş sayfası yeniden başlatıldı.", false) } else { ("Ayarlar kaydedildi ama giriş sayfası yeniden başlatılamadı!", true) }))
+        let kod = if kod_acildi { " Misafir kodu ile giriş açıldı: menüde Misafir kodları (Giriş yöntemleri'nden kapatılabilir)." } else { "" };
+        let (m, hata) = if ok {
+            (format!("Ayarlar kaydedildi.{kod} Giriş sayfası yeniden başlatıldı."), false)
+        } else {
+            (format!("Ayarlar kaydedildi ama giriş sayfası yeniden başlatılamadı!{kod}"), true)
+        };
+        redirect(back, Some((&m, hata)))
     }
 
     // --- sistem
@@ -2232,7 +2250,6 @@ mod tests {
         p.merkez_path = root.join("merkez.json");
         p.trafik_path = root.join("trafik.json");
         p.http = merkez_yok();
-        p.rapor_http = merkez_yok();
         p.sys = root.join("sys"); // testler gerçek arayüzlere bakmasın; "wfc" = tünel arayüzü var
         std::fs::create_dir_all(p.sys.join("wfc")).unwrap();
         // AP kurulumu: durum dosyası geçici klasörde, `ip` çıktısı sahte (testler gerçek ip çalıştırmaz)
@@ -3232,8 +3249,15 @@ mod tests {
         assert_eq!((c.main.isletme_turu.as_deref(), c.giris.misafir_kodu), (Some("kafe"), false));
         let ayar = denetim_satirlari(&e, "PANEL_AYAR");
         assert!(ayar.last().is_some_and(|l| l.contains("giris.misafir_kodu: 1 → 0")), "{ayar:?}");
-        // yeniden otel: kod kendiliğinden açılmaz
-        e.p.handle(&req("POST", "/ayarlar", &[("csrf", &csrf), ("main.isletme_turu", "otel")], Some(&tok)));
+        // yeniden otel: misafir kodu kendiliğinden açılır (2026-10-31; kutu o kayıtta sayfada yoktu), mesajda söylenir
+        let r = e.p.handle(&req("POST", "/ayarlar", &[("csrf", &csrf), ("main.isletme_turu", "otel")], Some(&tok)));
+        assert!(crate::ayar::misafir_kodu_acik(&Config::load(&e.p.cfg_path).unwrap()));
+        assert!(r.headers[0].1.contains(&pct("Misafir kodu ile giriş açıldı")), "{:?}", r.headers);
+        let ayar = denetim_satirlari(&e, "PANEL_AYAR");
+        assert!(ayar.last().is_some_and(|l| l.contains("giris.misafir_kodu: 0 → 1")), "{ayar:?}");
+        assert!(e.p.handle(&req("GET", "/", &[], Some(&tok))).body.contains("href=\"/misafir-kodlari\""), "menüde Misafir kodları");
+        // otel → yurt: kutu iki türde de görünür, kendiliğinden açılmaz (işaretsiz gönderilen kutu kapatır)
+        e.p.handle(&req("POST", "/ayarlar", &[("csrf", &csrf), ("main.isletme_turu", "yurt")], Some(&tok)));
         assert!(!crate::ayar::misafir_kodu_acik(&Config::load(&e.p.cfg_path).unwrap()));
     }
 
@@ -4907,92 +4931,75 @@ mod tests {
         assert!(audit.contains("dosya=kullanicilar/100******46.csv") && !audit.contains("10000000146"), "{audit}");
     }
 
-    /// Sahte merkez (raporlar): çağrı sayısı ve gövde denetimi; dönem 2026-09 var, başkası 404.
-    fn rapor_merkezi(e: &mut Env, durum: u16) -> Arc<AtomicUsize> {
-        let n = Arc::new(AtomicUsize::new(0));
-        let n2 = n.clone();
-        e.p.rapor_http = Box::new(move |yol: &str, govde: &str| {
-            n2.fetch_add(1, Ordering::SeqCst);
-            let v: serde_json::Value = serde_json::from_str(govde).unwrap();
-            assert_eq!(v["cihaz_anahtari"], "k");
-            if durum != 200 {
-                return Ok((durum, "{\"hata\":\"x\",\"kod\":\"yetki\"}".into()));
-            }
-            let liste = serde_json::json!({"raporlar": [
-                {"tur": "hafta", "donem": "2026-W40", "baslangic": "2026-09-28", "bitis": "2026-10-04", "kesin": false, "farkli": 3, "kayit_gun": 1, "kayit_tam": 1},
-                {"tur": "ay", "donem": "2026-09", "baslangic": "2026-09-01", "bitis": "2026-09-30", "kesin": false, "farkli": 4, "kayit_gun": 20, "kayit_tam": 16}],
-                "bugun": "2026-09-29"});
-            let rapor = serde_json::json!({"rapor": {"bicim": 2, "tur": "ay", "donem": "2026-09", "baslangic": "2026-09-01", "bitis": "2026-09-30",
-                "uretim": "2026-09-29T12:31:00+03:00", "kesin": false, "misafir": {"farkli": 4}, "saat": [], "hafta_gunu": [],
-                "gunler": [{"gun": "2026-09-01", "durum": "tam", "neden": "", "farkli": 2}], "kayit": {"gun": 20, "tam": 16},
-                "kullanim": {"gonderilen": 0, "alinan": 0, "sms": 3}, "surum": "0.4.10", "surum_sonra_degisti": false},
-                "isletme": {"numara": MUSTERI, "ad": "Bocafe <i>", "unvan": ""},
-                "cihaz": {"surum": "0.4.10", "cevrimdisi_sn": 0, "sorunlar": []}, "bugun": "2026-09-29"});
-            match (yol, v["donem"].as_str()) {
-                ("/api/raporlar", _) => Ok((200, liste.to_string())),
-                ("/api/rapor", Some("2026-09")) => Ok((200, rapor.to_string())),
-                ("/api/rapor", _) => Ok((404, "{\"hata\":\"yok\",\"kod\":\"yok\"}".into())),
-                _ => Err("?".into()),
-            }
-        });
-        n
-    }
-
     #[test]
-    fn raporlar_ayarlarda_merkezden_onbellekli_denetimsiz() {
-        let mut e = env();
-        let (tok, _) = setup_and_login(&e, "mudur", "sahip-parola-12");
-        let n = rapor_merkezi(&mut e, 200);
-        let ay = e.p.handle(&req("GET", "/ayarlar", &[], Some(&tok))).body;
-        let kutular = ay.split("aria-label=\"Bu sayfadaki bölümler\">").nth(1).unwrap().split("</nav>").next().unwrap().to_string();
-        assert!(kutular.contains("href=\"/raporlar\"") && kutular.ends_with("<b>Admin</b><small>Hizmet sağlayıcının ayarları</small></span></a>"), "{kutular}");
-        let denetim = e.root.join("5651/gunluk/2026-09-29/denetim.csv");
-        let once = std::fs::read_to_string(&denetim).unwrap_or_default();
-        let l = e.p.handle(&req("GET", "/raporlar", &[], Some(&tok)));
-        assert_eq!(l.status, 200);
-        assert!(l.body.contains("<a href=\"/rapor/ay/2026-09\">Eylül 2026</a> <b class=\"uyarisi\">sürüyor</b>"), "{}", l.body);
-        assert!(l.body.contains("href=\"/ayarlar\" class=\"aktif\""), "menüde Ayarlar seçili");
-        e.p.handle(&req("GET", "/raporlar", &[], Some(&tok)));
-        assert_eq!(n.load(Ordering::SeqCst), 1, "liste önbellekten");
-        let r = e.p.handle(&req("GET", "/rapor/ay/2026-09", &[], Some(&tok)));
-        assert_eq!(r.status, 200);
-        assert!(r.body.contains("Aylık rapor · Eylül 2026") && r.body.contains("Bocafe &lt;i&gt;") && r.body.contains("20 günün 16'sı tam"));
-        assert!(r.body.contains("href=\"/ayarlar\" class=\"aktif\""));
-        e.p.handle(&req("GET", "/rapor/ay/2026-09", &[], Some(&tok)));
-        assert_eq!(n.load(Ordering::SeqCst), 2, "rapor önbellekten");
-        let r = e.p.handle(&req("GET", "/rapor/ay/2026-08", &[], Some(&tok)));
-        assert!(r.status == 404 && r.body.contains("Bu dönem için rapor yok."));
-        for yol in ["/rapor/ay/..%2Fx", "/rapor/ay/2026-13", "/rapor/hafta/2026-w40", "/rapor/yil/2026", "/rapor/ay/2026-09/x"] {
-            let r = e.p.handle(&req("GET", yol, &[], Some(&tok)));
-            assert_eq!(r.status, 404, "{yol}");
-        }
-        assert_eq!(n.load(Ordering::SeqCst), 3, "geçersiz dönem merkeze sorulmaz");
-        assert_eq!(std::fs::read_to_string(&denetim).unwrap_or_default(), once, "görüntüleme denetime yazılmaz");
-    }
-
-    #[test]
-    fn raporlar_alinamiyor_ve_lisans_kapali() {
-        // merkeze ulaşılamıyor (varsayılan sahte merkez); bir kez sorulur, kısa süre önbellekte
+    fn raporlar_gunluk_haftalik_aylik_siralamalar() {
+        // kullanıcı 2026-10-31: sade rapor; veri cihazın kendi kayıtlarından (src/rapor.rs), merkeze sorulmaz
         let e = env();
         let (tok, _) = setup_and_login(&e, "mudur", "sahip-parola-12");
-        let r = e.p.handle(&req("GET", "/raporlar", &[], Some(&tok)));
-        assert!(r.status == 200 && r.body.contains("Raporlar şu an alınamıyor"), "{}", r.body);
-        assert!(e.p.handle(&req("GET", "/rapor/hafta/2026-W40", &[], Some(&tok))).body.contains("Raporlar şu an alınamıyor"));
-        // merkez 403 (üyelik/lisans kapalı); admin kilidi açıkken de aynı sayfa
-        let mut e = env();
-        let (tok, _) = setup_and_login(&e, "admin", "hizmet-parola-1");
-        rapor_merkezi(&mut e, 403);
-        assert!(e.p.handle(&req("GET", "/raporlar", &[], Some(&tok))).body.contains("lisans kapalı"));
-        // yerelde lisans askıda: merkeze hiç sorulmaz
-        let mut e = env();
-        let (tok, _) = setup_and_login(&e, "mudur", "sahip-parola-12");
-        let n = rapor_merkezi(&mut e, 200);
-        let mut m = crate::merkez::oku(&e.p.merkez_path).unwrap();
-        m.lisans = "askida".into();
-        crate::merkez::kaydet(&e.p.merkez_path, &m).unwrap();
-        assert!(e.p.handle(&req("GET", "/raporlar", &[], Some(&tok))).body.contains("lisans kapalı"));
-        assert!(e.p.handle(&req("GET", "/rapor/ay/2026-09", &[], Some(&tok))).body.contains("lisans kapalı"));
-        assert_eq!(n.load(Ordering::SeqCst), 0);
+        let cfg = Config::load(&e.p.cfg_path).unwrap();
+        let (lr, st) = (cfg.main.log_root.clone(), cfg.main.state_root.clone());
+        let satir = |zaman: &str, olay: &str, tel: &str, mac: &str, bayt: u64| {
+            format!("{zaman};{olay};{tel};;;{mac};10.50.0.23;tcp;50000;1.2.3.4;443;192.168.1.110;50000;;{bayt};0;5;s;\n")
+        };
+        let yaz = |gun: &str, satirlar: &[String]| {
+            let p = ortak::day_file(&lr, gun, "trafik.csv");
+            std::fs::create_dir_all(p.parent().unwrap()).unwrap();
+            std::fs::write(p, satirlar.concat()).unwrap();
+        };
+        // dün (mühürlü): Mehmet 4 GB. Bugün: Ayşe 4,12 GB ve 2 saat ağda, Mehmet 850 MB, izinli cihaz 1 GB (toplama girer, sıralamaya girmez)
+        yaz("2026-09-28", &[satir("2026-09-28T12:00:00+03:00", "BAGLANTI_BITIS", "905324441202", "m2", 4_000_000_000)]);
+        std::fs::write(ortak::day_file(&lr, "2026-09-28", "MANIFEST.sha256"), "# gun\n").unwrap();
+        yaz("2026-09-29", &[
+            satir("2026-09-29T10:00:00+03:00", "BAGLANTI_BITIS", "905551112233", "m1", 4_120_000_000),
+            satir("2026-09-29T10:01:00+03:00", "BAGLANTI_BITIS", "905324441202", "m2", 850_400_000),
+            satir("2026-09-29T10:02:00+03:00", "BAGLANTI_BITIS", "", "aa:bb:cc:dd:ee:99", 1_000_000_000),
+            satir("2026-09-29T10:03:00+03:00", "BAGLANTI_BASLA", "905324441202", "m2", 0),
+        ]);
+        crate::rapor::varlik_ekle(&st, "2026-09-29", &BTreeSet::from(["905551112233".to_string()]), 7200.0).unwrap();
+        ortak::upsert_index(&lr, "905551112233", "Ayşe", "Yılmaz", "2026-09-29T09:00:00+03:00").unwrap();
+        ortak::upsert_index(&lr, "905324441202", "Mehmet", "Kaya", "2026-08-14T10:00:00+03:00").unwrap();
+        let rapor = |q: &[(&str, &str)]| {
+            let mut r = req("GET", "/raporlar", &[], Some(&tok));
+            r.query = q.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect();
+            e.p.handle(&r)
+        };
+        let kutu = |s: &str, baslik: &str| s.split(&format!("<h2>{baslik}</h2>")).nth(1).unwrap().split("</section>").next().unwrap().to_string();
+        // günlük (bugün)
+        let r = rapor(&[]);
+        assert_eq!(r.status, 200);
+        let s = r.body;
+        assert!(s.contains("<h2>29 Eylül 2026</h2><small>Salı · bugün</small>"), "{s}");
+        assert!(s.contains("<dt>Toplam kullanılan veri</dt><dd>5,97 GB</dd>") && s.contains("<dt>Kullanıcı</dt><dd>2</dd>"), "{s}");
+        let veri = kutu(&s, "En çok veri kullananlar");
+        assert!(veri.find("<b>Ayşe Yılmaz</b>").unwrap() < veri.find("<b>Mehmet Kaya</b>").unwrap(), "{veri}");
+        assert!(veri.contains("4,12 GB") && veri.contains("850 MB") && veri.contains("+90 5XX XXX XX 33"), "{veri}");
+        assert!(!veri.contains("aa:bb:cc") && !veri.contains("905551112233"), "izinli cihaz ve açık telefon yok: {veri}");
+        let sure = kutu(&s, "En uzun bağlı kalanlar");
+        assert!(sure.contains("2 sa 0 dk") && sure.find("Ayşe").unwrap() < sure.find("Mehmet").unwrap(), "{sure}");
+        assert!(s.contains("class=\"secili\" aria-current=\"page\">Günlük</a>") && s.contains("href=\"/raporlar?hafta=2026-09-28\">Haftalık</a>"), "{s}");
+        assert!(s.contains("href=\"/raporlar?gun=2026-09-28\" title=\"Önceki gün\"") && s.contains("ok sag bos"), "dün var, yarın yok: {s}");
+        assert!(s.contains("href=\"/ayarlar\" class=\"aktif\""), "menüde Ayarlar seçili");
+        let d = denetim_satirlari(&e, "PANEL_RAPOR");
+        assert!(d.last().is_some_and(|l| l.contains("gun=2026-09-29")), "{d:?}");
+        // haftalık: iki günün toplamı, sıra değişir; mühürlü dünün özeti önbelleğe yazıldı
+        let s = rapor(&[("hafta", "2026-09-30")]).body;
+        assert!(s.contains("<h2>28 Eylül – 4 Ekim 2026</h2><small>bu hafta</small>") && s.contains("<dd>9,97 GB</dd>"), "{s}");
+        let veri = kutu(&s, "En çok veri kullananlar");
+        assert!(veri.find("Mehmet Kaya").unwrap() < veri.find("Ayşe Yılmaz").unwrap() && veri.contains("4,85 GB"), "{veri}");
+        assert!(s.contains("ok sol bos") && s.contains("ok sag bos"), "önce kayıt yok, sonrası gelecek: {s}");
+        assert!(std::path::Path::new(&st).join("rapor_ozet/2026-09-28.json").exists());
+        // aylık
+        let s = rapor(&[("ay", "2026-09")]).body;
+        assert!(s.contains("<h2>Eylül 2026</h2><small>bu ay</small>") && s.contains("<dd>9,97 GB</dd>"), "{s}");
+        // kayıt olmayan geçmiş gün; bozuk sorgu; 0.4.27'ye kadarki adres
+        let s = rapor(&[("gun", "2026-09-01")]).body;
+        assert!(kutu(&s, "En çok veri kullananlar").contains("Bu dönemde kayıt yok.") && s.contains("<dd>0</dd>"), "{s}");
+        assert_eq!(rapor(&[("gun", "2026-9-1")]).status, 404);
+        let r = e.p.handle(&req("GET", "/rapor/ay/2026-09", &[], Some(&tok)));
+        assert_eq!((r.status, r.headers[0].1.as_str()), (303, "/raporlar"));
+        // Ayarlar'daki satır
+        let ay = e.p.handle(&req("GET", "/ayarlar", &[], Some(&tok))).body;
+        assert!(ay.contains("href=\"/raporlar\"") && ay.contains("Günlük, haftalık ve aylık raporlar"));
     }
 
     #[test]

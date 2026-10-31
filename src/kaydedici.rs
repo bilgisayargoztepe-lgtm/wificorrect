@@ -211,6 +211,8 @@ pub struct Kaydedici {
     saat_bitti: bool,
     /// son döngüdeki duvar saati − monoton saat: değişirse saat sıçramıştır
     saat_farki: Option<f64>,
+    /// raporun bağlı kalma kaydı: son bakım turunun zamanı (geçen süre buradan)
+    varlik_son: Option<f64>,
 }
 
 impl Kaydedici {
@@ -252,7 +254,13 @@ impl Kaydedici {
             saat: crate::saat::ortam(),
             saat_bitti: false,
             saat_farki: None,
+            varlik_son: None,
         }
+    }
+
+    /// Saat bu açılışta doğrulandı mı (NTP ya da güvenilir RTC): doğrulanmadan günü belli olmayan rapor kaydı yazılmaz.
+    fn saat_dogru(&self) -> bool {
+        self.saat.as_ref().is_none_or(|y| crate::saat::durum_oku(y).is_some_and(|d| d.kaynak != crate::saat::BEKLIYOR))
     }
 
     /// Saat bu açılışta doğrulanınca (NTP) bekletilen 5651 satırları düzeltilip gün dosyalarına yazılır (src/saat.rs);
@@ -594,9 +602,19 @@ impl Kaydedici {
         drop(_g);
         // özetteki bağlı süresi: oturumu süren ve köprüde (son 5 dk trafik) görülen cihazlar
         let agda = std::fs::read(self.sys.join(&self.cfg.main.iface).join("brforward")).map(|b| ortak::kopruye_bagli(&b)).unwrap_or_default();
-        let gorulen = ses.iter().filter(|(mac, s)| !s.ip.is_empty() && s.expires_epoch > now && agda.contains(*mac)).map(|(mac, _)| mac.clone()).collect();
+        let gorulen: std::collections::BTreeSet<String> =
+            ses.iter().filter(|(mac, s)| !s.ip.is_empty() && s.expires_epoch > now && agda.contains(*mac)).map(|(mac, _)| mac.clone()).collect();
         if let Err(e) = ortak::varlik_guncelle(&state, &gorulen, now) {
             eprintln!("kaydedici: bağlı süresi yazılamadı: {e}");
+        }
+        // raporlar: aynı cihazların sahiplerine son turdan beri geçen süre (kişi başına bir kez; saat sıçrarsa en çok 90 sn)
+        let gecen = self.varlik_son.map_or(0.0, |t| (now - t).clamp(0.0, 90.0));
+        self.varlik_son = Some(now);
+        let kisiler = gorulen.iter().filter_map(|mac| ses.get(mac)).map(|s| s.phone.clone()).filter(|p| !p.is_empty()).collect();
+        if self.saat_dogru() {
+            if let Err(e) = crate::rapor::varlik_ekle(&state, ortak::day_of(&ortak::now_iso(now)), &kisiler, gecen) {
+                eprintln!("kaydedici: rapor bağlı kalma kaydı yazılamadı: {e}");
+            }
         }
         self.check_disk(now);
         self.check_wan(now);
@@ -1252,6 +1270,38 @@ mod tests {
         assert_eq!(n(&calls), 3);
         assert!(!calls.lock().unwrap().iter().any(|c| c.contains("ctl saglik"))); // bağlı değilken sağlık raporu yok
         let _ = root;
+    }
+
+    #[test]
+    fn rapor_icin_bagli_kalma_kisi_basina_kaydedilir() {
+        let (mut k, root, _) = setup();
+        let state = k.cfg.main.state_root.clone();
+        std::fs::create_dir_all(&state).unwrap();
+        // iki cihazı aynı anda ağda olan bir kişi; oturumu olup ağda görünmeyen başka biri
+        let mut ses = ortak::Sessions::new();
+        ses.insert(M1.into(), sess("905334553132", "10.50.0.23", 9e9, "s1"));
+        ses.insert(M2.into(), sess("905334553132", "10.50.0.24", 9e9, "s2"));
+        ses.insert("aa:bb:cc:dd:ee:03".into(), sess("905551112233", "10.50.0.25", 9e9, "s3"));
+        ortak::save_sessions(&state, &ses).unwrap();
+        let sys = root.join("sys");
+        std::fs::create_dir_all(sys.join(&k.cfg.main.iface)).unwrap();
+        let mut br = vec![];
+        for mac in [M1, M2] {
+            br.extend(mac.split(':').map(|p| u8::from_str_radix(p, 16).unwrap()));
+            br.extend([1, 0, 0x3d, 0x21, 0, 0, 0, 0, 0, 0]);
+        }
+        std::fs::write(sys.join(&k.cfg.main.iface).join("brforward"), &br).unwrap();
+        k.sys = sys;
+        k.leases.clear(); // IP taşıma bu testin konusu değil
+        let t0 = 1_790_705_134.0; // 2026-09-29 21:25 (TR)
+        k.maintain(t0); // ilk tur: önceki tur yok, süre eklenmez
+        k.maintain(t0 + 30.0);
+        k.maintain(t0 + 60.0);
+        k.maintain(t0 + 7_260.0); // saat sıçradı ya da tur gecikti: en çok 90 sn
+        k.maintain(t0 + 7_000.0); // saat geri gitti: süre eklenmez
+        let o = crate::rapor::gun_hesapla(&k.cfg.main.log_root, &state, "2026-09-29");
+        assert_eq!(o.get("905334553132").map(|x| x.sn), Some(150)); // iki cihaz aynı anda: süre bir kez
+        assert!(!o.contains_key("905551112233"));
     }
 
     #[test]

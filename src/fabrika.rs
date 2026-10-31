@@ -125,6 +125,7 @@ pub fn fabrika(
     for f in ["hiz_sinir.json", "trafik_gun.json", "misafir_kodlari.json", "kisi_sir"] {
         let _ = std::fs::remove_file(Path::new(&m.state_root).join(f));
     }
+    crate::rapor::hepsini_sil(&m.state_root); // raporların bağlı kalma kayıtları ve gün özetleri
     let _ = std::fs::remove_file(&y.hiz_uygulanan);
     // 3) yalnızca admin kalır
     if let Err(e) = Hesaplar::new(hesap_path).keep_only_admin() {

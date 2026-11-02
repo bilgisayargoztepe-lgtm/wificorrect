@@ -471,6 +471,28 @@ def test_hemen_bayragi_hedef_surume_bagli():
         assert rapor_yolla(api, k)[1]["guncelleme"]["hemen"] is False
 
 
+def test_en_son_hedefi_github_surumlerinin_en_yuksegi():
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        api, v, n, k, _ = _surumlu(tmp)  # depoda yalnızca elle eklenmiş (yerel) 0.3.9, 0.4.0, 0.4.1
+        v.kanal_hedef_koy("test", "en-son")
+        assert v.kanal_hedef("test") == "en-son" and v.en_son_surum() is None
+        assert "guncelleme" not in rapor_yolla(api, k)[1]  # GitHub sürümü yok: yerel deneme paketleri "en son" sayılmaz
+        v.surum_ekle("0.4.0", "cd" * 32, 9, "github")  # 0.4.0 artık GitHub'dan
+        assert v.en_son_surum() == "0.4.0" and v.kanal_surumu("test") == "0.4.0"
+        assert rapor_yolla(api, k)[1]["guncelleme"]["surum"] == "0.4.0"  # yerel 0.4.1 daha yüksek ama seçilmez
+        v.surum_ekle("0.10.0", "ef" * 32, 9, "github")
+        assert rapor_yolla(api, k)[1]["guncelleme"]["surum"] == "0.10.0"  # sayısal sıra (0.10.0 > 0.4.0)
+        # "şimdi güncelle" basıldığı andaki sürüm içindir: en son ilerlerse bayrak yeni sürüme geçmez, temizlenir
+        v.guncelleme_hemen_koy(n, 100, "0.10.0")
+        assert rapor_yolla(api, k)[1]["guncelleme"]["hemen"] is True
+        v.surum_ekle("0.11.0", "aa" * 32, 9, "github")
+        g = rapor_yolla(api, k)[1]["guncelleme"]
+        assert g["surum"] == "0.11.0" and g["hemen"] is False and v.musteri(n)["guncelleme_hemen"] == 0
+        # elle seçilen sürüm "en son"dan bağımsız kalır
+        v.kanal_hedef_koy("test", "0.4.1")
+        assert rapor_yolla(api, k)[1]["guncelleme"]["surum"] == "0.4.1" and v.kanal_surumu("test") == "0.4.1"
+
+
 def test_onceki_paketin_sha256_si():
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
         api, v, n, k, _ = _surumlu(tmp)

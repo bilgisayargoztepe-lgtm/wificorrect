@@ -78,6 +78,9 @@ YENI_SUTUNLAR = (("parola_acik", "TEXT NOT NULL DEFAULT ''"), ("lisans_bitis", "
 # (AP'lerin çoğu yalnızca harf/rakam kabul eder), 12 karakter (TP-Link 15 sınırının altında).
 AP_PAROLA_UZUNLUK = 12
 GUNCELLEME_KANALLARI = ("kararli", "test", "kapali")
+# Kanal hedefi "her zaman en son sürüm" (kullanıcı 2026-11-02: "hedef kararlı sürüm her zaman en son sürüm olsun"): GitHub'dan
+# alınmış en yüksek sürüm. Elle eklenen (yerel) deneme paketleri girmez: test için eklenen paket kararlı müşterilere gitmesin.
+EN_SON = "en-son"
 YENI_CIHAZ_SUTUNLARI = (("admin_parola", "TEXT NOT NULL DEFAULT ''"), ("admin_tuz", "TEXT NOT NULL DEFAULT ''"),
                         ("admin_ozet", "TEXT NOT NULL DEFAULT ''"), ("admin_yineleme", "INTEGER NOT NULL DEFAULT 0"),
                         ("isletme_turu", "TEXT NOT NULL DEFAULT ''"), ("adres", "TEXT NOT NULL DEFAULT ''"),
@@ -483,8 +486,18 @@ class Veri:
         return dict(r) if r else None
 
     def kanal_hedef(self, kanal):
+        """Kayıtlı seçim: sürüm, EN_SON ya da None (hedef yok)."""
         r = self._bir("SELECT deger FROM ayar WHERE anahtar = ?", "kanal_" + kanal)
         return r["deger"] if r else None
+
+    def en_son_surum(self):
+        """GitHub'dan alınmış en yüksek sürüm ya da None."""
+        return next((r["surum"] for r in self.surumler() if r["kaynak"] == "github"), None)
+
+    def kanal_surumu(self, kanal):
+        """Kanalın şu anki hedef sürümü (EN_SON çözülmüş) ya da None."""
+        hedef = self.kanal_hedef(kanal)
+        return self.en_son_surum() if hedef == EN_SON else hedef
 
     def kanal_hedef_koy(self, kanal, surum):
         if kanal not in GUNCELLEME_KANALLARI or kanal == "kapali":
@@ -516,7 +529,7 @@ class Veri:
         kanal = m["guncelleme_kanali"]
         if kanal == "kapali" or not self.hizmet_acik(m):
             return None
-        hedef = self.kanal_hedef(kanal)
+        hedef = self.kanal_surumu(kanal)
         k = self.surum(hedef) if hedef else None
         if k is None:
             return None

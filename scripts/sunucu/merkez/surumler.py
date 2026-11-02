@@ -1,10 +1,12 @@
 """Cihaz paketi (.deb) sürüm deposu: GitHub sürümlerinden doğrulayarak alır ya da elle eklenir.
-Dosyalar DIZIN/<sürüm>.deb; sürüm kaydı (sha256, boyut) veritabanındadır. CLI: surumler.py ekle DOSYA SURUM"""
+Dosyalar DIZIN/<sürüm>.deb; sürüm kaydı (sha256, boyut) veritabanındadır.
+CLI: surumler.py ekle DOSYA SURUM | surumler.py al (wc-surumler.timer, saatte bir)"""
 import hashlib
 import json
 import os
 import re
 import sys
+import tempfile
 import urllib.request
 
 DIZIN = "/var/lib/wificorrect/merkez/surumler"
@@ -44,11 +46,17 @@ def _sha_satiri(sums, ad):
 def _yaz(dizin, surum, icerik):
     os.makedirs(dizin, exist_ok=True)
     yol = paket_yolu(dizin, surum)
-    gecici = yol + ".tmp"
-    with open(gecici, "wb") as f:
-        f.write(icerik)
-    os.chmod(gecici, 0o644)
-    os.replace(gecici, yol)
+    # geçici ad her yazana özel: zamanlayıcı ile "GitHub'dan al" aynı sürümü aynı anda yazarsa biri öbürünün yarım dosyasını taşımasın
+    fd, gecici = tempfile.mkstemp(dir=dizin, prefix=surum + ".", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "wb") as f:
+            f.write(icerik)
+        os.chmod(gecici, 0o644)
+        os.replace(gecici, yol)
+    except BaseException:
+        if os.path.exists(gecici):
+            os.remove(gecici)
+        raise
 
 
 def github_al(veri, dizin, getir=getir):
@@ -93,9 +101,28 @@ def yerel_ekle(veri, dizin, dosya, surum):
     veri.surum_ekle(surum, hashlib.sha256(icerik).hexdigest(), len(icerik), "yerel")
 
 
+def otomatik_al(veri, dizin, getir=getir, gunluk=sys.stderr):
+    """Zamanlayıcının işi: GitHub'daki yeni sürümleri alır ("her zaman en son sürüm" kanalları bunlara geçer). Eklenenler
+    hareket satırına, hatalar yalnızca günlüğe: GitHub'a ulaşılamazken hareketler saatte bir satırla dolmasın. Dönen: çıkış kodu."""
+    try:
+        eklenen, hatalar = github_al(veri, dizin, getir)
+    except Exception as h:
+        print(f"GitHub sürüm listesi alınamadı: {h}", file=gunluk)
+        return 1
+    for s in eklenen:
+        veri.hareket("surumler", "-", "SURUM_ALINDI", None, f"surum={s} otomatik")
+    for h in hatalar:
+        print(f"alınamadı: {h}", file=gunluk)
+    return 0
+
+
 def main(argv):
+    if len(argv) == 2 and argv[1] == "al":
+        import veri as veri_modulu
+        from merkez import DB
+        return otomatik_al(veri_modulu.Veri(DB), DIZIN)
     if len(argv) != 4 or argv[1] != "ekle":
-        print("Kullanım: surumler.py ekle DOSYA SURUM", file=sys.stderr)
+        print("Kullanım: surumler.py ekle DOSYA SURUM | surumler.py al", file=sys.stderr)
         return 2
     import veri as veri_modulu
     from merkez import DB

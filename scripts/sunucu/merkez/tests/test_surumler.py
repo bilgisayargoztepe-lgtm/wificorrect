@@ -1,4 +1,5 @@
 import hashlib
+import io
 import json
 import os
 import re
@@ -58,7 +59,7 @@ def test_github_al_dogru_ekler_yanlisi_atlar_tekrar_indirmez():
         assert open(yol, "rb").read() == b"deb-0.4.0"
         if os.name != "nt":
             assert stat.S_IMODE(os.stat(yol).st_mode) == 0o644
-        assert not os.path.exists(S.paket_yolu(dizin, "0.4.1")) and not os.path.exists(yol + ".tmp")
+        assert not os.path.exists(S.paket_yolu(dizin, "0.4.1")) and not [a for a in os.listdir(dizin) if a.endswith(".tmp")]
         k = v.surum("0.4.0")
         assert k["sha256"] == sha(b"deb-0.4.0") and k["boyut"] == 9 and k["kaynak"] == "github"
         # ikinci çağrı: 0.4.0 yeniden indirilmez
@@ -111,6 +112,37 @@ def test_yerel_ekle_ve_siralama():
             assert False
         except ValueError:
             pass
+
+
+def test_otomatik_al_ekleneni_harekete_hatayi_gunluge_yazar():
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        v, _, _ = Y.ortam(tmp)
+        dizin = os.path.join(tmp, "surumler")
+        gunluk = io.StringIO()
+        assert S.otomatik_al(v, dizin, sahte(kur_dosyalar(sums_sha="0" * 64), []), gunluk) == 0
+        assert [s["surum"] for s in v.surumler()] == ["0.4.0"]
+        alinan = [h for h in v.hareketler() if h["olay"] == "SURUM_ALINDI"]
+        assert [(h["kim"], h["ayrinti"]) for h in alinan] == [("surumler", "surum=0.4.0 otomatik")]
+        assert "0.4.1" in gunluk.getvalue() and "SHA256 tutmuyor" in gunluk.getvalue()
+        assert not any("0.4.1" in h["ayrinti"] for h in v.hareketler())  # hata harekete yazılmaz
+
+        def ulasilamaz(url, sinir):
+            raise OSError("ag yok")
+        gunluk = io.StringIO()
+        assert S.otomatik_al(v, dizin, ulasilamaz, gunluk) == 1
+        assert "ag yok" in gunluk.getvalue() and len(v.hareketler()) == 1
+
+
+def test_kur_sh_ve_saatlik_zamanlayici():
+    kok = os.path.dirname(HERE)
+    kur = open(os.path.join(kok, "kur.sh"), encoding="utf-8").read()
+    assert re.search(r"install -m 644 [^\n]*\\\n[^\n]*\\\n[^\n]*wc-surumler\.service wc-surumler\.timer /etc/systemd/system/", kur)
+    assert re.search(r"systemctl enable -q --now [^\n]*wc-surumler\.timer", kur)
+    zam = open(os.path.join(kok, "wc-surumler.timer"), encoding="utf-8").read()
+    assert "OnCalendar=hourly" in zam and "Persistent=true" in zam
+    srv = open(os.path.join(kok, "wc-surumler.service"), encoding="utf-8").read()
+    assert "ExecStart=/usr/bin/python3 /usr/local/lib/wificorrect/surumler.py al" in srv
+    assert "User=wcpanel" in srv and "ProtectSystem=strict" in srv and "ReadWritePaths=/var/lib/wificorrect/merkez" in srv
 
 
 def test_kur_sh_yerel_modulleri_kuruyor():

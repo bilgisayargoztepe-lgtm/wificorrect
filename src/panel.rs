@@ -559,9 +559,10 @@ const KISI_AVATAR: &str = "<span class=\"avatar kisi\" aria-hidden=\"true\"><svg
 /// kapalıyken ad, son görülme, bugünkü MB ve durum rozetleri; ok ile açılınca bilgiler (telefon, MAC, IP) ve düğmeler. JS yok.
 /// `durum`, `bilgi` değerleri ve `eylem` güvenli HTML (çağıran kaçışlar); `ad`, `son`, `bugun` düz metin.
 fn kisi_ogesi(ad: &str, son: &str, bugun: &str, durum: &str, bilgi: &[(&str, String)], eylem: &str) -> String {
-    let bugun = if bugun == "—" { "—".to_string() } else { format!("{bugun} MB") };
+    // bugün veri kullanmamışsa (ölçüm yok ya da 0 MB) "Bugün" hiç yazılmaz (2026-11-02 kullanıcı: "bugün ---- yazmasın boş kalsın")
+    let bugun = if matches!(bugun, "—" | "0") { String::new() } else { format!(" · Bugün {bugun} MB") };
     format!(
-        "<li class=\"kisi\"><details><summary>{KISI_AVATAR}<span class=\"satir-metin\"><b>{}</b><small>Son görülme {} · Bugün {}</small></span>\
+        "<li class=\"kisi\"><details><summary>{KISI_AVATAR}<span class=\"satir-metin\"><b>{}</b><small>Son görülme {}{}</small></span>\
          <span class=\"kisi-durum\">{durum}</span><span class=\"ok\">{}</span></summary>\
          <div class=\"kisi-ic\">{}<div class=\"eylemler\">{eylem}</div></div></details></li>",
         h(ad),
@@ -2730,7 +2731,7 @@ mod tests {
         assert!(r.contains("<b>İzinli cihaz · Kasa</b>") && r.contains("<span class=\"rozet"), "ad ve durum: {r}");
         assert!(!r.contains("Telefon / Kimlik") && !r.contains("Bağlantıyı kes"), "bağlantı kes ve telefon yok: {r}");
         let r = satir_of(&s, "aa:bb:cc:dd:ee:98");
-        assert!(r.contains("<b>İzinli cihaz</b>") && r.contains("10.50.0.8") && r.contains("Bugün —</small>"), "notsuz, ölçümsüz: {r}");
+        assert!(r.contains("<b>İzinli cihaz</b>") && r.contains("10.50.0.8") && r.contains("Son görülme —</small>") && !r.contains("Bugün"), "notsuz, ölçümsüz: {r}");
         assert!(satir_of(&s, "Ayşe").contains("Bağlantıyı kes"));
     }
 
@@ -2744,12 +2745,18 @@ mod tests {
             trafikli(&e, &ayse, &olcum, yas);
             let s = e.p.handle(&req("GET", "/cihazlar", &[], Some(&tok))).body;
             let r = satir_of(&s, "Ayşe");
-            assert!(r.contains("Son görülme — · Bugün —</small>"), "{yas:?}: {r}"); // bugün MB + son görülme yok
+            // son görülme yok; bugün MB yok: "Bugün" hiç yazılmaz (2026-11-02 kullanıcı: "boş kalsın")
+            assert!(r.contains("Son görülme —</small>") && !r.contains("Bugün"), "{yas:?}: {r}");
             assert!(!r.contains("4.820") && s.contains("Ölçüm alınamıyor") && !s.contains("sn önce"), "{yas:?}");
         }
         trafikli(&e, &ayse, &olcum, Some(5.0));
         let s = e.p.handle(&req("GET", "/cihazlar", &[], Some(&tok))).body;
         assert!(satir_of(&s, "Ayşe").contains("Bugün 4.820 MB") && s.contains("Ölçüm 5 sn önce") && !s.contains("Ölçüm alınamıyor"));
+        // ölçüm var ama bugün 1 MB'a varmadı (0 MB): yine yazılmaz
+        trafikli(&e, &ayse, &[("aa:bb:cc:dd:ee:01", 0, 0, 300_000)], Some(5.0));
+        let s = e.p.handle(&req("GET", "/cihazlar", &[], Some(&tok))).body;
+        let r = satir_of(&s, "Ayşe");
+        assert!(r.contains("<small>Son görülme ") && !r.contains("Bugün"), "{r}");
     }
 
     #[test]

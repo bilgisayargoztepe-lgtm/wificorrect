@@ -440,17 +440,23 @@ class Yonetim(web.Taban):
         al = (f'<form method="post" action="/surumler/al"><input type="hidden" name="csrf" value="{cs}">'
               "<button>GitHub'dan yeni sürümleri al</button></form>")
         hedefler = ""
+        en_son = self.veri.en_son_surum()
         for kanal, ad in (("kararli", "Kararlı"), ("test", "Test")):
             secili = self.veri.kanal_hedef(kanal)
-            sec = '<option value="">Hedef yok</option>' + "".join(
-                f'<option value="{e(x["surum"])}"{" selected" if x["surum"] == secili else ""}>{e(x["surum"])}</option>' for x in liste)
+            sec = ('<option value="">Hedef yok</option>'
+                   f'<option value="{veri_modulu.EN_SON}"{" selected" if secili == veri_modulu.EN_SON else ""}>'
+                   f'Her zaman en son sürüm ({"şu an " + e(en_son) if en_son else "GitHub sürümü yok"})</option>' + "".join(
+                f'<option value="{e(x["surum"])}"{" selected" if x["surum"] == secili else ""}>{e(x["surum"])}</option>' for x in liste))
             hedefler += (f'<form method="post" action="/surumler/hedef" class="ara"><input type="hidden" name="csrf" value="{cs}">'
                          f'<input type="hidden" name="kanal" value="{kanal}"><label for="k-{kanal}">{ad} kanal hedefi</label>'
                          f'<select id="k-{kanal}" name="surum">{sec}</select><button>Kaydet</button></form>')
         return yanit_html(self.sayfa("Sürümler", kart("<h1>Sürümler</h1>" + al + tablo)
                                      + kart("<h2>Kanal hedefleri</h2>" + hedefler
                                             + '<p class="alt">Cihazlar kendi kanalının hedefini bir sonraki sağlık raporunda (5 dk) '
-                                              "öğrenir ve kurar; hedef yoksa o kanaldaki cihazlar güncellenmez.</p>"), ot, genis=True))
+                                              "öğrenir ve kurar; hedef yoksa o kanaldaki cihazlar güncellenmez. "
+                                              "<b>Her zaman en son sürüm</b>: GitHub'dan alınmış en yüksek sürüm; merkez GitHub'a "
+                                              "saatte bir bakıp yeni sürümü kendisi alır. Elle eklenen (yerel) paketler buna "
+                                              "girmez, onları kanalda ayrıca seçin.</p>"), ot, genis=True))
 
     def surum_al(self, ot, ip):
         try:
@@ -495,7 +501,8 @@ class Yonetim(web.Taban):
 
     def kanal_hedef(self, ot, form, ip):
         kanal, sv = form.get("kanal", ""), form.get("surum", "")
-        if kanal not in ("kararli", "test") or (sv and (not surumler.SURUM_RE.fullmatch(sv) or self.veri.surum(sv) is None)):
+        if kanal not in ("kararli", "test") or (sv and sv != veri_modulu.EN_SON
+                                                 and (not surumler.SURUM_RE.fullmatch(sv) or self.veri.surum(sv) is None)):
             return yanit_html(self.mesaj(ot, "Hedef kaydedilmedi", "Kanal ya da sürüm geçersiz (sürüm depoda olmalı)."), 400)
         self.veri.kanal_hedef_koy(kanal, sv or None)
         self.veri.hareket("admin", ip, "KANAL_HEDEF", None, f"kanal={kanal} surum={sv or '-'}")

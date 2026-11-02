@@ -25,7 +25,7 @@ ln -sf $L/yonetici.py /usr/local/sbin/wc-yonetici
 rm -f /usr/local/sbin/wc-hesap
 install -m 644 wc-merkez.service wc-kuyruk.path wc-kuyruk.service wc-durum.service wc-durum.timer \
   wc-istatistik.service wc-istatistik.timer wc-saglik.service wc-saglik.timer \
-  wc-listeler.service wc-listeler.timer /etc/systemd/system/
+  wc-listeler.service wc-listeler.timer wc-surumler.service wc-surumler.timer /etc/systemd/system/
 # geçersiz Caddyfile canlı siteleri düşürmesin: önce doğrula, canlı dosyaya dokunmadan dur
 caddy validate --adapter caddyfile --config Caddyfile >/dev/null 2>&1 || { echo "HATA: Caddyfile geçersiz, kurulum durdu (canlı Caddyfile değişmedi):" >&2; caddy validate --adapter caddyfile --config Caddyfile >&2 || true; exit 1; }
 [ -f /etc/caddy/Caddyfile ] && cp -n /etc/caddy/Caddyfile /etc/caddy/Caddyfile.eski
@@ -38,7 +38,7 @@ install -m 644 fail2ban-wc-merkez.conf /etc/fail2ban/jail.d/wc-merkez.local
 if systemctl list-unit-files wc-panel.service >/dev/null 2>&1; then systemctl disable -q --now wc-panel 2>/dev/null || true; rm -f /etc/systemd/system/wc-panel.service; fi
 [ -f /etc/wificorrect/hesaplar.json ] && mv -n /etc/wificorrect/hesaplar.json /etc/wificorrect/hesaplar.json.eski
 systemctl daemon-reload
-systemctl enable -q --now wc-kuyruk.path wc-durum.timer wc-istatistik.timer wc-saglik.timer wc-listeler.timer
+systemctl enable -q --now wc-kuyruk.path wc-durum.timer wc-istatistik.timer wc-saglik.timer wc-listeler.timer wc-surumler.timer
 # ilk kurulumda listeler hemen üretilsin (cihazlar beklemesin); arka planda, kurulumu bekletmez
 [ -s /var/lib/wificorrect/merkez/listeler/kumar.json ] || systemctl start --no-block wc-listeler.service
 systemctl enable -q wc-merkez

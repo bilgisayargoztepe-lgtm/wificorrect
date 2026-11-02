@@ -1395,8 +1395,9 @@ SERVIS_BASLADI portal/kaydedici, 22:38:22 MERKEZ_BEKLIYOR). Gün 2026-10-16 18:1
   kurulumda seri/ekran günlüğünde `RTC YAZILDI`.
 - **Canlı (2026-10-31): ilk karar tamam.** Göztepe 0.4.26 (2026-10-30 22:07) ve 0.4.27 (22:48), Visavis 0.4.27 (2026-10-31 03:03, gece
   penceresi) uzaktan güncellemeyle kuruldu; iki cihazda da `ctl saat` → "Saat: doğrulandı (NTP)", bekleyen satır 0 (saat karar anında
-  zaten eşitlenmişti, bekletilen satır olmadığı için SAAT_DOGRULANDI yazılmadı). Kalan: sıradaki yeniden başlatmada "doğrulandı (RTC)";
-  isteğe bağlı RTC'yi 2014'e çekme denemesi ve yeni ISO'da `RTC YAZILDI`.
+  zaten eşitlenmişti, bekletilen satır olmadığı için SAAT_DOGRULANDI yazılmadı).
+- **Canlı (2026-11-02): RTC kararı tamam.** Göztepe (0.4.28) elektrik kesintisinden (~09:12) sonra 11:59'da açıldı; `ctl saat` →
+  "Saat: doğrulandı (RTC)". Kalan (isteğe bağlı): RTC'yi 2014'e çekme denemesi ve yeni ISO'da `RTC YAZILDI`.
 
 ## Cihaz paneli yeni tasarım: WhatsApp Web düzeni (2026-10-29/30, 0.4.26)
 Dal `panel-tasarim` (PR #43); yalnızca cihaz paneli (görünüm), merkezde değişiklik yok. Kullanıcı (2026-10-29): "cihaz panelini daha
@@ -1532,7 +1533,42 @@ sayıları, saat/gün çubukları, cihaz sorunları — `/api/raporlar`, `/api/r
   Eylül ayı örnek verisiyle sayfaları döktü; masaüstü (1440 px) ve telefon (390 px) görüntüleri `.superpowers/onizleme/rapor/`.
 - **Kurulum**: kullanıcı (2026-10-31): "birleştir ve yayınla". PR #45 birleşti, `v0.4.28` etiketlendi; cihazlara Sürümler → kanal
   hedefleri 0.4.28 → müşteri sayfasında "Şimdi güncelle" (kullanıcı basar). Bağlı kalma kaydı güncellemeden sonra başlar; önceki günlerin
-  süreleri tahmindir.
+  süreleri tahmindir. **Canlı:** Göztepe 2026-10-31 19:13 (10 dk denetimi 19:29 tamam), Visavis 2026-11-01 03:04 gece penceresinde
+  (03:15 tamam). Göztepe'de tür otel ama misafir kodu kapalı: kutu elle işaretlenmeli.
+
+## Kanal hedefi: her zaman en son sürüm (2026-11-02)
+Dal `kararli-en-son`; yalnızca merkez, cihazda değişiklik yok. Kullanıcı: "hedef kararlı sürüm her zaman en son sürüm olsun". Önceden her
+sürümde Yönetim → Sürümler → "GitHub'dan yeni sürümleri al" → Kararlı ve Test hedefini elle seçmek gerekiyordu.
+- **Seçenek:** Sürümler → Kanal hedefleri'nde iki kanalın listesinde de "Hedef yok"tan sonra "Her zaman en son sürüm (şu an X)"
+  (`ayar.kanal_<kanal> = en-son`). Hedef her istekte çözülür (`veri.kanal_surumu`, `cihaz_hedefi`): GitHub'dan alınmış (`kaynak = github`)
+  en yüksek sürüm, sayısal sırayla. Elle eklenen (`surumler.py ekle`, kaynak `yerel`) deneme paketleri girmez: test için eklenen paket
+  kararlı müşterilere gitmesin, onu kanalda ayrıca seçmek gerekir. Elle seçilen sürüm eskisi gibi sabit kalır. Hareket `KANAL_HEDEF
+  kanal=… surum=en-son`.
+- **Otomatik alma:** `wc-surumler.timer` (saatte bir, `RandomizedDelaySec=5min`, `Persistent=true`, açılıştan 5 dk sonra da) →
+  `wc-surumler.service` (wcpanel, `ProtectSystem=strict`, yalnızca `/var/lib/wificorrect/merkez` yazılabilir) → `surumler.py al`: elle
+  "GitHub'dan yeni sürümleri al" ile aynı doğrulama (SHA256SUMS). Eklenen sürüm hareket `SURUM_ALINDI surum=… otomatik` (kim
+  `surumler`); hatalar (GitHub'a ulaşılamadı, sürümün dosyası eksik) yalnızca birim günlüğüne: GitHub'a ulaşılamazken hareketler saatte
+  bir satırla dolmasın. Release iş akışı GitHub sürümünü son adımda (testler ve ISO duman testi geçince) açtığı için merkez yalnızca
+  testten geçmiş sürümü alır.
+- **Sonuç:** "en son" seçili kanal, yeni sürüm yayınlandıktan en çok ~1 saat sonra ona geçer; cihazlar 03:00–06:00 penceresinde kurar
+  (ya da "Şimdi güncelle"). "Şimdi güncelle" basıldığı andaki sürüm içindir: o arada daha yeni sürüm gelirse istek düşer, cihaz yeni
+  sürümü pencerede kurar. Yalnızca Kararlı "en son", Test elle seçili kalırsa yeni sürüm kararlı müşterilere test cihazından önce gider.
+- **Paket dosyası yazımı:** geçici dosya adı her yazana özel (`tempfile.mkstemp`): zamanlayıcı ile "GitHub'dan al" düğmesi aynı sürümü
+  aynı anda yazarsa biri öbürünün yarım dosyasını yerine taşımasın.
+- **Testler:** `test_api.test_en_son_hedefi_github_surumlerinin_en_yuksegi`, `test_yonetim.test_surumler_her_zaman_en_son`,
+  `test_surumler.test_otomatik_al_ekleneni_harekete_hatayi_gunluge_yazar`, `test_surumler.test_kur_sh_ve_saatlik_zamanlayici`; merkez
+  `sh scripts/sunucu/merkez/tests/hepsi.sh py` → 23/23 dosya `TUM TESTLER GECTI`.
+- **Kurulum:** birleşince `merkez-guncelle.sh` (kullanıcı, sudo; `kur.sh` zamanlayıcıyı kurar ve açar; merkez yeniden başlar, yönetime
+  yeniden giriş). Sonra Yönetim → Sürümler → Kararlı (önerilen: Test de) "Her zaman en son sürüm" → Kaydet.
+
+## Bağlı kullanıcılar: bugün veri yoksa Bugün yazmaz (2026-11-02, 0.4.29)
+Dal `kararli-en-son` (merkez işiyle aynı dalda); yalnızca cihaz paneli. Kullanıcı: "bugün mb kullanmamış kullanıcıların yanında bugün ----
+yazmasın boş kalsın". Cihaz paneli → Kullanıcılar → Bağlı kullanıcılar (ve tek bölüm sayfası `/oturumlar`): kartın kapalı satırı önceden her
+kişide "Son görülme … · Bugün … MB" idi, ölçümü olmayanda "Bugün —". Artık bugün veri kullanmamış kişide (ölçüm yok ya da 1 MB'a varmamış:
+"0 MB") "· Bugün …" kısmı hiç yazılmaz, yalnızca "Son görülme …" kalır (`kisi_ogesi`). İzinli cihazlarda da aynı. Sıralama ("Bugün MB")
+değişmedi.
+- **Testler:** `panel::tests::olcum_yoksa_tire_ve_not` (ölçüm yok ve 0 MB'ta "Bugün" yok, 4.820 MB'ta var),
+  `panel::tests::izinli_cihaz_satiri`; cihazda `bash scripts/test.sh wificorrect panel::` → 96/96.
 
 ## Yönetim sol menü ve AP joker DNS kaydı (2026-10-24)
 Dal `yonetim-menu`; yalnızca merkez (cihazda değişiklik yok).

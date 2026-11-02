@@ -1,0 +1,11 @@
+[Unit]
+Description=WifiCorrect yeni cihaz sürümlerini GitHub'dan alır, saatte bir
+
+[Timer]
+OnBootSec=5min
+OnCalendar=hourly
+RandomizedDelaySec=5min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

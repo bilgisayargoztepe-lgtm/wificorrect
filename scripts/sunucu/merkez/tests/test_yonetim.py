@@ -774,6 +774,31 @@ def test_surumler_hedef_secimi():
         assert v.kanal_hedef("test") is None
 
 
+def test_surumler_her_zaman_en_son():
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        app, v, _, c, _ = kur(tmp)
+        v.surum_ekle("1.3.0", "cd" * 32, 10, "yerel")  # elle eklenen deneme paketi "en son" sayılmaz
+        s = Y.al(app, "/surumler", c)[2].decode()
+        assert '<option value="en-son">Her zaman en son sürüm (GitHub sürümü yok)</option>' in s
+        _surum_ekle(v)  # GitHub'dan 1.2.0
+        f = Y.al(app, "/surumler", c)
+        t = Y.csrf(f)
+        assert "Her zaman en son sürüm (şu an 1.2.0)" in f[2].decode()
+        r = Y.gonder(app, "/surumler/hedef", c, {"csrf": t, "kanal": "kararli", "surum": "en-son"})
+        assert r[0] == 303 and v.kanal_hedef("kararli") == "en-son" and v.kanal_hedef("test") is None
+        assert any(h["olay"] == "KANAL_HEDEF" and "kanal=kararli surum=en-son" in h["ayrinti"] for h in v.hareketler())
+        s = Y.al(app, "/surumler", c)[2].decode()
+        kararli = re.search(r'<select id="k-kararli".*?</select>', s, re.S).group(0)
+        assert '<option value="en-son" selected>' in kararli and "selected" not in kararli.replace('value="en-son" selected', "")
+        assert '<option value="en-son" selected>' not in re.search(r'<select id="k-test".*?</select>', s, re.S).group(0)
+        # müşteri sayfası çözülmüş sürümü gösterir; yeni GitHub sürümü gelince hedef kendiliğinden ona geçer
+        n, _ = v.musteri_ekle()
+        v.cihaz_bagla(n, WG, SSH)
+        assert re.search(r"Hedef sürüm</th><td>1\.2\.0<", Y.al(app, f"/m/{n}", c)[2].decode())
+        v.surum_ekle("1.4.0", "ef" * 32, 10, "github")
+        assert re.search(r"Hedef sürüm</th><td>1\.4\.0<", Y.al(app, f"/m/{n}", c)[2].decode())
+
+
 def test_musteri_guncelleme_karti_kanal_ve_hemen():
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
         app, v, saat, c, _ = kur(tmp)

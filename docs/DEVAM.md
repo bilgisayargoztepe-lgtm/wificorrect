@@ -52,16 +52,26 @@ kararlı kanal; numarası yönetimde; aşağıda "Visavis").
 
 ## Dallar ve durum (2026-10-30)
 Repo `bilgisayargoztepe-lgtm/wificorrect` (avsharbeyi'den devredildi). Her şey **`main`**'de (PR #3–#45 birleşti; #2 kapatıldı).
-**İki cihaz da 0.4.27** (uzaktan güncellemeyle; denetim kaydından): Göztepe 2026-10-30 22:07'de 0.4.26 (22:22 tamam), 22:48'de 0.4.27
-(22:58 tamam); Visavis 2026-10-31 03:03'te gece penceresinde 0.4.27 (kararlı kanal, 03:14 tamam). Saat doğrulamasının ilk kısmı iki cihazda
-tamam (2026-10-31: `ctl saat` → "doğrulandı (NTP)", bekleyen satır 0).
-**v0.4.28** etiketlendi (2026-10-31, PR #45'in birleştirmesi, dal `sade-raporlar`; kullanıcı: "birleştir ve yayınla"; cihazlara henüz
-kurulmadı): cihaz paneli → Ayarlar → Raporlar
+**İki cihaz da 0.4.28** (uzaktan güncellemeyle; denetim kaydından): Göztepe 2026-10-31 19:13 (19:29 tamam), Visavis 2026-11-01 03:04'te
+gece penceresinde (kararlı kanal, 03:15 tamam). Saat doğrulaması iki cihazda tamam: 2026-10-31 `ctl saat` → "doğrulandı (NTP)"; Göztepe
+2026-11-02'de elektrik kesintisinden sonraki açılışta "doğrulandı (RTC)".
+**Elektrik kesintisi (Göztepe dükkânı, 2026-11-02):** ~09:12'de gitti (cihazın son kaydı 09:11:48, sunucunun 09:10:09; ikisinde de kapanış
+kaydı yok). Sunucu 09:37'de açıldı; cihaz BIOS'ta "Restore on AC Power Loss" kapalı olduğu için kendiliğinden açılmadı, 11:59'da açıldı:
+misafirler ~2 sa 48 dk internetsiz kaldı.
+**v0.4.28** etiketlendi (2026-10-31, PR #45'in birleştirmesi, dal `sade-raporlar`; kullanıcı: "birleştir ve yayınla"; iki cihazda kurulu,
+yukarıda): cihaz paneli → Ayarlar → Raporlar
 sadeleşti (kullanıcı 2026-10-31: "raporlar kısmı çok karmaşık ve anlaşılmaz … günlük, haftalık, aylık; toplam kullanılan veri, en çok
 süre bağlı kalanlar, en çok veri tüketenler olsun; sadeleştir"): Günlük / Haftalık / Aylık sekmeleri, dönem okları, toplam veri ve
 kullanıcı sayısı, en çok veri kullananlar ve en uzun bağlı kalanlar (ilk 10, ad + maskeli telefon). Veri cihazın kendi kayıtlarından
 (`src/rapor.rs`; merkez raporları değişmedi), bağlı kalma için kaydedici yeni günlük kayıt tutar; her bakış `PANEL_RAPOR`. Aynı sürümde
 misafir kodu tür Otel/Pansiyon ya da Yurt'a geçince kendiliğinden açılır. Ayrıntı KURULUM_GUNLUGU "Sade raporlar: günlük, haftalık, aylık".
+**`kararli-en-son` (merkez + cihaz 0.4.29; henüz birleşmedi, canlıda değil):** (1) Merkez: Sürümler → Kanal hedefleri'nde "Her zaman
+en son sürüm" seçeneği (kullanıcı 2026-11-02: "hedef kararlı sürüm her zaman en son sürüm olsun"): kanal GitHub'dan alınmış en yüksek
+sürümü hedefler (elle eklenen yerel paketler girmez); merkez GitHub'a saatte bir bakıp yeni sürümü kendisi alır (`wc-surumler.timer` →
+`surumler.py al`). Kurulumdan sonra kullanıcı Sürümler'de Kararlı için (önerilen: Test için de) "Her zaman en son sürüm"ü seçip kaydeder.
+Ayrıntı KURULUM_GUNLUGU "Kanal hedefi: her zaman en son sürüm". (2) Cihaz: Bağlı kullanıcılar kartında bugün veri kullanmamış kişide
+(ölçüm yok ya da 0 MB) "· Bugün —" yazmaz (kullanıcı 2026-11-02: "bugün mb kullanmamış kullanıcıların yanında bugün ---- yazmasın boş
+kalsın"); KURULUM_GUNLUGU "Bağlı kullanıcılar: bugün veri yoksa Bugün yazmaz".
 **v0.4.27** etiketlendi (2026-10-30, PR #44'ün birleştirmesi, dal `ozet-mobil-sira`; kullanıcı: "birleştir ve yayınla"): telefonda
 Özet'te bağlı kullanıcılar Bugün yeni üyelerin üstünde (kullanıcı 2026-10-30: "mobilde özette bağlı kullanıcılar bugün yeni
 kullanıcıların üstünde olsun"; yalnızca CSS + bir sınıf, masaüstü aynı); iki cihazda da kurulu (yukarıda). Ayrıntı KURULUM_GUNLUGU "Özet telefonda: bağlı kullanıcılar yeni üyelerin üstünde".
@@ -140,7 +150,8 @@ AP adresi (ör. `k7f3q9.ap.wificorrect.com`) işi için; kullanıcı kararı: `w
 henüz yok (tasarım bekliyor; KURULUM_GUNLUGU "AP arayüzü — merkez" → "Bilinen risk").
 **Cihaza kurulum `gelistir.sh` ile değil**: yeni sürüm → `v*` etiketi (release ~20–25 dk) → Yönetim → Sürümler → "GitHub'dan
 yeni sürümleri al" → kanal hedefi (Göztepe **test**, Visavis **kararlı**: ikisinin de hedefini seç) → müşteri sayfasında
-"Şimdi güncelle" (kullanıcı basar) ya da 03:00–06:00 penceresi. Acil yerel deneme: cihazda `scripts/paket.sh` ile .deb, sunucuda
+"Şimdi güncelle" (kullanıcı basar) ya da 03:00–06:00 penceresi (`kararli-en-son` merkeze kurulunca: merkez GitHub'a saatte bir bakar,
+"Her zaman en son sürüm" seçili kanal yeni sürüme kendiliğinden geçer; elle alma ve hedef seçimi gerekmez). Acil yerel deneme: cihazda `scripts/paket.sh` ile .deb, sunucuda
 `sudo -u wcpanel python3 /usr/local/lib/wificorrect/surumler.py ekle DOSYA SURUM` (gelistir.sh paketli cihazı paketten saptırır).
 Merkez her güncellemede yeniden başlar ve bellekteki oturumlar düşer (yönetime yeniden giriş gerekir).
 **PPPoE açık bir cihaza (sağlık kartında "İnternet: PPPoE …") 0.4.17'den eski bir sürüm asla hedeflenmez** (kanal hedefi ya da "Şimdi
@@ -302,7 +313,7 @@ taksit, otomatik yenileme) · 9 **merkezi Rust'a taşıma** (2026-10-13 kararı;
 ~4.300 satır Python + 3.600 satır test, 9 işe bölünür: veritabanı, güvenlik, web tabanı, cihaz API, yönetim, müşteri paneli,
 arka plan işleri, kurulum/yan yana geçiş, uçtan uca + Python'u kaldırma; aynı SQLite şeması ve parola biçimi korunur). Zaman damgası: kontör alınınca. İki aşamalı giriş istenmedi.
 Ertelenmiş küçük bulgular: `.superpowers/sdd/*/progress.md` (yalnızca bu makinede).
-Bekleyen kullanıcı işleri: Göztepe'de PPPoE düzeltmelerinin (0.4.20/0.4.21) ONT canlı kabulü (KURULUM_GUNLUGU "PPPoE düzeltmeleri"), `v0.4.28`'in iki cihaza kurulması (Sürümler → "GitHub'dan yeni sürümleri al", Test ve Kararlı hedefi 0.4.28, iki müşteri sayfasında "Şimdi güncelle"), saat doğrulamasının canlı kabulünün kalanı (ilk karar iki cihazda "doğrulandı (NTP)"; sıradaki yeniden başlatmada "doğrulandı (RTC)" görülmeli; KURULUM_GUNLUGU "Saat doğrulanmadan kayıt" sonu), ilk PPPoE'li müşteride canlı kabul (yanında yedek modemle; liste KURULUM_GUNLUGU
+Bekleyen kullanıcı işleri: Göztepe'de PPPoE düzeltmelerinin (0.4.20/0.4.21) ONT canlı kabulü (KURULUM_GUNLUGU "PPPoE düzeltmeleri"), Göztepe'de Ayarlar → Giriş yöntemleri'nde misafir kodu kutusunun işaretlenmesi (tür otel ama `giris.misafir_kodu = false`; 0.4.28 kutuyu yalnızca tür değişirken açar), ilk PPPoE'li müşteride canlı kabul (yanında yedek modemle; liste KURULUM_GUNLUGU
 "PPPoE" sonunda; gerçek SMS yalnızca açık onayla); iki J1900'de BIOS → "Restore on AC Power Loss = Power On" (monitör + klavyeyle; sonra fiş çekip
 kendiliğinden açıldığını dene) ve yeni kutulara sahte ekran fişi; Göztepe'nin TP-Link'inin yönetim
 parolasını AP yönetim parolasına çevirmek (2026-10-16'ya kadarki kural panel parolasıydı); aydınlatma metni (misafir kodu

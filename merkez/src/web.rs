@@ -126,7 +126,27 @@ fn marka(logo: &str) -> String {
 
 /// journal'a (stderr); fail2ban GIRIS_HATALI satırlarını okur.
 pub fn log(msg: &str) {
+    #[cfg(test)]
+    {
+        if YAKALANAN.with(|y| y.borrow_mut().as_mut().map(|v| v.push(msg.to_string())).is_some()) {
+            return;
+        }
+    }
     eprintln!("{msg}");
+}
+
+#[cfg(test)]
+thread_local! {
+    static YAKALANAN: std::cell::RefCell<Option<Vec<String>>> = const { std::cell::RefCell::new(None) };
+}
+
+/// Testler: `f` çalışırken bu iş parçacığındaki `log` satırlarını stderr yerine toplar (Python `redirect_stderr`).
+#[cfg(test)]
+pub fn log_yakala<R>(f: impl FnOnce() -> R) -> (R, Vec<String>) {
+    YAKALANAN.with(|y| *y.borrow_mut() = Some(Vec::new()));
+    let r = f();
+    let satirlar = YAKALANAN.with(|y| y.borrow_mut().take()).unwrap_or_default();
+    (r, satirlar)
 }
 
 // --- İstek / Yanıt ---

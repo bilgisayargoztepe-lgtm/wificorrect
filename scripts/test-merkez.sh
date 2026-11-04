@@ -5,7 +5,7 @@ set -euo pipefail
 host=${1:-wificorrect}
 filter=${2:-}
 cd "$(dirname "$0")/.."
-dosyalar="merkez/Cargo.toml merkez/src .cargo src/sablon/logo scripts/sunucu/merkez/fail2ban-wc-merkez.conf scripts/sunucu/merkez/fail2ban-wc-merkez-filtre.conf"
+dosyalar="merkez/Cargo.toml merkez/src .cargo src/sablon/logo scripts/sunucu/merkez/Caddyfile scripts/sunucu/merkez/fail2ban-wc-merkez.conf scripts/sunucu/merkez/fail2ban-wc-merkez-filtre.conf"
 for f in merkez/Cargo.lock merkez/tests; do [ -e "$f" ] && dosyalar="$dosyalar $f"; done
 tar -cf - $dosyalar | ssh "$host" "set -e; mkdir -p /root/rza-merkez; cd /root/rza-merkez; rm -rf merkez/src merkez/tests; tar -xf - -C /root/rza-merkez
 cd merkez; set +e

@@ -505,16 +505,29 @@ fn musteri_yollar_404_ve_baska_musteri() {
     assert_eq!(y::al(&app, "/raporlar", "").durum, 303); // giriş ister
 }
 
-/// Python'da `builtins.open` izlenir; Rust'ta dosya açma izlenemez: yalnızca `rapor-ham` klasörünün hiç oluşmadığı denetlenir
-/// (okunan/yazılan dosya kümesini altın kayıt da karşılaştırır). Kalan fark: arşive/ham klasöre bakıp bakmadığı kodda (raporlar.rs
-/// yalnızca `Raporlar.dizin/<numara>/` altını açar) görülür.
+/// Python `builtins.open`'ı izler (açılan her dosya boş olmayan bir liste olmalı ve `<tmp>/rapor/<n>/` altında kalmalı); Rust'ta
+/// Linux inotify ile (`DosyaIzleyici`). Başka müşterinin rapor klasörü (`rapor/<n2>/`, geçerli liste.json + ay raporu) izleme
+/// başlamadan önce bırakılır ve GET'lerden sonra silinir (altın kayıt Python'un temp dizinini karşılaştırır). Testin kendi
+/// SQLite dosyaları (m.db ve -journal/-wal/-shm) sayılmaz: Python'un `open` izleyicisi sqlite3'ün C düzeyindeki açışlarını
+/// göremezdi, veritabanı erişimi onun kapsamı dışındaydı.
 #[test]
 fn sayfa_arsiv_ve_ham_okumaz() {
     let _k = Kayit::bas("test_raporlar", "test_sayfa_arsiv_ve_ham_okumaz");
     let (app, o, n, c) = kur_musteri();
     rapor_yaz(&o, n, "liste.json", &liste());
     rapor_yaz(&o, n, "ay-2026-09.json", &rr::ay_raporu(&[]));
+    let baska = if n == 7654321 { 7654322 } else { 7654321 };
+    rapor_yaz(&o, baska, "liste.json", &liste());
+    rapor_yaz(&o, baska, "ay-2026-09.json", &rr::ay_raporu(&[]));
+    let izle = y::DosyaIzleyici::yeni(&o.dizin);
     assert!(y::al(&app, "/raporlar", &c).durum == 200 && y::al(&app, "/rapor/ay/2026-09", &c).durum == 200);
+    let olaylar = izle.olaylar();
+    fs::remove_dir_all(o.dizin.join("rapor").join(baska.to_string())).unwrap();
+    let kok = o.dizin.join("rapor").join(n.to_string());
+    let veritabani = |p: &Path| p.parent() == Some(o.dizin.as_path()) && p.file_name().is_some_and(|a| a.to_string_lossy().starts_with("m.db"));
+    let acilan: Vec<_> = olaylar.iter().filter(|p| !veritabani(p)).collect();
+    assert!(acilan.iter().any(|p| p.starts_with(&kok)), "olumlu kontrol: izleyici okumaları görmeli {olaylar:?}");
+    assert!(acilan.iter().all(|p| p.starts_with(&kok)), "rapor/<n> dışında dosyaya dokunuldu: {acilan:?}");
     assert!(!o.dizin.join("rapor-ham").exists());
 }
 
@@ -955,5 +968,4 @@ fn silinmis_musteri_baglan_ve_cihaz_hata_vermez() {
         let r = m.sayfalar(&ot, "t", "GET", yol, "", &HashMap::new(), IP1).unwrap().expect(yol);
         assert!(r.durum == 200 || r.durum == 303, "{yol}");
     }
-    let _ = fs::metadata(&d.tmp);
 }

@@ -277,6 +277,74 @@ impl crate::ortak::Tasiyici for AgYok {
     }
 }
 
+/// Python testlerindeki `builtins.open` izleyicisinin Linux karşılığı: izlenen ağacın HER dizinine inotify izleyicisi kurar
+/// (`IN_OPEN | IN_ACCESS | IN_CREATE`); sonra olan dosya açma/okuma/oluşturma olaylarını tam yol olarak verir. İzleyiciler
+/// kurulduktan sonra eklenen alt dizinler izlenmez (kurulumu GET'lerden önce yapın).
+pub struct DosyaIzleyici {
+    fd: i32,
+    dizinler: std::collections::HashMap<i32, PathBuf>,
+}
+
+impl DosyaIzleyici {
+    pub fn yeni(kok: &Path) -> DosyaIzleyici {
+        // SAFETY: argümanları geçerli bayraklar; dönen dosya tanıtıcısı Drop'ta kapatılır
+        let fd = unsafe { libc::inotify_init1(libc::IN_NONBLOCK | libc::IN_CLOEXEC) };
+        assert!(fd >= 0, "inotify_init1 başarısız");
+        let mut d = DosyaIzleyici { fd, dizinler: Default::default() };
+        d.ekle(kok);
+        d.olaylar(); // kurulum gezintisinin kendi olaylarını at
+        d
+    }
+
+    fn ekle(&mut self, dizin: &Path) {
+        let c = std::ffi::CString::new(dizin.as_os_str().as_encoded_bytes()).expect("yol");
+        // SAFETY: c geçerli, NUL sonlu yol
+        let wd = unsafe { libc::inotify_add_watch(self.fd, c.as_ptr(), libc::IN_OPEN | libc::IN_ACCESS | libc::IN_CREATE) };
+        assert!(wd >= 0, "inotify_add_watch {dizin:?}");
+        self.dizinler.insert(wd, dizin.to_path_buf());
+        for x in std::fs::read_dir(dizin).expect("dizin").flatten() {
+            if x.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+                self.ekle(&x.path());
+            }
+        }
+    }
+
+    /// Şimdiye dek biriken olayların tam yolları (olay sırasıyla; aynı yol tekrarlanabilir). Kuyruğu boşaltır.
+    pub fn olaylar(&self) -> Vec<PathBuf> {
+        let mut out = Vec::new();
+        let mut buf = vec![0u8; 65536];
+        loop {
+            // SAFETY: buf geçerli ve yazılabilir, uzunluğu doğru verilir
+            let n = unsafe { libc::read(self.fd, buf.as_mut_ptr().cast(), buf.len()) };
+            if n <= 0 {
+                break;
+            }
+            let (mut i, n) = (0usize, n as usize);
+            while i + 16 <= n {
+                let wd = i32::from_ne_bytes(buf[i..i + 4].try_into().unwrap());
+                let len = u32::from_ne_bytes(buf[i + 12..i + 16].try_into().unwrap()) as usize;
+                let ad = &buf[i + 16..(i + 16 + len).min(n)];
+                let ad = &ad[..ad.iter().position(|b| *b == 0).unwrap_or(ad.len())];
+                if let Some(d) = self.dizinler.get(&wd) {
+                    // len 0: izlenen dizinin kendisi
+                    out.push(if ad.is_empty() { d.clone() } else { d.join(String::from_utf8_lossy(ad).as_ref()) });
+                }
+                i += 16 + len;
+            }
+        }
+        out
+    }
+}
+
+impl Drop for DosyaIzleyici {
+    fn drop(&mut self) {
+        // SAFETY: fd bize ait
+        unsafe {
+            libc::close(self.fd);
+        }
+    }
+}
+
 #[cfg(test)]
 mod testler {
     use super::*;

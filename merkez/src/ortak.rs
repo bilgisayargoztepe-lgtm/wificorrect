@@ -548,8 +548,15 @@ impl Curl {
 
 impl Tasiyici for Curl {
     fn gonder(&self, i: &DisIstek) -> Result<(u16, Vec<u8>), String> {
-        // Python: os.environ.get("WC_TEST") doğru sayılan (boş olmayan) her değerde gerçek istek reddedilir
-        if std::env::var_os("WC_TEST").is_some_and(|v| !v.is_empty()) {
+        self.gonder_ortamla(i, std::env::var_os("WC_TEST"))
+    }
+}
+
+impl Curl {
+    /// `wc_test`: `WC_TEST` ortam değişkeni. Python: `os.environ.get("WC_TEST")` doğru sayılan (boş olmayan) her değerde gerçek
+    /// istek reddedilir. Ortam tek yerde okunur; testler değeri doğrudan verir (süreç ortamı değiştirilmez).
+    fn gonder_ortamla(&self, i: &DisIstek, wc_test: Option<std::ffi::OsString>) -> Result<(u16, Vec<u8>), String> {
+        if wc_test.is_some_and(|v| !v.is_empty()) {
             return Err("WC_TEST".into());
         }
         self.calistir(i)
@@ -808,26 +815,18 @@ pub(crate) mod tests {
 
     #[test]
     fn wc_test_curl_calistirmaz() {
-        // gonder(), WC_TEST boş olmayan herhangi bir değerdeyken curl'e hiç uğramadan Err("WC_TEST") döner (Python gibi)
-        let onceki = std::env::var("WC_TEST").ok();
-        let mut sonuclar = Vec::new();
+        // WC_TEST boş olmayan herhangi bir değerdeyken curl'e hiç uğramadan Err("WC_TEST") döner (Python gibi); süreç ortamı değişmez
         for deger in ["1", "true", "evet"] {
-            std::env::set_var("WC_TEST", deger);
-            sonuclar.push(Curl.gonder(&istek()).err());
+            let s = Curl.gonder_ortamla(&istek(), Some(deger.into())).err();
+            assert_eq!(s.as_deref(), Some("WC_TEST"), "{deger}");
         }
-        // boş değer reddetmez: istek curl'e kadar gider; ağa çıkmasın diye gövdesi geçersiz bir istek (yapılandırma hatası)
-        std::env::set_var("WC_TEST", "");
+        // boş değer ve tanımsız reddetmez: istek curl'e kadar gider; ağa çıkmasın diye gövdesi geçersiz bir istek (yapılandırma hatası)
         let mut bozuk = istek();
         bozuk.govde = Some(vec![0, 1]);
-        let bos = Curl.gonder(&bozuk).err();
-        match onceki {
-            Some(v) => std::env::set_var("WC_TEST", v),
-            None => std::env::remove_var("WC_TEST"),
+        for deger in [Some(std::ffi::OsString::new()), None] {
+            let m = Curl.gonder_ortamla(&bozuk, deger.clone()).err();
+            assert!(m.is_some_and(|m| m != "WC_TEST"), "{deger:?}");
         }
-        for s in sonuclar {
-            assert_eq!(s.as_deref(), Some("WC_TEST"));
-        }
-        assert!(bos.is_some_and(|m| m != "WC_TEST"));
     }
 
     /// Bir HTTP isteğini (başlıklar + Content-Length kadar gövde) okur, `cevap`ı yazar.

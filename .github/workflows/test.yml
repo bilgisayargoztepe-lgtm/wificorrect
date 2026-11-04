@@ -25,6 +25,16 @@ jobs:
           python-version: "3.13"
       - run: sh scripts/sunucu/merkez/tests/hepsi.sh python
 
+  merkez-rust:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.85
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: merkez
+      - run: cd merkez && cargo test --locked
+
   paket:
     runs-on: ubuntu-24.04
     steps:

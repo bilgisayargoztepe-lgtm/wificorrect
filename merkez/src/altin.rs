@@ -22,6 +22,8 @@ use crate::guvenlik::rastgele;
 use crate::web::{self, Istek, Yanit};
 
 const BICIM: u64 = 3;
+/// Biçim 3 kaydının alanları (kaydet.py `tek`); `yollar` yalnızca yollar.py içindir, Rust karşılaştırmaz.
+const KAYIT_ALANLARI: [&str; 7] = ["bicim", "dosya", "test", "cevaplar", "veritabanlari", "dosyalar", "yollar"];
 /// Karşılaştırılan başlıklar (küçük harfle) ve `x-wfc-` ile başlayanlar. Uygulamanın başka başlık vermesi farktır
 /// (Python kaydedicisi de reddeder): gerekiyorsa iki tarafta da listeye eklenir.
 const SECILI_BASLIKLAR: [&str; 11] = [
@@ -484,12 +486,16 @@ fn kayit_dogrula(k: &Value, dosya: &str, test: &str) -> Result<(), String> {
     if k["dosya"].as_str() != Some(dosya) || k["test"].as_str() != Some(test) {
         return Err(format!("{yer}: kayıt başka teste ait ({}/{})", k["dosya"], k["test"]));
     }
-    for alan in ["cevaplar", "veritabanlari", "dosyalar"] {
+    // biçim 3'te olmayan alan (ör. eski `platform_farki`) sessizce yok sayılmaz
+    if let Some(a) = k.as_object().into_iter().flat_map(|o| o.keys()).find(|a| !KAYIT_ALANLARI.contains(&a.as_str())) {
+        return Err(format!("{yer}: bilinmeyen alan `{a}` (biçim {BICIM}'te yok); kaydet.py ile yeniden üretin"));
+    }
+    for alan in ["cevaplar", "veritabanlari", "dosyalar", "yollar"] {
         if !k[alan].is_array() {
             return Err(format!("{yer}: `{alan}` alanı yok ya da dizi değil"));
         }
     }
-    for alan in ["cevaplar", "veritabanlari"] {
+    for alan in ["cevaplar", "veritabanlari", "yollar"] {
         if let Some(y) = kararsiz_yerleri(&k[alan]).first() {
             return Err(format!("{yer}: {KARARSIZ} yalnızca dosya içeriklerinde olabilir ({alan}/{})", y.join("/")));
         }
@@ -912,7 +918,7 @@ mod testler {
     #[test]
     fn kararsiz_yalnizca_izinli_yerde() {
         let k = |cevaplar: Value, vt: Value, dosyalar: Value| {
-            json!({"bicim": 3, "dosya": "d", "test": "t", "cevaplar": cevaplar, "veritabanlari": vt, "dosyalar": dosyalar})
+            json!({"bicim": 3, "dosya": "d", "test": "t", "cevaplar": cevaplar, "veritabanlari": vt, "dosyalar": dosyalar, "yollar": []})
         };
         let bos = json!([]);
         let izinli = json!([{
@@ -968,7 +974,7 @@ mod testler {
 
     #[test]
     fn kayit_bicimi_dogrulanir() {
-        let iyi = json!({"bicim": 3, "dosya": "d", "test": "t", "cevaplar": [], "veritabanlari": [], "dosyalar": []});
+        let iyi = json!({"bicim": 3, "dosya": "d", "test": "t", "cevaplar": [], "veritabanlari": [], "dosyalar": [], "yollar": []});
         assert!(kayit_dogrula(&iyi, "d", "t").is_ok());
         let mut eski = iyi.clone();
         eski["bicim"] = json!(1);
@@ -976,13 +982,22 @@ mod testler {
         let mut eksik = iyi.clone();
         eksik.as_object_mut().unwrap().remove("dosyalar");
         assert!(kayit_dogrula(&eksik, "d", "t").unwrap_err().contains("`dosyalar` alanı yok"));
+        let mut yolsuz = iyi.clone();
+        yolsuz.as_object_mut().unwrap().remove("yollar");
+        assert!(kayit_dogrula(&yolsuz, "d", "t").unwrap_err().contains("`yollar` alanı yok"));
+        let mut fazla = iyi.clone();
+        fazla["platform_farki"] = json!(true);
+        assert!(kayit_dogrula(&fazla, "d", "t").unwrap_err().contains("bilinmeyen alan `platform_farki`"));
+        let mut kararsiz_yol = iyi.clone();
+        kararsiz_yol["yollar"] = json!([["yonetim", "GET", KARARSIZ, "h", 200, null]]);
+        assert!(kayit_dogrula(&kararsiz_yol, "d", "t").unwrap_err().contains("(yollar/0/2)"));
         assert!(kayit_dogrula(&iyi, "d", "baska").unwrap_err().contains("kayıt başka teste ait"));
         assert!(kayit_dogrula(&json!([]), "d", "t").is_err());
     }
 
     #[test]
     fn butun_kayitlar_gecerli() {
-        // her kayıt biçim 2, zorunlu alanlar, <KARARSIZ> yalnızca izinli yerlerde (Rust testi henüz yazılmamış olanlar da)
+        // her kayıt biçim 3, yalnızca biçimin alanları, <KARARSIZ> yalnızca izinli yerlerde (Rust testi henüz yazılmamış olanlar da)
         let kok = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/altin");
         let mut sayi = 0;
         for d in std::fs::read_dir(&kok).unwrap() {

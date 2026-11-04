@@ -1,7 +1,6 @@
 //! Yönetim merkezi web tabanı (Python web.py): CSS, sayfa çerçevesi, çerezler, giriş/çıkış/CSRF/gerekçe (spec §5–§6, §10).
 //! Uygulamalar (yönetim, müşteri) `Panel` özelliğini uygular ve yalnızca kendi sayfalarını yazar; ortak akış `Panel`'in
 //! varsayılan yöntemlerindedir (Python `Taban`'ın alt sınıf kancaları + ortak yöntemleri).
-use std::any::Any;
 use std::collections::{BTreeMap, HashMap};
 use std::fmt::Display;
 use std::ops::Deref;
@@ -417,15 +416,21 @@ pub struct Taban {
     pub veri: Arc<Veri>,
     pub kayitlar: Kayitlar,
     pub saat: Saat,
-    /// raporlar.Raporlar (haftalık/aylık rapor JSON'ları); rapor görevinde türü belirlenir. None: rapor sayfaları yok.
-    pub raporlar: Option<Arc<dyn Any + Send + Sync>>,
+    /// haftalık/aylık rapor JSON dosyalarını okuyan nesne (Python `raporlar.Raporlar`; varsayılan /var/lib/wificorrect/rapor).
+    pub raporlar: crate::raporlar::Raporlar,
     pub oturumlar: Oturumlar,
     pub kilit: GirisKilidi,
 }
 
 impl Taban {
     pub fn new(veri: Arc<Veri>, kayitlar: Kayitlar, saat: Saat) -> Taban {
-        Taban { veri, kayitlar, saat, raporlar: None, oturumlar: Oturumlar::default(), kilit: GirisKilidi::default() }
+        Taban { veri, kayitlar, saat, raporlar: crate::raporlar::Raporlar::default(), oturumlar: Oturumlar::default(), kilit: GirisKilidi::default() }
+    }
+
+    /// Rapor dosyalarının klasörü (Python `Taban(..., raporlar=Raporlar(dizin))`).
+    pub fn raporlar_ile(mut self, r: crate::raporlar::Raporlar) -> Taban {
+        self.raporlar = r;
+        self
     }
 
     pub fn simdi(&self) -> f64 {

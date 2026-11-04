@@ -11,6 +11,8 @@ mod kayitlar;
 mod merkez;
 mod ortak;
 mod ozet;
+mod rapor;
+mod raporlar;
 mod sunucu;
 #[cfg(test)]
 mod test_yardim;

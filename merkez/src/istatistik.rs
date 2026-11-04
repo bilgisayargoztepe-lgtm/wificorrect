@@ -201,7 +201,7 @@ impl Yollar {
 }
 
 /// `[a-z0-9][a-z0-9._-]{0,31}` (tam eşleşme).
-fn arsiv_adi_mi(s: &str) -> bool {
+pub fn arsiv_adi_mi(s: &str) -> bool {
     let b = s.as_bytes();
     !b.is_empty() && b.len() <= 32 && (b[0].is_ascii_lowercase() || b[0].is_ascii_digit()) && b[1..].iter().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || matches!(c, b'.' | b'_' | b'-'))
 }
@@ -272,9 +272,20 @@ pub fn calistir(y: &Yollar, simdi: Option<f64>) -> i32 {
         eprintln!("{ad}: {hata}");
         kod = 1;
     }
-    // TASK 6: haftalık/aylık raporlar (ham özet önbelleği + müşteri başına dönem raporları): `rapor::calistir(arsivler,
-    // rapor_gruplari, rapor_ham, rapor_cikti, grup, simdi)`; hatası yukarıdakileri etkilemez, `rapor: <hata>` basar, kod=1.
-    let _ = (simdi, &y.rapor_ham, &y.rapor_cikti, &y.rapor_gruplari, &y.kayit);
+    // haftalık/aylık raporlar (ham özet önbelleği + müşteri başına dönem raporları); hatası yukarıdakileri etkilemez
+    let harita: crate::rapor::Arsivler = arsivler.into_iter().collect();
+    match crate::rapor::calistir(&harita, &y.rapor_gruplari, &y.rapor_ham, &y.rapor_cikti, y.grup.as_deref(), simdi, None) {
+        Ok(hatalar) => {
+            for hata in hatalar {
+                eprintln!("rapor: {hata}");
+                kod = 1;
+            }
+        }
+        Err(tur) => {
+            eprintln!("rapor: {tur}");
+            kod = 1;
+        }
+    }
     kod
 }
 
@@ -465,6 +476,80 @@ mod testler {
         fs::remove_file(d.join("MANIFEST.sha256")).unwrap();
         std::os::unix::fs::symlink(d.join("a.gz"), d.join("MANIFEST.sha256")).unwrap();
         assert!(!tamam_mi(&d)); // sembolik bağ
+    }
+
+    fn rapor_yollari(tmp: &Path) -> (PathBuf, PathBuf, PathBuf) {
+        (tmp.join("rapor-ham"), tmp.join("rapor"), tmp.join("yok-gruplar.json"))
+    }
+
+    fn yollar(tmp: &Path, kayit: PathBuf, yeni: PathBuf, eski: PathBuf, ham_rapor_gruplar: (PathBuf, PathBuf, PathBuf)) -> Yollar {
+        Yollar {
+            kayit,
+            yeni,
+            eski,
+            cikti: tmp.join("ist"),
+            detay: tmp.join("detay"),
+            grup: None,
+            rapor_ham: ham_rapor_gruplar.0,
+            rapor_cikti: ham_rapor_gruplar.1,
+            rapor_gruplari: ham_rapor_gruplar.2,
+        }
+    }
+
+    #[test]
+    fn main_arsivleri_isler_yeni_once() {
+        let _k = Kayit::bas("test_wc_istatistik", "test_main_arsivleri_isler_yeni_once");
+        let tmp = gecici_dizin();
+        let (yeni, eski, kayit) = (tmp.join("yeni"), tmp.join("eski"), tmp.join("kayit.csv"));
+        fs::write(&kayit, format!("cihaz;bocafe;10.99.0.10;{}=;wfc-bocafe
+", "A".repeat(43))).unwrap();
+        gun_yaz(&yeni.join("bocafe").join("veri"), "2026-10-01", &["5334553132"], Some(&["trafik.csv.gz"]), false);
+        gun_yaz(&eski.join("bocafe"), "2026-09-20", &["5334553132", "5551112233"], Some(&["trafik.csv.gz"]), false);
+        gun_yaz(&eski.join("bocafe"), "2026-10-01", &["5550000000", "5551111111", "5552222222"], Some(&["trafik.csv.gz"]), false);
+        let y = yollar(&tmp, kayit, yeni, eski, rapor_yollari(&tmp));
+        assert_eq!(calistir(&y, None), 0);
+        assert_eq!(oku(&y.cikti.join("bocafe.json")), serde_json::json!({"2026-09-20": 2, "2026-10-01": 1}));
+    }
+
+    #[test]
+    fn main_raporlari_uretir() {
+        let _k = Kayit::bas("test_wc_istatistik", "test_main_raporlari_uretir");
+        let tmp = gecici_dizin();
+        let (yeni, eski, kayit) = (tmp.join("yeni"), tmp.join("eski"), tmp.join("kayit.csv"));
+        fs::write(&kayit, "").unwrap();
+        gun_yaz(&yeni.join("1234567").join("veri"), "2026-10-01", &["905334553132"], Some(&["trafik.csv.gz"]), false);
+        gun_yaz(&eski.join("1234567"), "2026-09-30", &["905551112233"], Some(&["trafik.csv.gz"]), false); // aynı adın eski klasörü
+        gun_yaz(&eski.join("bocafe"), "2026-09-29", &["905550000000"], Some(&["trafik.csv.gz"]), false);
+        let (ham, rapor, gd) = rapor_yollari(&tmp);
+        fs::write(&gd, r#"{"1234567": ["bocafe"]}"#).unwrap();
+        let y = yollar(&tmp, kayit, yeni, eski, (ham.clone(), rapor.clone(), gd));
+        let simdi = 1_791_000_000.0; // 2026-10-03
+        assert_eq!(calistir(&y, Some(simdi)), 0);
+        let mut ham_gunleri: Vec<String> = fs::read_dir(ham.join("1234567")).unwrap().map(|d| d.unwrap().file_name().into_string().unwrap()).collect();
+        ham_gunleri.sort();
+        assert_eq!(ham_gunleri, vec!["2026-09-30.json", "2026-10-01.json"]);
+        let rapor_klasorleri: Vec<String> = fs::read_dir(&rapor).unwrap().map(|d| d.unwrap().file_name().into_string().unwrap()).collect();
+        assert_eq!(rapor_klasorleri, vec!["1234567"]);
+        let w40 = oku(&rapor.join("1234567").join("hafta-2026-W40.json"));
+        assert!(w40["misafir"]["farkli"] == 3);
+        let g = w40["gunler"].as_array().unwrap();
+        assert_eq!([g[1]["farkli"].clone(), g[2]["farkli"].clone(), g[3]["farkli"].clone()], [1, 1, 1].map(Value::from));
+        assert_eq!(g[1]["durum"], "dogrulanamadi"); // zincir.txt yok: "tam" değil
+        assert!(ham.join(".sir").exists() && w40["bicim"] == crate::rapor::BICIM);
+    }
+
+    #[test]
+    fn main_bozuk_arsiv_digerlerini_durdurmaz() {
+        let _k = Kayit::bas("test_wc_istatistik", "test_main_bozuk_arsiv_digerlerini_durdurmaz");
+        let tmp = gecici_dizin();
+        let (yeni, eski, kayit) = (tmp.join("yeni"), tmp.join("eski"), tmp.join("kayit.csv"));
+        fs::write(&kayit, "").unwrap();
+        fs::create_dir_all(eski.join("a-kafe")).unwrap();
+        fs::write(eski.join("a-kafe").join("gunluk"), "x").unwrap(); // klasör olması gereken yerde dosya
+        gun_yaz(&eski.join("b-kafe"), "2026-10-01", &["5334553132"], Some(&["trafik.csv.gz"]), false);
+        let y = yollar(&tmp, kayit, yeni, eski, rapor_yollari(&tmp));
+        calistir(&y, None);
+        assert_eq!(oku(&y.cikti.join("b-kafe.json")), serde_json::json!({"2026-10-01": 1}));
     }
 
     #[test]

@@ -118,6 +118,7 @@ pub fn gonder<S: AsRef<str>>(ayar: &Value, metin: &str, numaralar: &[S], t: &dyn
         kullanici: None,
         zaman_asimi: GENEL_SURE,
         okuma_siniri: OKUMA_SINIRI,
+        yonlendirme: 0, // SMS: yönlendirme izlenmez
     };
     let yanit = match t.gonder(&istek) {
         Ok((durum, g)) if durum < 400 => String::from_utf8_lossy(&g).into_owned(),
@@ -201,6 +202,7 @@ pub fn otp_gonder(ayar: &Value, telefon_10: &str, metin: &str, t: &dyn Tasiyici)
         kullanici: None,
         zaman_asimi: ISLEM_SURE,
         okuma_siniri: OKUMA_SINIRI,
+        yonlendirme: 0, // SMS: yönlendirme izlenmez
     };
     let yanit = match t.gonder(&istek) {
         Ok((durum, g)) if durum < 400 => String::from_utf8_lossy(&g).into_owned(),

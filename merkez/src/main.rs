@@ -27,6 +27,7 @@ mod test_yardim;
 mod twilio;
 mod veri;
 mod web;
+mod yonetici;
 
 const SURUM: &str = env!("CARGO_PKG_VERSION");
 
@@ -37,8 +38,11 @@ fn main() {
         Some("sunucu") => sunucu_calistir(),
         Some("kuyruk") => std::process::exit(kuyruk::calistir_uretim()),
         Some("istatistik") => std::process::exit(istatistik::calistir(&istatistik::Yollar::uretim(), None)),
+        Some("listeler") => std::process::exit(listeler::main_uretim()),
+        Some("surumler") => std::process::exit(surumler::main_uretim(&args[1..])),
+        Some("yonetici") => std::process::exit(yonetici::main_uretim(&args[1..])),
         _ => {
-            eprintln!("Kullanım: wificorrect-merkez surum|sunucu|kuyruk|istatistik");
+            eprintln!("Kullanım: wificorrect-merkez surum|sunucu|kuyruk|istatistik|listeler|surumler|yonetici");
             std::process::exit(2);
         }
     }

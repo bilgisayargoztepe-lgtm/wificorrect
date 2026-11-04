@@ -101,7 +101,7 @@ pub fn is_oku(yol: &Path) -> Option<Value> {
 }
 
 /// Python `str.splitlines()` (satır sonu karakterleri; sonda boş satır üretmez).
-fn satirlar(metin: &str) -> Vec<&str> {
+pub(crate) fn satirlar(metin: &str) -> Vec<&str> {
     let mut o = Vec::new();
     let mut bas = 0;
     let mut it = metin.char_indices().peekable();

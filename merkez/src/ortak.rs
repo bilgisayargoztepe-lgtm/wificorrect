@@ -424,6 +424,9 @@ pub struct DisIstek {
     pub kullanici: Option<(String, String)>,
     pub zaman_asimi: Duration,
     pub okuma_siniri: usize,
+    /// İzlenecek en çok yönlendirme sayısı (0: izlenmez, 3xx cevap olduğu gibi döner). Yalnızca GET için ve yalnızca
+    /// kimliksiz indirmeler (sürüm/liste dosyaları) için kullanılır; SMS çağrıları 0 verir.
+    pub yonlendirme: u32,
 }
 
 /// Dış istek taşıyıcısı. HTTP 4xx/5xx hata değil `(durum, gövde)` döner; ağ hatası `Err`.
@@ -478,6 +481,16 @@ impl Curl {
         }
         if let Some((k, p)) = &i.kullanici {
             c.push_str(&format!("user = {}\n", tek_satir(&format!("{k}:{p}"))?));
+        }
+        if i.yonlendirme > 0 {
+            // Gövdeli istek ve kimlik yönlendirmeye girmez; `--location-trusted` bilerek yok (curl kimliği başka
+            // sunucuya göndermez); yönlendirme yalnızca http/https'e (file://, ftp:// reddedilir).
+            if i.yontem != "GET" || i.govde.is_some() || i.kullanici.is_some() {
+                return Err("curl: yönlendirme yalnızca kimliksiz GET için".into());
+            }
+            c.push_str("location\n");
+            c.push_str(&format!("max-redirs = {}\n", i.yonlendirme));
+            c.push_str("proto-redir = \"=http,https\"\n");
         }
         if let Some(g) = &i.govde {
             // data-raw: '@' ile başlayan gövde dosya okumaz
@@ -780,6 +793,7 @@ pub(crate) mod tests {
             kullanici: Some(("AC123".into(), "gizli-parola".into())),
             zaman_asimi: Duration::from_secs(5),
             okuma_siniri: 16384,
+            yonlendirme: 0,
         }
     }
 
@@ -1004,3 +1018,7 @@ mod akis_testleri {
         assert!(matches!(hepsi(b"a\n\xff\n", 4096), Err(OkumaHata::Utf8)));
     }
 }
+
+#[cfg(test)]
+#[path = "ortak_yonlendirme_testler.rs"]
+mod yonlendirme_testler;

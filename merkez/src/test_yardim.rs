@@ -277,6 +277,41 @@ impl crate::ortak::Tasiyici for AgYok {
     }
 }
 
+/// Python testlerindeki sahte `getir(url, sinir)` (surumler/listeler): adres → bayt ya da hata; istenen adresleri kaydeder.
+/// Listede olmayan adres Python'daki `KeyError` gibi hatadır. Gövde sınırı `surumler::getir` sarmalayıcısında uygulanır.
+pub struct SahteIndirme {
+    dosyalar: std::collections::HashMap<String, Result<Vec<u8>, String>>,
+    cagrilar: Mutex<Vec<String>>,
+}
+
+impl SahteIndirme {
+    pub fn yeni(dosyalar: std::collections::HashMap<String, Result<Vec<u8>, String>>) -> SahteIndirme {
+        SahteIndirme { dosyalar, cagrilar: Mutex::new(Vec::new()) }
+    }
+
+    /// Şimdiye dek istenen adresler, sırayla.
+    pub fn cagrilar(&self) -> Vec<String> {
+        self.cagrilar.lock().unwrap().clone()
+    }
+
+    pub fn cagrilari_sil(&self) {
+        self.cagrilar.lock().unwrap().clear();
+    }
+}
+
+impl crate::ortak::Tasiyici for SahteIndirme {
+    fn gonder(&self, i: &crate::ortak::DisIstek) -> Result<(u16, Vec<u8>), String> {
+        assert!(i.yontem == "GET" && i.govde.is_none() && i.kullanici.is_none(), "indirme kimliksiz GET olmalı");
+        assert!(i.yonlendirme > 0, "indirmeler yönlendirme izlemeli");
+        self.cagrilar.lock().unwrap().push(i.url.clone());
+        match self.dosyalar.get(&i.url) {
+            None => Err(format!("KeyError: '{}'", i.url)),
+            Some(Ok(b)) => Ok((200, b.clone())),
+            Some(Err(h)) => Err(h.clone()),
+        }
+    }
+}
+
 /// Python testlerindeki `builtins.open` izleyicisinin Linux karşılığı: izlenen ağacın HER dizinine inotify izleyicisi kurar
 /// (`IN_OPEN | IN_ACCESS | IN_CREATE`); sonra olan dosya açma/okuma/oluşturma olaylarını tam yol olarak verir. İzleyiciler
 /// kurulduktan sonra eklenen alt dizinler izlenmez (kurulumu GET'lerden önce yapın).

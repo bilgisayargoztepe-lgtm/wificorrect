@@ -211,8 +211,8 @@ fn gecis_yalnizca_cihaz_panelinden_ust_duzey_gezinmeyle() {
         let r = y::istek(&*c, "GET", "/_ap-gecis", &h, "", "", IP);
         assert!(r.durum == 403 && r.baslik("Location").is_none() && r.govde_metin().contains("cihaz panelinden"), "{kotu:?}");
     }
-    // (Python `c.ap_belirtecleri._b == {}`: özel alan; reddedilen istekte belirteç üretilmediği aşağıda hareket sayısıyla da görülür)
     assert_eq!(hareket_sayisi(&o, n, "AP_GECIS"), 0);
+    assert_eq!(c.ap_belirtecleri.uzunluk(), 0); // Python `c.ap_belirtecleri._b == {}`
     for iyi in [getirme_ilk("same-origin"), getirme_ilk("none"), Vec::new()] {
         let h = basliklar(&[CIHAZ, ("Cookie", &cookie)], &iyi);
         belirtec(&y::istek(&*c, "GET", "/_ap-gecis", &h, "", "", IP));
@@ -588,6 +588,8 @@ fn cerez_ifadesi(blok: &str) -> String {
 }
 
 /// `\b(?:ad1|ad2)=[^;]*` ifadesinin (RE2) ASCII çerez başlığındaki anlamı: sözcük sınırında `ad=` ve `;`'a kadar olan kısım "_" olur.
+// NOT: bu çeşni Caddy'nin RE2 motorunu çalıştırmaz; sabitlenen ifadenin amaçlanan anlamını belgeler. Gönderilen deseni
+// koruyan, `cerez_ifadesi` ile yapılan birebir metin denetimidir.
 fn cerez_degistir(baslik: &str, adlar: &[&str]) -> String {
     let b = baslik.as_bytes();
     let sozcuk = |c: u8| c.is_ascii_alphanumeric() || c == b'_';
@@ -634,6 +636,7 @@ fn caddyfile_ap_blogu() {
     }
     assert!(ap.contains("Strict-Transport-Security \"max-age=31536000\"") && ap.contains("-Server"));
     assert_eq!(cerez_ifadesi(&ap), r"\b(?:wca|wcc)=[^;]*");
+    // örnekler yukarıdaki sabitlenmiş ifadenin amaçlanan anlamını gösterir (RE2 çalıştırılmaz)
     for (once, sonra) in [
         ("wca=abc; SessionID=xyz", "_; SessionID=xyz"),
         ("SessionID=xyz; wca=abc", "SessionID=xyz; _"),

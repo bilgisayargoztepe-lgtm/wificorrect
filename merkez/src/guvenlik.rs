@@ -336,6 +336,12 @@ pub struct TekKullanimlik<T> {
 }
 
 impl<T> TekKullanimlik<T> {
+    /// Testler: bekleyen belirteç sayısı (Python `len(b._b)`).
+    #[cfg(test)]
+    pub(crate) fn uzunluk(&self) -> usize {
+        crate::ortak::kilitle(&self.b).len()
+    }
+
     pub fn new(sure: f64) -> TekKullanimlik<T> {
         TekKullanimlik { sure, b: Mutex::new(HashMap::new()) }
     }

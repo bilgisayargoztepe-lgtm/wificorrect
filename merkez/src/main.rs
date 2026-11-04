@@ -12,6 +12,7 @@ mod kayitlar;
 mod kuyruk;
 mod listeler;
 mod merkez;
+mod netgsm;
 mod ortak;
 mod ozet;
 mod rapor;

@@ -198,6 +198,85 @@ pub fn gerekce_ver_metin(app: &dyn Uygulama, c: &str, metin: &str) -> Yanit {
     gonder(app, "/gerekce", c, &[("csrf", &csrf(&f)), ("gerekce", metin), ("donus", "/")])
 }
 
+/// Sahte dış taşıyıcının sıradaki cevabı (Python testlerindeki `Ag`: bytes, (durum, bytes) ya da istisna).
+pub enum AgCevap {
+    /// 200 + gövde.
+    Govde(&'static str),
+    /// Durum + gövde (4xx/5xx de hata değil, cevap).
+    Durum(u16, &'static str),
+    /// Ağ hatası / zaman aşımı.
+    Hata,
+}
+
+/// Taşıyıcıya giden isteğin test kaydı.
+pub struct GidenIstek {
+    pub yontem: String,
+    pub url: String,
+    pub basliklar: Vec<(String, String)>,
+    pub govde: String,
+    pub kullanici: Option<(String, String)>,
+    pub zaman_asimi: Duration,
+}
+
+/// Python testlerindeki sahte `urlopen`: her isteği kaydeder, sıradaki cevabı verir; sıra boşsa NetGSM başarısı.
+#[derive(Default)]
+pub struct SahteAg {
+    pub cevaplar: Mutex<std::collections::VecDeque<AgCevap>>,
+    pub istekler: Mutex<Vec<GidenIstek>>,
+}
+
+impl SahteAg {
+    pub fn yeni(cevaplar: Vec<AgCevap>) -> Arc<SahteAg> {
+        Arc::new(SahteAg { cevaplar: Mutex::new(cevaplar.into()), istekler: Mutex::new(Vec::new()) })
+    }
+
+    pub fn ekle(&self, c: AgCevap) {
+        self.cevaplar.lock().unwrap().push_back(c);
+    }
+
+    /// Sıranın başına (Python `cevaplar.insert(0, ...)`).
+    pub fn basa_ekle(&self, c: AgCevap) {
+        self.cevaplar.lock().unwrap().push_front(c);
+    }
+
+    pub fn sayi(&self) -> usize {
+        self.istekler.lock().unwrap().len()
+    }
+
+    /// Son isteği `f`'ye verir.
+    pub fn son<R>(&self, f: impl FnOnce(&GidenIstek) -> R) -> R {
+        f(self.istekler.lock().unwrap().last().expect("hiç istek gitmedi"))
+    }
+}
+
+impl crate::ortak::Tasiyici for SahteAg {
+    fn gonder(&self, i: &crate::ortak::DisIstek) -> Result<(u16, Vec<u8>), String> {
+        self.istekler.lock().unwrap().push(GidenIstek {
+            yontem: i.yontem.clone(),
+            url: i.url.clone(),
+            basliklar: i.basliklar.clone(),
+            govde: i.govde.as_ref().map(|g| String::from_utf8_lossy(g).into_owned()).unwrap_or_default(),
+            kullanici: i.kullanici.clone(),
+            zaman_asimi: i.zaman_asimi,
+        });
+        match self.cevaplar.lock().unwrap().pop_front() {
+            None => Ok((200, b"<xml><main><code>0</code><jobID>111</jobID></main></xml>".to_vec())),
+            Some(AgCevap::Govde(g)) => Ok((200, g.as_bytes().to_vec())),
+            Some(AgCevap::Durum(d, g)) => Ok((d, g.as_bytes().to_vec())),
+            Some(AgCevap::Hata) => Err("ağ".into()),
+        }
+    }
+}
+
+/// Python `ag_yok`: ağ isteği gitmemeliydi.
+pub struct AgYok;
+
+impl crate::ortak::Tasiyici for AgYok {
+    fn gonder(&self, _: &crate::ortak::DisIstek) -> Result<(u16, Vec<u8>), String> {
+        panic!("ağ isteği gitmemeliydi")
+    }
+}
+
 #[cfg(test)]
 mod testler {
     use super::*;

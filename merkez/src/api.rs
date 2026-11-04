@@ -1,6 +1,6 @@
 //! Cihaz API'si (Python api.py, spec §4): api.wificorrect.com/api/{giris,bekliyor,bagla,eslesme,parola,saglik,paket,liste}.
 //! JSON gövde ≤ 4 KB, IP başına dakikada 20 istek. Cihazın kimliği ilk girişte verilen cihaz anahtarıdır (merkez yalnızca
-//! SHA-256'sını tutar). `/api/sms` ve `/api/sms-dogrula` Task 8'de eklenir. `/api/raporlar` ve `/api/rapor` yoktur (spec
+//! SHA-256'sını tutar). `/api/sms` ve `/api/sms-dogrula`: misafir doğrulama SMS'i (NetGSM OTP, Twilio Verify). `/api/raporlar` ve `/api/rapor` yoktur (spec
 //! bilinçli fark 1): 404.
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -12,13 +12,23 @@ use crate::guvenlik::{self, GirisKilidi, HizSiniri};
 use crate::kuyruk;
 use crate::listeler;
 use crate::merkez::Uygulama;
-use crate::ortak::{py_str, py_yazdirilabilir};
+use crate::netgsm;
+use crate::ortak::{py_dogru, py_str, py_yazdirilabilir, Tasiyici};
 use crate::surumler;
+use crate::twilio;
 use crate::veri::{py_json, Hata, Musteri, Saat, Sonuc, Veri};
 use crate::web::{hata_yaniti, Istek, Yanit};
 
 pub const GOVDE_SINIRI: usize = 4096;
 pub const YEDEK_SUNUCU: &str = "10.99.0.1";
+/// Doğrulama SMS'i: sabit şablon, yalnızca 6 haneli kod; cihaz serbest metin gönderemez (açık röle olmasın).
+pub const OTP_SABLON: &str = "WiFi dogrulama kodunuz: {kod}. Kod 3 dakika gecerlidir.";
+/// Müşteri (cihaz) başına günlük (TR günü) doğrulama SMS'i sınırı.
+pub const SMS_GUNLUK_SINIR: i64 = 300;
+/// Yabancı numaralara (Twilio, pahalı) ayrıca; bunlar 300'e de sayılır.
+pub const SMS_YABANCI_SINIR: i64 = 20;
+/// `sms_sayac`'ta yabancı numara sayacının gün anahtarı eki.
+pub const YABANCI_SAYAC: &str = "/yabanci";
 
 pub const SAGLIK_SERVISLER: [&str; 5] = ["portal", "panel", "kaydedici", "dnsmasq", "guvenlik"];
 pub const SAGLIK_BOOL: [&str; 4] = ["kayit_boslugu_1s", "wan", "sms_sorunu", "hiz_hata"];
@@ -196,6 +206,8 @@ pub struct Api {
     yeni_kimlik_hiz: HizSiniri,
     /// Reddedilen bildirim/bağlama hareket satırı: kimlik başına saatte bir (kapma girişimi görünsün, tablo şişmesin).
     red_hiz: HizSiniri,
+    /// NetGSM/Twilio isteği (testte sahte; üretimde curl, `WC_TEST=1` altında reddedilir).
+    pub sms_tasiyici: Arc<dyn Tasiyici>,
 }
 
 impl Api {
@@ -213,6 +225,11 @@ impl Api {
             bekleme_hiz: HizSiniri::new(3, 60.0),
             yeni_kimlik_hiz: HizSiniri::new(10, 3600.0),
             red_hiz: HizSiniri::new(1, 3600.0),
+            // testte varsayılan: istek gitmemeli (gerçek SMS asla); sahte taşıyıcı açıkça verilir
+            #[cfg(test)]
+            sms_tasiyici: Arc::new(crate::test_yardim::AgYok),
+            #[cfg(not(test))]
+            sms_tasiyici: Arc::new(crate::ortak::Curl),
         }
     }
 
@@ -263,12 +280,14 @@ impl Api {
     }
 
     pub fn isle(&self, i: &Istek) -> Sonuc<Yanit> {
-        const UCLAR: [&str; 8] = [
+        const UCLAR: [&str; 10] = [
             "/api/giris",
             "/api/eslesme",
             "/api/parola",
             "/api/saglik",
             "/api/paket",
+            "/api/sms",
+            "/api/sms-dogrula",
             "/api/liste",
             "/api/bekliyor",
             "/api/bagla",
@@ -293,6 +312,8 @@ impl Api {
             "/api/parola" => self.parola(&b, ip),
             "/api/saglik" => self.saglik(&b, ip),
             "/api/paket" => self.paket(&b),
+            "/api/sms" => self.sms(&b),
+            "/api/sms-dogrula" => self.sms_dogrula(&b),
             "/api/liste" => self.liste(&b),
             "/api/bekliyor" => self.bekliyor(&b, ip),
             _ => self.bagla(&b, ip),
@@ -602,6 +623,109 @@ impl Api {
         }
     }
 
+    // --- doğrulama SMS'i merkezden: NetGSM OTP ya da Twilio Verify ---
+    /// (cihaz, telefon, kod) ya da hata yanıtı. Kod hiçbir yere yazılmaz.
+    fn sms_cihazi(&self, b: &Value) -> Sonuc<Result<(crate::veri::Cihaz, String, String), Yanit>> {
+        let Some(c) = self.cihaz(b)? else { return Ok(Err(taninmadi())) };
+        let m = self.musteri(c.musteri)?;
+        if c.durum != "bagli" || !self.veri.hizmet_acik(&m) {
+            return Ok(Err(hata(403, "yetki", "Bu işlem için yetkiniz yok.")));
+        }
+        let hane = |v: Option<&str>, uzunluk: std::ops::RangeInclusive<usize>| {
+            v.filter(|s| uzunluk.contains(&s.len()) && s.bytes().all(|b| b.is_ascii_digit())).map(str::to_string)
+        };
+        match (hane(dize(b, "telefon"), 8..=15), hane(dize(b, "kod"), 6..=6)) {
+            (Some(tel), Some(kod)) => Ok(Ok((c, tel, kod))),
+            _ => Ok(Err(gecersiz())),
+        }
+    }
+
+    /// Türk cep numarası → `tr_saglayici`; yabancı → Twilio açıksa twilio, değilse None.
+    fn saglayici(s: &Value, tel: &str) -> Option<String> {
+        if twilio::tr_mi(tel) {
+            return Some(py_str(&s["tr_saglayici"]));
+        }
+        s["twilio"].get("acik").is_some_and(py_dogru).then(|| "twilio".to_string())
+    }
+
+    fn sms(&self, b: &Value) -> Sonuc<Yanit> {
+        let (c, tel, kod) = match self.sms_cihazi(b)? {
+            Ok(t) => t,
+            Err(h) => return Ok(h),
+        };
+        let s = self.veri.sms_ayari()?;
+        let sonuc = |saglayici: Option<&str>, sonuc_: &str, kod_: &str, is_no: &str| -> Sonuc<Yanit> {
+            if sonuc_ != "mock" {
+                // müşteri başına tek satır (her SMS'e hareket satırı geçmişi boğardı); sağlık izleme okur
+                self.veri.sms_son_kaydet(c.musteri, saglayici.unwrap_or(""), sonuc_, kod_)?;
+            }
+            let mut y = Map::new();
+            y.insert("sonuc".into(), json!(sonuc_));
+            y.insert("kod".into(), json!(kod_));
+            if !is_no.is_empty() {
+                y.insert("is".into(), json!(is_no));
+            }
+            if let Some(sg) = saglayici {
+                y.insert("saglayici".into(), json!(sg));
+            }
+            Ok(json(200, &Value::Object(y)))
+        };
+        let Some(s) = s else { return sonuc(None, "hata", "AYAR", "") };
+        let Some(saglayici) = Self::saglayici(&s, &tel) else { return sonuc(None, "hata", "YABANCI", "") };
+        if s.get("mock").is_some_and(py_dogru) {
+            // deneme modu: hiçbir sağlayıcıya istek gitmez, cihaz kodu yerelde doğrular
+            return sonuc(Some(&saglayici), "mock", "0", "");
+        }
+        if self.sinir_doldu(c.musteri, !twilio::tr_mi(&tel))? {
+            return sonuc(Some(&saglayici), "hata", "SINIR", "");
+        }
+        if saglayici == "twilio" {
+            let (r, k) = twilio::gonder(&s["twilio"], &tel, self.sms_tasiyici.as_ref());
+            return sonuc(Some(&saglayici), &r, &k, "");
+        }
+        let metin = OTP_SABLON.replace("{kod}", &kod);
+        let (r, k, is_no) = netgsm::otp_gonder(&s, &tel[2..], &metin, self.sms_tasiyici.as_ref());
+        sonuc(Some(&saglayici), &r, &k, &is_no)
+    }
+
+    /// Günlük sayaçlar (toplam 300; yabancı numaraysa ayrıca 20). Dolmadıysa hepsi bir artar. Yarış: iki istek aynı anda
+    /// sınırın bir altını görürse artırma sonrası sınırı aşan reddedilir (ikinci denetim).
+    fn sinir_doldu(&self, musteri: i64, yabanci: bool) -> Sonuc<bool> {
+        let gun = self.veri.bugun().to_string();
+        let mut sayaclar = vec![(gun.clone(), SMS_GUNLUK_SINIR)];
+        if yabanci {
+            sayaclar.push((format!("{gun}{YABANCI_SAYAC}"), SMS_YABANCI_SINIR));
+        }
+        for (g, sinir) in &sayaclar {
+            if self.veri.sms_sayac(musteri, g)? >= *sinir {
+                return Ok(true);
+            }
+        }
+        let mut doldu = false;
+        for (g, sinir) in &sayaclar {
+            doldu |= self.veri.sms_sayac_artir(musteri, g)? > *sinir; // hepsi artsın
+        }
+        Ok(doldu)
+    }
+
+    /// Twilio Verify kodu: {onay} ya da ağ hatasında hata/AG (misafirin deneme hakkı düşmesin diye ayrı).
+    fn sms_dogrula(&self, b: &Value) -> Sonuc<Yanit> {
+        let (_, tel, kod) = match self.sms_cihazi(b)? {
+            Ok(t) => t,
+            Err(h) => return Ok(h),
+        };
+        let ayar = || json(200, &json!({"sonuc": "hata", "kod": "AYAR"}));
+        let Some(s) = self.veri.sms_ayari()? else { return Ok(ayar()) };
+        if s.get("mock").is_some_and(py_dogru) || Self::saglayici(&s, &tel).as_deref() != Some("twilio") {
+            return Ok(ayar());
+        }
+        let (onay, k) = twilio::dogrula(&s["twilio"], &tel, &kod, self.sms_tasiyici.as_ref());
+        Ok(match onay {
+            None => json(200, &json!({"sonuc": "hata", "kod": k})),
+            Some(o) => json(200, &json!({"onay": o})),
+        })
+    }
+
     /// Hazır engel listesi (gzip, düz metnin sha256'sı sağlık cevabında). Yalnızca bağlı ve hizmeti açık cihaza.
     fn liste(&self, b: &Value) -> Sonuc<Yanit> {
         let Some(c) = self.cihaz(b)? else { return Ok(taninmadi()) };
@@ -631,3 +755,7 @@ impl Uygulama for Api {
 #[cfg(test)]
 #[path = "api_testler.rs"]
 mod testler;
+
+#[cfg(test)]
+#[path = "api_sms_testler.rs"]
+mod sms_testler;

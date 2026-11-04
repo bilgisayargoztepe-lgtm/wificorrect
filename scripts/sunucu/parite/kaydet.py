@@ -18,12 +18,15 @@ Kayıt biçimi 2 (Rust altin.rs aynısını üretir):
   ya da test sonunda: {göreli yol (/ ile): içerik}; dizinler "yol/": {"dizin": true}; dosya: .gz açılmış hâliyle ("gz": true),
   .json(.gz) JSON değeri, UTF-8 metin, değilse sha256 + uzunluk. SQLite veritabanları ve günlükleri, sembolik bağlar ve
   özel dosyalar (FIFO) alınmaz.
-- platform_farki: testin Windows'ta atladığı Linux adımları (sembolik bağ kurulamadı, testin baktığı os.X yok). Doluysa Rust
-  `dosyalar`'ı karşılaştırmaz (Rust testi Linux'ta o adımları da yapar).
+- platform_farki: testin Windows'ta atladığı Linux adımları (sembolik bağ kurulamadı, testin baktığı os.X yok). Yalnızca
+  PLATFORM_TESTLERI'ndeki testlerde ve oradaki değerle olabilir (başka türlüsü kayıt hatası). Doluysa Rust `dosyalar`'da
+  Python'un dizin ve dosyalarının kendi dökümünde aynı içerikle bulunmasını ister (Linux'ta fazlası olabilir).
 - Kararsız değerler: her test iki kez koşar; ikincisinde gzip başlık zamanı ve sıkıştırma düzeyi değişir, dosya zamanları
-  zaten farklıdır. İki koşuda farklı çıkan her yaprak değer (ör. gz baytlarının ya da dosya zamanının özeti: MANIFEST,
-  zincir.txt, rapor `imza`/`manifest_sha`) "<KARARSIZ>" olur; Rust onu karşılaştırmaz (Rust'ın gzip'i ve dosya zamanları
-  zaten farklıdır). Yanıt, veritabanı, dizin ya da dosya sayısı iki koşuda farklıysa kayıt hata verir.
+  zaten farklıdır. Yanıtlar, veritabanları, dizinler ve dosya adları iki koşuda aynı olmalı; dosya içeriğinde de yalnızca
+  `kararsiz_izinli` yapraklar farklı olabilir ve "<KARARSIZ>" olur (dosya JSON'unun üst düzey `imza`/`manifest_sha`'sı,
+  MANIFEST.sha256 ve zincir.txt metni, açılamayan .gz'nin ikili özeti: hepsi gz baytına ya da dosya zamanına bağlı, Rust'ta
+  da farklıdır). Başka her fark (tür, anahtar, uzunluk, yaprak) yoluyla birlikte kayıt hatasıdır. Rust "<KARARSIZ>"ı yalnızca
+  bir yaprağa karşı kabul eder.
 - Metin gövdede ortak CSS, logolar ve sekme simgesi {CSS}, {LOGO_ACIK}, {LOGO_KOYU}, {FAVICON} olur.
 - Belirteç: testte secrets.token_urlsafe / token_hex'in döndürdüğü, en az 8 karakterlik her değer. Her metinde (başlık
   değeri, metin gövde, JSON metinleri ve anahtarları, tablo metinleri, dosya yolları ve içerikleri) en soldaki-en uzun
@@ -236,41 +239,71 @@ def normallestir(cevaplar, veritabanlari, dizinler, uretilen):
 
 
 KARARSIZ = "<KARARSIZ>"
+# İki koşuda farklı çıkabilecek tek yerler (dosya içerikleri): gz baytının ya da dosya zamanının özeti
+KARARSIZ_JSON_ALANLARI = ("imza", "manifest_sha")  # dosya JSON'unun üst düzeyinde
+KARARSIZ_METINLER = ("MANIFEST.sha256", "zincir.txt")
+# Windows'ta (sembolik bağ yetkisi, os.mkfifo, O_NOFOLLOW yok) Linux adımını atlayan testler ve beklenen platform_farki
+PLATFORM_TESTLERI = {
+    ("test_kuyruk", "test_sembolik_bag_ve_fifo_izlenmez"): ["os.O_NOFOLLOW yok"],
+    ("test_rapor", "test_gruplar"): ["os.symlink kurulamadı"],
+    ("test_rapor", "test_gun_dogrula_sembolik_bag"): ["os.symlink kurulamadı"],
+    ("test_rapor", "test_tamam_mi_fifo_beklemez"): ["os.mkfifo yok"],
+    ("test_rapor", "test_zincir_sembolik_bag_okunmaz"): ["os.symlink kurulamadı"],
+    ("test_wc_istatistik", "test_gunluk_sembolik_bag_ise_arsiv_okunmaz"): ["os.symlink kurulamadı"],
+    ("test_wc_istatistik", "test_sembolik_bag_gun_ve_dosya_atlanir"): ["os.symlink kurulamadı"],
+}
 
 
-def _birlestir(a, b):
-    """İki koşunun aynı içeriği: farklı yapraklar (ya da uzunluğu/anahtarları farklı dizi/nesne) KARARSIZ."""
+class KararsizKayit(Exception):
+    pass
+
+
+def kararsiz_izinli(dosya, alan):
+    """dosya: geçici dizindeki göreli yol; alan: içerikteki yol (ör. ("json", "imza")). Rust altin.rs ile aynı kural."""
+    ad = dosya.rsplit("/", 1)[-1]
+    return ((alan == ("metin",) and ad in KARARSIZ_METINLER)
+            or (len(alan) == 2 and alan[0] == "json" and alan[1] in KARARSIZ_JSON_ALANLARI)
+            or (dosya.endswith(".gz") and alan in (("ikili", "sha256"), ("ikili", "uzunluk"))))
+
+
+def _kisa(v):
+    m = json.dumps(v, ensure_ascii=False)
+    return m if len(m) <= 120 else m[:120] + "…"
+
+
+def _birlestir(a, b, yol, izin, alan=()):
+    """İki koşunun aynı içeriği. Tür, anahtar ya da uzunluk farkı hatadır; farklı bir yaprak yalnızca izin(alan) ise
+    KARARSIZ olur, değilse yoluyla hata."""
     if type(a) is not type(b):
-        return KARARSIZ
+        raise KararsizKayit(f"{yol}: iki koşuda tür farklı ({_kisa(a)} / {_kisa(b)})")
     if isinstance(a, dict):
         if a.keys() != b.keys():
-            return KARARSIZ
-        return {k: _birlestir(a[k], b[k]) for k in a}
+            raise KararsizKayit(f"{yol}: iki koşuda anahtarlar farklı ({sorted(a.keys() ^ b.keys())})")
+        return {k: _birlestir(a[k], b[k], f"{yol}/{k}", izin, alan + (k,)) for k in a}
     if isinstance(a, list):
         if len(a) != len(b):
-            return KARARSIZ
-        return [_birlestir(x, y) for x, y in zip(a, b)]
-    return a if a == b else KARARSIZ
+            raise KararsizKayit(f"{yol}: iki koşuda uzunluk farklı ({len(a)} / {len(b)})")
+        return [_birlestir(x, y, f"{yol}[{i}]", izin, alan + (i,)) for i, (x, y) in enumerate(zip(a, b))]
+    if a == b:
+        return a
+    if izin(alan):
+        return KARARSIZ
+    raise KararsizKayit(f"{yol}: iki koşuda farklı ({_kisa(a)} / {_kisa(b)})")
 
 
 def kayit_birlestir(a, b):
-    """İki koşunun kaydı → kararsız yaprakları işaretli tek kayıt. Yapı (yanıt, veritabanı, dizin ve dosya sayısı, istekler,
-    tablolar) iki koşuda aynı olmalı."""
-    for alan in ("bicim", "dosya", "test", "platform_farki", "yollar"):
-        if a[alan] != b[alan]:
-            raise RuntimeError(f"iki koşuda `{alan}` farklı")
-    if [c["istek"] for c in a["cevaplar"]] != [c["istek"] for c in b["cevaplar"]]:
-        raise RuntimeError("iki koşuda istekler farklı")
-    if [(v["ad"], sorted(v["tablolar"])) for v in a["veritabanlari"]] != \
-            [(v["ad"], sorted(v["tablolar"])) for v in b["veritabanlari"]]:
-        raise RuntimeError("iki koşuda veritabanları farklı")
-    if [sorted(d) for d in a["dosyalar"]] != [sorted(d) for d in b["dosyalar"]]:
-        raise RuntimeError("iki koşuda geçici dizinler ya da dosya adları farklı")
+    """İki koşunun kaydı → tek kayıt. Dosya içerikleri dışında her şey aynı olmalı (farkta ilk farklı yol yazılır)."""
+    for alan in ("bicim", "dosya", "test", "platform_farki", "yollar", "cevaplar", "veritabanlari"):
+        _birlestir(a[alan], b[alan], alan, lambda _: False)
+    if len(a["dosyalar"]) != len(b["dosyalar"]):
+        raise KararsizKayit(f"dosyalar: iki koşuda geçici dizin sayısı farklı ({len(a['dosyalar'])} / {len(b['dosyalar'])})")
     out = dict(a)
-    out["cevaplar"] = [_birlestir(x, y) for x, y in zip(a["cevaplar"], b["cevaplar"])]
-    out["veritabanlari"] = [{"ad": x["ad"], "tablolar": _birlestir(x["tablolar"], y["tablolar"])}
-                            for x, y in zip(a["veritabanlari"], b["veritabanlari"])]
-    out["dosyalar"] = [{k: _birlestir(x[k], y[k]) for k in x} for x, y in zip(a["dosyalar"], b["dosyalar"])]
+    out["dosyalar"] = []
+    for i, (x, y) in enumerate(zip(a["dosyalar"], b["dosyalar"])):
+        if x.keys() != y.keys():
+            raise KararsizKayit(f"dosyalar[{i}]: iki koşuda dosya adları farklı ({sorted(x.keys() ^ y.keys())})")
+        out["dosyalar"].append({k: _birlestir(x[k], y[k], f"dosyalar[{i}]/{k}",
+                                              lambda alan, k=k: kararsiz_izinli(k, alan)) for k in x})
     return out
 
 
@@ -589,6 +622,9 @@ def tek(dosya, test, cikti):
     getattr(mod, test)()
     if D.hatalar:
         raise RuntimeError("; ".join(D.hatalar))
+    beklenen = PLATFORM_TESTLERI.get((ad, test), []) if os.name == "nt" else []
+    if D.platform != beklenen:
+        raise RuntimeError(f"platform_farki {D.platform}, beklenen {beklenen}: PLATFORM_TESTLERI'ni denetleyin")
     for d in D.dizinler:  # silinmemiş geçici dizinler (mkdtemp, kapanmamış TemporaryDirectory)
         if d[1] is None:
             if not os.path.isdir(d[0]):
@@ -660,7 +696,7 @@ def calistir(dosya, test, cikti, tohum):
                 kayitlar.append(json.load(f))
         try:
             kayit = kayit_birlestir(*kayitlar)
-        except RuntimeError as h:
+        except KararsizKayit as h:
             return dosya, test, 1, f"{cikis}kararsız kayıt: {h}", time.time() - t0
     os.makedirs(os.path.join(cikti, ad), exist_ok=True)
     with io.open(os.path.join(cikti, ad, test + ".json"), "w", encoding="utf-8", newline="\n") as f:

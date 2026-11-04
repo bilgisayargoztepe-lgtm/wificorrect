@@ -17,7 +17,7 @@ pub const DIZIN: &str = "/var/lib/wificorrect/merkez/surumler";
 pub const EN_COK_BAYT: usize = 50 * 1024 * 1024;
 const LISTE_SINIRI: usize = 2 * 1024 * 1024;
 const SUMS_SINIRI: usize = 64 * 1024;
-const GITHUB_LISTE: &str = "https://api.github.com/repos/bilgisayargoztepe-lgtm/wificorrect/releases?per_page=10";
+pub(crate) const GITHUB_LISTE: &str = "https://api.github.com/repos/bilgisayargoztepe-lgtm/wificorrect/releases?per_page=10";
 /// Python `urlopen(timeout=60)`: bağlanma ve her okuma 60 sn; toplam sınır yok. Burada toplam yalnızca güvenlik ağıdır.
 const BAGLANMA_SURESI: Duration = Duration::from_secs(60);
 const BOSTA_SURESI: Duration = Duration::from_secs(60);

@@ -2,7 +2,7 @@
 //! bırakma, üyelik, kayıtlar (gerekçeyle), raporlar, hareketler, eski arşivler, yönetici hesabı. Sol menü gruplu.
 //!
 //! Ayar sayfaları (`/listeler`, `/sms`, `/uyari`, `/uyari/deneme`, `/surumler` ve POST'ları) `ayar_sayfalari` kancasındadır.
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -13,8 +13,12 @@ use crate::cihaz::CIHAZ_GIRIS;
 use crate::detay::{self, e, tr_kucuk};
 use crate::guvenlik::{self, GecisBelirtecleri};
 use crate::kayitlar::{son_30_gun, Kayitlar};
+use crate::listeler::{self, Uretici};
+use crate::merkez::py_int;
 use crate::musteri::Musteri;
-use crate::ortak::{now_iso, py_dogru, py_str, py_strip, tarih_girdi, tarih_goster, tarih_saat_goster};
+use crate::netgsm;
+use crate::ortak::{now_iso, py_dogru, py_str, py_strip, tarih_girdi, tarih_goster, tarih_saat_goster, Tasiyici};
+use crate::surumler;
 use crate::raporlar::{self, Raporlar};
 use crate::saglik::{self, CEVRIMICI_SN, TEKRAR_SN};
 use crate::veri::{self, Cihaz, Hareket, Hata, Saat, SaglikKaydi, Sonuc, SmsSon, Sorun, Veri};
@@ -25,6 +29,13 @@ use crate::yonetici;
 pub const ESLESME_GECIKME_SN: f64 = 26.0 * 3600.0;
 /// wc-saglik 5 dk'da bir; son turu bundan eskiyse izleme çalışmıyor olabilir.
 pub const IZLEME_BAYAT_SN: f64 = 900.0;
+
+/// Günlük uyarı SMS sınırı aralığı (yönetim formu).
+pub const SINIR_ARALIK: (i64, i64) = veri::UYARI_SINIR_ARALIK;
+pub const DENEME_METNI: &str = "WifiCorrect deneme uyarısı";
+
+/// GitHub sürümlerini alan işlev (Python `github_al`): (eklenen sürümler, hata metinleri) ya da liste alınamadı hatası.
+pub type GithubAl = Box<dyn Fn(&Veri, &Path, &dyn Tasiyici) -> Result<(Vec<String>, Vec<String>), String> + Send + Sync>;
 
 /// Sol menü (2026-10-24 kullanıcı kararı): grup başlığı ve bağlantıları. Admin parolası Hesabım'da, Sürümler Ayarlar'da.
 pub const MENU: [(&str, &[(&str, &str)]); 3] = [
@@ -232,12 +243,41 @@ pub struct Yonetim {
     pub musteri_app: Option<Arc<Musteri>>,
     /// eski arşiv bağı değişince root'un okuduğu grup dosyası (None: yazılmaz)
     pub rapor_gruplari: Option<PathBuf>,
+    /// uzaktan güncelleme sürüm deposu ve hazır engel listeleri dizini
+    pub surum_dizini: PathBuf,
+    pub liste_dizini: PathBuf,
+    /// deneme SMS'i (testte `AgYok`/`SahteAg`; üretimde curl, `WC_TEST=1` altında reddedilir)
+    pub sms_tasiyici: Arc<dyn Tasiyici>,
+    /// GitHub sürüm listesi ve liste kaynakları indirmesi (testte sahte)
+    pub indirme_tasiyici: Arc<dyn Tasiyici>,
+    /// Python `L.KAYNAKLAR`/`L.EN_COK`: liste kaynakları (testte değiştirilir)
+    pub liste_uretici: Uretici,
+    github_al: GithubAl,
 }
 
 impl Yonetim {
     /// Python `Yonetim(veri, kayitlar, saat, yonetici_yolu, durum_yolu, kuyruk_ekle)`; öteki parametreler `*_ile` yöntemleriyle.
     pub fn new(veri: Arc<Veri>, kayitlar: Kayitlar, saat: Saat, yonetici_yolu: PathBuf, durum_yolu: PathBuf, kuyruk_ekle: KuyrukEkle) -> Yonetim {
-        Yonetim { taban: Taban::new(veri, kayitlar, saat), yonetici_yolu, durum_yolu, kuyruk_ekle, gecis: None, musteri_app: None, rapor_gruplari: None }
+        // testte varsayılan: dış istek gitmemeli (gerçek SMS/GitHub asla); sahte taşıyıcı açıkça verilir
+        #[cfg(test)]
+        let (sms_tasiyici, indirme_tasiyici): (Arc<dyn Tasiyici>, Arc<dyn Tasiyici>) = (Arc::new(crate::test_yardim::AgYok), Arc::new(crate::test_yardim::AgYok));
+        #[cfg(not(test))]
+        let (sms_tasiyici, indirme_tasiyici): (Arc<dyn Tasiyici>, Arc<dyn Tasiyici>) = (Arc::new(crate::ortak::Curl), Arc::new(crate::ortak::Curl));
+        Yonetim {
+            taban: Taban::new(veri, kayitlar, saat),
+            yonetici_yolu,
+            durum_yolu,
+            kuyruk_ekle,
+            gecis: None,
+            musteri_app: None,
+            rapor_gruplari: None,
+            surum_dizini: PathBuf::from(surumler::DIZIN),
+            liste_dizini: PathBuf::from(listeler::DIZIN),
+            sms_tasiyici,
+            indirme_tasiyici,
+            liste_uretici: Uretici::varsayilan(),
+            github_al: Box::new(|v, d, t| surumler::github_al(v, d, t)),
+        }
     }
 
     /// Üretim: varsayılan yollar, gerçek kuyruk, paylaşılan geçiş belirteçleri ve müşteri paneli (cihaz adresi), rapor grupları.
@@ -264,6 +304,42 @@ impl Yonetim {
     /// Python `Yonetim(..., rapor_gruplari=...)`.
     pub fn rapor_gruplari_ile(mut self, yol: PathBuf) -> Yonetim {
         self.rapor_gruplari = Some(yol);
+        self
+    }
+
+    /// Python `Yonetim(..., surum_dizini=...)`.
+    pub fn surum_dizini_ile(mut self, d: PathBuf) -> Yonetim {
+        self.surum_dizini = d;
+        self
+    }
+
+    /// Python `Yonetim(..., liste_dizini=...)`.
+    pub fn liste_dizini_ile(mut self, d: PathBuf) -> Yonetim {
+        self.liste_dizini = d;
+        self
+    }
+
+    /// Python `Yonetim(..., gonder=...)`: deneme SMS'inin gideceği taşıyıcı.
+    pub fn sms_tasiyici_ile(mut self, t: Arc<dyn Tasiyici>) -> Yonetim {
+        self.sms_tasiyici = t;
+        self
+    }
+
+    /// Python `Yonetim(..., getir=..., liste_getir=...)`: GitHub ve liste kaynakları indirmesi.
+    pub fn indirme_tasiyici_ile(mut self, t: Arc<dyn Tasiyici>) -> Yonetim {
+        self.indirme_tasiyici = t;
+        self
+    }
+
+    /// Python `L.KAYNAKLAR` değişikliği (testlerde).
+    pub fn liste_uretici_ile(mut self, u: Uretici) -> Yonetim {
+        self.liste_uretici = u;
+        self
+    }
+
+    /// Python `Yonetim(..., github_al=...)`.
+    pub fn github_al_ile(mut self, f: GithubAl) -> Yonetim {
+        self.github_al = f;
         self
     }
 
@@ -347,10 +423,369 @@ impl Yonetim {
         })
     }
 
-    /// Ayar sayfaları kancası (Task 11b): `/listeler` (+ `/listeler/guncelle`), `/sms`, `/uyari`, `/uyari/deneme`, `/surumler`
-    /// (+ `/surumler/al`, `/surumler/hedef`). Eşleşmeyen yol için `Ok(None)`; 11a'da hiçbiri yoktur (404).
-    fn ayar_sayfalari(&self, _ot: &Ot, _yontem: &str, _yol: &str, _form: &HashMap<String, String>, _ip: &str) -> Sonuc<Option<Yanit>> {
-        Ok(None)
+    /// Ayar sayfaları kancası: `/listeler` (+ `/listeler/guncelle`), `/sms`, `/uyari`, `/uyari/deneme`, `/surumler`
+    /// (+ `/surumler/al`, `/surumler/hedef`). Eşleşmeyen yol için `Ok(None)`.
+    fn ayar_sayfalari(&self, ot: &Ot, yontem: &str, yol: &str, form: &HashMap<String, String>, ip: &str) -> Sonuc<Option<Yanit>> {
+        Ok(Some(match (yontem, yol) {
+            (_, "/sms") => self.sms(ot, yontem, form, ip)?,
+            ("GET", "/surumler") => self.surumler_sayfasi(ot)?,
+            ("POST", "/surumler/al") => self.surum_al(ot, ip)?,
+            ("POST", "/surumler/hedef") => self.kanal_hedef(ot, form, ip)?,
+            ("GET", "/listeler") => self.listeler_sayfasi(ot),
+            ("POST", "/listeler/guncelle") => {
+                // web isteği asılı kalmasın: kilit tutuluyorsa beklemeden Mesgul
+                match self.liste_uretici.calistir(self.veri(), self.indirme_tasiyici.as_ref(), &self.liste_dizini, self.taban.simdi(), "admin", ip, false) {
+                    Ok(_) => yonlendir("/listeler", None),
+                    Err(listeler::Mesgul) => {
+                        yanit_html(&self.mesaj(Some(ot), "Engel listeleri", "Güncelleme zaten sürüyor; birkaç dakika sonra sayfayı yenileyin."), 200, None)
+                    }
+                }
+            }
+            (_, "/uyari") => self.uyari(ot, yontem, form, ip)?,
+            ("POST", "/uyari/deneme") => self.uyari_deneme(ot, ip)?,
+            _ => return Ok(None),
+        }))
+    }
+
+    // --- uzaktan güncelleme: sürüm deposu ve kanal hedefleri ---
+    fn surumler_sayfasi(&self, ot: &Ot) -> Sonuc<Yanit> {
+        let cs = e(&ot.csrf);
+        let mut kurulu: HashMap<String, i64> = HashMap::new();
+        for c in self.veri().cihazlar()? {
+            if let Some(p) = self.kurulu_paket(Some(&c))?.filter(|p| !p.is_empty()) {
+                *kurulu.entry(p).or_insert(0) += 1;
+            }
+        }
+        let liste = self.veri().surumler()?;
+        let satirlar: String = liste
+            .iter()
+            .map(|x| {
+                format!(
+                    "<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>",
+                    e(&x.surum),
+                    e(&x.kaynak),
+                    e(tarih_goster(&x.zaman, false)),
+                    e(detay::boyut(x.boyut)),
+                    e(x.sha256.chars().take(12).collect::<String>()),
+                    kurulu.get(&x.surum).copied().unwrap_or(0)
+                )
+            })
+            .collect();
+        let tablo = if liste.is_empty() {
+            "<p class=\"alt\">Depoda sürüm yok.</p>".to_string()
+        } else {
+            format!(
+                "<div class=\"kaydir\"><table class=\"detay\"><tr><th>Sürüm</th><th>Kaynak</th><th>Tarih</th><th>Boyut</th>\
+                 <th>sha256</th><th>Kurulu cihaz</th></tr>{satirlar}</table></div>"
+            )
+        };
+        let al = format!(
+            "<form method=\"post\" action=\"/surumler/al\"><input type=\"hidden\" name=\"csrf\" value=\"{cs}\">\
+             <button>GitHub'dan yeni sürümleri al</button></form>"
+        );
+        let mut hedefler = String::new();
+        let en_son = self.veri().en_son_surum()?;
+        for (kanal, ad) in [("kararli", "Kararlı"), ("test", "Test")] {
+            let secili = self.veri().kanal_hedef(kanal)?;
+            let mut sec = format!(
+                "<option value=\"\">Hedef yok</option>\
+                 <option value=\"{}\"{}>Her zaman en son sürüm ({})</option>",
+                veri::EN_SON,
+                if secili.as_deref() == Some(veri::EN_SON) { " selected" } else { "" },
+                match &en_son {
+                    Some(s) if !s.is_empty() => format!("şu an {}", e(s)),
+                    _ => "GitHub sürümü yok".to_string(),
+                }
+            );
+            for x in &liste {
+                sec += &format!("<option value=\"{0}\"{1}>{0}</option>", e(&x.surum), if secili.as_deref() == Some(x.surum.as_str()) { " selected" } else { "" });
+            }
+            hedefler += &format!(
+                "<form method=\"post\" action=\"/surumler/hedef\" class=\"ara\"><input type=\"hidden\" name=\"csrf\" value=\"{cs}\">\
+                 <input type=\"hidden\" name=\"kanal\" value=\"{kanal}\"><label for=\"k-{kanal}\">{ad} kanal hedefi</label>\
+                 <select id=\"k-{kanal}\" name=\"surum\">{sec}</select><button>Kaydet</button></form>"
+            );
+        }
+        let icerik = kart(&format!("<h1>Sürümler</h1>{al}{tablo}"))
+            + &kart(&format!(
+                "<h2>Kanal hedefleri</h2>{hedefler}\
+                 <p class=\"alt\">Cihazlar kendi kanalının hedefini bir sonraki sağlık raporunda (5 dk) \
+                 öğrenir ve kurar; hedef yoksa o kanaldaki cihazlar güncellenmez. \
+                 <b>Her zaman en son sürüm</b>: GitHub'dan alınmış en yüksek sürüm; merkez GitHub'a \
+                 saatte bir bakıp yeni sürümü kendisi alır. Elle eklenen (yerel) paketler buna \
+                 girmez, onları kanalda ayrıca seçin.</p>"
+            ));
+        Ok(yanit_html(&self.sayfa("Sürümler", &icerik, Some(ot), true, None), 200, None))
+    }
+
+    fn surum_al(&self, ot: &Ot, ip: &str) -> Sonuc<Yanit> {
+        let (eklenen, hatalar) = match (self.github_al)(self.veri(), &self.surum_dizini, self.indirme_tasiyici.as_ref()) {
+            Ok(r) => r,
+            Err(h) => {
+                // liste alınamadı: sayfa düşmez, mesaj gösterilir
+                self.veri().hareket("admin", ip, "SURUM_AL_HATA", None, &h.chars().take(200).collect::<String>())?;
+                return Ok(yanit_html(&self.mesaj(Some(ot), "Sürümler alınamadı", &format!("GitHub sürüm listesi alınamadı: {h}")), 200, None));
+            }
+        };
+        for s in &eklenen {
+            self.veri().hareket("admin", ip, "SURUM_ALINDI", None, &format!("surum={s}"))?;
+        }
+        let mut metin = if eklenen.is_empty() { "Yeni sürüm yok. ".to_string() } else { format!("Eklenen: {}. ", eklenen.join(", ")) };
+        if !hatalar.is_empty() {
+            metin += &format!("Alınamayanlar: {}", hatalar.join("; "));
+        }
+        Ok(yanit_html(&self.mesaj(Some(ot), "Sürümler", py_strip(&metin)), 200, None))
+    }
+
+    fn kanal_hedef(&self, ot: &Ot, form: &HashMap<String, String>, ip: &str) -> Sonuc<Yanit> {
+        let (kanal, sv) = (form.get("kanal").map(String::as_str).unwrap_or(""), form.get("surum").map(String::as_str).unwrap_or(""));
+        let gecersiz = !["kararli", "test"].contains(&kanal)
+            || (!sv.is_empty() && sv != veri::EN_SON && (!surumler::surum_gecerli(sv) || self.veri().surum(sv)?.is_none()));
+        if gecersiz {
+            return Ok(yanit_html(&self.mesaj(Some(ot), "Hedef kaydedilmedi", "Kanal ya da sürüm geçersiz (sürüm depoda olmalı)."), 400, None));
+        }
+        self.veri().kanal_hedef_koy(kanal, if sv.is_empty() { None } else { Some(sv) })?;
+        self.veri().hareket("admin", ip, "KANAL_HEDEF", None, &format!("kanal={kanal} surum={}", if sv.is_empty() { "-" } else { sv }))?;
+        Ok(yonlendir("/surumler", None))
+    }
+
+    // --- hazır engel listeleri ---
+    fn listeler_sayfasi(&self, ot: &Ot) -> Yanit {
+        let mut satirlar = String::new();
+        for (k, ad) in listeler::KATEGORILER {
+            let m = listeler::meta_oku(&self.liste_dizini, k).unwrap_or_default();
+            let kaynak = m
+                .get("kaynaklar")
+                .and_then(Value::as_array)
+                .map(|l| {
+                    l.iter()
+                        .filter_map(Value::as_object)
+                        .map(|d| {
+                            let sayi = d.get("sayi").map(py_str).unwrap_or_else(|| "0".into());
+                            let durum = if d.get("hata").is_some_and(py_dogru) {
+                                format!("<b class=\"kotu\">hata</b> ({})", e(py_str(&d["hata"])))
+                                    + &if d.get("eski").is_some_and(py_dogru) { format!(" · son başarılı kopya {}", e(&sayi)) } else { String::new() }
+                            } else {
+                                e(&sayi)
+                            };
+                            format!("{}: {durum}", e(d.get("ad").map(py_str).unwrap_or_else(|| "?".into())))
+                        })
+                        .collect::<Vec<_>>()
+                        .join("<br>")
+                })
+                .unwrap_or_default();
+            let mut durum: Vec<String> = Vec::new();
+            if m.get("hata").is_some_and(py_dogru) {
+                durum.push(format!("<b class=\"kotu\">{}</b> ({})", e(py_str(&m["hata"])), e(tg_deger(m.get("hata_zaman")))));
+            }
+            if m.get("kesildi").is_some_and(py_dogru) {
+                durum.push(format!("<span class=\"uyarisi\">{} sınırında kesildi</span>", self.liste_uretici.en_cok));
+            }
+            let sha: String = m.get("sha256").map(py_str).unwrap_or_default().chars().take(8).collect();
+            let zaman = tg_deger(m.get("zaman"));
+            satirlar += &format!(
+                "<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>",
+                e(ad),
+                e(m.get("sayi").map(py_str).unwrap_or_else(|| "—".into())),
+                e(if zaman.is_empty() { "henüz üretilmedi" } else { &zaman }),
+                if sha.is_empty() { "—".to_string() } else { e(&sha) },
+                if kaynak.is_empty() { "—" } else { &kaynak },
+                if durum.is_empty() { "tamam".to_string() } else { durum.join("<br>") }
+            );
+        }
+        let tablo = format!(
+            "<div class=\"kaydir\"><table class=\"detay\"><tr><th>Kategori</th><th>Alan adı</th><th>Son güncelleme</th>\
+             <th>Sürüm</th><th>Kaynaklar</th><th>Durum</th></tr>{satirlar}</table></div>"
+        );
+        let dugme = format!(
+            "<form method=\"post\" action=\"/listeler/guncelle\"><input type=\"hidden\" name=\"csrf\" value=\"{}\">\
+             <button>Şimdi güncelle</button></form>",
+            e(&ot.csrf)
+        );
+        let icerik = kart(&format!(
+            "<h1>Engel listeleri</h1>{dugme}{tablo}\
+             <p class=\"alt\">Listeler her gün 04:30'da kaynaklardan yeniden üretilir; cihazlar değişen listeyi bir sonraki \
+             sağlık raporunda (5 dk) alır. Bir kaynak indirilemezse onun son başarılı kopyası, hiçbiri indirilemezse önceki \
+             liste kullanılır.</p>"
+        ));
+        yanit_html(&self.sayfa("Engel listeleri", &icerik, Some(ot), true, None), 200, None)
+    }
+
+    // --- SMS ve uyarı ayarları ---
+    /// NetGSM (eski cihazlara da gider), doğrulama SMS'i için Türk numarası sağlayıcısı ve Twilio (yalnızca merkezde).
+    /// Sır alanları (NetGSM şifresi, Twilio auth token / API secret) yalnızca yazılır; boş bırakılırsa eskisi kalır.
+    fn sms(&self, ot: &Ot, yontem: &str, form: &HashMap<String, String>, ip: &str) -> Sonuc<Yanit> {
+        let al = |k: &str| form.get(k).map(String::as_str).unwrap_or("").to_string();
+        let mut eski = self.veri().sms_ayari()?.unwrap_or_else(|| {
+            json!({"mock": true, "usercode": "", "password": "", "msgheader": "", "appkey": "", "tr_saglayici": "netgsm", "twilio": veri::twilio_varsayilan()})
+        });
+        let mut hata = String::new();
+        if yontem == "POST" {
+            let et = eski["twilio"].clone();
+            let mut tw = Map::new();
+            tw.insert("acik".into(), Value::Bool(al("twilio_acik") == "1"));
+            for k in veri::TWILIO_ALANLARI.iter().filter(|k| !veri::TWILIO_SIRLARI.contains(k)) {
+                tw.insert((*k).into(), Value::String(al(k)));
+            }
+            for k in veri::TWILIO_SIRLARI {
+                let girilen = al(k);
+                tw.insert(k.into(), if girilen.is_empty() { et[k].clone() } else { Value::String(girilen) });
+            }
+            let parola = if al("password").is_empty() { eski["password"].clone() } else { Value::String(al("password")) };
+            let tr = form.get("tr_saglayici").cloned().unwrap_or_else(|| "netgsm".into());
+            let yeni = json!({"mock": al("mock") == "1", "usercode": al("usercode"), "msgheader": al("msgheader"), "appkey": al("appkey"),
+                              "password": parola, "tr_saglayici": tr, "twilio": Value::Object(tw.clone())});
+            match self.veri().sms_ayari_koy(&yeni) {
+                Ok(()) => {
+                    let k = self.veri().sms_ayari()?.ok_or_else(|| Hata::Db("sms ayarı yazıldı ama okunamadı".into()))?;
+                    let mut degisen: Vec<String> =
+                        ["mock", "usercode", "msgheader", "appkey", "password", "tr_saglayici"].iter().filter(|x| k[**x] != eski[**x]).map(|x| x.to_string()).collect();
+                    if let Some(kt) = k["twilio"].as_object() {
+                        degisen.extend(kt.iter().filter(|(x, v)| et.get(x.as_str()) != Some(*v)).map(|(x, _)| format!("twilio_{x}")));
+                    }
+                    self.veri().hareket("admin", ip, "SMS_AYARI", None, &format!("değişen={}", degisen.join(",")))?; // değer yazılmaz
+                    return Ok(yonlendir("/sms", None));
+                }
+                Err(Hata::Deger(m)) => hata = m,
+                Err(h) => return Err(h),
+            }
+            // hatalı formda yazılanlar geri gösterilir; sırlar asla
+            let mut gosterim = yeni.clone();
+            gosterim["password"] = eski["password"].clone();
+            for x in veri::TWILIO_SIRLARI {
+                tw.insert(x.into(), et[x].clone());
+            }
+            gosterim["twilio"] = Value::Object(tw);
+            eski = gosterim;
+        }
+        let cs = e(&ot.csrf);
+        let t = &eski["twilio"];
+        let alan = |v: &Value, k: &str| v.get(k).map(py_str).unwrap_or_default();
+        let tanim = |v: &Value| if py_dogru(v) { "tanımlı" } else { "tanımsız" };
+        let secili = |d: &str| if alan(&eski, "tr_saglayici") == d { " selected" } else { "" };
+        let h = if hata.is_empty() { String::new() } else { format!("<p class=\"hata\">{}</p>", e(&hata)) };
+        let icerik = format!(
+            "<h1>SMS ayarları</h1>{h}\
+             <form method=\"post\" action=\"/sms\"><input type=\"hidden\" name=\"csrf\" value=\"{cs}\">\
+             <label><input type=\"checkbox\" name=\"mock\" value=\"1\"{}> Deneme modu (SMS gönderilmez)</label>\
+             <label for=\"tr\">Türk numaraları için sağlayıcı</label><select id=\"tr\" name=\"tr_saglayici\">\
+             <option value=\"netgsm\"{}>NetGSM</option><option value=\"twilio\"{}>Twilio</option></select>\
+             <h2>NetGSM</h2>\
+             <label for=\"u\">NetGSM kullanıcı kodu</label><input id=\"u\" name=\"usercode\" value=\"{}\" autocomplete=\"off\">\
+             <label for=\"p\">API şifresi ({})</label><input id=\"p\" name=\"password\" type=\"password\" autocomplete=\"new-password\" \
+             placeholder=\"değiştirmek için yazın (boş = aynı kalır)\">\
+             <label for=\"b\">Mesaj başlığı</label><input id=\"b\" name=\"msgheader\" value=\"{}\" maxlength=\"11\">\
+             <label for=\"a\">Uygulama anahtarı (opsiyonel)</label><input id=\"a\" name=\"appkey\" value=\"{}\">\
+             <h2>Twilio Verify</h2>\
+             <label><input type=\"checkbox\" name=\"twilio_acik\" value=\"1\"{}> Twilio açık \
+             (yabancı numaralar Twilio'dan gider)</label>\
+             <label for=\"ta\">Account SID</label><input id=\"ta\" name=\"account_sid\" value=\"{}\" autocomplete=\"off\">\
+             <label for=\"tt\">Auth token ({})</label><input id=\"tt\" name=\"auth_token\" type=\"password\" \
+             autocomplete=\"new-password\" placeholder=\"değiştirmek için yazın (boş = aynı kalır)\">\
+             <label for=\"tk\">API key SID (opsiyonel)</label><input id=\"tk\" name=\"api_key_sid\" value=\"{}\" autocomplete=\"off\">\
+             <label for=\"ts\">API key secret ({})</label><input id=\"ts\" name=\"api_key_secret\" type=\"password\" \
+             autocomplete=\"new-password\" placeholder=\"değiştirmek için yazın (boş = aynı kalır)\">\
+             <label for=\"tv\">Verify service SID</label><input id=\"tv\" name=\"verify_sid\" value=\"{}\" autocomplete=\"off\">\
+             <button>Kaydet</button></form>\
+             <p class=\"alt\">Doğrulama SMS'leri cihazların isteğiyle bu sunucudan gönderilir (değişiklik hemen geçerli). \
+             NetGSM bilgileri eski sürümlü cihazlara bir sonraki eşitlemede (her gün 06:00) de gider; Twilio bilgileri hiçbir cihaza gitmez.</p>",
+            if py_dogru(&eski["mock"]) { " checked" } else { "" },
+            secili("netgsm"),
+            secili("twilio"),
+            e(alan(&eski, "usercode")),
+            tanim(&eski["password"]),
+            e(alan(&eski, "msgheader")),
+            e(alan(&eski, "appkey")),
+            if py_dogru(&t["acik"]) { " checked" } else { "" },
+            e(alan(t, "account_sid")),
+            tanim(&t["auth_token"]),
+            e(alan(t, "api_key_sid")),
+            tanim(&t["api_key_secret"]),
+            e(alan(t, "verify_sid"))
+        );
+        Ok(yanit_html(&self.sayfa("SMS ayarları", &kart(&icerik), Some(ot), false, None), if hata.is_empty() { 200 } else { 400 }, None))
+    }
+
+    /// Uyarı SMS'i alıcıları ve günlük sınır. Telefonlar 0533… ya da 533… yazılabilir; veri katmanı doğrular.
+    fn uyari(&self, ot: &Ot, yontem: &str, form: &HashMap<String, String>, ip: &str) -> Sonuc<Yanit> {
+        let mut a = self.veri().uyari_ayari()?;
+        let mut hata = String::new();
+        if yontem == "POST" {
+            let tel: Vec<String> = (1..=3).map(|i| py_strip(form.get(&format!("tel{i}")).map(String::as_str).unwrap_or("")).to_string()).collect();
+            let acik = form.get("acik").map(String::as_str) == Some("1");
+            let ham = py_strip(form.get("gunluk_sinir").map(String::as_str).unwrap_or("")).to_string();
+            match py_int(&ham).filter(|n| (SINIR_ARALIK.0..=SINIR_ARALIK.1).contains(n)) {
+                None => hata = format!("Günlük SMS sınırı {} ile {} arasında bir sayı olmalı.", SINIR_ARALIK.0, SINIR_ARALIK.1),
+                Some(sinir) => {
+                    let dolu: Vec<&String> = tel.iter().filter(|t| !t.is_empty()).collect();
+                    match self.veri().uyari_ayari_koy(&json!({"telefonlar": dolu, "acik": acik, "gunluk_sinir": sinir})) {
+                        Ok(()) => {
+                            // telefon yazılmaz
+                            self.veri().hareket("admin", ip, "UYARI_AYAR", None, &format!("telefon={} acik={} sinir={sinir}", dolu.len(), acik as i32))?;
+                            return Ok(yonlendir("/uyari", None));
+                        }
+                        Err(Hata::Deger(m)) => hata = m,
+                        Err(h) => return Err(h),
+                    }
+                }
+            }
+            a = json!({"telefonlar": tel, "acik": acik, "gunluk_sinir": ham}); // yazılanı geri göster
+        }
+        let mut tel: Vec<String> = a["telefonlar"].as_array().map(|l| l.iter().map(py_str).collect()).unwrap_or_default();
+        tel.extend(std::iter::repeat_n(String::new(), 3));
+        let alanlar: String = tel
+            .iter()
+            .take(3)
+            .enumerate()
+            .map(|(i, t)| {
+                let i = i + 1;
+                let goster = if t.starts_with("90") && t.chars().count() == 12 { format!("0{}", t.chars().skip(2).collect::<String>()) } else { t.clone() };
+                format!(
+                    "<label for=\"t{i}\">Telefon {i}</label><input id=\"t{i}\" name=\"tel{i}\" value=\"{}\" inputmode=\"tel\" autocomplete=\"off\" \
+                     placeholder=\"05XX XXX XX XX\">",
+                    e(goster)
+                )
+            })
+            .collect();
+        let h = if hata.is_empty() { String::new() } else { format!("<p class=\"hata\">{}</p>", e(&hata)) };
+        let cs = e(&ot.csrf);
+        let icerik = format!(
+            "<h1>Uyarı ayarları</h1>{h}<form method=\"post\" action=\"/uyari\"><input type=\"hidden\" name=\"csrf\" value=\"{cs}\">\
+             {alanlar}<label><input type=\"checkbox\" name=\"acik\" value=\"1\"{}> SMS uyarıları açık</label>\
+             <label for=\"s\">Günlük SMS sınırı ({}–{})</label>\
+             <input id=\"s\" name=\"gunluk_sinir\" value=\"{}\" inputmode=\"numeric\" autocomplete=\"off\">\
+             <button>Kaydet</button></form>\
+             <form method=\"post\" action=\"/uyari/deneme\"><input type=\"hidden\" name=\"csrf\" value=\"{cs}\">\
+             <button class=\"ikincil\">Deneme SMS'i gönder</button></form>\
+             <p class=\"alt\">Cihaz sağlık sorunları (ulaşılamıyor, kayıt durdu, servis durdu, disk, lisans…) bu numaralara SMS olarak \
+             gider. Deneme SMS'i ilk telefona gider ve günlük sayaca girer. Gönderim için SMS ayarları sayfasında NetGSM bilgileri \
+             girilmiş olmalı; deneme modu açıksa SMS gitmez.</p>",
+            if py_dogru(&a["acik"]) { " checked" } else { "" },
+            SINIR_ARALIK.0,
+            SINIR_ARALIK.1,
+            e(py_str(&a["gunluk_sinir"]))
+        );
+        Ok(yanit_html(&self.sayfa("Uyarı ayarları", &kart(&icerik), Some(ot), false, None), if hata.is_empty() { 200 } else { 400 }, None))
+    }
+
+    fn uyari_deneme(&self, ot: &Ot, ip: &str) -> Sonuc<Yanit> {
+        let (ayar, a) = (self.veri().sms_ayari()?, self.veri().uyari_ayari()?);
+        let Some(ayar) = ayar else {
+            return Ok(yanit_html(&self.mesaj(Some(ot), "Deneme SMS'i gitmedi", "SMS ayarları girilmemiş. Önce SMS ayarları sayfasını doldurun."), 200, None));
+        };
+        let telefonlar: Vec<String> = a["telefonlar"].as_array().map(|l| l.iter().map(py_str).collect()).unwrap_or_default();
+        let Some(ilk) = telefonlar.first() else {
+            return Ok(yanit_html(&self.mesaj(Some(ot), "Deneme SMS'i gitmedi", "Uyarı ayarlarında kayıtlı telefon yok."), 200, None));
+        };
+        let r = netgsm::gonder(&ayar, DENEME_METNI, std::slice::from_ref(ilk), self.sms_tasiyici.as_ref());
+        self.veri().sms_say(&now_iso(self.taban.simdi())[..10])?;
+        self.veri().hareket("admin", ip, "UYARI_DENEME", None, &format!("sonuç={r}"))?;
+        let ne = match r.as_str() {
+            "gonderildi" => "Deneme SMS'i gönderildi.".to_string(),
+            "mock" => "Deneme modu açık: SMS gönderilmedi, yalnızca kaydedildi.".to_string(),
+            d => format!("Deneme SMS'i gönderilemedi ({d})."),
+        };
+        Ok(yanit_html(&self.mesaj(Some(ot), "Deneme SMS'i", &ne), 200, None))
     }
 
     // --- sayfalar ---
@@ -870,18 +1305,18 @@ impl Yonetim {
             ("Bugün doğrulama SMS'i", v.sms_sayac(n, &v.bugun().to_string())?.to_string()),
             ("Son doğrulama SMS'i", son_sms_metni(v.sms_son(n)?.as_ref())),
         ];
-        let bolumler: Vec<(&str, (String, String))> = vec![
-            ("parolalar", ("müşteri ve AP yönetim parolası".to_string(), bilgi_tablosu(&[("Müşteri parolası", parola), ("AP yönetim parolası", ap_parola)]))),
-            ("lisans", (format!("{lisans_metni} · bitiş {bitis}") + if uyelik_aktif { "" } else { " · <b class=\"kotu\">üyelik bitti</b>" }, lisans)),
-            ("cihaz", (cihaz_ozet, cihaz)),
-            ("saglik", (self.saglik_ozeti(c)?, self.saglik_tablosu(c, &saglik_ek)?)),
-            ("guncelleme", (guncelleme_ozet, guncelleme)),
-            ("sorunlar", (sorun_ozet, self.sorun_gecmisi(&sorunlar))),
+        // MUSTERI_BOLUMLERI sırasıyla (kimlik, başlık) ile eşleşir: (başlık yanındaki durum, içerik)
+        let bolumler: [(String, String); 6] = [
+            ("müşteri ve AP yönetim parolası".to_string(), bilgi_tablosu(&[("Müşteri parolası", parola), ("AP yönetim parolası", ap_parola)])),
+            (format!("{lisans_metni} · bitiş {bitis}") + if uyelik_aktif { "" } else { " · <b class=\"kotu\">üyelik bitti</b>" }, lisans),
+            (cihaz_ozet, cihaz),
+            (self.saglik_ozeti(c)?, self.saglik_tablosu(c, &saglik_ek)?),
+            (guncelleme_ozet, guncelleme),
+            (sorun_ozet, self.sorun_gecmisi(&sorunlar)),
         ];
         let mut sayfa = ust;
-        for (k, b) in MUSTERI_BOLUMLERI {
-            let (_, (ozet, icerik)) = bolumler.iter().find(|(kk, _)| *kk == k).expect("bölüm tanımlı");
-            sayfa += &bolum(k, b, ozet, icerik, acik == k);
+        for ((k, b), (ozet, icerik)) in MUSTERI_BOLUMLERI.iter().zip(bolumler.iter()) {
+            sayfa += &bolum(k, b, ozet, icerik, acik == *k);
         }
         Ok(yanit_html(&self.sayfa(&format!("Müşteri {n}"), &sayfa, Some(ot), true, None), 200, None))
     }
@@ -1065,10 +1500,8 @@ impl Yonetim {
     fn eski_arsivler(&self, ot: &Ot, yontem: &str, form: &HashMap<String, String>, ip: &str) -> Sonuc<Yanit> {
         let durum = self.durum()?;
         let bagli: HashMap<String, Option<i64>> = self.veri().eski_arsivler()?.into_iter().collect();
-        let mut adaylar: Vec<String> = durum.keys().filter(|a| !guvenlik::numara_gecerli(a)).cloned().collect::<HashSet<_>>().into_iter().collect();
-        adaylar.extend(bagli.keys().filter(|a| !adaylar.contains(*a)).cloned().collect::<Vec<_>>());
-        adaylar.sort();
-        adaylar.dedup();
+        // sorted(set(durum.keys() - geçerli numaralar) | set(bağlı)): sıralı birleşim
+        let adaylar: BTreeSet<String> = durum.keys().filter(|a| !guvenlik::numara_gecerli(a)).cloned().chain(bagli.keys().cloned()).collect();
         if yontem == "POST" {
             let ad = form.get("ad").map(String::as_str).unwrap_or("");
             let mn = py_strip(form.get("musteri").map(String::as_str).unwrap_or("")).to_string();

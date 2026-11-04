@@ -1,8 +1,7 @@
 {
- "bicim": 2,
+ "bicim": 3,
  "dosya": "test_kuyruk",
  "test": "test_ayni_anahtar_eski_kayitta_ise_once_o_kapanir",
- "platform_farki": [],
  "cevaplar": [],
  "veritabanlari": [],
  "dosyalar": [

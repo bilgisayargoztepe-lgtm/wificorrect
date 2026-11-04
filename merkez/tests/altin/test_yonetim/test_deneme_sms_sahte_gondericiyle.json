@@ -1,8 +1,7 @@
 {
- "bicim": 2,
+ "bicim": 3,
  "dosya": "test_yonetim",
  "test": "test_deneme_sms_sahte_gondericiyle",
- "platform_farki": [],
  "cevaplar": [
   {
    "istek": "POST /giris",

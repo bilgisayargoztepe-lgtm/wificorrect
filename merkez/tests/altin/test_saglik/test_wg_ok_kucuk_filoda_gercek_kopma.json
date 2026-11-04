@@ -1,8 +1,7 @@
 {
- "bicim": 2,
+ "bicim": 3,
  "dosya": "test_saglik",
  "test": "test_wg_ok_kucuk_filoda_gercek_kopma",
- "platform_farki": [],
  "cevaplar": [],
  "veritabanlari": [
   {

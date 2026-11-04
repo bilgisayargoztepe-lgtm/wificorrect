@@ -1,8 +1,7 @@
 {
- "bicim": 2,
+ "bicim": 3,
  "dosya": "test_ap",
  "test": "test_cikis",
- "platform_farki": [],
  "cevaplar": [
   {
    "istek": "GET /_ap-gecis",

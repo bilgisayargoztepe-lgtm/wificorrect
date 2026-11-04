@@ -1,8 +1,7 @@
 {
- "bicim": 2,
+ "bicim": 3,
  "dosya": "test_yonetim",
  "test": "test_yonetici_parolasi_degisince_eski_oturum_duser",
- "platform_farki": [],
  "cevaplar": [
   {
    "istek": "POST /giris",

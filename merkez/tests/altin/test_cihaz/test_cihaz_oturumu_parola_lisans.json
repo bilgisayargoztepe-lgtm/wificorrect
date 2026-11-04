@@ -1,8 +1,7 @@
 {
- "bicim": 2,
+ "bicim": 3,
  "dosya": "test_cihaz",
  "test": "test_cihaz_oturumu_parola_lisans",
- "platform_farki": [],
  "cevaplar": [
   {
    "istek": "GET /cihaz-yetki",

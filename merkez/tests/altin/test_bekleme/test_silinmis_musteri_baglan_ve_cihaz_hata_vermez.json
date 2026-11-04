@@ -1,8 +1,7 @@
 {
- "bicim": 2,
+ "bicim": 3,
  "dosya": "test_bekleme",
  "test": "test_silinmis_musteri_baglan_ve_cihaz_hata_vermez",
- "platform_farki": [],
  "cevaplar": [],
  "veritabanlari": [
   {

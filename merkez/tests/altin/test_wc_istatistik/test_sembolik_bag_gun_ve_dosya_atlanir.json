@@ -1,10 +1,7 @@
 {
- "bicim": 2,
+ "bicim": 3,
  "dosya": "test_wc_istatistik",
  "test": "test_sembolik_bag_gun_ve_dosya_atlanir",
- "platform_farki": [
-  "os.symlink kurulamadı"
- ],
  "cevaplar": [],
  "veritabanlari": [],
  "dosyalar": [
@@ -25,6 +22,11 @@
     "metin": "﻿zaman;olay;telefon;ad;soyad;mac;ic_ip;protokol;ic_port;hedef_ip;hedef_port;nat_ip;nat_port;alan_adi;gonderilen_bayt;alinan_bayt;sure_sn;oturum_id;ek\n2026-09-26T10:00:00+03:00;BAGLANTI_BASLA;5551112233;;;;;;;;;;;;;;;;\n2026-09-26T10:00:00+03:00;BAGLANTI_BASLA;5559998877;;;;;;;;;;;;;;;;\n",
     "gz": true
    },
+   "bocafe.json": {
+    "json": {
+     "2026-09-27": 1
+    }
+   },
    "bocafe/": {
     "dizin": true
    },
@@ -40,6 +42,12 @@
    "bocafe/gunluk/2026-09-27/trafik.csv.gz": {
     "metin": "﻿zaman;olay;telefon;ad;soyad;mac;ic_ip;protokol;ic_port;hedef_ip;hedef_port;nat_ip;nat_port;alan_adi;gonderilen_bayt;alinan_bayt;sure_sn;oturum_id;ek\n2026-09-27T10:00:00+03:00;BAGLANTI_BASLA;5551112233;;;;;;;;;;;;;;;;\n",
     "gz": true
+   },
+   "bocafe/gunluk/2026-09-28/": {
+    "dizin": true
+   },
+   "bocafe/gunluk/2026-09-28/MANIFEST.sha256": {
+    "metin": "# gun=2026-09-28 onceki_zincir=0\n"
    }
   }
  ],

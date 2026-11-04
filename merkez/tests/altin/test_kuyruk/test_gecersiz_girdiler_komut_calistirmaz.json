@@ -1,8 +1,7 @@
 {
- "bicim": 2,
+ "bicim": 3,
  "dosya": "test_kuyruk",
  "test": "test_gecersiz_girdiler_komut_calistirmaz",
- "platform_farki": [],
  "cevaplar": [],
  "veritabanlari": [],
  "dosyalar": [

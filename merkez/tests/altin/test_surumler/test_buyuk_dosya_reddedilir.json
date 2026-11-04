@@ -1,8 +1,7 @@
 {
- "bicim": 2,
+ "bicim": 3,
  "dosya": "test_surumler",
  "test": "test_buyuk_dosya_reddedilir",
- "platform_farki": [],
  "cevaplar": [],
  "veritabanlari": [
   {

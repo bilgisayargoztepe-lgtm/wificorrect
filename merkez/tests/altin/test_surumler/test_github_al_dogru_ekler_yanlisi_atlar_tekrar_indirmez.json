@@ -1,8 +1,7 @@
 {
- "bicim": 2,
+ "bicim": 3,
  "dosya": "test_surumler",
  "test": "test_github_al_dogru_ekler_yanlisi_atlar_tekrar_indirmez",
- "platform_farki": [],
  "cevaplar": [],
  "veritabanlari": [
   {

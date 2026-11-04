@@ -1,8 +1,7 @@
 {
- "bicim": 2,
+ "bicim": 3,
  "dosya": "test_merkez",
  "test": "test_musteri_cerezi_yonetimde_gecmez",
- "platform_farki": [],
  "cevaplar": [
   {
    "istek": "POST /giris",

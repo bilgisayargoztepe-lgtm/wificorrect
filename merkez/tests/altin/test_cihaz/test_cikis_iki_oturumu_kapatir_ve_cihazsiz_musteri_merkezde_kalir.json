@@ -1,8 +1,7 @@
 {
- "bicim": 2,
+ "bicim": 3,
  "dosya": "test_cihaz",
  "test": "test_cikis_iki_oturumu_kapatir_ve_cihazsiz_musteri_merkezde_kalir",
- "platform_farki": [],
  "cevaplar": [
   {
    "istek": "POST /giris",

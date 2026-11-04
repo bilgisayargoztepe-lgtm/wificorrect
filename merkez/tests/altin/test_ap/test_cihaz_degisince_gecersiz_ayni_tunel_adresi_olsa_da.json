@@ -1,8 +1,7 @@
 {
- "bicim": 2,
+ "bicim": 3,
  "dosya": "test_ap",
  "test": "test_cihaz_degisince_gecersiz_ayni_tunel_adresi_olsa_da",
- "platform_farki": [],
  "cevaplar": [
   {
    "istek": "GET /_ap-gecis",

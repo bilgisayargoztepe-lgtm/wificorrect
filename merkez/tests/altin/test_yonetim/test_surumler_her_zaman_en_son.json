@@ -1,8 +1,7 @@
 {
- "bicim": 2,
+ "bicim": 3,
  "dosya": "test_yonetim",
  "test": "test_surumler_her_zaman_en_son",
- "platform_farki": [],
  "cevaplar": [
   {
    "istek": "POST /giris",

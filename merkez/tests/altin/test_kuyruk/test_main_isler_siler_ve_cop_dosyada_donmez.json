@@ -1,8 +1,7 @@
 {
- "bicim": 2,
+ "bicim": 3,
  "dosya": "test_kuyruk",
  "test": "test_main_isler_siler_ve_cop_dosyada_donmez",
- "platform_farki": [],
  "cevaplar": [],
  "veritabanlari": [],
  "dosyalar": [

@@ -1,8 +1,7 @@
 {
- "bicim": 2,
+ "bicim": 3,
  "dosya": "test_saglik",
  "test": "test_sms_10_dk_sonra_ve_duzeldi",
- "platform_farki": [],
  "cevaplar": [],
  "veritabanlari": [
   {

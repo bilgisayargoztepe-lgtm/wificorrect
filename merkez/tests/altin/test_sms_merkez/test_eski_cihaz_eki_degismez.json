@@ -1,8 +1,7 @@
 {
- "bicim": 2,
+ "bicim": 3,
  "dosya": "test_sms_merkez",
  "test": "test_eski_cihaz_eki_degismez",
- "platform_farki": [],
  "cevaplar": [
   {
    "istek": "POST /api/eslesme",

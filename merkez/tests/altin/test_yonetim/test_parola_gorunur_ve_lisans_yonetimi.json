@@ -1,8 +1,7 @@
 {
- "bicim": 2,
+ "bicim": 3,
  "dosya": "test_yonetim",
  "test": "test_parola_gorunur_ve_lisans_yonetimi",
- "platform_farki": [],
  "cevaplar": [
   {
    "istek": "POST /giris",

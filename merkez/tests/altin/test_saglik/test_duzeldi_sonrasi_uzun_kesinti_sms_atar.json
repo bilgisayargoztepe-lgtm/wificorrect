@@ -1,8 +1,7 @@
 {
- "bicim": 2,
+ "bicim": 3,
  "dosya": "test_saglik",
  "test": "test_duzeldi_sonrasi_uzun_kesinti_sms_atar",
- "platform_farki": [],
  "cevaplar": [],
  "veritabanlari": [
   {

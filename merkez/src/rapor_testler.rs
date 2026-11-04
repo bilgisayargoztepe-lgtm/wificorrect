@@ -93,15 +93,8 @@ fn gun_yaz(kok: &Path, gun: &str, g: G) -> PathBuf {
         }
     }
     for tel in &g.kisi {
-        match tel.split_once(':') {
-            // Altın kayıt Windows'ta alındı: "TC:123.csv.gz" yazımı NTFS'te ':' öncesi adlı boş dosya bıraktı (kayıtta
-            // `kullanicilar/TC`, boş metin). Linux'ta Python gerçek adlı gz yazardı; kayıt bu yüzden böyle karşılaştırılır.
-            Some((onek, _)) => {
-                fs::create_dir_all(d.join("kullanicilar")).unwrap();
-                fs::write(d.join("kullanicilar").join(onek), b"").unwrap();
-            }
-            None => gz_yaz(&d.join("kullanicilar").join(format!("{tel}.csv.gz")), &[]),
-        }
+        // kimlikli kişi dosyası da gerçek adıyla: kullanicilar/TC:10000000146.csv.gz
+        gz_yaz(&d.join("kullanicilar").join(format!("{tel}.csv.gz")), &[]);
     }
     if !g.manifest_yok {
         manifest_yaz(&d, gun);

@@ -1,8 +1,7 @@
 {
- "bicim": 2,
+ "bicim": 3,
  "dosya": "test_misafir_kodu",
  "test": "test_telefonlu_eski_arama_aynen",
- "platform_farki": [],
  "cevaplar": [
   {
    "istek": "POST /giris",

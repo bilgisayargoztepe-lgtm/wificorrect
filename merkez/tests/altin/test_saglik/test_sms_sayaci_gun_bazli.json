@@ -1,8 +1,7 @@
 {
- "bicim": 2,
+ "bicim": 3,
  "dosya": "test_saglik",
  "test": "test_sms_sayaci_gun_bazli",
- "platform_farki": [],
  "cevaplar": [],
  "veritabanlari": [
   {

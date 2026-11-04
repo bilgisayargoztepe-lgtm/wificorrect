@@ -1,8 +1,7 @@
 {
- "bicim": 2,
+ "bicim": 3,
  "dosya": "test_kayitlar",
  "test": "test_birden_cok_arsiv_birlesir_ilki_gecerli",
- "platform_farki": [],
  "cevaplar": [],
  "veritabanlari": [
   {

@@ -1,8 +1,7 @@
 {
- "bicim": 2,
+ "bicim": 3,
  "dosya": "test_saglik",
  "test": "test_ust_sinir_bildirimi_deneme_sayaci_doldurdugunda_da_gider",
- "platform_farki": [],
  "cevaplar": [],
  "veritabanlari": [
   {

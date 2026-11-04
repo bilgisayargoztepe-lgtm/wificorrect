@@ -1,10 +1,7 @@
 {
- "bicim": 2,
+ "bicim": 3,
  "dosya": "test_wc_istatistik",
  "test": "test_gunluk_sembolik_bag_ise_arsiv_okunmaz",
- "platform_farki": [
-  "os.symlink kurulamadı"
- ],
  "cevaplar": [],
  "veritabanlari": [],
  "dosyalar": [
@@ -24,6 +21,15 @@
    "baska/gunluk/2026-10-01/trafik.csv.gz": {
     "metin": "﻿zaman;olay;telefon;ad;soyad;mac;ic_ip;protokol;ic_port;hedef_ip;hedef_port;nat_ip;nat_port;alan_adi;gonderilen_bayt;alinan_bayt;sure_sn;oturum_id;ek\n2026-10-01T10:00:00+03:00;BAGLANTI_BASLA;5334553132;;;;;;;;;;;;;;;;\n",
     "gz": true
+   },
+   "dd/": {
+    "dizin": true
+   },
+   "dd/kisiler.json": {
+    "json": {}
+   },
+   "k.json": {
+    "json": {}
    },
    "kotu/": {
     "dizin": true

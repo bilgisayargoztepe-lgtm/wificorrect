@@ -1,8 +1,7 @@
 {
- "bicim": 2,
+ "bicim": 3,
  "dosya": "test_musteri",
  "test": "test_parola_degistirme_ve_uyelik_bitti_girer",
- "platform_farki": [],
  "cevaplar": [
   {
    "istek": "POST /giris",

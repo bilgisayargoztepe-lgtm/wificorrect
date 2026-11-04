@@ -1,8 +1,7 @@
 {
- "bicim": 2,
+ "bicim": 3,
  "dosya": "test_merkez",
  "test": "test_host_yonlendirme",
- "platform_farki": [],
  "cevaplar": [
   {
    "istek": "GET /",

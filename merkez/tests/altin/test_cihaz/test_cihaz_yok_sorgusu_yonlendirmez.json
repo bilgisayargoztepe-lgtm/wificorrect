@@ -1,8 +1,7 @@
 {
- "bicim": 2,
+ "bicim": 3,
  "dosya": "test_cihaz",
  "test": "test_cihaz_yok_sorgusu_yonlendirmez",
- "platform_farki": [],
  "cevaplar": [
   {
    "istek": "POST /giris",

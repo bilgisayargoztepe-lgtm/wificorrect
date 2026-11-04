@@ -1,8 +1,7 @@
 {
- "bicim": 2,
+ "bicim": 3,
  "dosya": "test_yonetim",
  "test": "test_sifirlama_sayfasi_ve_lisans_tarihi_kaydi",
- "platform_farki": [],
  "cevaplar": [
   {
    "istek": "POST /giris",

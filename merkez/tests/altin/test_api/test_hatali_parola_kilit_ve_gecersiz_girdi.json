@@ -1,8 +1,7 @@
 {
- "bicim": 2,
+ "bicim": 3,
  "dosya": "test_api",
  "test": "test_hatali_parola_kilit_ve_gecersiz_girdi",
- "platform_farki": [],
  "cevaplar": [
   {
    "istek": "POST /api/giris",

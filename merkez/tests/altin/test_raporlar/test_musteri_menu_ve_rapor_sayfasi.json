@@ -1,8 +1,7 @@
 {
- "bicim": 2,
+ "bicim": 3,
  "dosya": "test_raporlar",
  "test": "test_musteri_menu_ve_rapor_sayfasi",
- "platform_farki": [],
  "cevaplar": [
   {
    "istek": "POST /giris",

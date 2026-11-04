@@ -1,8 +1,7 @@
 {
- "bicim": 2,
+ "bicim": 3,
  "dosya": "test_yonetim",
  "test": "test_izleme_satiri_ana_sayfada",
- "platform_farki": [],
  "cevaplar": [
   {
    "istek": "POST /giris",

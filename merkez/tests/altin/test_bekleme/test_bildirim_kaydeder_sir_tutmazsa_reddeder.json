@@ -1,8 +1,7 @@
 {
- "bicim": 2,
+ "bicim": 3,
  "dosya": "test_bekleme",
  "test": "test_bildirim_kaydeder_sir_tutmazsa_reddeder",
- "platform_farki": [],
  "cevaplar": [
   {
    "istek": "POST /api/bekliyor",

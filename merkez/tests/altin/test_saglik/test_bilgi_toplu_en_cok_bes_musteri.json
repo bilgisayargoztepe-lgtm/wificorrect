@@ -1,8 +1,7 @@
 {
- "bicim": 2,
+ "bicim": 3,
  "dosya": "test_saglik",
  "test": "test_bilgi_toplu_en_cok_bes_musteri",
- "platform_farki": [],
  "cevaplar": [],
  "veritabanlari": [
   {

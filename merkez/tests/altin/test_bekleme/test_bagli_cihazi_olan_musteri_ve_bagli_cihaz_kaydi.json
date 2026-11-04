@@ -1,8 +1,7 @@
 {
- "bicim": 2,
+ "bicim": 3,
  "dosya": "test_bekleme",
  "test": "test_bagli_cihazi_olan_musteri_ve_bagli_cihaz_kaydi",
- "platform_farki": [],
  "cevaplar": [
   {
    "istek": "POST /api/bekliyor",

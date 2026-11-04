@@ -1,8 +1,7 @@
 {
- "bicim": 2,
+ "bicim": 3,
  "dosya": "test_veri",
  "test": "test_cihaz_bagla_tek_cihaz_ve_yeniden_deneme",
- "platform_farki": [],
  "cevaplar": [],
  "veritabanlari": [
   {

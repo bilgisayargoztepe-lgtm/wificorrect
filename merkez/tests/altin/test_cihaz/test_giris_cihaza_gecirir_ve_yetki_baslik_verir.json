@@ -1,8 +1,7 @@
 {
- "bicim": 2,
+ "bicim": 3,
  "dosya": "test_cihaz",
  "test": "test_giris_cihaza_gecirir_ve_yetki_baslik_verir",
- "platform_farki": [],
  "cevaplar": [
   {
    "istek": "POST /giris",

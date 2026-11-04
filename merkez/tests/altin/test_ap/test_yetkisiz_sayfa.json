@@ -1,8 +1,7 @@
 {
- "bicim": 2,
+ "bicim": 3,
  "dosya": "test_ap",
  "test": "test_yetkisiz_sayfa",
- "platform_farki": [],
  "cevaplar": [
   {
    "istek": "GET /ap-yetki",

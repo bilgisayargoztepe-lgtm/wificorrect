@@ -1,8 +1,7 @@
 {
- "bicim": 2,
+ "bicim": 3,
  "dosya": "test_bekleme",
  "test": "test_hic_aday_yoksa_bulunamadi_baska_ipden_bulunmaz",
- "platform_farki": [],
  "cevaplar": [
   {
    "istek": "POST /api/bekliyor",

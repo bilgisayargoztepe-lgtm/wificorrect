@@ -1,8 +1,7 @@
 {
- "bicim": 2,
+ "bicim": 3,
  "dosya": "test_api",
  "test": "test_giris_ve_eslesme_ap_parolasini_tasir",
- "platform_farki": [],
  "cevaplar": [
   {
    "istek": "POST /api/giris",

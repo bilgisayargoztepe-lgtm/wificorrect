@@ -1,8 +1,7 @@
 {
- "bicim": 2,
+ "bicim": 3,
  "dosya": "test_bekleme",
  "test": "test_bildirim_hiz_ve_yeni_kimlik_siniri",
- "platform_farki": [],
  "cevaplar": [
   {
    "istek": "POST /api/bekliyor",

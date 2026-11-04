@@ -1,8 +1,7 @@
 {
- "bicim": 2,
+ "bicim": 3,
  "dosya": "test_api",
  "test": "test_ilk_giris_baglar_ve_kuyruga_atar",
- "platform_farki": [],
  "cevaplar": [
   {
    "istek": "POST /api/giris",

@@ -1,8 +1,7 @@
 {
- "bicim": 2,
+ "bicim": 3,
  "dosya": "test_ap",
  "test": "test_wca_en_cok_30_dakika_ve_cihaz_oturumunu_canli_tutar",
- "platform_farki": [],
  "cevaplar": [
   {
    "istek": "GET /_ap-gecis",

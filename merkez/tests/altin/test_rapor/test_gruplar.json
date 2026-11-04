@@ -1,10 +1,7 @@
 {
- "bicim": 2,
+ "bicim": 3,
  "dosya": "test_rapor",
  "test": "test_gruplar",
- "platform_farki": [
-  "os.symlink kurulamadı"
- ],
  "cevaplar": [],
  "veritabanlari": [],
  "dosyalar": [

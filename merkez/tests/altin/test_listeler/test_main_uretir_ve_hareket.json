@@ -1,8 +1,7 @@
 {
- "bicim": 2,
+ "bicim": 3,
  "dosya": "test_listeler",
  "test": "test_main_uretir_ve_hareket",
- "platform_farki": [],
  "cevaplar": [],
  "veritabanlari": [
   {

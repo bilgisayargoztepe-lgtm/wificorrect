@@ -1,8 +1,7 @@
 {
- "bicim": 2,
+ "bicim": 3,
  "dosya": "test_ap",
  "test": "test_oturumlar_ek_alan_ve_suresi_dolanlar_silinir",
- "platform_farki": [],
  "cevaplar": [],
  "veritabanlari": [],
  "dosyalar": [],

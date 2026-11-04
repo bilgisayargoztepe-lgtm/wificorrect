@@ -1,8 +1,7 @@
 {
- "bicim": 2,
+ "bicim": 3,
  "dosya": "test_bekleme",
  "test": "test_ayrilmis_ama_musteri_baska_cihaz_baglarsa_bekle",
- "platform_farki": [],
  "cevaplar": [
   {
    "istek": "POST /api/bekliyor",

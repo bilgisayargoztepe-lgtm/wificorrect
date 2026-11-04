@@ -1,8 +1,7 @@
 {
- "bicim": 2,
+ "bicim": 3,
  "dosya": "test_yonetim",
  "test": "test_simdi_guncelle_hedef_yoksa_reddedilir",
- "platform_farki": [],
  "cevaplar": [
   {
    "istek": "POST /giris",

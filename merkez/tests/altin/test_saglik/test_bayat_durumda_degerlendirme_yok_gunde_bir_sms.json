@@ -1,8 +1,7 @@
 {
- "bicim": 2,
+ "bicim": 3,
  "dosya": "test_saglik",
  "test": "test_bayat_durumda_degerlendirme_yok_gunde_bir_sms",
- "platform_farki": [],
  "cevaplar": [],
  "veritabanlari": [
   {

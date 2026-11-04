@@ -1,8 +1,7 @@
 {
- "bicim": 2,
+ "bicim": 3,
  "dosya": "test_yonetim",
  "test": "test_surumler_yonetici_disina_kapali_ve_tablo",
- "platform_farki": [],
  "cevaplar": [
   {
    "istek": "POST /giris",

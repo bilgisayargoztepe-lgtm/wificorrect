@@ -1,8 +1,7 @@
 {
- "bicim": 2,
+ "bicim": 3,
  "dosya": "test_misafir_kodu",
  "test": "test_eski_veritabanina_tur_sutunu_eklenir",
- "platform_farki": [],
  "cevaplar": [],
  "veritabanlari": [
   {

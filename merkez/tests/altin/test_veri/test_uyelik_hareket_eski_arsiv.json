@@ -1,8 +1,7 @@
 {
- "bicim": 2,
+ "bicim": 3,
  "dosya": "test_veri",
  "test": "test_uyelik_hareket_eski_arsiv",
- "platform_farki": [],
  "cevaplar": [],
  "veritabanlari": [
   {

@@ -1,8 +1,7 @@
 {
- "bicim": 2,
+ "bicim": 3,
  "dosya": "test_rapor",
  "test": "test_alan_adi_verisi_yok_ve_eski_bicim_yenilenir",
- "platform_farki": [],
  "cevaplar": [],
  "veritabanlari": [],
  "dosyalar": [
@@ -34,8 +33,9 @@
     "metin": "﻿zaman;olay;telefon;ad;soyad;mac;ic_ip;protokol;ic_port;hedef_ip;hedef_port;nat_ip;nat_port;alan_adi;gonderilen_bayt;alinan_bayt;sure_sn;oturum_id;ek\r\n",
     "gz": true
    },
-   "a/gunluk/2026-10-05/kullanicilar/TC": {
-    "metin": ""
+   "a/gunluk/2026-10-05/kullanicilar/TC:10000000146.csv.gz": {
+    "metin": "﻿zaman;olay;telefon;ad;soyad;mac;ic_ip;protokol;ic_port;hedef_ip;hedef_port;nat_ip;nat_port;alan_adi;gonderilen_bayt;alinan_bayt;sure_sn;oturum_id;ek\r\n",
+    "gz": true
    },
    "a/gunluk/2026-10-05/oturum.csv.gz": {
     "metin": "﻿zaman;olay;telefon;ad;soyad;mac;ic_ip;protokol;ic_port;hedef_ip;hedef_port;nat_ip;nat_port;alan_adi;gonderilen_bayt;alinan_bayt;sure_sn;oturum_id;ek\r\n2026-10-05T09:09:00+03:00;OTURUM_BASLA;905551112233;;;;;;;;;;;;;;;;bitis=x sozlesme=1 riza=1\r\n2026-10-05T21:04:00+03:00;OTURUM_BASLA;TC:10000000146;;;;;;;;;;;;;;;;bitis=x sozlesme=1 riza=1 giris=misafir_kodu oda=101\r\n2026-10-05T21:05:00+03:00;OTURUM_BASLA;PASAPORT:DE:X1234567;;;;;;;;;;;;;;;;giris=misafir_kodu\r\n2026-10-05T22:00:00+03:00;OTURUM_UZATILDI;TC:10000000146;;;;;;;;;;;;;;;;giris=misafir_kodu\r\n2026-10-05T23:00:00+03:00;OTURUM_BITIS;905551112233;;;;;;;;;;;;;;;;\r\n",
@@ -66,8 +66,9 @@
     "metin": "﻿zaman;olay;telefon;ad;soyad;mac;ic_ip;protokol;ic_port;hedef_ip;hedef_port;nat_ip;nat_port;alan_adi;gonderilen_bayt;alinan_bayt;sure_sn;oturum_id;ek\r\n",
     "gz": true
    },
-   "a/gunluk/2026-10-06/kullanicilar/TC": {
-    "metin": ""
+   "a/gunluk/2026-10-06/kullanicilar/TC:10000000146.csv.gz": {
+    "metin": "﻿zaman;olay;telefon;ad;soyad;mac;ic_ip;protokol;ic_port;hedef_ip;hedef_port;nat_ip;nat_port;alan_adi;gonderilen_bayt;alinan_bayt;sure_sn;oturum_id;ek\r\n",
+    "gz": true
    },
    "a/gunluk/2026-10-06/oturum.csv.gz": {
     "metin": "﻿zaman;olay;telefon;ad;soyad;mac;ic_ip;protokol;ic_port;hedef_ip;hedef_port;nat_ip;nat_port;alan_adi;gonderilen_bayt;alinan_bayt;sure_sn;oturum_id;ek\r\n2026-10-06T09:09:00+03:00;OTURUM_BASLA;905551112233;;;;;;;;;;;;;;;;bitis=x sozlesme=1 riza=1\r\n2026-10-06T21:04:00+03:00;OTURUM_BASLA;TC:10000000146;;;;;;;;;;;;;;;;bitis=x sozlesme=1 riza=1 giris=misafir_kodu oda=101\r\n2026-10-06T21:05:00+03:00;OTURUM_BASLA;PASAPORT:DE:X1234567;;;;;;;;;;;;;;;;giris=misafir_kodu\r\n2026-10-06T22:00:00+03:00;OTURUM_UZATILDI;TC:10000000146;;;;;;;;;;;;;;;;giris=misafir_kodu\r\n2026-10-06T23:00:00+03:00;OTURUM_BITIS;905551112233;;;;;;;;;;;;;;;;\r\n",
@@ -98,8 +99,9 @@
     "metin": "﻿zaman;olay;telefon;ad;soyad;mac;ic_ip;protokol;ic_port;hedef_ip;hedef_port;nat_ip;nat_port;alan_adi;gonderilen_bayt;alinan_bayt;sure_sn;oturum_id;ek\r\n",
     "gz": true
    },
-   "a/gunluk/2026-10-07/kullanicilar/TC": {
-    "metin": ""
+   "a/gunluk/2026-10-07/kullanicilar/TC:10000000146.csv.gz": {
+    "metin": "﻿zaman;olay;telefon;ad;soyad;mac;ic_ip;protokol;ic_port;hedef_ip;hedef_port;nat_ip;nat_port;alan_adi;gonderilen_bayt;alinan_bayt;sure_sn;oturum_id;ek\r\n",
+    "gz": true
    },
    "a/gunluk/2026-10-07/oturum.csv.gz": {
     "metin": "﻿zaman;olay;telefon;ad;soyad;mac;ic_ip;protokol;ic_port;hedef_ip;hedef_port;nat_ip;nat_port;alan_adi;gonderilen_bayt;alinan_bayt;sure_sn;oturum_id;ek\r\n2026-10-07T09:09:00+03:00;OTURUM_BASLA;905551112233;;;;;;;;;;;;;;;;bitis=x sozlesme=1 riza=1\r\n2026-10-07T21:04:00+03:00;OTURUM_BASLA;TC:10000000146;;;;;;;;;;;;;;;;bitis=x sozlesme=1 riza=1 giris=misafir_kodu oda=101\r\n2026-10-07T21:05:00+03:00;OTURUM_BASLA;PASAPORT:DE:X1234567;;;;;;;;;;;;;;;;giris=misafir_kodu\r\n2026-10-07T22:00:00+03:00;OTURUM_UZATILDI;TC:10000000146;;;;;;;;;;;;;;;;giris=misafir_kodu\r\n2026-10-07T23:00:00+03:00;OTURUM_BITIS;905551112233;;;;;;;;;;;;;;;;\r\n",

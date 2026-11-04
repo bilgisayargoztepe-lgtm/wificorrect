@@ -1,8 +1,7 @@
 {
- "bicim": 2,
+ "bicim": 3,
  "dosya": "test_bekleme",
  "test": "test_bagla_cevabi_ortak_sms_sirlarini_tasimaz",
- "platform_farki": [],
  "cevaplar": [
   {
    "istek": "POST /api/bekliyor",

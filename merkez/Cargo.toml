@@ -11,7 +11,7 @@ tiny_http = "0.12"
 serde = { version = "1", features = ["derive"] }
 # preserve_order: save_json Python gibi anahtar sırasını korur
 serde_json = { version = "1", features = ["preserve_order"] }
-rusqlite = { version = "0", features = ["bundled"] }
+rusqlite = { version = "0.40", features = ["bundled"] }
 chrono = { version = "0.4", default-features = false, features = ["std"] }
 sha2 = "0.10"
 pbkdf2 = { version = "0.12", default-features = false, features = ["hmac"] }
@@ -25,3 +25,7 @@ opt-level = "z"
 lto = true
 codegen-units = 1
 strip = true
+
+# Test derlemelerinde PBKDF2 (120 000 yineleme) hızlı olsun
+[profile.dev.package."*"]
+opt-level = 2

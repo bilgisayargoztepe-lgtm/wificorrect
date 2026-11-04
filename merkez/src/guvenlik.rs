@@ -31,7 +31,7 @@ pub fn yeni_kayit(pw: &str) -> (String, String, u32) {
     (tuz, oz, YINELEME)
 }
 
-fn sabit_esit(a: &[u8], b: &[u8]) -> bool {
+pub fn sabit_esit(a: &[u8], b: &[u8]) -> bool {
     if a.len() != b.len() {
         return false;
     }

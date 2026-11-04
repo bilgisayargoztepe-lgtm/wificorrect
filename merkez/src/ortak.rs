@@ -359,6 +359,38 @@ impl Tasiyici for Curl {
     }
 }
 
+/// Python doğruluk değeri (`bool(x)`): null/false/0/""/[]/{} yanlıştır.
+pub fn py_dogru(v: &serde_json::Value) -> bool {
+    use serde_json::Value;
+    match v {
+        Value::Null => false,
+        Value::Bool(b) => *b,
+        Value::Number(n) => n.as_f64().is_some_and(|f| f != 0.0),
+        Value::String(s) => !s.is_empty(),
+        Value::Array(a) => !a.is_empty(),
+        Value::Object(o) => !o.is_empty(),
+    }
+}
+
+/// Python `str(x)` (düz değerler için yeterince yakın): metin olduğu gibi, null "None", doğru/yanlış "True"/"False".
+pub fn py_str(v: &serde_json::Value) -> String {
+    use serde_json::Value;
+    match v {
+        Value::Null => "None".into(),
+        Value::Bool(b) => if *b { "True" } else { "False" }.into(),
+        Value::String(s) => s.clone(),
+        d => d.to_string(),
+    }
+}
+
+/// Python `str(d.get(k) or "")`.
+pub fn py_veya_bos(v: Option<&serde_json::Value>) -> String {
+    match v {
+        Some(x) if py_dogru(x) => py_str(x),
+        _ => String::new(),
+    }
+}
+
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;

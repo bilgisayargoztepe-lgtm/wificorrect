@@ -221,17 +221,29 @@ fn tarih() -> String {
     chrono::DateTime::from_timestamp(sn, 0).map(|t| t.format("%a, %d %b %Y %H:%M:%S GMT").to_string()).unwrap_or_default()
 }
 
+/// Bundan büyük gövde başlıkla tek tamponda birleştirilmez (`/api/paket` 50 MB'a kadar .deb verir): başlık bloğu ve gövde
+/// ayrı yazılır, gövde bir kez daha kopyalanmaz.
+const TEK_TAMPON_SINIRI: usize = 64 * 1024;
+
 /// Python `send_response` + `send_header` + `end_headers` + gövde. Hata cevapları (`hata_yaniti`) güvenlik başlıksız gider.
 fn yanit_yaz(mut akim: &TcpStream, y: &Yanit) -> std::io::Result<()> {
-    let mut b = Vec::with_capacity(y.govde.len() + 512);
+    let tek = y.govde.len() <= TEK_TAMPON_SINIRI;
+    let mut b = Vec::with_capacity(512 + if tek { y.govde.len() } else { 0 });
     b.extend_from_slice(format!("HTTP/1.0 {} {}\r\nServer: wificorrect\r\nDate: {}\r\n", y.durum, neden(y.durum), tarih()).as_bytes());
     for (k, v) in &y.basliklar {
         baslik_yaz(&mut b, k, v);
     }
     baslik_yaz(&mut b, "Content-Length", &y.govde.len().to_string());
     b.extend_from_slice(b"\r\n");
-    b.extend_from_slice(&y.govde);
-    akim.write_all(&b)?;
+    if tek {
+        b.extend_from_slice(&y.govde);
+        akim.write_all(&b)?;
+    } else {
+        // iki yazma arasında Nagle gecikmesi olmasın
+        let _ = akim.set_nodelay(true);
+        akim.write_all(&b)?;
+        akim.write_all(&y.govde)?;
+    }
     akim.flush()
 }
 

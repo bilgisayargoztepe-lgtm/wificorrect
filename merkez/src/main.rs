@@ -4,16 +4,20 @@
 
 #[cfg(test)]
 mod altin;
+mod api;
 mod detay;
 mod guvenlik;
 mod istatistik;
 mod kayitlar;
+mod kuyruk;
+mod listeler;
 mod merkez;
 mod ortak;
 mod ozet;
 mod rapor;
 mod raporlar;
 mod sunucu;
+mod surumler;
 #[cfg(test)]
 mod test_yardim;
 mod twilio;
@@ -27,9 +31,10 @@ fn main() {
     match args.first().map(String::as_str) {
         Some("surum") => println!("{SURUM}"),
         Some("sunucu") => sunucu_calistir(),
+        Some("kuyruk") => std::process::exit(kuyruk::calistir_uretim()),
         Some("istatistik") => std::process::exit(istatistik::calistir(&istatistik::Yollar::uretim(), None)),
         _ => {
-            eprintln!("Kullanım: wificorrect-merkez surum|sunucu|istatistik");
+            eprintln!("Kullanım: wificorrect-merkez surum|sunucu|kuyruk|istatistik");
             std::process::exit(2);
         }
     }
@@ -44,8 +49,9 @@ fn sunucu_calistir() {
         libc::umask(0o077);
     }
     let saat: veri::Saat = Arc::new(ortak::simdi);
+    let saat_uretim = saat.clone();
     let v = match veri::Veri::ac(std::path::Path::new(merkez::DB), saat) {
-        Ok(v) => v,
+        Ok(v) => Arc::new(v),
         Err(h) => {
             eprintln!("{h}");
             std::process::exit(1);
@@ -55,7 +61,8 @@ fn sunucu_calistir() {
     if let Err(h) = v.rapor_gruplari_yaz(std::path::Path::new(veri::RAPOR_GRUPLARI)) {
         web::log(&format!("rapor-gruplari yazilamadi: {h:?}"));
     }
-    let m = merkez::Merkez::new();
+    let mut m = merkez::Merkez::new();
+    m.ekle("api", Arc::new(api::Api::uretim(v, saat_uretim)));
     if let Err(h) = sunucu::calistir(Arc::new(m), "127.0.0.1:8081", 256) {
         eprintln!("{h}");
         std::process::exit(1);

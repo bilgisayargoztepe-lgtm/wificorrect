@@ -636,7 +636,7 @@ pub fn py_repr(s: &str) -> String {
 
 /// Python `str.isprintable()` için yaklaşık (Unicode kategorileri tablosu yok): denetim, boşluk (ASCII boşluk hariç), biçim
 /// (Cf), özel kullanım ve yedek karakterleri yazdırılamaz sayar.
-fn py_yazdirilabilir(c: char) -> bool {
+pub(crate) fn py_yazdirilabilir(c: char) -> bool {
     let k = c as u32;
     if c == ' ' {
         return true;

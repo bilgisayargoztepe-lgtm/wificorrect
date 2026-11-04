@@ -427,6 +427,10 @@ pub struct DisIstek {
     /// İzlenecek en çok yönlendirme sayısı (0: izlenmez, 3xx cevap olduğu gibi döner). Yalnızca GET için ve yalnızca
     /// kimliksiz indirmeler (sürüm/liste dosyaları) için kullanılır; SMS çağrıları 0 verir.
     pub yonlendirme: u32,
+    /// İndirmeler için (bağlanma süresi, boşta kalma süresi): bağlanma ve veri akışı Python `urlopen(timeout=60)` gibi
+    /// işlem başınadır (akış `boşta` boyunca saniyede 1 baytın altına düşerse kesilir); `zaman_asimi` yalnızca toplam
+    /// güvenlik sınırıdır. None: `zaman_asimi` hem bağlanma hem toplam süre (SMS çağrıları).
+    pub indirme_sureleri: Option<(Duration, Duration)>,
 }
 
 /// Dış istek taşıyıcısı. HTTP 4xx/5xx hata değil `(durum, gövde)` döner; ağ hatası `Err`.
@@ -475,7 +479,14 @@ impl Curl {
         c.push_str(&format!("url = {}\n", tek_satir(&i.url)?));
         c.push_str("proto = \"=http,https\"\n");
         c.push_str(&format!("request = \"{}\"\n", i.yontem));
-        c.push_str(&format!("connect-timeout = {sn}\n"));
+        match i.indirme_sureleri {
+            None => c.push_str(&format!("connect-timeout = {sn}\n")),
+            Some((baglanma, bosta)) => {
+                c.push_str(&format!("connect-timeout = {}\n", baglanma.as_secs().max(1)));
+                c.push_str("speed-limit = 1\n");
+                c.push_str(&format!("speed-time = {}\n", bosta.as_secs().max(1)));
+            }
+        }
         for (ad, deger) in &i.basliklar {
             c.push_str(&format!("header = {}\n", tek_satir(&format!("{ad}: {deger}"))?));
         }
@@ -621,6 +632,16 @@ pub fn py_bosluk(c: char) -> bool {
 /// Python `str.strip()`.
 pub fn py_strip(s: &str) -> &str {
     s.trim_matches(py_bosluk)
+}
+
+/// Baytların küçük harf onaltılık gösterimi (Python `.hex()` / `hexdigest()`).
+pub fn hex(b: &[u8]) -> String {
+    b.iter().map(|x| format!("{x:02x}")).collect()
+}
+
+/// 64 küçük harf onaltılık hane (SHA-256 özeti).
+pub fn sha_gecerli(s: &str) -> bool {
+    s.len() == 64 && s.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
 }
 
 /// Python `str.split()` (bağımsız değişkensiz): boşluk dizileriyle ayırır, boş parça yok.
@@ -794,6 +815,7 @@ pub(crate) mod tests {
             zaman_asimi: Duration::from_secs(5),
             okuma_siniri: 16384,
             yonlendirme: 0,
+            indirme_sureleri: None,
         }
     }
 

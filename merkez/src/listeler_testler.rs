@@ -520,3 +520,24 @@ fn mesgul_kilidi_beklemeden_doner() {
     drop(birinci);
     assert!(Kilit::al(&tmp, false).is_ok());
 }
+
+#[test]
+fn gecersiz_utf8_ek_dosyasi_hata_verir_liste_degismez() {
+    // Python yalnızca OSError'ı yutar; UnicodeDecodeError uret'ten çıkar: LISTE_HATA, çıkış 1, önceki liste dokunulmaz.
+    let u = Uretici { kaynaklar: vec![("kumar", vec![k1("A", "https://a", Bicim::Duz)]), ("yetiskin", vec![]), ("zararli", vec![])], en_cok: EN_COK };
+    let o = Y::ortam();
+    let d = o.dizin.join("l");
+    let t = sahte(&[("https://a", ok("a.com\n"))]);
+    assert_eq!(u.calistir(&o.veri, &t, &d, SIMDI, "listeler", "", true), Ok(1));
+    let (gz1, json1) = (std::fs::read(d.join("kumar.txt.gz")).unwrap(), std::fs::read(d.join("kumar.json")).unwrap());
+    std::fs::write(d.join("kumar.ek.txt"), b"yerel.com\n\xff\xfe\n").unwrap();
+    let t = sahte(&[("https://a", ok("a.com\nb.com\n"))]);
+    assert_eq!(u.calistir(&o.veri, &t, &d, SIMDI + 10.0, "listeler", "", true), Ok(1));
+    assert_eq!(std::fs::read(d.join("kumar.txt.gz")).unwrap(), gz1);
+    assert_eq!(std::fs::read(d.join("kumar.json")).unwrap(), json1);
+    let h = o.veri.hareketler(None, 300, None).unwrap();
+    assert!(h.iter().any(|x| x.olay == "LISTE_HATA" && x.ayrinti.starts_with("kategori=kumar neden=OSError: ") && x.ayrinti.contains("kumar.ek.txt")), "{:?}", h.iter().map(|x| &x.ayrinti).collect::<Vec<_>>());
+    // dosya yoksa ek yok
+    std::fs::remove_file(d.join("kumar.ek.txt")).unwrap();
+    assert!(u.uret("kumar", &t, &d, SIMDI + 20.0).is_ok());
+}

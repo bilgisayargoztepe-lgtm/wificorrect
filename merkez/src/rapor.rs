@@ -23,7 +23,7 @@ use sha2::{Digest, Sha256};
 
 use crate::detay::gun_coz;
 use crate::istatistik::{self, arsiv_adi_mi, gun_adi_mi, Satir, SatirHata};
-use crate::ortak::{self, py_bol, py_strip};
+use crate::ortak::{self, hex, py_bol, py_strip};
 use crate::veri::py_json;
 
 
@@ -67,10 +67,6 @@ fn satir_hata(h: &SatirHata) -> String {
         SatirHata::Diger(m) if m.starts_with("_csv.Error") => "Error".into(),
         SatirHata::Diger(_) => "OSError".into(),
     }
-}
-
-fn hex(b: &[u8]) -> String {
-    b.iter().map(|x| format!("{x:02x}")).collect()
 }
 
 fn sha256_hex(b: &[u8]) -> String {

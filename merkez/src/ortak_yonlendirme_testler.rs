@@ -17,6 +17,7 @@ fn istek(url: &str, yonlendirme: u32) -> DisIstek {
         zaman_asimi: Duration::from_secs(10),
         okuma_siniri: 1 << 20,
         yonlendirme,
+        indirme_sureleri: None,
     }
 }
 
@@ -37,6 +38,20 @@ fn yapilandirma_yonlendirmeyi_yalniz_istenince_ve_sinirli_acar() {
     let mut i = istek("https://x/", 5);
     i.kullanici = Some(("k".into(), "p".into()));
     assert!(Curl::yapilandirma(&i).is_err());
+}
+
+#[test]
+fn yapilandirma_indirme_sureleri_python_bosta_anlamiyla() {
+    // SMS: connect-timeout = zaman_asimi, hız sınırı yok
+    let y = Curl::yapilandirma(&istek("https://x/", 0)).unwrap();
+    assert!(y.contains("connect-timeout = 10\n") && !y.contains("speed-"));
+    // indirme: bağlanma 60, boşta 60 sn'de 1 bayt/sn altı kesilir; toplam sınır yalnızca --max-time (zaman_asimi)
+    let mut i = istek("https://x/", 5);
+    i.zaman_asimi = Duration::from_secs(1800);
+    i.indirme_sureleri = Some((Duration::from_secs(60), Duration::from_secs(60)));
+    let y = Curl::yapilandirma(&i).unwrap();
+    assert!(y.contains("connect-timeout = 60\n") && y.contains("speed-limit = 1\n") && y.contains("speed-time = 60\n"), "{y}");
+    assert!(!y.contains("connect-timeout = 1800"));
 }
 
 /// Bir bağlantıyı kabul eder, isteğin yolunu okur, `cevap(yol)` ile cevaplar.

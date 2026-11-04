@@ -10,7 +10,7 @@ use std::time::Duration;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 
-use crate::ortak::{py_bol, py_dogru, py_str, DisIstek, Tasiyici};
+use crate::ortak::{hex, py_bol, py_dogru, py_str, sha_gecerli, DisIstek, Tasiyici};
 use crate::veri::Veri;
 
 pub const DIZIN: &str = "/var/lib/wificorrect/merkez/surumler";
@@ -18,9 +18,10 @@ pub const EN_COK_BAYT: usize = 50 * 1024 * 1024;
 const LISTE_SINIRI: usize = 2 * 1024 * 1024;
 const SUMS_SINIRI: usize = 64 * 1024;
 const GITHUB_LISTE: &str = "https://api.github.com/repos/bilgisayargoztepe-lgtm/wificorrect/releases?per_page=10";
-/// Python `urlopen(timeout=60)` boşta kalma süresiydi; curl `--max-time` toplam süredir, 64 MB'lık liste ve 50 MB'lık paket
-/// yavaş hatta da inebilsin diye daha geniş.
-const INDIRME_SURESI: Duration = Duration::from_secs(180);
+/// Python `urlopen(timeout=60)`: bağlanma ve her okuma 60 sn; toplam sınır yok. Burada toplam yalnızca güvenlik ağıdır.
+const BAGLANMA_SURESI: Duration = Duration::from_secs(60);
+const BOSTA_SURESI: Duration = Duration::from_secs(60);
+const TOPLAM_SINIR: Duration = Duration::from_secs(1800);
 /// Python urllib 10 yönlendirmeye kadar izlerdi; GitHub indirmesi için 5 yeter.
 const YONLENDIRME: u32 = 5;
 
@@ -71,9 +72,10 @@ pub fn getir(t: &dyn Tasiyici, url: &str, sinir_bayt: usize) -> Result<Vec<u8>, 
         basliklar: vec![("User-Agent".into(), "wificorrect-merkez".into())],
         govde: None,
         kullanici: None,
-        zaman_asimi: INDIRME_SURESI,
+        zaman_asimi: TOPLAM_SINIR,
         okuma_siniri: sinir_bayt + 1,
         yonlendirme: YONLENDIRME,
+        indirme_sureleri: Some((BAGLANMA_SURESI, BOSTA_SURESI)),
     };
     let (kod, veri) = t.gonder(&i)?;
     if !(200..300).contains(&kod) {
@@ -83,14 +85,6 @@ pub fn getir(t: &dyn Tasiyici, url: &str, sinir_bayt: usize) -> Result<Vec<u8>, 
         return Err("Dosya çok büyük.".into());
     }
     Ok(veri)
-}
-
-fn hex(b: &[u8]) -> String {
-    b.iter().map(|x| format!("{x:02x}")).collect()
-}
-
-fn sha_gecerli(s: &str) -> bool {
-    s.chars().count() == 64 && s.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
 }
 
 /// SHA256SUMS içinde `ad` dosyasının özeti (küçük harf) ya da None.

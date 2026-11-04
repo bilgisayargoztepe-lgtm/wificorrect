@@ -83,6 +83,7 @@ fn istek(ayar: &Value, yol: &str, alanlar: &[(&str, &str)], t: &dyn Tasiyici) ->
         zaman_asimi: ISLEM_SURE,
         okuma_siniri: OKUMA_SINIRI,
         yonlendirme: 0, // SMS: yönlendirme izlenmez
+        indirme_sureleri: None,
     };
     let Ok((durum, govde)) = t.gonder(&i) else { return Istek::Ag };
     let j = match serde_json::from_slice::<Value>(&govde) {

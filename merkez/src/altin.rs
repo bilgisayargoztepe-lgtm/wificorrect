@@ -19,6 +19,7 @@ use serde_json::{json, Map, Value};
 use sha2::{Digest, Sha256};
 
 use crate::guvenlik::rastgele;
+use crate::ortak::hex;
 use crate::web::{self, Istek, Yanit};
 
 const BICIM: u64 = 3;
@@ -170,10 +171,6 @@ pub(crate) fn dizin_acildi(yol: &Path) {
 fn secili(ad: &str) -> bool {
     let a = ad.to_ascii_lowercase();
     SECILI_BASLIKLAR.contains(&a.as_str()) || a.starts_with("x-wfc-")
-}
-
-fn hex(b: &[u8]) -> String {
-    b.iter().map(|x| format!("{x:02x}")).collect()
 }
 
 fn ikili(b: &[u8]) -> Value {

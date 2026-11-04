@@ -15,7 +15,7 @@ use std::sync::LazyLock;
 use serde_json::{json, Map, Value};
 use sha2::{Digest, Sha256};
 
-use crate::ortak::{py_bol, py_bosluk, py_dogru, py_str, py_strip, Tasiyici};
+use crate::ortak::{hex, py_bol, py_bosluk, py_dogru, py_str, py_strip, sha_gecerli, Tasiyici};
 use crate::veri::Veri;
 
 pub const DIZIN: &str = "/var/lib/wificorrect/merkez/listeler";
@@ -283,10 +283,6 @@ pub fn meta_oku(dizin: &Path, kategori: &str) -> Option<Map<String, Value>> {
     }
 }
 
-fn sha_gecerli(s: &str) -> bool {
-    s.len() == 64 && s.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
-}
-
 /// Sağlık cevabı için `{kategori: {sha256, sayi, zaman}}`; meta okunamayan ya da hiç liste üretilmemiş kategori yok.
 pub fn ozet(dizin: &Path) -> Value {
     let mut o = Map::new();
@@ -305,10 +301,6 @@ pub fn ozet(dizin: &Path) -> Value {
         }
     }
     Value::Object(o)
-}
-
-fn hex(b: &[u8]) -> String {
-    b.iter().map(|x| format!("{x:02x}")).collect()
 }
 
 fn onbellek_yolu(dizin: &Path, kategori: &str, url: &str) -> PathBuf {
@@ -351,10 +343,12 @@ fn durum_satiri(ad: &str, sayi: usize, hata: Option<&str>, eski: bool) -> Value 
     Value::Object(d)
 }
 
-fn elle_ek(dizin: &Path, kategori: &str) -> Option<BTreeSet<String>> {
-    let ham = std::fs::read(dizin.join(format!("{kategori}.ek.txt"))).ok()?;
-    let metin = String::from_utf8(ham).ok()?;
-    Some(temizle(crate::kuyruk::satirlar(&metin), Bicim::Duz))
+/// Dosya yoksa (ya da okunamıyorsa) ek yok; ama UTF-8 olmayan dosya hatadır (Python yalnızca `OSError`'ı yutar,
+/// `UnicodeDecodeError` `uret`ten çıkar): operatörün elle eklemeleri sessizce düşmesin, mevcut liste değişmesin.
+fn elle_ek(dizin: &Path, kategori: &str) -> Result<Option<BTreeSet<String>>, String> {
+    let Ok(ham) = std::fs::read(dizin.join(format!("{kategori}.ek.txt"))) else { return Ok(None) };
+    let metin = String::from_utf8(ham).map_err(|e| format!("'utf-8' codec can't decode: {e} ({kategori}.ek.txt)"))?;
+    Ok(Some(temizle(crate::kuyruk::satirlar(&metin), Bicim::Duz)))
 }
 
 /// Başka bir güncelleme sürüyor (`bekle=false`).
@@ -369,10 +363,16 @@ impl Kilit {
     fn al(dizin: &Path, bekle: bool) -> Result<Kilit, Mesgul> {
         use std::os::fd::AsRawFd;
         let _ = std::fs::create_dir_all(dizin);
-        let f = std::fs::OpenOptions::new().create(true).append(true).open(dizin.join(".kilit")).map_err(|_| Mesgul)?;
+        let f = std::fs::OpenOptions::new().create(true).append(true).open(dizin.join(".kilit")).map_err(|e| {
+            eprintln!("kilit dosyası açılamadı: {e}");
+            Mesgul
+        })?;
         // SAFETY: fd geçerli ve bize ait
         let k = unsafe { libc::flock(f.as_raw_fd(), libc::LOCK_EX | if bekle { 0 } else { libc::LOCK_NB }) };
         if k != 0 {
+            if bekle {
+                eprintln!("kilit alınamadı (flock): {}", std::io::Error::last_os_error());
+            }
             return Err(Mesgul);
         }
         Ok(Kilit(f))
@@ -439,7 +439,7 @@ impl Uretici {
     pub fn uret(&self, kategori: &str, t: &dyn Tasiyici, dizin: &Path, simdi: f64) -> Result<Map<String, Value>, String> {
         std::fs::create_dir_all(dizin).map_err(|e| format!("{}: {e}", dizin.display()))?;
         let (mut kumeler, mut durumlar, mut inen) = (Vec::<BTreeSet<String>>::new(), Vec::<Value>::new(), 0usize);
-        let ek = elle_ek(dizin, kategori);
+        let ek = elle_ek(dizin, kategori)?;
         for k in self.kategori_kaynaklari(kategori) {
             let (alanlar, durum, indi) = self.kaynak_al(kategori, k, t, dizin)?;
             kumeler.push(alanlar);
@@ -579,7 +579,14 @@ pub fn main_uretim() -> i32 {
             return 1;
         }
     };
-    calistir(&v, &crate::ortak::Curl, Path::new(DIZIN), crate::ortak::simdi(), "listeler", "", true).unwrap_or(1)
+    match calistir(&v, &crate::ortak::Curl, Path::new(DIZIN), crate::ortak::simdi(), "listeler", "", true) {
+        Ok(k) => k,
+        Err(Mesgul) => {
+            // bekle=true iken kilit "meşgul" olamaz: kilit dosyası açılamadı ya da flock başarısız (nedeni Kilit::al yazar)
+            eprintln!("liste güncellemesi başlatılamadı: kilit alınamadı ({DIZIN}/.kilit)");
+            1
+        }
+    }
 }
 
 #[cfg(test)]

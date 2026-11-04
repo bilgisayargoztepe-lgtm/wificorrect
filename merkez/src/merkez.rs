@@ -31,7 +31,7 @@ pub fn istemci_ip(basliklar: &Basliklar) -> String {
 }
 
 /// Python `int(metin)` (ASCII): boşluk kırpılır, işaret, rakamlar arası tek alt çizgi. Taşan değerler sınırı aşar.
-fn py_int(s: &str) -> Option<i64> {
+pub(crate) fn py_int(s: &str) -> Option<i64> {
     let s = py_strip(s);
     let (eksi, s) = match s.as_bytes().first() {
         Some(b'-') => (true, &s[1..]),
@@ -377,7 +377,7 @@ mod testler {
 
     fn deneme(rol: &'static str, cerez: &'static str) -> Arc<Deneme> {
         let veri = Arc::new(crate::veri::Veri::ac(std::path::Path::new(":memory:"), saat()).unwrap());
-        Arc::new(Deneme { t: Taban::new(veri, saat()), rol, cerez })
+        Arc::new(Deneme { t: Taban::new(veri, crate::kayitlar::Kayitlar::default(), saat()), rol, cerez })
     }
 
     #[test]

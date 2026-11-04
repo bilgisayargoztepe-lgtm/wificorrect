@@ -198,12 +198,43 @@ pub fn read_rows(yol: &Path) -> Vec<BTreeMap<String, String>> {
         return Vec::new();
     }
     let metin = String::from_utf8_lossy(&ham);
-    let metin = metin.strip_prefix('\u{feff}').unwrap_or(&metin);
+    satirlar_metinden(&metin)
+}
+
+fn satirlar_metinden(metin: &str) -> Vec<BTreeMap<String, String>> {
+    let metin = metin.strip_prefix('\u{feff}').unwrap_or(metin);
     let mut satirlar = csv_coz(metin).into_iter();
     let Some(baslik) = satirlar.next() else { return Vec::new() };
     satirlar
         .map(|s| baslik.iter().cloned().zip(s).collect::<BTreeMap<String, String>>())
         .collect()
+}
+
+/// `read_rows_sonuc` hatası: `Utf8` Python'da `UnicodeDecodeError` (bir `ValueError`), `Io` açılamayan/bozuk dosya
+/// (gzip `BadGzipFile`/`EOFError`/`OSError`).
+#[derive(Debug)]
+pub enum OkumaHata {
+    Utf8,
+    Io(String),
+}
+
+/// `read_rows` gibi, ama hata yutmaz (Python `common.read_rows` istisna fırlatır): dosya yoksa boş; bozuk/kesik gzip,
+/// okunamayan dosya ya da geçersiz UTF-8 `Err`.
+pub fn read_rows_sonuc(yol: &Path) -> Result<Vec<BTreeMap<String, String>>, OkumaHata> {
+    let mut f = match std::fs::File::open(yol) {
+        Ok(f) => f,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(e) => return Err(OkumaHata::Io(e.to_string())),
+    };
+    let mut ham = Vec::new();
+    let oku = if yol.extension().map(|e| e == "gz").unwrap_or(false) {
+        flate2::read::MultiGzDecoder::new(f).read_to_end(&mut ham)
+    } else {
+        f.read_to_end(&mut ham)
+    };
+    oku.map_err(|e| OkumaHata::Io(e.to_string()))?;
+    let metin = String::from_utf8(ham).map_err(|_| OkumaHata::Utf8)?;
+    Ok(satirlar_metinden(&metin))
 }
 
 /// Türkiye GSM numarasını 10 haneye (5XXXXXXXXX) çevirir; geçersizse None.

@@ -9,6 +9,7 @@ use std::sync::{Arc, LazyLock};
 
 use crate::guvenlik::{self, GirisKilidi, Oturum, Oturumlar};
 use crate::ortak::{py_bol, py_bosluk, py_repr, py_strip};
+use crate::kayitlar::Kayitlar;
 use crate::veri::{Saat, Sonuc, Veri};
 
 pub use crate::detay::e;
@@ -411,9 +412,10 @@ impl Deref for Ot {
     }
 }
 
-/// Alt sınıfların paylaştığı durum (Python `Taban.__init__`). `kayitlar` Task 5'te eklenir.
+/// Alt sınıfların paylaştığı durum (Python `Taban.__init__`).
 pub struct Taban {
     pub veri: Arc<Veri>,
+    pub kayitlar: Kayitlar,
     pub saat: Saat,
     /// raporlar.Raporlar (haftalık/aylık rapor JSON'ları); rapor görevinde türü belirlenir. None: rapor sayfaları yok.
     pub raporlar: Option<Arc<dyn Any + Send + Sync>>,
@@ -422,8 +424,8 @@ pub struct Taban {
 }
 
 impl Taban {
-    pub fn new(veri: Arc<Veri>, saat: Saat) -> Taban {
-        Taban { veri, saat, raporlar: None, oturumlar: Oturumlar::default(), kilit: GirisKilidi::default() }
+    pub fn new(veri: Arc<Veri>, kayitlar: Kayitlar, saat: Saat) -> Taban {
+        Taban { veri, kayitlar, saat, raporlar: None, oturumlar: Oturumlar::default(), kilit: GirisKilidi::default() }
     }
 
     pub fn simdi(&self) -> f64 {
@@ -629,6 +631,51 @@ pub trait Panel: Send + Sync {
             _ => return Ok(Some(yonlendir(&format!("/gerekce?donus={}", quote(tam_yol)), None))),
         };
         t.veri.hareket(&self.kim(ot), ip, "GORUNTULEME", musteri, &format!("{tam_yol} · {}", g.0))?;
+        Ok(None)
+    }
+
+    /// Python `Taban.kayit_sayfasi`. `alt`: "/", "/gun/<gün>", "/ara". Kişi verisi açan sayfalar gerekçe ister (sayılar ve boş
+    /// arama formu istemez). Arama yalnızca POST'la yapılır (telefon/kimlik adrese, tarayıcı geçmişine ve hareket kaydına
+    /// girmez). None: böyle bir sayfa yok.
+    #[allow(clippy::too_many_arguments)]
+    fn kayit_sayfasi(
+        &self,
+        ot: &Ot,
+        numara: i64,
+        alt: &str,
+        sorgu: &str,
+        onek: &str,
+        ip: &str,
+        baslik: &str,
+        yontem: &str,
+        form: Option<&HashMap<String, String>>,
+    ) -> Sonuc<Option<Yanit>> {
+        let t = self.taban();
+        let hata = |m: String| crate::veri::Hata::Deger(format!("kayıtlar: {m}"));
+        let arsivler = t.veri.arsivler(numara)?;
+        if yontem == "POST" && alt != "/ara" {
+            return Ok(None);
+        }
+        if alt == "/" {
+            let h = t.kayitlar.ozet_html(baslik, &arsivler, t.simdi(), onek, &ot.csrf);
+            return Ok(Some(yanit_html(&self.sayfa(baslik, &h, Some(ot), false, None), 200, None)));
+        }
+        if alt.starts_with("/gun/") || yontem == "POST" {
+            let ek = if !sorgu.is_empty() && yontem == "GET" { format!("?{sorgu}") } else { String::new() };
+            if let Some(r) = self.gerekce_iste(ot, &format!("{onek}{alt}{ek}"), Some(numara), ip)? {
+                return Ok(Some(r));
+            }
+        }
+        if let Some(gun) = alt.strip_prefix("/gun/") {
+            return Ok(Some(match t.kayitlar.gun_html(&arsivler, gun, onek).map_err(hata)? {
+                None => yanit_html(&self.mesaj(Some(ot), "Bulunamadı", "Bu gün için kayıt yok."), 404, None),
+                Some(h) => yanit_html(&self.sayfa(&crate::detay::tarih(gun), &h, Some(ot), false, None), 200, None),
+            }));
+        }
+        if alt == "/ara" {
+            let h = t.kayitlar.ara_html(&arsivler, if yontem == "POST" { form } else { None }, onek, &ot.csrf).map_err(hata)?;
+            return Ok(Some(yanit_html(&self.sayfa("Arama", &h, Some(ot), false, None), 200, None)));
+        }
         Ok(None)
     }
 }
@@ -838,7 +885,7 @@ mod testler {
         let zaman = Arc::new(Mutex::new(1_000.0));
         let saat = saat_sabit(zaman.clone());
         let veri = Arc::new(Veri::ac(Path::new(":memory:"), saat.clone()).unwrap());
-        (Arc::new(Sahte { t: Taban::new(veri, saat), ozet: Mutex::new("ozet-1".into()), yan }), zaman)
+        (Arc::new(Sahte { t: Taban::new(veri, crate::kayitlar::Kayitlar::default(), saat), ozet: Mutex::new("ozet-1".into()), yan }), zaman)
     }
 
     fn gonder(p: &Sahte, yontem: &str, yol: &str, cerez: Option<&str>, govde: &str) -> Yanit {

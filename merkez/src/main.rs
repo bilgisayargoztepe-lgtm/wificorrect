@@ -6,8 +6,11 @@
 mod altin;
 mod detay;
 mod guvenlik;
+mod istatistik;
+mod kayitlar;
 mod merkez;
 mod ortak;
+mod ozet;
 mod sunucu;
 #[cfg(test)]
 mod test_yardim;
@@ -22,8 +25,9 @@ fn main() {
     match args.first().map(String::as_str) {
         Some("surum") => println!("{SURUM}"),
         Some("sunucu") => sunucu_calistir(),
+        Some("istatistik") => std::process::exit(istatistik::calistir(&istatistik::Yollar::uretim(), None)),
         _ => {
-            eprintln!("Kullanım: wificorrect-merkez surum|sunucu");
+            eprintln!("Kullanım: wificorrect-merkez surum|sunucu|istatistik");
             std::process::exit(2);
         }
     }

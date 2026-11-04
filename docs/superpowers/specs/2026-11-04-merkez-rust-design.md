@@ -143,8 +143,8 @@ seçilmedi**: üçü de olduğu gibi taşınır. Yürütme: **görev başına aj
 2. Eşleşme cevabında `sms` yalnızca `etkin_mock` taşır.
 3. Birimler `wificorrect-merkez`'i çağırır; `/usr/local/sbin/wc-*` bağları yok.
 4. HTTP sunucusunun kendi başlıkları (`Server`, `Date`) Python'unkinden farklı olabilir: Caddy `Server`'ı zaten siler.
-5. Telefon numarası düzeltmesi (`normalize_phone`) yalnızca ASCII rakamları kabul eder. Python başka yazıların rakamlarını da
-   kabul ediyor ve NetGSM'in kullanamayacağı bir numara üretiyordu.
+5. Rakam doğrulamaları (telefon numarası düzeltmesi `normalize_phone`, gün/tarih kalıpları gibi) yalnızca ASCII rakamları kabul
+   eder. Python başka yazıların rakamlarını da kabul ediyor, örneğin NetGSM'in kullanamayacağı bir numara üretiyordu.
 6. Biçim 1 (alan adı listeli, 2026-10-15 öncesi) rapor ve ham özet dosyaları okunmaz ve temizlenmez. Canlı envanterde
    (2026-11-04) bu biçimde dosya yok. Biçim değişince önbelleğin yeniden hesaplanması genel kural olarak kalır.
 

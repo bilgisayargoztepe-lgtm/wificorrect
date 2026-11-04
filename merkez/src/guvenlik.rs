@@ -214,7 +214,7 @@ impl Oturumlar {
     /// Yeni oturum belirteci. Süresi dolmuş oturumlar burada silinir (bir daha bakılmayan oturum bellekte kalmasın).
     pub fn create(&self, user: &str, role: &str, now: f64, surum: &str, ek: BTreeMap<String, Value>) -> String {
         let token = rastgele::token_urlsafe(32);
-        let mut s = self.s.lock().unwrap();
+        let mut s = crate::ortak::kilitle(&self.s);
         s.retain(|_, o| !self.dolmus(o, now));
         s.insert(
             token.clone(),
@@ -233,7 +233,7 @@ impl Oturumlar {
     }
 
     pub fn get(&self, token: &str, now: f64) -> Option<Oturum> {
-        let mut s = self.s.lock().unwrap();
+        let mut s = crate::ortak::kilitle(&self.s);
         let o = s.get_mut(token)?;
         if now - o.last > self.bosta || now - o.created > self.en_cok {
             s.remove(token);
@@ -244,15 +244,15 @@ impl Oturumlar {
     }
 
     pub fn drop(&self, token: &str) {
-        self.s.lock().unwrap().remove(token);
+        crate::ortak::kilitle(&self.s).remove(token);
     }
 
     pub fn drop_user(&self, user: &str) {
-        self.s.lock().unwrap().retain(|_, o| o.user != user);
+        crate::ortak::kilitle(&self.s).retain(|_, o| o.user != user);
     }
 
     pub fn set_gerekce(&self, token: &str, metin: &str, bitis: f64) {
-        if let Some(o) = self.s.lock().unwrap().get_mut(token) {
+        if let Some(o) = crate::ortak::kilitle(&self.s).get_mut(token) {
             o.gerekce = Some((metin.to_string(), bitis));
         }
     }
@@ -281,7 +281,7 @@ impl GecisBelirtecleri {
     /// `rol`: "musteri" (panel.wificorrect.com) ya da "yonetici" (yönetimden doğrudan geçiş).
     pub fn uret(&self, numara: &str, simdi: f64, ozet: &str, rol: &str) -> String {
         let t = rastgele::token_urlsafe(32);
-        let mut b = self.b.lock().unwrap();
+        let mut b = crate::ortak::kilitle(&self.b);
         b.retain(|_, v| v.1 > simdi);
         b.insert(t.clone(), (numara.to_string(), simdi + Self::SURE, ozet.to_string(), rol.to_string()));
         t
@@ -289,7 +289,7 @@ impl GecisBelirtecleri {
 
     /// (numara, özet, rol) ya da None.
     pub fn tuket(&self, token: &str, simdi: f64) -> Option<(String, String, String)> {
-        let v = self.b.lock().unwrap().remove(token)?;
+        let v = crate::ortak::kilitle(&self.b).remove(token)?;
         (v.1 > simdi).then(|| (v.0, v.2, v.3))
     }
 }
@@ -308,7 +308,7 @@ impl<T> TekKullanimlik<T> {
 
     pub fn uret(&self, deger: T, simdi: f64) -> String {
         let t = rastgele::token_urlsafe(32);
-        let mut b = self.b.lock().unwrap();
+        let mut b = crate::ortak::kilitle(&self.b);
         b.retain(|_, v| v.0 > simdi);
         b.insert(t.clone(), (simdi + self.sure, deger));
         t
@@ -316,7 +316,7 @@ impl<T> TekKullanimlik<T> {
 
     /// Değer ya da None (yok, kullanılmış ya da süresi dolmuş).
     pub fn tuket(&self, token: &str, simdi: f64) -> Option<T> {
-        let v = self.b.lock().unwrap().remove(token)?;
+        let v = crate::ortak::kilitle(&self.b).remove(token)?;
         (v.0 > simdi).then_some(v.1)
     }
 }
@@ -348,7 +348,7 @@ impl GirisKilidi {
 
     pub fn attempt(&self, ip: &str, user: &str, now: f64) -> bool {
         let anahtarlar = [("ip", ip.to_string()), ("user", user.to_string())];
-        let mut f = self.f.lock().unwrap();
+        let mut f = crate::ortak::kilitle(&self.f);
         let dolu = anahtarlar.iter().map(|k| self.son(&mut f, k, now) >= self.limit).fold(false, |a, b| a || b);
         if dolu {
             return false;
@@ -360,7 +360,7 @@ impl GirisKilidi {
     }
 
     pub fn succeed(&self, ip: &str, user: &str, now: f64) {
-        let mut f = self.f.lock().unwrap();
+        let mut f = crate::ortak::kilitle(&self.f);
         if let Some(v) = f.get_mut(&("ip", ip.to_string())) {
             if let Some(i) = v.iter().position(|t| *t == now) {
                 v.remove(i);
@@ -396,7 +396,7 @@ impl HizSiniri {
     }
 
     pub fn izin(&self, anahtar: &str, now: f64) -> bool {
-        let mut ic = self.ic.lock().unwrap();
+        let mut ic = crate::ortak::kilitle(&self.ic);
         if ic.temizlik.map(|t| now - t >= self.pencere).unwrap_or(true) {
             ic.temizlik = Some(now);
             let p = self.pencere;
@@ -500,7 +500,7 @@ mod tests {
         let s = Oturumlar::default();
         s.create("a", "r", 0.0, "", BTreeMap::new());
         s.create("b", "r", 5000.0, "", BTreeMap::new());
-        assert_eq!(s.s.lock().unwrap().len(), 1);
+        assert_eq!(crate::ortak::kilitle(&s.s).len(), 1);
     }
 
     #[test]
@@ -533,7 +533,7 @@ mod tests {
         let h = HizSiniri::new(1, 60.0);
         assert!(h.izin("a", 0.0) && h.izin("b", 1.0) && !h.izin("a", 2.0));
         assert!(h.izin("c", 200.0)); // pencereden eski anahtarlar bellekten silinir
-        let anahtarlar: Vec<String> = h.ic.lock().unwrap().z.keys().cloned().collect();
+        let anahtarlar: Vec<String> = crate::ortak::kilitle(&h.ic).z.keys().cloned().collect();
         assert_eq!(anahtarlar, vec!["c".to_string()]);
     }
 
@@ -556,7 +556,7 @@ mod tests {
         assert_eq!(k.tuket(&t, 59.0), None);
         k.uret(("x".to_string(), 1), 0.0);
         k.uret(("y".to_string(), 2), 100.0); // üretimde süresi dolanlar silinir
-        assert_eq!(k.b.lock().unwrap().len(), 1);
+        assert_eq!(crate::ortak::kilitle(&k.b).len(), 1);
     }
 
     #[test]

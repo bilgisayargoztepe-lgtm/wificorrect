@@ -391,6 +391,72 @@ pub fn py_veya_bos(v: Option<&serde_json::Value>) -> String {
     }
 }
 
+/// Zehirlenmeye dayanıklı kilit: bir istekteki panik, sonraki isteklerin kilidi almasını engellemesin (panik → 500 yakalanır).
+pub fn kilitle<T>(m: &std::sync::Mutex<T>) -> std::sync::MutexGuard<'_, T> {
+    m.lock().unwrap_or_else(|e| e.into_inner())
+}
+
+/// Python `str.isspace()` (tek karakter için): Unicode boşlukları ve \x1c-\x1f.
+pub fn py_bosluk(c: char) -> bool {
+    c.is_whitespace() || ('\u{1c}'..='\u{1f}').contains(&c)
+}
+
+/// Python `str.strip()`.
+pub fn py_strip(s: &str) -> &str {
+    s.trim_matches(py_bosluk)
+}
+
+/// Python `str.split()` (bağımsız değişkensiz): boşluk dizileriyle ayırır, boş parça yok.
+pub fn py_bol(s: &str) -> Vec<&str> {
+    s.split(py_bosluk).filter(|p| !p.is_empty()).collect()
+}
+
+/// Python `repr(str)`: tırnak seçimi ve kaçışlar (yazdırılamayan karakterler `\xNN`/`\uNNNN`). Günlük satırlarında (fail2ban)
+/// satır sonu ve denetim karakterleri kaçışlanır.
+pub fn py_repr(s: &str) -> String {
+    let tirnak = if s.contains('\'') && !s.contains('"') { '"' } else { '\'' };
+    let mut o = String::with_capacity(s.len() + 2);
+    o.push(tirnak);
+    for c in s.chars() {
+        match c {
+            '\\' => o.push_str("\\\\"),
+            '\t' => o.push_str("\\t"),
+            '\n' => o.push_str("\\n"),
+            '\r' => o.push_str("\\r"),
+            c if c == tirnak => {
+                o.push('\\');
+                o.push(c);
+            }
+            c if (c as u32) < 0x20 || c as u32 == 0x7f => o.push_str(&format!("\\x{:02x}", c as u32)),
+            c if py_yazdirilabilir(c) => o.push(c),
+            c if (c as u32) <= 0xff => o.push_str(&format!("\\x{:02x}", c as u32)),
+            c if (c as u32) <= 0xffff => o.push_str(&format!("\\u{:04x}", c as u32)),
+            c => o.push_str(&format!("\\U{:08x}", c as u32)),
+        }
+    }
+    o.push(tirnak);
+    o
+}
+
+/// Python `str.isprintable()` için yaklaşık (Unicode kategorileri tablosu yok): denetim, boşluk (ASCII boşluk hariç), biçim
+/// (Cf), özel kullanım ve yedek karakterleri yazdırılamaz sayar.
+fn py_yazdirilabilir(c: char) -> bool {
+    let k = c as u32;
+    if c == ' ' {
+        return true;
+    }
+    !(c.is_control()
+        || py_bosluk(c)
+        || k == 0xad
+        || (0x200b..=0x200f).contains(&k)
+        || (0x202a..=0x202e).contains(&k)
+        || (0x2060..=0x206f).contains(&k)
+        || (0xe000..=0xf8ff).contains(&k)
+        || k == 0xfeff
+        || (0xfff9..=0xfffb).contains(&k)
+        || k >= 0xf0000)
+}
+
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;

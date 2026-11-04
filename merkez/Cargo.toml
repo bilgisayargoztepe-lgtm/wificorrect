@@ -26,6 +26,9 @@ lto = true
 codegen-units = 1
 strip = true
 
-# Test derlemelerinde PBKDF2 (120 000 yineleme) hızlı olsun
+# Test derlemelerinde PBKDF2 (120 000 yineleme) hızlı olsun: genel tür parametreleri bu pakette somutlaşır, bu yüzden
+# bağımlılıklar ("*") değil kendi paketimiz hafif optimize edilir
+[profile.dev.package.wificorrect-merkez]
+opt-level = 1
 [profile.dev.package."*"]
 opt-level = 2

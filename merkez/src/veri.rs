@@ -169,7 +169,7 @@ impl From<rusqlite::Error> for Hata {
     }
 }
 
-type Sonuc<T> = Result<T, Hata>;
+pub type Sonuc<T> = Result<T, Hata>;
 
 fn deger_hata<T>(m: impl Into<String>) -> Sonuc<T> {
     Err(Hata::Deger(m.into()))

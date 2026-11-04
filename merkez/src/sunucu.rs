@@ -152,20 +152,27 @@ fn istek_oku(akim: &mut BufReader<&TcpStream>) -> std::io::Result<Okunan> {
         _ => return Ok(Okunan::Hata(hata_yaniti(400, &format!("Bad request version ({})", py_repr(surum))))),
     }
     // başlıklar
+    // Python http.client._read_headers: her ham satır (boş bitiş satırı dahil) sayılır, 100'ü aşarsa 431 (en çok 99 başlık).
+    // Ayrıştırma iki nokta içermeyen ilk satırda durur (sonrakiler yok sayılır ama okunup sayılmaya devam eder).
     let mut basliklar = Basliklar::default();
+    let (mut satir_sayisi, mut ayristirma_bitti) = (0usize, false);
     loop {
         let s = match satir_oku(akim)? {
             None => break,
             Some(Err(())) => return Ok(Okunan::Hata(hata_yaniti(431, "Line too long"))),
             Some(Ok(s)) => s,
         };
+        satir_sayisi += 1;
+        if satir_sayisi > BASLIK_SINIRI {
+            return Ok(Okunan::Hata(hata_yaniti(431, "Too many headers")));
+        }
         let s = latin1(&s);
         let s = s.trim_end_matches(['\r', '\n']);
         if s.is_empty() {
             break;
         }
-        if basliklar.0.len() >= BASLIK_SINIRI {
-            return Ok(Okunan::Hata(hata_yaniti(431, "Too many headers")));
+        if ayristirma_bitti {
+            continue;
         }
         if s.starts_with([' ', '\t']) {
             // eski katlanmış başlık satırı: öncekinin devamı
@@ -177,7 +184,7 @@ fn istek_oku(akim: &mut BufReader<&TcpStream>) -> std::io::Result<Okunan> {
         }
         match s.split_once(':') {
             Some((ad, deger)) => basliklar.0.push((ad.to_string(), py_strip(deger).to_string())),
-            None => continue,
+            None => ayristirma_bitti = true,
         }
     }
     let yontem = kelimeler[0];
@@ -438,6 +445,28 @@ mod testler {
         // sayı olmayan Content-Length
         let t = metin(&al(c.adres(), "POST /x HTTP/1.1\r\nHost: api.wificorrect.com\r\nContent-Length: abc\r\n\r\n"));
         assert!(t.starts_with("HTTP/1.0 413 "), "{t}");
+        c.durdur();
+    }
+
+    /// Python 3.14 `http.client._read_headers`: boş bitiş satırı dahil her satır sayılır (99 başlık geçer, 100 başlık 431);
+    /// katlanmış ve iki noktasız satırlar da sayılır; iki noktasız satırdan sonrası yok sayılır.
+    #[test]
+    fn baslik_satiri_siniri_python_gibi() {
+        let c = baslat_deneme(Duration::from_secs(5));
+        let n = |k: usize| -> String { (0..k).map(|i| format!("H{i}: v\r\n")).collect() };
+        let t = metin(&al(c.adres(), &format!("GET / HTTP/1.1\r\nHost: api.wificorrect.com\r\n{}\r\n", n(98))));
+        assert!(t.starts_with("HTTP/1.0 200 "), "{}", &t[..t.len().min(80)]);
+        let t = metin(&al(c.adres(), &format!("GET / HTTP/1.1\r\nHost: api.wificorrect.com\r\n{}\r\n", n(99))));
+        assert!(t.starts_with("HTTP/1.0 431 "), "{}", &t[..t.len().min(80)]);
+        let katli: String = (0..150).map(|_| " devam\r\n").collect();
+        let t = metin(&al(c.adres(), &format!("GET / HTTP/1.1\r\nHost: api.wificorrect.com\r\nX: a\r\n{katli}\r\n")));
+        assert!(t.starts_with("HTTP/1.0 431 "), "{}", &t[..t.len().min(80)]);
+        let kolonsuz: String = (0..150).map(|_| "kolonsuz\r\n").collect();
+        let t = metin(&al(c.adres(), &format!("GET / HTTP/1.1\r\nHost: api.wificorrect.com\r\nX: a\r\n{kolonsuz}\r\n")));
+        assert!(t.starts_with("HTTP/1.0 431 "), "{}", &t[..t.len().min(80)]);
+        // iki noktasız satırda ayrıştırma durur: sonraki Host yok sayılır -> bilinmeyen alan 404
+        let t = metin(&al(c.adres(), "GET /k HTTP/1.1\r\nX: a\r\nkolonsuz\r\nHost: api.wificorrect.com\r\n\r\n"));
+        assert!(t.starts_with("HTTP/1.0 404 "), "{}", &t[..t.len().min(80)]);
         c.durdur();
     }
 

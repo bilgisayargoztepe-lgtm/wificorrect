@@ -1,0 +1,29 @@
+# Altın kayıtların kanonik kaynağı Linux (hedef platform): kaydet.py Python merkez testlerini kaydeder, sonuç yapıt olarak
+# yüklenir ve depodaki merkez/tests/altin ile farkı hata sayılır (kayma denetimi). Kayıtları yenilemek: bu işin yapıtını
+# indirip (gh run download <id> -n altin-<sha>) merkez/tests/altin'in yerine koyun.
+name: altin
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "scripts/sunucu/**"
+      - "scripts/sunucu/parite/**"
+      - "merkez/tests/altin/**"
+
+jobs:
+  kayit:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - name: Kayıt
+        run: python -I scripts/sunucu/parite/kaydet.py --cikti "$RUNNER_TEMP/altin"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: altin-${{ github.sha }}
+          path: ${{ runner.temp }}/altin
+          if-no-files-found: error
+      - name: Kayma denetimi
+        run: diff -r merkez/tests/altin "$RUNNER_TEMP/altin"

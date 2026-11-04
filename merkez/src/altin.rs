@@ -1,6 +1,7 @@
 //! Altın kayıt (yalnızca testler): Python testlerinin cevapları, veritabanlarının son hâli ve geçici dizinlerindeki dosyalar
 //! (scripts/sunucu/parite/kaydet.py → tests/altin/<dosya>/<test>.json[.gz]) Rust'taki aynı testinkiyle karşılaştırılır.
-//! Kayıt biçimi (2) ve normalleştirme kaydet.py'nin başındaki tarifin aynısıdır.
+//! Kayıt biçimi (3) ve normalleştirme kaydet.py'nin başındaki tarifin aynısıdır. Kanonik kayıtlar Linux'ta, CI'da
+//! (.github/workflows/altin.yml) üretilir.
 //!
 //! Kullanım: testin ilk satırı `let _k = Kayit::bas("test_yonetim", "test_x");` (Python dosyasının ve testinin adı).
 //! Kayıt açıkken bu iş parçacığında rastgelelik belirlenimlidir; `test_yardim`'ın istek yardımcıları cevapları,
@@ -20,7 +21,7 @@ use sha2::{Digest, Sha256};
 use crate::guvenlik::rastgele;
 use crate::web::{self, Istek, Yanit};
 
-const BICIM: u64 = 2;
+const BICIM: u64 = 3;
 /// Karşılaştırılan başlıklar (küçük harfle) ve `x-wfc-` ile başlayanlar. Uygulamanın başka başlık vermesi farktır
 /// (Python kaydedicisi de reddeder): gerekiyorsa iki tarafta da listeye eklenir.
 const SECILI_BASLIKLAR: [&str; 11] = [
@@ -483,13 +484,10 @@ fn kayit_dogrula(k: &Value, dosya: &str, test: &str) -> Result<(), String> {
     if k["dosya"].as_str() != Some(dosya) || k["test"].as_str() != Some(test) {
         return Err(format!("{yer}: kayıt başka teste ait ({}/{})", k["dosya"], k["test"]));
     }
-    for alan in ["cevaplar", "veritabanlari", "dosyalar", "platform_farki"] {
+    for alan in ["cevaplar", "veritabanlari", "dosyalar"] {
         if !k[alan].is_array() {
             return Err(format!("{yer}: `{alan}` alanı yok ya da dizi değil"));
         }
-    }
-    if !k["platform_farki"].as_array().is_some_and(|p| p.iter().all(Value::is_string)) {
-        return Err(format!("{yer}: `platform_farki` metin dizisi değil"));
     }
     for alan in ["cevaplar", "veritabanlari"] {
         if let Some(y) = kararsiz_yerleri(&k[alan]).first() {
@@ -600,15 +598,12 @@ fn karsilastir(dosya: &str, test: &str, d: &Durum) -> Result<(), String> {
         }
         tablo_farki(&yer, &b["tablolar"], &g["tablolar"])?;
     }
-    // Python testi Windows'ta bir Linux adımını atladıysa (sembolik bağ, FIFO; kaydet.py PLATFORM_TESTLERI) Rust testi
-    // Linux'ta o adımı da yapar: Python'un dizin ve dosyaları Rust'ta aynı içerikle bulunmalı, fazlası olabilir
-    let alt_kume = beklenen["platform_farki"].as_array().is_some_and(|p| !p.is_empty());
-    dosya_farki(beklenen["dosyalar"].as_array().unwrap_or(&bos), &dizinler, alt_kume)
+    dosya_farki(beklenen["dosyalar"].as_array().unwrap_or(&bos), &dizinler)
 }
 
-/// Geçici dizinler: aynı dizinler, aynı göreli yollar, aynı içerik. alt_kume: Python'unkiler Rust'ta bulunmalı (platform farkı).
-fn dosya_farki(b: &[Value], g: &[Value], alt_kume: bool) -> Result<(), String> {
-    if b.len() != g.len() && !(alt_kume && b.len() < g.len()) {
+/// Geçici dizinler: aynı dizinler, aynı göreli yollar, aynı içerik.
+fn dosya_farki(b: &[Value], g: &[Value]) -> Result<(), String> {
+    if b.len() != g.len() {
         return Err(format!("geçici dizin sayısı: Python {}, Rust {} (Rust testi dizinlerini test_yardim::gecici_dizin ile açmalı)", b.len(), g.len()));
     }
     let bos = Map::new();
@@ -616,7 +611,7 @@ fn dosya_farki(b: &[Value], g: &[Value], alt_kume: bool) -> Result<(), String> {
         let (x, y) = (x.as_object().unwrap_or(&bos), y.as_object().unwrap_or(&bos));
         let yer = format!("geçici dizin #{}", i + 1);
         let eksik: Vec<&String> = x.keys().filter(|k| !y.contains_key(k.as_str())).collect();
-        let fazla: Vec<&String> = if alt_kume { Vec::new() } else { y.keys().filter(|k| !x.contains_key(k.as_str())).collect() };
+        let fazla: Vec<&String> = y.keys().filter(|k| !x.contains_key(k.as_str())).collect();
         if !eksik.is_empty() || !fazla.is_empty() {
             return Err(format!("{yer}: dosyalar farklı; Rust'ta eksik {eksik:?}, Rust'ta fazla {fazla:?}"));
         }
@@ -911,13 +906,13 @@ mod testler {
         assert!(json_farki("$", &b, &json!({"imza": "abc", "sayi": 4})).unwrap().starts_with("$.sayi"));
         assert!(json_farki("$", &b, &json!({"sayi": 3})).is_some()); // anahtar yine olmalı
         let dz = |v: Value| vec![v];
-        assert!(dosya_farki(&dz(json!({"g/MANIFEST.sha256": {"metin": KARARSIZ}})), &dz(json!({"g/MANIFEST.sha256": {"metin": "x"}})), false).is_ok());
+        assert!(dosya_farki(&dz(json!({"g/MANIFEST.sha256": {"metin": KARARSIZ}})), &dz(json!({"g/MANIFEST.sha256": {"metin": "x"}}))).is_ok());
     }
 
     #[test]
     fn kararsiz_yalnizca_izinli_yerde() {
         let k = |cevaplar: Value, vt: Value, dosyalar: Value| {
-            json!({"bicim": 2, "dosya": "d", "test": "t", "platform_farki": [], "cevaplar": cevaplar, "veritabanlari": vt, "dosyalar": dosyalar})
+            json!({"bicim": 3, "dosya": "d", "test": "t", "cevaplar": cevaplar, "veritabanlari": vt, "dosyalar": dosyalar})
         };
         let bos = json!([]);
         let izinli = json!([{
@@ -952,23 +947,6 @@ mod testler {
     }
 
     #[test]
-    fn platform_farkinda_python_dosyalari_alt_kume() {
-        let dz = |v: Value| v.as_array().unwrap().clone();
-        let python = dz(json!([{"gun/": {"dizin": true}, "gun/a.txt": {"metin": "x"}}]));
-        // Rust Linux'ta fazlasını da yapar: fazla dosya ve fazla dizin olabilir
-        let rust = dz(json!([{"gun/": {"dizin": true}, "gun/a.txt": {"metin": "x"}, "gun/b": {"metin": ""}}, {}]));
-        assert!(dosya_farki(&python, &rust, true).is_ok());
-        assert!(dosya_farki(&python, &rust, false).is_err());
-        let e = dosya_farki(&python, &dz(json!([{"gun/": {"dizin": true}}])), true).unwrap_err();
-        assert!(e.contains("Rust'ta eksik [\"gun/a.txt\"]"), "{e}");
-        let e = dosya_farki(&python, &dz(json!([{"gun/": {"dizin": true}, "gun/a.txt": {"metin": "y"}}])), true).unwrap_err();
-        assert!(e.contains("dosya gun/a.txt: içerik farklı"), "{e}");
-        let e = dosya_farki(&python, &dz(json!([{"gun/a.txt": {"metin": "x"}}])), true).unwrap_err();
-        assert!(e.contains("Rust'ta eksik [\"gun/\"]"), "{e}"); // dizin girdileri de
-        assert!(dosya_farki(&python, &[], true).unwrap_err().starts_with("geçici dizin sayısı: Python 1, Rust 0"));
-    }
-
-    #[test]
     fn farklar_okunur_yazilir() {
         let m = metin_farki("ab\ncdef", "ab\ncxef");
         assert!(m.starts_with("satır 2, sütun 2"), "{m}");
@@ -981,20 +959,20 @@ mod testler {
         assert!(e.contains("tablo t, satır 1") && e.contains("sütun k"), "{e}");
         assert!(tablo_farki("vt", &t(json!([{"k": "a"}])), &t(json!([]))).unwrap_err().contains("satır sayısı Python 1, Rust 0"));
         let dz = |v: Value| vec![v];
-        let e = dosya_farki(&dz(json!({"a.txt": {"metin": "x\ny"}})), &dz(json!({"a.txt": {"metin": "x\nz"}})), false).unwrap_err();
+        let e = dosya_farki(&dz(json!({"a.txt": {"metin": "x\ny"}})), &dz(json!({"a.txt": {"metin": "x\nz"}}))).unwrap_err();
         assert!(e.starts_with("geçici dizin #1, dosya a.txt: içerik farklı, satır 2, sütun 1"), "{e}");
-        let e = dosya_farki(&dz(json!({"a/": {"dizin": true}})), &dz(json!({"b": {"metin": ""}})), false).unwrap_err();
+        let e = dosya_farki(&dz(json!({"a/": {"dizin": true}})), &dz(json!({"b": {"metin": ""}}))).unwrap_err();
         assert!(e.contains("Rust'ta eksik [\"a/\"], Rust'ta fazla [\"b\"]"), "{e}");
-        assert!(dosya_farki(&[], &dz(json!({})), false).unwrap_err().starts_with("geçici dizin sayısı: Python 0, Rust 1"));
+        assert!(dosya_farki(&[], &dz(json!({}))).unwrap_err().starts_with("geçici dizin sayısı: Python 0, Rust 1"));
     }
 
     #[test]
     fn kayit_bicimi_dogrulanir() {
-        let iyi = json!({"bicim": 2, "dosya": "d", "test": "t", "cevaplar": [], "veritabanlari": [], "dosyalar": [], "platform_farki": []});
+        let iyi = json!({"bicim": 3, "dosya": "d", "test": "t", "cevaplar": [], "veritabanlari": [], "dosyalar": []});
         assert!(kayit_dogrula(&iyi, "d", "t").is_ok());
         let mut eski = iyi.clone();
         eski["bicim"] = json!(1);
-        assert!(kayit_dogrula(&eski, "d", "t").unwrap_err().contains("kayıt biçimi 1 (beklenen 2)"));
+        assert!(kayit_dogrula(&eski, "d", "t").unwrap_err().contains("kayıt biçimi 1 (beklenen 3)"));
         let mut eksik = iyi.clone();
         eksik.as_object_mut().unwrap().remove("dosyalar");
         assert!(kayit_dogrula(&eksik, "d", "t").unwrap_err().contains("`dosyalar` alanı yok"));
@@ -1036,9 +1014,9 @@ mod testler {
         let d = crate::ortak::tests::gecici_dizin();
         std::fs::create_dir(d.join("test_x")).unwrap();
         let mut gz = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
-        gz.write_all(br#"{"bicim": 2, "cevaplar": [], "veritabanlari": []}"#).unwrap();
+        gz.write_all(br#"{"bicim": 3, "cevaplar": [], "veritabanlari": []}"#).unwrap();
         std::fs::write(d.join("test_x/test_y.json.gz"), gz.finish().unwrap()).unwrap();
-        assert_eq!(kayit_oku_dizinden(&d, "test_x", "test_y").unwrap()["bicim"], 2);
+        assert_eq!(kayit_oku_dizinden(&d, "test_x", "test_y").unwrap()["bicim"], 3);
     }
 
     fn panik_metni(p: Box<dyn std::any::Any + Send>) -> String {
@@ -1108,14 +1086,5 @@ mod testler {
         // altınsız: karşılaştırılmaz, belirlenimli kip yine açık
         let _k = Kayit::altinsiz("deneme: bilinçli fark");
         assert_eq!(rastgele::token_hex(16), "b0b98249afed054d2391c43341da71fb");
-    }
-
-    #[test]
-    fn platform_farkli_kayitta_fazla_dizin_olabilir() {
-        // Python testi Windows'ta FIFO adımını atladı (geçici dizin hiç açmadı); Rust Linux'ta açar
-        let k = kayit_oku("test_rapor", "test_tamam_mi_fifo_beklemez").unwrap();
-        assert_eq!(k["platform_farki"], json!(["os.mkfifo yok"]));
-        let _k = Kayit::bas("test_rapor", "test_tamam_mi_fifo_beklemez");
-        std::fs::create_dir(crate::test_yardim::gecici_dizin().join("gun")).unwrap();
     }
 }

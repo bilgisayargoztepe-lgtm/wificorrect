@@ -1,12 +1,16 @@
 """Geçici (Task 16'da silinir): altın kayıt üreticisi. Python merkez testlerini tek tek, belirlenimli rastgelelikle çalıştırır;
 her testin istek cevaplarını, veritabanlarının son hâlini ve geçici dizinlerindeki dosyaları
 merkez/tests/altin/<dosya>/<test>.json'a yazar. Rust'taki aynı test (`altin::Kayit::bas`) aynı kaydı üretmelidir. Kullanım:
-    py -3 -I scripts/sunucu/parite/kaydet.py [test_dosyasi ...] [--is N] [--cikti DIZIN] [--tohum N]
+    python3 -I scripts/sunucu/parite/kaydet.py [test_dosyasi ...] [--is N] [--cikti DIZIN] [--tohum N]
+Kanonik kayıtlar Linux'ta, CI'da üretilir (.github/workflows/altin.yml: kaydet.py'yi çalıştırır, sonucu yapıt olarak yükler,
+depodakiyle farkı hata sayar); Linux dışında merkez/tests/altin'e yazmaz (--cikti ile başka dizine denemek serbest).
 test_dosyasi: `test_yonetim` ya da yolu; verilmezse hepsi. Her test ayrı süreçte çalışır (testler arası modül durumu
-taşınmaz); süreç PYTHONHASHSEED=0 (--tohum), UTF-8 kipi ve Linux gibi "\\n" satır sonuyla başlar. Ayrıca
-merkez/tests/altin/_krom.json: Python'un ortak CSS, logo ve sekme simgesinin sha256'sı (Rust'takilerle aynı olmalı).
+taşınmaz); süreç PYTHONHASHSEED=0 (--tohum), UTF-8 kipi ve "\\n" satır sonuyla başlar. Dizin listeleri (os.listdir,
+os.scandir ve onu kullanan os.walk, glob) ada göre sıralı döner (Rust da sıralar); ikinci koşuda ters sıralı döner: sıraya
+bağlı çıktı iki koşuyu ayırır ve hata verir. Ayrıca merkez/tests/altin/_krom.json: Python'un ortak CSS, logo ve sekme
+simgesinin sha256'sı (Rust'takilerle aynı olmalı).
 
-Kayıt biçimi 2 (Rust altin.rs aynısını üretir):
+Kayıt biçimi 3 (Rust altin.rs aynısını üretir):
 - cevaplar: testin her üst düzey `istek` çağrısı (iç içe çağrıda yalnız en dıştaki; yalnız ana iş parçacığı), sırayla:
   istek ("YÖNTEM /yol[?sorgu]", belirteçler <T?:UZUNLUK>), durum, basliklar (SECILI_BASLIKLAR; [ad, değer], sırayla; seçili
   olmayan başlık hatadır), govde: {"metin": ...} | {"json": ...} | {"ikili": {"sha256", "uzunluk"}}
@@ -18,11 +22,8 @@ Kayıt biçimi 2 (Rust altin.rs aynısını üretir):
   ya da test sonunda: {göreli yol (/ ile): içerik}; dizinler "yol/": {"dizin": true}; dosya: .gz açılmış hâliyle ("gz": true),
   .json(.gz) JSON değeri, UTF-8 metin, değilse sha256 + uzunluk. SQLite veritabanları ve günlükleri, sembolik bağlar ve
   özel dosyalar (FIFO) alınmaz.
-- platform_farki: testin Windows'ta atladığı Linux adımları (sembolik bağ kurulamadı, testin baktığı os.X yok). Yalnızca
-  PLATFORM_TESTLERI'ndeki testlerde ve oradaki değerle olabilir (başka türlüsü kayıt hatası). Doluysa Rust `dosyalar`'da
-  Python'un dizin ve dosyalarının kendi dökümünde aynı içerikle bulunmasını ister (Linux'ta fazlası olabilir).
-- Kararsız değerler: her test iki kez koşar; ikincisinde gzip başlık zamanı ve sıkıştırma düzeyi değişir, dosya zamanları
-  zaten farklıdır. Yanıtlar, veritabanları, dizinler ve dosya adları iki koşuda aynı olmalı; dosya içeriğinde de yalnızca
+- Kararsız değerler: her test iki kez koşar; ikincisinde gzip başlık zamanı ve sıkıştırma düzeyi değişir, dizin listeleri
+  ters sıralıdır, dosya zamanları zaten farklıdır. Yanıtlar, veritabanları, dizinler ve dosya adları iki koşuda aynı olmalı; dosya içeriğinde de yalnızca
   `kararsiz_izinli` yapraklar farklı olabilir ve "<KARARSIZ>" olur (dosya JSON'unun üst düzey `imza`/`manifest_sha`'sı,
   MANIFEST.sha256 ve zincir.txt metni, açılamayan .gz'nin ikili özeti: hepsi gz baytına ya da dosya zamanına bağlı, Rust'ta
   da farklıdır). Başka her fark (tür, anahtar, uzunluk, yaprak) yoluyla birlikte kayıt hatasıdır. Rust "<KARARSIZ>"ı yalnızca
@@ -38,6 +39,7 @@ import ast
 import base64
 import builtins
 import concurrent.futures
+import glob
 import gzip
 import hashlib
 import importlib.util
@@ -61,7 +63,7 @@ KOK = os.path.normpath(os.path.join(AYR, "..", "..", ".."))
 MERKEZ = os.path.join(KOK, "scripts", "sunucu", "merkez")
 TESTLER = os.path.join(MERKEZ, "tests")
 CIKTI = os.path.join(KOK, "merkez", "tests", "altin")
-BICIM = 2
+BICIM = 3
 GZ_SINIRI = 15 * 1024 * 1024  # kayıtlar (açık hâliyle) bundan büyükse her dosya .json.gz
 BELIRTEC_EN_AZ = 8
 SECILI_BASLIKLAR = ("location", "set-cookie", "content-type", "cache-control", "clear-site-data", "content-disposition",
@@ -242,18 +244,6 @@ KARARSIZ = "<KARARSIZ>"
 # İki koşuda farklı çıkabilecek tek yerler (dosya içerikleri): gz baytının ya da dosya zamanının özeti
 KARARSIZ_JSON_ALANLARI = ("imza", "manifest_sha")  # dosya JSON'unun üst düzeyinde
 KARARSIZ_METINLER = ("MANIFEST.sha256", "zincir.txt")
-# Windows'ta (sembolik bağ yetkisi, os.mkfifo, O_NOFOLLOW yok) Linux adımını atlayan testler ve beklenen platform_farki
-PLATFORM_TESTLERI = {
-    ("test_kuyruk", "test_sembolik_bag_ve_fifo_izlenmez"): ["os.O_NOFOLLOW yok"],
-    ("test_rapor", "test_gruplar"): ["os.symlink kurulamadı"],
-    ("test_rapor", "test_gun_dogrula_sembolik_bag"): ["os.symlink kurulamadı"],
-    ("test_rapor", "test_tamam_mi_fifo_beklemez"): ["os.mkfifo yok"],
-    ("test_rapor", "test_zincir_sembolik_bag_okunmaz"): ["os.symlink kurulamadı"],
-    ("test_wc_istatistik", "test_gunluk_sembolik_bag_ise_arsiv_okunmaz"): ["os.symlink kurulamadı"],
-    ("test_wc_istatistik", "test_sembolik_bag_gun_ve_dosya_atlanir"): ["os.symlink kurulamadı"],
-}
-
-
 class KararsizKayit(Exception):
     pass
 
@@ -293,7 +283,7 @@ def _birlestir(a, b, yol, izin, alan=()):
 
 def kayit_birlestir(a, b):
     """İki koşunun kaydı → tek kayıt. Dosya içerikleri dışında her şey aynı olmalı (farkta ilk farklı yol yazılır)."""
-    for alan in ("bicim", "dosya", "test", "platform_farki", "yollar", "cevaplar", "veritabanlari"):
+    for alan in ("bicim", "dosya", "test", "yollar", "cevaplar", "veritabanlari"):
         _birlestir(a[alan], b[alan], alan, lambda _: False)
     if len(a["dosyalar"]) != len(b["dosyalar"]):
         raise KararsizKayit(f"dosyalar: iki koşuda geçici dizin sayısı farklı ({len(a['dosyalar'])} / {len(b['dosyalar'])})")
@@ -338,7 +328,6 @@ class Durum:
         self.dokum = {}  # gerçek yol → tablolar (geçici dizin silinmeden önce alınan)
         self.sira = []  # veritabanlarının ilk açılış sırası
         self.dizinler = []  # [gerçek yol, döküm ya da None], açılış sırasıyla
-        self.platform = []  # Windows'ta atlanan Linux adımları
         self.hatalar = []  # kaydı geçersiz kılan durumlar
         self.ana = threading.get_ident()
 
@@ -443,29 +432,11 @@ def kancalari_kur():
         return asil_gzip(filename, mode, compresslevel, encoding, errors, newline)
     gzip.open = _gzip_open
 
-    if os.environ.get("WC_KAYIT_KOSU") == "2":
+    ikinci = os.environ.get("WC_KAYIT_KOSU") == "2"
+    if ikinci:
         _gzip_oynat()
+    _listeleri_sirala(ters=ikinci)
 
-    # platform farkı: davranış aynı, yalnızca not düşülür
-    asil_symlink = os.symlink
-
-    def _symlink(*a, **k):
-        try:
-            return asil_symlink(*a, **k)
-        except OSError:
-            if "os.symlink kurulamadı" not in D.platform:
-                D.platform.append("os.symlink kurulamadı")
-            raise
-    os.symlink = _symlink
-    asil_hasattr = builtins.hasattr
-
-    def _hasattr(nesne, ad):
-        sonuc = asil_hasattr(nesne, ad)
-        if not sonuc and nesne is os and sys._getframe(1).f_code.co_filename.startswith(TESTLER):
-            if f"os.{ad} yok" not in D.platform:
-                D.platform.append(f"os.{ad} yok")
-        return sonuc
-    builtins.hasattr = _hasattr
 
     # geçici dizinler: açılış sırasıyla; TemporaryDirectory silmeden hemen önce dökülür
     asil_mkdtemp = tempfile.mkdtemp
@@ -503,6 +474,49 @@ def kancalari_kur():
     import web
     for sinif in (web.Taban, api.Api, cihaz.Cihaz, ap.Ap, merkez.Merkez):
         sinif.istek = _sar(sinif.istek)
+
+
+class _SiraliScandir:
+    """os.scandir'in sonucu, ada göre sıralı (with, yineleme ve close desteklenir)."""
+
+    def __init__(self, girdiler):
+        self._g = iter(girdiler)
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        return next(self._g)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        self.close()
+
+    def close(self):
+        self._g = iter(())
+
+
+def _listeleri_sirala(ters):
+    """Dizin listeleri dosya sisteminden bağımsız: ada göre sıralı (ters: ikinci koşu, sıraya bağlı çıktıyı yakalar)."""
+    asil_listdir, asil_scandir = os.listdir, os.scandir
+    asil_glob, asil_iglob = glob.glob, glob.iglob
+
+    def listdir(*a, **k):
+        return sorted(asil_listdir(*a, **k), reverse=ters)
+
+    def scandir(*a, **k):
+        with asil_scandir(*a, **k) as it:
+            girdiler = sorted(it, key=lambda e: e.name, reverse=ters)
+        return _SiraliScandir(girdiler)
+
+    def glob_(*a, **k):
+        return sorted(asil_glob(*a, **k), reverse=ters)
+
+    def iglob(*a, **k):
+        return iter(sorted(asil_iglob(*a, **k), reverse=ters))
+    os.listdir, os.scandir, glob.glob, glob.iglob = listdir, scandir, glob_, iglob
 
 
 def _gzip_oynat():
@@ -617,14 +631,10 @@ def tek(dosya, test, cikti):
     D.uretilen.clear()
     D.cevaplar.clear()
     D.yollar.clear()
-    D.platform.clear()
     D.dizinler.clear()
     getattr(mod, test)()
     if D.hatalar:
         raise RuntimeError("; ".join(D.hatalar))
-    beklenen = PLATFORM_TESTLERI.get((ad, test), []) if os.name == "nt" else []
-    if D.platform != beklenen:
-        raise RuntimeError(f"platform_farki {D.platform}, beklenen {beklenen}: PLATFORM_TESTLERI'ni denetleyin")
     for d in D.dizinler:  # silinmemiş geçici dizinler (mkdtemp, kapanmamış TemporaryDirectory)
         if d[1] is None:
             if not os.path.isdir(d[0]):
@@ -636,7 +646,7 @@ def tek(dosya, test, cikti):
         vts.append({"ad": temel, "tablolar": t if t is not None else {}})
     dizinler = [d[1] for d in D.dizinler]
     normallestir(D.cevaplar, vts, dizinler, D.uretilen)
-    kayit = {"bicim": BICIM, "dosya": ad, "test": test, "platform_farki": D.platform, "cevaplar": D.cevaplar,
+    kayit = {"bicim": BICIM, "dosya": ad, "test": test, "cevaplar": D.cevaplar,
              "veritabanlari": vts, "dosyalar": dizinler, "yollar": D.yollar}
     metin = json.dumps(kayit, ensure_ascii=False, indent=1) + "\n"
     for d in D.dizinler:  # kayda geçici dizin yolu girmemeli (Windows ve Linux'ta farklıdır)
@@ -748,6 +758,9 @@ def ana(arg):
         else:
             adlar.append(arg[i])
             i += 1
+    if sys.platform != "linux" and os.path.realpath(cikti) == os.path.realpath(CIKTI):
+        sys.exit("Kanonik kayıtlar (merkez/tests/altin) yalnızca Linux'ta üretilir: CI işi altin.yml. "
+                 "Bu makinede denemek için --cikti ile başka bir dizin verin.")
     dosyalar = dosyalari_bul(adlar)
     isler = [(d, t) for d in dosyalar for t in test_adlari(d)]
     for d in dosyalar:

@@ -17,20 +17,20 @@ const BASLIK: [&str; 19] = [
     "zaman", "olay", "telefon", "ad", "soyad", "mac", "ic_ip", "protokol", "ic_port", "hedef_ip", "hedef_port", "nat_ip", "nat_port", "alan_adi", "gonderilen_bayt",
     "alinan_bayt", "sure_sn", "oturum_id", "ek",
 ];
-const SIR: [u8; 32] = [b's'; 32];
-const TEL1: &str = "905551112233";
-const TEL2: &str = "905559998877";
-const TEL3: &str = "905554443322";
-const TC: &str = "TC:10000000146";
-const PAS: &str = "PASAPORT:DE:X1234567";
-const MAC_IZINLI: &str = "aa:bb:cc:dd:ee:01";
-const MAC_MISAFIR: &str = "aa:bb:cc:dd:ee:02";
+pub(crate) const SIR: [u8; 32] = [b's'; 32];
+pub(crate) const TEL1: &str = "905551112233";
+pub(crate) const TEL2: &str = "905559998877";
+pub(crate) const TEL3: &str = "905554443322";
+pub(crate) const TC: &str = "TC:10000000146";
+pub(crate) const PAS: &str = "PASAPORT:DE:X1234567";
+pub(crate) const MAC_IZINLI: &str = "aa:bb:cc:dd:ee:01";
+pub(crate) const MAC_MISAFIR: &str = "aa:bb:cc:dd:ee:02";
 
 fn sha(b: &[u8]) -> String {
     sha256_hex(b)
 }
 
-fn satir(zaman: &str, olay: &str, alanlar: &[(&str, &str)]) -> String {
+pub(crate) fn satir(zaman: &str, olay: &str, alanlar: &[(&str, &str)]) -> String {
     let mut r: BTreeMap<&str, &str> = BASLIK.iter().map(|k| (*k, "")).collect();
     for (k, v) in alanlar {
         r.insert(k, v);
@@ -40,7 +40,7 @@ fn satir(zaman: &str, olay: &str, alanlar: &[(&str, &str)]) -> String {
     BASLIK.iter().map(|k| r[k]).collect::<Vec<_>>().join(";")
 }
 
-fn gz_yaz(yol: &Path, satirlar: &[String]) {
+pub(crate) fn gz_yaz(yol: &Path, satirlar: &[String]) {
     fs::create_dir_all(yol.parent().unwrap()).unwrap();
     let mut m = format!("\u{feff}{}\r\n", BASLIK.join(";"));
     for s in satirlar {
@@ -64,7 +64,7 @@ fn csv_gz_adlari(kok: &Path, d: &Path, out: &mut Vec<String>) {
 }
 
 /// Cihazın biçimi: başlık yorumu + '<sha>  <göreli ad>' (sıralı, kullanicilar/ dahil).
-fn manifest_yaz(d: &Path, gun: &str) {
+pub(crate) fn manifest_yaz(d: &Path, gun: &str) {
     let mut adlar = Vec::new();
     csv_gz_adlari(d, d, &mut adlar);
     adlar.sort();
@@ -76,7 +76,7 @@ fn manifest_yaz(d: &Path, gun: &str) {
 }
 
 #[derive(Default)]
-struct G {
+pub(crate) struct G {
     trafik: Vec<String>,
     oturum: Vec<String>,
     denetim: Vec<String>,
@@ -84,7 +84,7 @@ struct G {
     manifest_yok: bool,
 }
 
-fn gun_yaz(kok: &Path, gun: &str, g: G) -> PathBuf {
+pub(crate) fn gun_yaz(kok: &Path, gun: &str, g: G) -> PathBuf {
     let d = kok.join("gunluk").join(gun);
     fs::create_dir_all(&d).unwrap();
     for (ad, satirlar) in [("trafik", &g.trafik), ("oturum", &g.oturum), ("denetim", &g.denetim)] {
@@ -118,13 +118,13 @@ fn zincir_satirlari(gunler_sha: &[(&str, String)]) -> Vec<String> {
 }
 
 /// Cihazdaki append_chain gibi zincir.txt üretir.
-fn muhurle(kok: &Path, gunler: &[&str]) {
+pub(crate) fn muhurle(kok: &Path, gunler: &[&str]) {
     let l: Vec<(&str, String)> = gunler.iter().map(|g| (*g, man_sha(kok, g))).collect();
     let metin: String = zincir_satirlari(&l).iter().map(|s| format!("{s}\n")).collect();
     fs::write(kok.join("zincir.txt"), metin).unwrap();
 }
 
-fn z(gun: &str, saat: &str) -> String {
+pub(crate) fn z(gun: &str, saat: &str) -> String {
     format!("{gun}T{saat}+03:00")
 }
 
@@ -297,7 +297,7 @@ fn gun_dogrula_sembolik_bag() {
 }
 
 // --- gun_ham ---
-fn zengin_gun(kok: &Path, gun: &str) -> PathBuf {
+pub(crate) fn zengin_gun(kok: &Path, gun: &str) -> PathBuf {
     let t = |saat: &str| z(gun, saat);
     let trafik = vec![
         satir(&t("09:10:00"), "BAGLANTI_BASLA", &[("telefon", TEL1), ("ad", "Ali"), ("soyad", "Veli"), ("mac", MAC_MISAFIR), ("ic_ip", "10.50.0.23"), ("hedef_ip", "142.250.187.110"), ("oturum_id", "oturum-abc")]),
@@ -525,7 +525,7 @@ fn ham_guncelle_gecersiz_arsiv_adi() {
 // ======================================================================================================================
 // Görev 2: gruplar, gün durumu, dönem raporları
 // ======================================================================================================================
-fn ts(gun: &str, saat: u32) -> f64 {
+pub(crate) fn ts(gun: &str, saat: u32) -> f64 {
     let d = NaiveDate::parse_from_str(gun, "%Y-%m-%d").unwrap();
     ortak::TZ.from_local_datetime(&d.and_hms_opt(saat, 0, 0).unwrap()).single().unwrap().timestamp() as f64
 }
@@ -534,21 +534,33 @@ fn tarih_(y: i32, a: u32, g: u32) -> NaiveDate {
     NaiveDate::from_ymd_opt(y, a, g).unwrap()
 }
 
-fn ars(kaynaklar: &[&Path]) -> Vec<PathBuf> {
+pub(crate) fn ars(kaynaklar: &[&Path]) -> Vec<PathBuf> {
     kaynaklar.iter().map(|p| p.to_path_buf()).collect()
 }
 
-fn arsivler(l: Vec<(&str, Vec<PathBuf>)>) -> Arsivler {
+pub(crate) fn arsivler(l: Vec<(&str, Vec<PathBuf>)>) -> Arsivler {
     l.into_iter().map(|(a, k)| (a.to_string(), k)).collect()
 }
 
-fn misafir_gun_g(kok: &Path, gun: &str, tels: &[&str], saat: &str, oturum: Vec<String>, denetim: Vec<String>) -> PathBuf {
+pub(crate) fn misafir_gun_g(kok: &Path, gun: &str, tels: &[&str], saat: &str, oturum: Vec<String>, denetim: Vec<String>) -> PathBuf {
     let trafik = tels.iter().map(|t| satir(&z(gun, saat), "BAGLANTI_BASLA", &[("telefon", t), ("mac", MAC_MISAFIR), ("ic_ip", "10.50.0.23")])).collect();
     gun_yaz(kok, gun, G { trafik, oturum, denetim, kisi: tels.iter().filter(|t| t.bytes().all(|b| b.is_ascii_digit())).map(|t| t.to_string()).collect(), manifest_yok: false })
 }
 
-fn misafir_gun(kok: &Path, gun: &str, tels: &[&str]) -> PathBuf {
+pub(crate) fn misafir_gun(kok: &Path, gun: &str, tels: &[&str]) -> PathBuf {
     misafir_gun_g(kok, gun, tels, "10:00:00", vec![], vec![])
+}
+
+/// Python `misafir_gun(kok, gun, tels, dns=[...])` (Musteri paneli uçtan uca testi için): her telefon için bir DNS satırı
+/// (`alan_adi`); dns.csv.gz manifestten önce yazılır.
+pub(crate) fn misafir_gun_dns(kok: &Path, gun: &str, tels: &[&str], alan_adi: &str) -> PathBuf {
+    let trafik = tels.iter().map(|t| satir(&z(gun, "10:00:00"), "BAGLANTI_BASLA", &[("telefon", t), ("mac", MAC_MISAFIR), ("ic_ip", "10.50.0.23")])).collect();
+    let kisi = tels.iter().filter(|t| t.bytes().all(|b| b.is_ascii_digit())).map(|t| t.to_string()).collect();
+    let d = gun_yaz(kok, gun, G { trafik, kisi, manifest_yok: true, ..Default::default() });
+    let dns: Vec<String> = tels.iter().map(|t| satir(&z(gun, "10:00:00"), "DNS", &[("telefon", t), ("alan_adi", alan_adi)])).collect();
+    gz_yaz(&d.join("dns.csv.gz"), &dns);
+    manifest_yaz(&d, gun);
+    d
 }
 
 fn calis_saat(tmp: &Path, a: &Arsivler, gun: &str, grup_icerik: Option<Value>, saat: u32) -> Vec<String> {

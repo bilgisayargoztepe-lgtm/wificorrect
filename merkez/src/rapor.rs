@@ -1166,4 +1166,4 @@ pub fn calistir(arsivler: &Arsivler, grup_dosyasi: &Path, ham_dizini: &Path, cik
 
 #[cfg(test)]
 #[path = "rapor_testler.rs"]
-mod testler;
+pub(crate) mod testler;

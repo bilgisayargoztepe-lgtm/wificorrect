@@ -91,6 +91,33 @@ pub const BEKLEYEN_ADAY_SN: f64 = 600.0; // müşteri girişinde aday: son bu ka
 pub const AYRILMA_SN: f64 = 900.0; // ayrılmış ama bu sürede bağlanmamış cihaz serbest kalır
 pub const BELIRTEC_SN: f64 = 600.0; // tek kullanımlık bağlama belirteci
 pub const BEKLEYEN_EN_COK: i64 = 2000;
+
+#[cfg(test)]
+thread_local! {
+    /// Yalnızca testler (Python `V.BEKLEYEN_EN_COK = 3`): bu iş parçacığında tavanı düşürür.
+    static BEKLEYEN_EN_COK_TEST: std::cell::Cell<Option<i64>> = const { std::cell::Cell::new(None) };
+}
+
+/// Bekleme tablosunun satır tavanı (testte iş parçacığı başına düşürülebilir).
+fn bekleyen_en_cok() -> i64 {
+    #[cfg(test)]
+    if let Some(n) = BEKLEYEN_EN_COK_TEST.with(|c| c.get()) {
+        return n;
+    }
+    BEKLEYEN_EN_COK
+}
+
+/// Test: tavanı bu iş parçacığında `n` yapar; dönen değer düşünce eski değer gelir.
+#[cfg(test)]
+pub(crate) fn bekleyen_sinirini_dusur(n: i64) -> impl Drop {
+    struct Geri(Option<i64>);
+    impl Drop for Geri {
+        fn drop(&mut self) {
+            BEKLEYEN_EN_COK_TEST.with(|c| c.set(self.0));
+        }
+    }
+    Geri(BEKLEYEN_EN_COK_TEST.with(|c| c.replace(Some(n))))
+}
 pub const CIHAZ_ALANLARI: [&str; 7] = ["tunel_ip", "isletme_adi", "unvan", "adres", "surum", "son_eslesme", "isletme_turu"];
 /// Cihazın eşitlemede bildirdiği işletme türü (cihaz ayarı main.isletme_turu); başka değer saklanmaz.
 pub const ISLETME_TURLERI: [(&str, &str); 4] = [("kafe", "Kafe/Restoran"), ("otel", "Otel/Pansiyon"), ("yurt", "Yurt"), ("diger", "Diğer")];
@@ -908,7 +935,7 @@ impl Veri {
             tx.execute("DELETE FROM bekleyen WHERE son < ?", [simdi - BEKLEYEN_SIL_SN])?;
             let Some(r) = bir(tx, "SELECT * FROM bekleyen WHERE kimlik = ?", [kimlik], bekleyen_satir)? else {
                 let sayi: i64 = tx.query_row("SELECT COUNT(*) FROM bekleyen", [], |r| r.get(0))?;
-                if sayi >= BEKLEYEN_EN_COK {
+                if sayi >= bekleyen_en_cok() {
                     // tavan doluysa aday olmayan (BEKLEYEN_ADAY_SN'dir bildirmeyen), kimseye ayrılmamış en eski kayıt yer açar:
                     // bir kez doldurulan tablo yeni cihazları 7 gün kapatmasın
                     let sil = bir(

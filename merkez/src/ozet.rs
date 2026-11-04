@@ -518,7 +518,7 @@ pub fn detay_guncelle(kafe_dizini: &Path, detay_dizini: &Path, grup: Option<&str
 }
 
 #[cfg(test)]
-mod testler {
+pub(crate) mod testler {
     use super::*;
     use crate::altin::Kayit;
     use crate::test_yardim::gecici_dizin;
@@ -531,10 +531,10 @@ mod testler {
     const B: &str = "5330000002";
     const C: &str = "5330000003";
 
-    type Alanlar<'a> = Vec<(&'a str, &'a str)>;
+    pub(crate) type Alanlar<'a> = Vec<(&'a str, &'a str)>;
 
     /// Python `gz_yaz(yol, satirlar)`: BOM + başlık + her satır `;` ile (olmayan alan boş).
-    fn gz_yaz(yol: &Path, satirlar: &[Alanlar]) {
+    pub(crate) fn gz_yaz(yol: &Path, satirlar: &[Alanlar]) {
         fs::create_dir_all(yol.parent().unwrap()).unwrap();
         let kolonlar: Vec<&str> = BASLIK.split(';').collect();
         let mut m = format!("\u{feff}{BASLIK}\n");
@@ -548,7 +548,7 @@ mod testler {
         e.finish().unwrap();
     }
 
-    fn manifest(d: &Path, dosyalar: &[&str]) {
+    pub(crate) fn manifest(d: &Path, dosyalar: &[&str]) {
         let mut m = String::from("# gun\n");
         for p in dosyalar {
             m.push_str(&format!("abc  {p}\n"));

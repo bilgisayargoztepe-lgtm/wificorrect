@@ -12,6 +12,7 @@ mod kayitlar;
 mod kuyruk;
 mod listeler;
 mod merkez;
+mod musteri;
 mod netgsm;
 mod ortak;
 mod ozet;
@@ -51,6 +52,7 @@ fn sunucu_calistir() {
     }
     let saat: veri::Saat = Arc::new(ortak::simdi);
     let saat_uretim = saat.clone();
+    let saat_musteri = saat.clone();
     let v = match veri::Veri::ac(std::path::Path::new(merkez::DB), saat) {
         Ok(v) => Arc::new(v),
         Err(h) => {
@@ -63,7 +65,10 @@ fn sunucu_calistir() {
         web::log(&format!("rapor-gruplari yazilamadi: {h:?}"));
     }
     let mut m = merkez::Merkez::new();
-    m.ekle("api", Arc::new(api::Api::uretim(v, saat_uretim)));
+    // cihaz geçidi (Görev 9) ve yönetim aynı geçiş belirteçlerini kullanır
+    let gecis = Arc::new(guvenlik::GecisBelirtecleri::new());
+    m.ekle("api", Arc::new(api::Api::uretim(v.clone(), saat_uretim)));
+    m.ekle("musteri", Arc::new(musteri::Musteri::uretim(v, saat_musteri, gecis)));
     if let Err(h) = sunucu::calistir(Arc::new(m), "127.0.0.1:8081", 256) {
         eprintln!("{h}");
         std::process::exit(1);

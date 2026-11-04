@@ -676,4 +676,4 @@ pub fn istek(panel: &dyn Panel, ot: &Ot, numara: i64, alt: &str, onek: &str) -> 
 
 #[cfg(test)]
 #[path = "raporlar_testler.rs"]
-mod testler;
+pub(crate) mod testler;

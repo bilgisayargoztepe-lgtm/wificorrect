@@ -754,7 +754,7 @@ impl Uygulama for Api {
 
 #[cfg(test)]
 #[path = "api_testler.rs"]
-mod testler;
+pub(crate) mod testler;
 
 #[cfg(test)]
 #[path = "api_sms_testler.rs"]

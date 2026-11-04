@@ -548,7 +548,8 @@ impl Curl {
 
 impl Tasiyici for Curl {
     fn gonder(&self, i: &DisIstek) -> Result<(u16, Vec<u8>), String> {
-        if std::env::var("WC_TEST").as_deref() == Ok("1") {
+        // Python: os.environ.get("WC_TEST") doğru sayılan (boş olmayan) her değerde gerçek istek reddedilir
+        if std::env::var_os("WC_TEST").is_some_and(|v| !v.is_empty()) {
             return Err("WC_TEST".into());
         }
         self.calistir(i)
@@ -807,15 +808,26 @@ pub(crate) mod tests {
 
     #[test]
     fn wc_test_curl_calistirmaz() {
-        // gonder(), WC_TEST=1 iken curl'e hiç uğramadan Err("WC_TEST") döner
+        // gonder(), WC_TEST boş olmayan herhangi bir değerdeyken curl'e hiç uğramadan Err("WC_TEST") döner (Python gibi)
         let onceki = std::env::var("WC_TEST").ok();
-        std::env::set_var("WC_TEST", "1");
-        let s = Curl.gonder(&istek());
+        let mut sonuclar = Vec::new();
+        for deger in ["1", "true", "evet"] {
+            std::env::set_var("WC_TEST", deger);
+            sonuclar.push(Curl.gonder(&istek()).err());
+        }
+        // boş değer reddetmez: istek curl'e kadar gider; ağa çıkmasın diye gövdesi geçersiz bir istek (yapılandırma hatası)
+        std::env::set_var("WC_TEST", "");
+        let mut bozuk = istek();
+        bozuk.govde = Some(vec![0, 1]);
+        let bos = Curl.gonder(&bozuk).err();
         match onceki {
             Some(v) => std::env::set_var("WC_TEST", v),
             None => std::env::remove_var("WC_TEST"),
         }
-        assert_eq!(s.err().as_deref(), Some("WC_TEST"));
+        for s in sonuclar {
+            assert_eq!(s.as_deref(), Some("WC_TEST"));
+        }
+        assert!(bos.is_some_and(|m| m != "WC_TEST"));
     }
 
     /// Bir HTTP isteğini (başlıklar + Content-Length kadar gövde) okur, `cevap`ı yazar.

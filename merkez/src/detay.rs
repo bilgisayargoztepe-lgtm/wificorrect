@@ -704,24 +704,6 @@ mod testler {
         assert_eq!(std::fs::metadata(&yol).unwrap().permissions().mode() & 0o777, 0o600);
     }
 
-    /// `test_telefonlu_eski_arama_aynen`'in uygulamasız yarısı: `kur(tmp)` Musteri uygulamasını ister (Task 10'da, altın
-    /// kayıtlı tam test olarak eklenir); burada yalnızca `ara_sonuclari` çağrıları.
-    #[test]
-    fn telefonlu_eski_arama_aynen_saf_islevler() {
-        let gun = "2026-09-20";
-        let tel = "905330000001";
-        let dizin = dizin_of(&[
-            (tel, json!({"ad": "Ayşe", "soyad": "Yılmaz", "gunler": [gun]})),
-            (TC, json!({"ad": "Deniz", "soyad": "Kara", "gunler": [gun]})),
-        ]);
-        for sorgu in [tel, "0533 000 0001", "+90 533 000 00 01", "05330000001", "533", "0533", "0001"] {
-            assert_eq!(teller(&ara_sonuclari(&dizin, sorgu, "kisi", "")), vec![tel], "{sorgu}");
-        }
-        assert_eq!(teller(&ara_sonuclari(&dizin, "ayşe", "kisi", "")), vec![tel]);
-        assert!(ara_sonuclari(&dizin, "0544", "kisi", "").is_empty());
-        assert_eq!(teller(&ara_sonuclari(&dizin, "kara", "kisi", "")), vec![TC]);
-    }
-
     #[test]
     fn kimlik_ve_oda_aramasi() {
         let gun = "2026-09-20";

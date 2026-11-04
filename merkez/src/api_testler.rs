@@ -11,43 +11,43 @@ use super::*;
 use crate::altin::Kayit;
 use crate::test_yardim::{self as Y, SahteSaat};
 
-const WG: &str = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
-const WG2: &str = "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=";
-const SSH: &str = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI cihaz";
+pub(crate) const WG: &str = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+pub(crate) const WG2: &str = "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=";
+pub(crate) const SSH: &str = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI cihaz";
 const IP: &str = "198.51.100.7";
 
-fn tamam() -> Value {
+pub(crate) fn tamam() -> Value {
     json!({"durum": "tamam", "tunel_ip": "10.99.0.10", "sunucu_pub": format!("{}=", "S".repeat(43)), "uc_nokta": "vpn.wificorrect.com:51820"})
 }
 
 /// Python testlerindeki `Kuyruk` sahtesi: işleri kaydeder, `bekle` sabit sonucu verir.
-struct Kuyruk {
+pub(crate) struct Kuyruk {
     isler: Mutex<Vec<(String, Value)>>,
     sonuc: Mutex<Option<Value>>,
 }
 
 impl Kuyruk {
-    fn isler(&self) -> Vec<(String, Value)> {
+    pub(crate) fn isler(&self) -> Vec<(String, Value)> {
         self.isler.lock().unwrap().clone()
     }
 
-    fn sonuc_koy(&self, s: Option<Value>) {
+    pub(crate) fn sonuc_koy(&self, s: Option<Value>) {
         *self.sonuc.lock().unwrap() = s;
     }
 }
 
-struct D {
-    api: Api,
-    v: Arc<Veri>,
-    q: Arc<Kuyruk>,
-    saat: SahteSaat,
-    tmp: PathBuf,
+pub(crate) struct D {
+    pub(crate) api: Api,
+    pub(crate) v: Arc<Veri>,
+    pub(crate) q: Arc<Kuyruk>,
+    pub(crate) saat: SahteSaat,
+    pub(crate) tmp: PathBuf,
     /// Python `rapor_yolla`'nın `_ip` sayacı (test başına).
-    ip_sayac: Cell<u32>,
+    pub(crate) ip_sayac: Cell<u32>,
 }
 
 /// Python `kur(tmp, sonuc)`.
-fn kur(sonuc: Option<Value>) -> D {
+pub(crate) fn kur(sonuc: Option<Value>) -> D {
     let o = Y::ortam();
     let q = Arc::new(Kuyruk { isler: Mutex::new(Vec::new()), sonuc: Mutex::new(sonuc) });
     let (q1, q2) = (q.clone(), q.clone());
@@ -79,11 +79,11 @@ fn post_ham(d: &D, yol: &str, govde: &str, ip: &str) -> (u16, Value) {
     (y.durum, serde_json::from_slice(&y.govde).expect("JSON cevap"))
 }
 
-fn post_ip(d: &D, yol: &str, govde: &Value, ip: &str) -> (u16, Value) {
+pub(crate) fn post_ip(d: &D, yol: &str, govde: &Value, ip: &str) -> (u16, Value) {
     post_ham(d, yol, &Y::json_govde(govde), ip)
 }
 
-fn post(d: &D, yol: &str, govde: &Value) -> (u16, Value) {
+pub(crate) fn post(d: &D, yol: &str, govde: &Value) -> (u16, Value) {
     post_ip(d, yol, govde, IP)
 }
 
@@ -104,15 +104,15 @@ fn musteri(d: &D) -> (i64, String) {
     d.v.musteri_ekle("", None).unwrap()
 }
 
-fn mus(d: &D, n: i64) -> Musteri {
+pub(crate) fn mus(d: &D, n: i64) -> Musteri {
     d.v.musteri(n).unwrap().unwrap()
 }
 
-fn olaylar(d: &D, n: Option<i64>) -> Vec<String> {
+pub(crate) fn olaylar(d: &D, n: Option<i64>) -> Vec<String> {
     d.v.hareketler(n, 300, None).unwrap().into_iter().map(|h| h.olay).collect()
 }
 
-fn kod(j: &Value) -> &str {
+pub(crate) fn kod(j: &Value) -> &str {
     j["kod"].as_str().unwrap_or("")
 }
 
@@ -800,22 +800,22 @@ fn eslesme_turu_kaydeder() {
 }
 
 // --- test_bekleme.py (yalnızca api + veri ile çalışan testler) ---
-const K1: &str = "11111111111111111111111111111111";
-const S1: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
-const K2: &str = "22222222222222222222222222222222";
-const S2: &str = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
-const IP1: &str = "203.0.113.5";
-const IP2: &str = "198.51.100.7";
+pub(crate) const K1: &str = "11111111111111111111111111111111";
+pub(crate) const S1: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+pub(crate) const K2: &str = "22222222222222222222222222222222";
+pub(crate) const S2: &str = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+pub(crate) const IP1: &str = "203.0.113.5";
+pub(crate) const IP2: &str = "198.51.100.7";
 
-fn bildir_tam(d: &D, k: &str, s: &str, wg: &str, ip: &str, mac: &str, surum: &str) -> (u16, Value) {
+pub(crate) fn bildir_tam(d: &D, k: &str, s: &str, wg: &str, ip: &str, mac: &str, surum: &str) -> (u16, Value) {
     post_ip(d, "/api/bekliyor", &json!({"kimlik": k, "sir": s, "surum": surum, "wan_mac": mac, "wg_pub": wg, "ssh_pub": SSH}), ip)
 }
 
-fn bildir(d: &D) -> (u16, Value) {
+pub(crate) fn bildir(d: &D) -> (u16, Value) {
     bildir_tam(d, K1, S1, WG, IP1, "00:0e:c4:ce:a0:9b", "0.4.13")
 }
 
-fn bagla_tam(d: &D, belirtec: &str, k: &str, s: &str, wg: &str, ip: &str) -> (u16, Value) {
+pub(crate) fn bagla_tam(d: &D, belirtec: &str, k: &str, s: &str, wg: &str, ip: &str) -> (u16, Value) {
     post_ip(
         d,
         "/api/bagla",
@@ -824,7 +824,7 @@ fn bagla_tam(d: &D, belirtec: &str, k: &str, s: &str, wg: &str, ip: &str) -> (u1
     )
 }
 
-fn bagla(d: &D, belirtec: &str) -> (u16, Value) {
+pub(crate) fn bagla(d: &D, belirtec: &str) -> (u16, Value) {
     bagla_tam(d, belirtec, K1, S1, WG, IP1)
 }
 
@@ -914,8 +914,8 @@ fn reddedilen_bildirim_ve_baglama_iz_birakir() {
     assert_eq!(olaylar(&d, None).iter().filter(|o| *o == "CIHAZ_BEKLIYOR_RED").count(), 2);
 }
 
-// --- Rust'a özgü: test_bekleme'nin Musteri paneli gerektiren uçtan uca testlerinin api tarafı (ayırma doğrudan
-// `veri.bekleyen_ayir` ile; panel sayfaları Task 10'da test_bekleme'nin kendi testleriyle sınanır) ---
+// --- Rust'a özgü yedek: kolay_baglama_uctan_uca_api_tarafi yalnızca `cihaz.otomatik == 1` denetimini taşır (Musteri'li karşılığı
+// musteri_testler.rs'te test_bekleme ile taşındı; öbür üç yedek test orada tamamen karşılandığı için silindi) ---
 
 #[test]
 fn kolay_baglama_uctan_uca_api_tarafi() {
@@ -948,71 +948,3 @@ fn kolay_baglama_uctan_uca_api_tarafi() {
     assert_eq!(d.v.bagli_cihaz(n).unwrap().unwrap().wg_pub, WG);
 }
 
-#[test]
-fn bagla_belirtec_kurallari_ve_uyelik() {
-    let d = kur(Some(tamam()));
-    let (n, _) = d.v.musteri_ekle("", Some("musteri-parola-1")).unwrap();
-    bildir(&d);
-    assert!(d.v.bekleyen_ayir(K1, n, IP1).unwrap());
-    let t = bildir(&d).1["belirtec"].as_str().unwrap().to_string();
-    assert_eq!(kod(&bagla_tam(&d, &t, K1, &"c".repeat(64), WG, IP1).1), "taninmadi"); // sırrı bilmeyen
-    assert_eq!(kod(&bagla(&d, &"x".repeat(43)).1), "taninmadi");
-    assert_eq!(kod(&bagla_tam(&d, &t, K2, S1, WG, IP1).1), "taninmadi");
-    let (_, j) = post(&d, "/api/bagla", &json!({"kimlik": K1, "sir": S1, "belirtec": t, "wg_pub": "kotu", "ssh_pub": SSH}));
-    assert_eq!(kod(&j), "gecersiz");
-    d.saat.ilerlet(601.0); // belirteç 10 dk
-    assert_eq!(kod(&bagla(&d, &t).1), "taninmadi");
-    assert!(d.q.isler().is_empty() && d.v.bagli_cihaz(n).unwrap().is_none());
-    // ayrılmış (15 dk dolmadı) ama müşteri bu arada başka cihaz bağladı
-    let t = bildir(&d).1["belirtec"].as_str().unwrap().to_string();
-    d.v.cihaz_bagla(n, WG2, SSH, "", "", "").unwrap();
-    let (c, j) = bagla(&d, &t);
-    assert!(c == 409 && kod(&j) == "baska_cihaz" && d.q.isler().is_empty());
-    assert_eq!(bildir(&d).1, json!({"durum": "bekle"}));
-}
-
-#[test]
-fn kuyruk_hatasinda_cihaz_takilmaz() {
-    let d = kur(Some(json!({"durum": "hata", "hata": "wg"})));
-    let (n, _) = d.v.musteri_ekle("", Some("musteri-parola-1")).unwrap();
-    bildir(&d);
-    assert!(d.v.bekleyen_ayir(K1, n, IP1).unwrap());
-    d.saat.ilerlet(120.0);
-    let (c, j) = bagla(&d, bildir(&d).1["belirtec"].as_str().unwrap());
-    assert!(c == 503 && kod(&j) == "kayit");
-    assert!(olaylar(&d, Some(n)).contains(&"CIHAZ_KAYIT_HATA".to_string()));
-    d.q.sonuc_koy(None); // kuyruk zaman aşımı: yine kurtulur
-    d.saat.ilerlet(120.0);
-    let (c, j) = bildir(&d);
-    assert!(c == 200 && j["durum"] == "baglan");
-    assert_eq!(bagla(&d, j["belirtec"].as_str().unwrap()).0, 503);
-    d.q.sonuc_koy(Some(tamam()));
-    d.saat.ilerlet(120.0);
-    let (c, j) = bildir(&d);
-    assert!(c == 200 && j["durum"] == "baglan");
-    let (c, g) = bagla(&d, j["belirtec"].as_str().unwrap());
-    assert!(c == 200 && g["numara"] == n.to_string() && d.v.bagli_cihaz(n).unwrap().unwrap().tunel_ip == "10.99.0.10");
-}
-
-/// Kolay bağlamada (hesapsız, aynı IP) cevap ortak NetGSM bilgisini taşımaz; spec bilinçli fark 2 sonrası parolalı
-/// `/api/giris` de taşımaz.
-#[test]
-fn bagla_cevabi_ortak_sms_sirlarini_tasimaz() {
-    let d = kur(Some(tamam()));
-    d.v.sms_ayari_koy(&json!({"mock": false, "usercode": "8500000000", "password": "netgsm-gizli", "msgheader": "BASLIK"})).unwrap();
-    d.v.admin_parolasi_koy("admin-parola-123").unwrap();
-    let (n, _) = d.v.musteri_ekle("", Some("musteri-parola-1")).unwrap();
-    bildir(&d);
-    assert!(d.v.bekleyen_ayir(K1, n, IP1).unwrap());
-    let (c, g) = bagla(&d, bildir(&d).1["belirtec"].as_str().unwrap());
-    let govde = g.to_string();
-    assert!(c == 200 && !govde.contains("netgsm-gizli") && !govde.contains("8500000000"));
-    assert_eq!(g["sms"], json!({"etkin_mock": false}));
-    let mut admin_alanlari: Vec<&String> = g["admin"].as_object().unwrap().keys().collect();
-    admin_alanlari.sort();
-    assert_eq!(admin_alanlari, ["ozet", "tuz", "yineleme"]);
-    let (c, e) = post(&d, "/api/eslesme", &json!({"cihaz_anahtari": g["cihaz_anahtari"], "surum": "0.4.7"}));
-    assert!(c == 200 && !e.to_string().contains("netgsm-gizli") && e["sms"] == json!({"etkin_mock": false}));
-    // müşteriye özel AP yönetim parolası (ortak sır değil) bu cihaza da gider
-    assert!(g["ap_parola"] == e["ap_parola"] && g["ap_parola"] == mus(&d, n).ap_parola);
-}

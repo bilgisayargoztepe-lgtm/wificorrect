@@ -1,7 +1,5 @@
-//! raporlar.rs testleri (Python tests/test_raporlar.py'nin uygulamadan bağımsız kısmı). Musteri/Yonetim uygulamasından
-//! geçen testler uygulama görevlerinde taşınır: test_musteri_liste_sayfasi, test_musteri_menu_ve_rapor_sayfasi,
-//! test_hizmet_oncesi_gunler, test_musteri_yollar_404_ve_baska_musteri, test_sayfa_arsiv_ve_ham_okumaz,
-//! test_cihaz_bolumu_sorunlar_ve_cevrimdisi, test_yonetim_raporlar_gerekcesiz, test_uctan_uca_kisisel_veri_yok.
+//! raporlar.rs testleri (Python tests/test_raporlar.py'nin uygulamadan bağımsız kısmı). Musteri'li testler musteri_testler.rs'te;
+//! Yonetim'li `test_yonetim_raporlar_gerekcesiz` Görev 11'de taşınır.
 use std::fs;
 use std::path::Path;
 
@@ -11,13 +9,13 @@ use super::*;
 use crate::altin::Kayit;
 use crate::test_yardim::{gecici_dizin, SAAT_BASLANGIC};
 
-fn gunler(bas: &str, n: i64) -> Vec<Value> {
+pub(crate) fn gunler(bas: &str, n: i64) -> Vec<Value> {
     let t = NaiveDate::parse_from_str(bas, "%Y-%m-%d").unwrap();
     (0..n).map(|i| json!({"gun": (t + Duration::days(i)).format("%Y-%m-%d").to_string(), "durum": "tam", "neden": "", "farkli": 2})).collect()
 }
 
 /// Python `r.update(degisik)`.
-fn guncelle(mut r: Value, degisik: &[(&str, Value)]) -> Value {
+pub(crate) fn guncelle(mut r: Value, degisik: &[(&str, Value)]) -> Value {
     for (k, v) in degisik {
         r[*k] = v.clone();
     }
@@ -25,7 +23,7 @@ fn guncelle(mut r: Value, degisik: &[(&str, Value)]) -> Value {
 }
 
 /// 2026-09 (panel saati 21.09.2026 17:13: süren dönem).
-fn ay_raporu(degisik: &[(&str, Value)]) -> Value {
+pub(crate) fn ay_raporu(degisik: &[(&str, Value)]) -> Value {
     let mut g = gunler("2026-09-01", 30);
     for x in g[20..].iter_mut() {
         x["durum"] = json!("gelecek");
@@ -58,7 +56,7 @@ fn ay_raporu(degisik: &[(&str, Value)]) -> Value {
     guncelle(r, degisik)
 }
 
-fn liste_ornegi() -> Vec<Value> {
+pub(crate) fn liste_ornegi() -> Vec<Value> {
     vec![
         json!({"tur": "hafta", "donem": "2026-W39", "baslangic": "2026-09-21", "bitis": "2026-09-27", "kesin": false, "farkli": 3, "kayit_gun": 0, "kayit_tam": 0}),
         json!({"tur": "hafta", "donem": "2026-W38", "baslangic": "2026-09-14", "bitis": "2026-09-20", "kesin": false, "farkli": 6, "kayit_gun": 7, "kayit_tam": 6}),
@@ -69,7 +67,7 @@ fn liste_ornegi() -> Vec<Value> {
 }
 
 /// Python `yaz(tmp, numara, ad, icerik)`: metin olduğu gibi, değilse JSON.
-fn yaz(tmp: &Path, numara: &str, ad: &str, icerik: &Value) {
+pub(crate) fn yaz(tmp: &Path, numara: &str, ad: &str, icerik: &Value) {
     let d = tmp.join("rapor").join(numara);
     fs::create_dir_all(&d).unwrap();
     let m = match icerik {

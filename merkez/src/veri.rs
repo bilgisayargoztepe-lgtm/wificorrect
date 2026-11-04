@@ -9,7 +9,7 @@ use std::path::Path;
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
 
-use chrono::{NaiveDate, TimeZone};
+use chrono::{Datelike, NaiveDate, TimeZone};
 use rusqlite::types::Value as Sql;
 use rusqlite::{params_from_iter, Connection, OptionalExtension, Params, Row, Transaction, TransactionBehavior};
 use serde::Serialize;
@@ -539,16 +539,39 @@ pub(crate) fn py_json(v: &Value, ascii: bool) -> String {
     String::from_utf8(tampon).unwrap_or_default()
 }
 
-/// Python `date.fromisoformat` (YYYY-AA-GG).
+/// Python (3.11+) `date.fromisoformat`: `YYYY-AA-GG`, `YYYYAAGG`, ISO hafta tarihleri (`YYYY-Www-D`, `YYYY-Www`, `YYYYWwwD`,
+/// `YYYYWww`; gün yoksa pazartesi). Yalnızca ASCII rakam; gerçek bir takvim günü olmalı.
 fn tarih_oku(s: &str) -> Sonuc<NaiveDate> {
-    let b = s.as_bytes();
-    let bicim = b.len() == 10 && b[4] == b'-' && b[7] == b'-' && b.iter().enumerate().all(|(i, c)| i == 4 || i == 7 || c.is_ascii_digit());
-    if bicim {
-        if let Ok(d) = NaiveDate::parse_from_str(s, "%Y-%m-%d") {
-            return Ok(d);
-        }
+    fn rakam(b: &[u8]) -> bool {
+        b.iter().all(u8::is_ascii_digit)
     }
-    deger_hata(format!("Geçersiz tarih: {s}"))
+    fn sayi(b: &[u8]) -> u32 {
+        b.iter().fold(0, |a, c| a * 10 + (c - b'0') as u32)
+    }
+    fn hafta(yil: &[u8], hafta: &[u8], gun: Option<u8>) -> Option<NaiveDate> {
+        let g = match gun {
+            None => chrono::Weekday::Mon,
+            Some(d @ b'1'..=b'7') => chrono::Weekday::try_from(d - b'1').ok()?,
+            Some(_) => return None,
+        };
+        NaiveDate::from_isoywd_opt(sayi(yil) as i32, sayi(hafta), g)
+    }
+    let b = s.as_bytes();
+    let d = match b.len() {
+        10 if b[4] == b'-' && b[7] == b'-' && rakam(&b[..4]) && rakam(&b[5..7]) && rakam(&b[8..]) => {
+            NaiveDate::from_ymd_opt(sayi(&b[..4]) as i32, sayi(&b[5..7]), sayi(&b[8..]))
+        }
+        10 if b[4] == b'-' && b[5] == b'W' && b[8] == b'-' && rakam(&b[..4]) && rakam(&b[6..8]) => hafta(&b[..4], &b[6..8], Some(b[9])),
+        8 if rakam(b) => NaiveDate::from_ymd_opt(sayi(&b[..4]) as i32, sayi(&b[4..6]), sayi(&b[6..])),
+        8 if b[4] == b'-' && b[5] == b'W' && rakam(&b[..4]) && rakam(&b[6..]) => hafta(&b[..4], &b[6..], None),
+        8 if b[4] == b'W' && rakam(&b[..4]) && rakam(&b[5..7]) => hafta(&b[..4], &b[5..7], Some(b[7])),
+        7 if b[4] == b'W' && rakam(&b[..4]) && rakam(&b[5..]) => hafta(&b[..4], &b[5..], None),
+        _ => None,
+    };
+    match d.filter(|d| d.year() >= 1) {
+        Some(d) => Ok(d),
+        None => deger_hata(format!("Geçersiz tarih: {s}")),
+    }
 }
 
 fn yil_sonra(gun: NaiveDate) -> String {

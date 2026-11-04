@@ -644,3 +644,19 @@ fn uyari_ayari() {
 fn anahtar_ozeti_sha256() {
     assert_eq!(anahtar_ozeti("abc"), "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
 }
+
+#[test]
+fn tarih_oku_python_3_11_bicimleri() {
+    // Python 3.11+ date.fromisoformat: yönetimde "Bitişi ayarla" ham girdiyi buna verir (test_sifirlama_sayfasi: "20270101")
+    let ok = |s: &str| tarih_oku(s).unwrap().to_string();
+    assert_eq!(ok("2027-01-01"), "2027-01-01");
+    assert_eq!(ok("20270101"), "2027-01-01");
+    assert_eq!(ok("2026-W39-1"), "2026-09-21");
+    assert_eq!(ok("2026W391"), "2026-09-21");
+    assert_eq!(ok("2026-W39"), "2026-09-21"); // gün yoksa pazartesi
+    assert_eq!(ok("2026W39"), "2026-09-21");
+    assert_eq!(ok("2026-W39-7"), "2026-09-27");
+    for kotu in ["", "bozuk", "2027-13-01", "2027-02-30", "20271301", "2026-W54-1", "2026-W39-0", "2026-W39-8", "2027-W53-1", "２０２７０１０１", "2027-1-1", "2027/01/01", "0000-01-01", "2027-01-01 ", "2027-01-0１"] {
+        assert!(tarih_oku(kotu).is_err(), "{kotu:?}");
+    }
+}

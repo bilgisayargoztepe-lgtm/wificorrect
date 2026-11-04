@@ -151,9 +151,7 @@ mod testler {
     use super::*;
     use crate::altin::Kayit;
     use crate::test_yardim as Y;
-    use crate::veri::{Saat, Sonuc};
-    use crate::web::{self, Ot, Taban};
-    use std::collections::HashMap;
+    use crate::web;
 
     /// Python test `Sahte`: "<ad> <yol> <ip>" döner.
     struct Sahte(&'static str);
@@ -298,10 +296,6 @@ mod testler {
         assert_eq!(*crate::ortak::kilitle(&m), 1);
     }
 
-    fn saat() -> Saat {
-        Arc::new(|| 1_000.0)
-    }
-
     #[test]
     fn guvenlik_basliklari_ve_uygulama_basligi_oncelikli() {
         let _k = Kayit::bas("test_merkez", "test_uygulamanin_verdigi_guvenlik_basligi_varsayilanin_yerine");
@@ -335,70 +329,5 @@ mod testler {
         let y = cevapla(&m, istek("GET", "api.wificorrect.com"));
         let adlar: Vec<&str> = y.basliklar.iter().map(|(k, _)| k.as_str()).collect();
         assert_eq!(adlar, ["X-Content-Type-Options", "Referrer-Policy", "X-Frame-Options", "Content-Security-Policy"]);
-    }
-
-    // --- iki panel, çerezler ayrı (Python test_musteri_cerezi_yonetimde_gecmez; gerçek Yonetim/Musteri sonraki görevlerde) ---
-
-    struct Deneme {
-        t: Taban,
-        rol: &'static str,
-        cerez: &'static str,
-    }
-
-    impl Panel for Deneme {
-        fn taban(&self) -> &Taban {
-            &self.t
-        }
-        fn rol(&self) -> &'static str {
-            self.rol
-        }
-        fn cerez(&self) -> &'static str {
-            self.cerez
-        }
-        fn dogrula(&self, kul: &str, pw: &str) -> Sonuc<Option<String>> {
-            Ok((kul == "100001" && pw == "dogru-parola").then(|| kul.to_string()))
-        }
-        fn hesap_surumu(&self, kimlik: &str) -> Sonuc<Option<String>> {
-            Ok((kimlik == "100001").then(|| "ozet-1".to_string()))
-        }
-        fn girdi(&self, _: &str, _: &str) -> Sonuc<()> {
-            Ok(())
-        }
-        fn kim(&self, ot: &Ot) -> String {
-            ot.user.clone()
-        }
-        fn hareket_musterisi(&self, _: &Ot, _: &str) -> Option<i64> {
-            None
-        }
-        fn sayfalar(&self, ot: &Ot, _: &str, _: &str, yol: &str, _: &str, _: &HashMap<String, String>, _: &str) -> Sonuc<Option<Yanit>> {
-            Ok((yol == "/").then(|| web::yanit_html(&self.sayfa("Ana", "merhaba", Some(ot), false, None), 200, None)))
-        }
-    }
-
-    fn deneme(rol: &'static str, cerez: &'static str) -> Arc<Deneme> {
-        let veri = Arc::new(crate::veri::Veri::ac(std::path::Path::new(":memory:"), saat()).unwrap());
-        Arc::new(Deneme { t: Taban::new(veri, crate::kayitlar::Kayitlar::default(), saat()), rol, cerez })
-    }
-
-    #[test]
-    fn musteri_cerezi_yonetimde_gecmez() {
-        let mut m = Merkez::new();
-        m.ekle("yonetim", deneme("yonetici", "wc_yonetim"));
-        m.ekle("musteri", deneme("musteri", "wc_musteri"));
-        let r = m.istek(
-            &Istek::yeni("POST", "/giris")
-                .baslik("Host", "panel.wificorrect.com")
-                .govde("kullanici=100001&sifre=dogru-parola")
-                .ip("1.1.1.1"),
-        );
-        assert_eq!(r.durum, 303);
-        let sc = r.baslik("Set-Cookie").unwrap().to_string();
-        assert!(sc.starts_with("wc_musteri=") && sc.ends_with("; HttpOnly; Secure; SameSite=Strict; Path=/"), "{sc}");
-        let cerez = sc.split(';').next().unwrap().to_string();
-        let panel = m.istek(&Istek::yeni("GET", "/").baslik("Host", "panel.wificorrect.com").baslik("Cookie", &cerez));
-        assert_eq!(panel.durum, 200);
-        let yonetim = m.istek(&Istek::yeni("GET", "/").baslik("Host", "yonetim.wificorrect.com").baslik("Cookie", &cerez));
-        assert_eq!(yonetim.durum, 303);
-        assert_eq!(yonetim.baslik("Location"), Some("/giris"));
     }
 }

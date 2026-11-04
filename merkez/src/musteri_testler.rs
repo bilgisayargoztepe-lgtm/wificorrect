@@ -182,11 +182,11 @@ fn cikis_oturumu_kapatir() {
 const TC: &str = "TC:10000000146";
 const PAS: &str = "PASAPORT:DE:X1234567";
 const TEL: &str = "905330000001";
-const GUN: &str = "2026-09-20";
+pub(crate) const GUN: &str = "2026-09-20";
 const TAM: [&str; 3] = ["10000000146", "11111111110", "X1234567"];
 
 /// Bir telefonlu, bir TC'li (oda 101) ve bir pasaportlu (oda 202) kişi.
-fn arsiv_yaz(kok: &Path) {
+pub(crate) fn arsiv_yaz(kok: &Path) {
     let d = kok.join("gunluk").join(GUN);
     let z = |s: &str| format!("{GUN}T{s}+03:00");
     let misafir = |oda: &str| format!("sozlesme=1 riza=1 giris=misafir_kodu oda={oda} kod_bitis=2026-09-21T12:00:00+03:00 ureten=mudur");
@@ -273,7 +273,7 @@ fn bes_rakam(s: &str) -> bool {
     s.as_bytes().windows(5).any(|w| w.iter().all(u8::is_ascii_digit))
 }
 
-fn sizmaz(h: &str) {
+pub(crate) fn sizmaz(h: &str) {
     for t in TAM {
         assert!(!h.contains(t), "{t}");
     }

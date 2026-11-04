@@ -149,7 +149,7 @@ fn ad_soyad(k: &Value) -> String {
     }
 }
 
-fn tablo(basliklar: &[&str], satirlar: &[Vec<String>], bos: &str) -> String {
+pub(crate) fn tablo(basliklar: &[&str], satirlar: &[Vec<String>], bos: &str) -> String {
     if satirlar.is_empty() {
         return format!("<p class=\"alt\">{}</p>", e(bos));
     }

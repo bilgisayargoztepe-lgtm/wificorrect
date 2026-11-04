@@ -30,6 +30,7 @@ mod twilio;
 mod veri;
 mod web;
 mod yonetici;
+mod yonetim;
 
 const SURUM: &str = env!("CARGO_PKG_VERSION");
 
@@ -63,6 +64,7 @@ fn sunucu_calistir() {
     let saat: veri::Saat = Arc::new(ortak::simdi);
     let saat_uretim = saat.clone();
     let saat_musteri = saat.clone();
+    let saat_yonetim = saat.clone();
     let saat_cihaz = saat.clone();
     let saat_ap = saat.clone();
     let v = match veri::Veri::ac(std::path::Path::new(merkez::DB), saat) {
@@ -82,6 +84,7 @@ fn sunucu_calistir() {
     m.ekle("api", Arc::new(api::Api::uretim(v.clone(), saat_uretim)));
     let musteri = Arc::new(musteri::Musteri::uretim(v.clone(), saat_musteri, gecis.clone()));
     m.ekle("musteri", musteri.clone());
+    m.ekle("yonetim", Arc::new(yonetim::Yonetim::uretim(v.clone(), saat_yonetim, gecis.clone(), musteri.clone())));
     let cihaz = Arc::new(cihaz::Cihaz::new(v, gecis, musteri, saat_cihaz));
     m.ekle("cihaz", cihaz.clone());
     m.ekle("ap", Arc::new(ap::Ap::new(cihaz, saat_ap)));

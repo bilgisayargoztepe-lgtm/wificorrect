@@ -337,4 +337,4 @@ impl Panel for Musteri {
 
 #[cfg(test)]
 #[path = "musteri_testler.rs"]
-mod testler;
+pub(crate) mod testler;

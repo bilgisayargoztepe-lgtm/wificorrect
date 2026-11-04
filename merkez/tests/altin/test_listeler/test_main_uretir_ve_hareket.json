@@ -1,0 +1,68 @@
+{
+ "bicim": 1,
+ "dosya": "test_listeler",
+ "test": "test_main_uretir_ve_hareket",
+ "cevaplar": [],
+ "veritabanlari": [
+  {
+   "ad": "m.db",
+   "tablolar": {
+    "ayar": [],
+    "bekleyen": [],
+    "cihaz": [],
+    "eski_arsiv": [],
+    "hareket": [
+     {
+      "ayrinti": "kategori=kumar surum=9d91b173 sayi=1",
+      "id": 1,
+      "ip": "",
+      "kim": "listeler",
+      "musteri": null,
+      "olay": "LISTE_GUNCEL",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     },
+     {
+      "ayrinti": "kategori=yetiskin surum=0b0424de sayi=1",
+      "id": 2,
+      "ip": "",
+      "kim": "listeler",
+      "musteri": null,
+      "olay": "LISTE_GUNCEL",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     },
+     {
+      "ayrinti": "kategori=zararli neden=C: ag yok",
+      "id": 3,
+      "ip": "",
+      "kim": "listeler",
+      "musteri": null,
+      "olay": "LISTE_HATA",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     },
+     {
+      "ayrinti": "kategori=zararli surum=f49d3a28 sayi=1",
+      "id": 4,
+      "ip": "",
+      "kim": "listeler",
+      "musteri": null,
+      "olay": "LISTE_GUNCEL",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     }
+    ],
+    "musteri": [],
+    "saglik": [],
+    "sms_sayac": [],
+    "sms_son": [],
+    "sorun": [],
+    "sqlite_sequence": [
+     {
+      "name": "hareket",
+      "seq": 4
+     }
+    ],
+    "surum": []
+   }
+  }
+ ],
+ "yollar": []
+}

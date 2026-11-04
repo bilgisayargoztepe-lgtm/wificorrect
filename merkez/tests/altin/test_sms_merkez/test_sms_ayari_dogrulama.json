@@ -1,0 +1,31 @@
+{
+ "bicim": 1,
+ "dosya": "test_sms_merkez",
+ "test": "test_sms_ayari_dogrulama",
+ "cevaplar": [],
+ "veritabanlari": [
+  {
+   "ad": "m.db",
+   "tablolar": {
+    "ayar": [
+     {
+      "anahtar": "sms",
+      "deger": "{\"mock\": false, \"usercode\": \"8500000000\", \"password\": \"netgsm-gizli\", \"msgheader\": \"BASLIK\", \"appkey\": \"\", \"tr_saglayici\": \"netgsm\", \"twilio\": {\"acik\": true, \"account_sid\": \"ACaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\", \"auth_token\": \"\", \"api_key_sid\": \"SK11111111111111111111111111111111\", \"api_key_secret\": \"s\", \"verify_sid\": \"VAbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"}}"
+     }
+    ],
+    "bekleyen": [],
+    "cihaz": [],
+    "eski_arsiv": [],
+    "hareket": [],
+    "musteri": [],
+    "saglik": [],
+    "sms_sayac": [],
+    "sms_son": [],
+    "sorun": [],
+    "sqlite_sequence": [],
+    "surum": []
+   }
+  }
+ ],
+ "yollar": []
+}

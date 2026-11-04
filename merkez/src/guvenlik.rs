@@ -61,10 +61,18 @@ pub mod rastgele {
     #[cfg(test)]
     use std::cell::RefCell;
 
+    /// Belirlenimli kipin durumu: tür başına sayaçlar ve üretilen belirteçler (altın kayıtta `<Tn>` olurlar).
+    #[cfg(test)]
+    #[derive(Default)]
+    struct Kip {
+        sayaclar: std::collections::HashMap<&'static str, u64>,
+        uretilen: Vec<String>,
+    }
+
     #[cfg(test)]
     thread_local! {
-        /// (açık mı, tür başına sayaçlar). İş parçacığına özel: paralel testler birbirini bozmaz.
-        static BELIRLENIMLI: RefCell<Option<std::collections::HashMap<&'static str, u64>>> = const { RefCell::new(None) };
+        /// None: kapalı. İş parçacığına özel: paralel testler birbirini bozmaz.
+        static BELIRLENIMLI: RefCell<Option<Kip>> = const { RefCell::new(None) };
     }
 
     /// Yalnızca testler: bu iş parçacığında rastgelelik belirlenimli olur; sayaçlar 1'den başlar.
@@ -75,7 +83,7 @@ pub mod rastgele {
 
     #[cfg(test)]
     pub fn belirlenimli() -> Belirlenimli {
-        BELIRLENIMLI.with(|b| *b.borrow_mut() = Some(Default::default()));
+        BELIRLENIMLI.with(|b| *b.borrow_mut() = Some(Kip::default()));
         Belirlenimli
     }
 
@@ -86,11 +94,26 @@ pub mod rastgele {
         }
     }
 
+    /// Yalnızca testler: belirlenimli kip açıldığından beri `token_urlsafe` ve `token_hex`'in döndürdükleri, sırayla.
+    #[cfg(test)]
+    pub fn uretilenler() -> Vec<String> {
+        BELIRLENIMLI.with(|b| b.borrow().as_ref().map(|k| k.uretilen.clone()).unwrap_or_default())
+    }
+
+    #[cfg(test)]
+    fn uretildi(t: &str) {
+        BELIRLENIMLI.with(|b| {
+            if let Some(k) = b.borrow_mut().as_mut() {
+                k.uretilen.push(t.to_string());
+            }
+        });
+    }
+
     #[cfg(test)]
     fn belirlenimli_baytlar(tur: &'static str, n: usize) -> Option<Vec<u8>> {
         BELIRLENIMLI.with(|b| {
             let mut b = b.borrow_mut();
-            let sayaclar = b.as_mut()?;
+            let sayaclar = &mut b.as_mut()?.sayaclar;
             let sayac = sayaclar.entry(tur).or_insert(0);
             *sayac += 1;
             let mut cikti = Vec::new();
@@ -134,12 +157,18 @@ pub mod rastgele {
 
     /// `n` rastgele bayt, base64url (dolgusuz).
     pub fn token_urlsafe(n: usize) -> String {
-        base64url(&baytlar("urlsafe", n))
+        let t = base64url(&baytlar("urlsafe", n));
+        #[cfg(test)]
+        uretildi(&t);
+        t
     }
 
     /// `n` rastgele bayt, küçük harfli hex (2n karakter).
     pub fn token_hex(n: usize) -> String {
-        baytlar("hex", n).iter().map(|b| format!("{b:02x}")).collect()
+        let t: String = baytlar("hex", n).iter().map(|b| format!("{b:02x}")).collect();
+        #[cfg(test)]
+        uretildi(&t);
+        t
     }
 
     pub fn token_bytes(n: usize) -> Vec<u8> {
@@ -152,6 +181,11 @@ pub mod rastgele {
 
     fn asagi(tur: &'static str, n: u64) -> u64 {
         assert!(n > 0, "randbelow(0)");
+        // belirlenimli kip: düz kalan (altın kayıt üreticisi kaydet.py ile birebir)
+        #[cfg(test)]
+        if let Some(b) = belirlenimli_baytlar(tur, 8) {
+            return u64_oku(&b) % n;
+        }
         // sapmasız: n'in tam katlarının dışına düşenler atılır
         let sinir = (u64::MAX / n) * n;
         loop {

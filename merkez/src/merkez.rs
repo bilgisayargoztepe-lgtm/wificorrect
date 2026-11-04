@@ -114,6 +114,13 @@ impl Merkez {
     }
 }
 
+/// Dağıtıcının kendisi de bir uygulama (testler Python'daki gibi uygulamaya ya da dağıtıcıya aynı yoldan istek yapar).
+impl Uygulama for Merkez {
+    fn istek(&self, i: &Istek) -> Yanit {
+        Merkez::istek(self, i)
+    }
+}
+
 fn panik_mesaji(p: &(dyn std::any::Any + Send)) -> String {
     p.downcast_ref::<&str>().map(|s| s.to_string()).or_else(|| p.downcast_ref::<String>().cloned()).unwrap_or_else(|| "panik".into())
 }
@@ -142,6 +149,8 @@ pub fn cevapla(m: &Merkez, i: Istek) -> Yanit {
 #[cfg(test)]
 mod testler {
     use super::*;
+    use crate::altin::Kayit;
+    use crate::test_yardim as Y;
     use crate::veri::{Saat, Sonuc};
     use crate::web::{self, Ot, Taban};
     use std::collections::HashMap;
@@ -161,17 +170,19 @@ mod testler {
 
     #[test]
     fn host_yonlendirme() {
+        let _k = Kayit::bas("test_merkez", "test_host_yonlendirme");
         let mut m = Merkez::new();
         m.ekle("yonetim", Arc::new(Sahte("Y")));
         m.ekle("musteri", Arc::new(Sahte("M")));
         m.ekle("api", Arc::new(Sahte("A")));
-        assert_eq!(m.istek(&istek("GET", "yonetim.wificorrect.com")).govde, b"Y / 1.1.1.1");
-        assert!(m.istek(&istek("GET", "PANEL.wificorrect.com:443")).govde.starts_with(b"M"));
-        assert!(m.istek(&Istek::yeni("POST", "/api/giris").baslik("Host", "api.wificorrect.com").ip("1.1.1.1")).govde.starts_with(b"A"));
+        let host = |yontem: &str, yol: &str, h: &str| Y::istek(&m, yontem, yol, &[("Host", h)], "", "", "1.1.1.1");
+        assert_eq!(host("GET", "/", "yonetim.wificorrect.com").govde, b"Y / 1.1.1.1");
+        assert!(host("GET", "/", "PANEL.wificorrect.com:443").govde.starts_with(b"M"));
+        assert!(host("POST", "/api/giris", "api.wificorrect.com").govde.starts_with(b"A"));
         for h in ["wificorrect.com", "evil.com", "", "yonetim.wificorrect.com.evil.com"] {
-            assert_eq!(m.istek(&istek("GET", h)).durum, 404, "{h}");
+            assert_eq!(host("GET", "/", h).durum, 404, "{h}");
         }
-        // Host başlığı hiç yoksa
+        // Host başlığı hiç yoksa (Python testinde yok: kayda girmez)
         assert_eq!(m.istek(&Istek::yeni("GET", "/")).durum, 404);
     }
 
@@ -190,6 +201,7 @@ mod testler {
 
     #[test]
     fn istemci_ip_son_xff() {
+        let _k = Kayit::bas("test_merkez", "test_istemci_ip_son_xff");
         let b = Basliklar::yeni(&[("X-Forwarded-For", "6.6.6.6, 203.0.113.5")]);
         assert_eq!(istemci_ip(&b), "203.0.113.5");
         assert_eq!(istemci_ip(&Basliklar::default()), "yerel");
@@ -199,6 +211,7 @@ mod testler {
 
     #[test]
     fn fail2ban_hatali_ve_kilitli_satirlari_yakalar() {
+        let _k = Kayit::bas("test_merkez", "test_fail2ban_hatali_ve_kilitli_satirlari_yakalar");
         // failregex = "GIRIS_HATALI .* ip=<HOST>$" / "GIRIS_KILITLI .* ip=<HOST>$"
         let filtre = include_str!("../../scripts/sunucu/merkez/fail2ban-wc-merkez-filtre.conf");
         assert!(filtre.contains("GIRIS_HATALI .* ip=<HOST>$") && filtre.contains("GIRIS_KILITLI .* ip=<HOST>$"));
@@ -291,6 +304,7 @@ mod testler {
 
     #[test]
     fn guvenlik_basliklari_ve_uygulama_basligi_oncelikli() {
+        let _k = Kayit::bas("test_merkez", "test_uygulamanin_verdigi_guvenlik_basligi_varsayilanin_yerine");
         struct Cerceveli;
         impl Uygulama for Cerceveli {
             fn istek(&self, _: &Istek) -> Yanit {

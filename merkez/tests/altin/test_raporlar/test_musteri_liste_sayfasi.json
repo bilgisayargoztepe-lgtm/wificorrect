@@ -1,0 +1,141 @@
+{
+ "bicim": 1,
+ "dosya": "test_raporlar",
+ "test": "test_musteri_liste_sayfasi",
+ "cevaplar": [
+  {
+   "istek": "POST /giris",
+   "durum": 303,
+   "basliklar": [
+    [
+     "Location",
+     "/baglan"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ],
+    [
+     "Set-Cookie",
+     "wc_musteri=<T1>; HttpOnly; Secure; SameSite=Strict; Path=/"
+    ]
+   ],
+   "govde": {
+    "metin": ""
+   }
+  },
+  {
+   "istek": "GET /raporlar",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Raporlar · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><header><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_ACIK}</a><nav><a href=\"/cihaz\">Cihaz paneli</a><a href=\"/\">Yedek arşiv</a><a href=\"/raporlar\">Raporlar</a><a href=\"/parola\">Parola</a><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button class=\"ikincil\">Çıkış</button></form></nav></header><main class=\"genis\"><div class=\"kart\"><h1>Raporlar</h1><p>Henüz rapor yok; ilk gün arşive geldiğinde oluşur.</p></div></main></body></html>"
+   }
+  },
+  {
+   "istek": "GET /raporlar",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Raporlar · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><header><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_ACIK}</a><nav><a href=\"/cihaz\">Cihaz paneli</a><a href=\"/\">Yedek arşiv</a><a href=\"/raporlar\">Raporlar</a><a href=\"/parola\">Parola</a><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button class=\"ikincil\">Çıkış</button></form></nav></header><main class=\"genis\"><div class=\"kart\"><h1>Raporlar</h1><p class=\"alt\">Misafir sayıları, 5651 kayıt durumu ve cihazın çalışması. Raporlarda kişisel veri (telefon, ad, MAC, IP) yoktur. Her gün 02:30 ve 12:30'da güncellenir.</p></div><div class=\"kart\"><h2>Haftalık raporlar</h2><div class=\"kaydir\"><table class=\"detay\"><tr><th>Dönem</th><th>Farklı misafir</th><th>5651 kaydı</th></tr><tr><td><a href=\"/rapor/hafta/2026-W39\">21–27.09.2026</a> <b class=\"uyarisi\">sürüyor</b></td><td class=\"n\">3</td><td>Henüz biten gün yok</td></tr><tr><td><a href=\"/rapor/hafta/2026-W38\">14–20.09.2026</a> <span class=\"alt\">kesinleşmedi</span></td><td class=\"n\">6</td><td>7 günün 6'sı tam</td></tr><tr><td><a href=\"/rapor/hafta/2026-W36\">31.08–06.09.2026</a> </td><td class=\"n\">8</td><td>7 günün 7'si tam</td></tr></table></div></div><div class=\"kart\"><h2>Aylık raporlar</h2><div class=\"kaydir\"><table class=\"detay\"><tr><th>Dönem</th><th>Farklı misafir</th><th>5651 kaydı</th></tr><tr><td><a href=\"/rapor/ay/2026-09\">Eylül 2026</a> <b class=\"uyarisi\">sürüyor</b></td><td class=\"n\">41</td><td>20 günün 16'sı tam</td></tr><tr><td><a href=\"/rapor/ay/2026-08\">Ağustos 2026</a> </td><td class=\"n\">50</td><td>31 günün 31'i tam</td></tr></table></div></div></main></body></html>"
+   }
+  }
+ ],
+ "veritabanlari": [
+  {
+   "ad": "m.db",
+   "tablolar": {
+    "ayar": [],
+    "bekleyen": [],
+    "cihaz": [],
+    "eski_arsiv": [],
+    "hareket": [
+     {
+      "ayrinti": "müşteri paneli",
+      "id": 1,
+      "ip": "203.0.113.5",
+      "kim": "5721885",
+      "musteri": 5721885,
+      "olay": "GIRIS",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     }
+    ],
+    "musteri": [
+     {
+      "ap_parola": "6vwWeTxWbXDf",
+      "askida": 0,
+      "bitis": "",
+      "guncelleme_hemen": 0.0,
+      "guncelleme_hemen_surum": "",
+      "guncelleme_kanali": "kararli",
+      "lisans_bitis": "2027-09-21",
+      "not_": "",
+      "numara": 5721885,
+      "olusturma": "2026-09-21T17:13:20+03:00",
+      "ozet": "fcd77d2f1464acefd0bf9649c59c9103b30bf9b4aa14a1930fdbc86ae817e02c",
+      "parola_acik": "6bnuKUG4dyZ7",
+      "son_giris": "2026-09-21T17:13:20+03:00",
+      "tuz": "<T3>",
+      "uyelik": "aktif",
+      "yineleme": 120000
+     }
+    ],
+    "saglik": [],
+    "sms_sayac": [],
+    "sms_son": [],
+    "sorun": [],
+    "sqlite_sequence": [
+     {
+      "name": "hareket",
+      "seq": 1
+     }
+    ],
+    "surum": []
+   }
+  }
+ ],
+ "yollar": [
+  [
+   "Musteri",
+   "POST",
+   "/giris",
+   null,
+   303,
+   "/baglan"
+  ],
+  [
+   "Musteri",
+   "GET",
+   "/raporlar",
+   null,
+   200,
+   null
+  ],
+  [
+   "Musteri",
+   "GET",
+   "/raporlar",
+   null,
+   200,
+   null
+  ]
+ ]
+}

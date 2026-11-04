@@ -1,0 +1,32 @@
+{
+ "bicim": 1,
+ "dosya": "test_saglik",
+ "test": "test_veri_saglik_tek_satir",
+ "cevaplar": [],
+ "veritabanlari": [
+  {
+   "ad": "m.db",
+   "tablolar": {
+    "ayar": [],
+    "bekleyen": [],
+    "cihaz": [],
+    "eski_arsiv": [],
+    "hareket": [],
+    "musteri": [],
+    "saglik": [
+     {
+      "cihaz": 7,
+      "rapor": "{\"disk\": 42}",
+      "zaman": "2026-09-21T17:18:20+03:00"
+     }
+    ],
+    "sms_sayac": [],
+    "sms_son": [],
+    "sorun": [],
+    "sqlite_sequence": [],
+    "surum": []
+   }
+  }
+ ],
+ "yollar": []
+}

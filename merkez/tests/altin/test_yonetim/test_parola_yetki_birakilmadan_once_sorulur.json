@@ -1,0 +1,8 @@
+{
+ "bicim": 1,
+ "dosya": "test_yonetim",
+ "test": "test_parola_yetki_birakilmadan_once_sorulur",
+ "cevaplar": [],
+ "veritabanlari": [],
+ "yollar": []
+}

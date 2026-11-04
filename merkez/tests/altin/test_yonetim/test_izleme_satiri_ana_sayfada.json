@@ -1,0 +1,152 @@
+{
+ "bicim": 1,
+ "dosya": "test_yonetim",
+ "test": "test_izleme_satiri_ana_sayfada",
+ "cevaplar": [
+  {
+   "istek": "POST /giris",
+   "durum": 303,
+   "basliklar": [
+    [
+     "Location",
+     "/"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ],
+    [
+     "Set-Cookie",
+     "wc_yonetim=<T1>; HttpOnly; Secure; SameSite=Strict; Path=/"
+    ]
+   ],
+   "govde": {
+    "metin": ""
+   }
+  },
+  {
+   "istek": "GET /",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Müşteriler · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><input type=\"checkbox\" id=\"menu-ac\" class=\"gizli\"><div class=\"ust-mobil\"><label for=\"menu-ac\" class=\"menu-dugme\" title=\"Menü\"><span class=\"gizli\">Menüyü aç/kapat</span><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M3 6h18M3 12h18M3 18h18\"/></svg></label><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a></div><div class=\"yerlesim\"><nav class=\"yan\"><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a><details class=\"grup\" open><summary>Müşteriler</summary><a href=\"/\" class=\"secili\" aria-current=\"page\">Müşteri listesi</a><a href=\"/yeni\">Yeni müşteri</a><a href=\"/bekleyen\">Bekleyen cihazlar</a></details><details class=\"grup\"><summary>Kayıtlar</summary><a href=\"/hareketler\">Hareketler</a><a href=\"/eski-arsivler\">Eski arşivler</a></details><details class=\"grup\"><summary>Ayarlar</summary><a href=\"/listeler\">Engel listeleri</a><a href=\"/sms\">SMS ayarları</a><a href=\"/uyari\">Uyarı ayarları</a><a href=\"/surumler\">Sürümler</a><a href=\"/hesabim\">Hesabım</a></details><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button class=\"ikincil\">Çıkış</button></form></nav><main class=\"genis\"><div class=\"kart\"><h1>Müşteriler</h1><p><b class=\"kotu\">Sağlık izleme: hiç tur yok — izleme çalışmıyor olabilir</b></p><form class=\"ara\" method=\"get\" action=\"/\"><input name=\"q\" value=\"\" placeholder=\"Numara, işletme adı ya da not\"><button>Ara</button></form></div><div class=\"kart\"><p class=\"alt\">Müşteri yok.</p></div></main></div></body></html>"
+   }
+  },
+  {
+   "istek": "GET /",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Müşteriler · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><input type=\"checkbox\" id=\"menu-ac\" class=\"gizli\"><div class=\"ust-mobil\"><label for=\"menu-ac\" class=\"menu-dugme\" title=\"Menü\"><span class=\"gizli\">Menüyü aç/kapat</span><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M3 6h18M3 12h18M3 18h18\"/></svg></label><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a></div><div class=\"yerlesim\"><nav class=\"yan\"><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a><details class=\"grup\" open><summary>Müşteriler</summary><a href=\"/\" class=\"secili\" aria-current=\"page\">Müşteri listesi</a><a href=\"/yeni\">Yeni müşteri</a><a href=\"/bekleyen\">Bekleyen cihazlar</a></details><details class=\"grup\"><summary>Kayıtlar</summary><a href=\"/hareketler\">Hareketler</a><a href=\"/eski-arsivler\">Eski arşivler</a></details><details class=\"grup\"><summary>Ayarlar</summary><a href=\"/listeler\">Engel listeleri</a><a href=\"/sms\">SMS ayarları</a><a href=\"/uyari\">Uyarı ayarları</a><a href=\"/surumler\">Sürümler</a><a href=\"/hesabim\">Hesabım</a></details><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button class=\"ikincil\">Çıkış</button></form></nav><main class=\"genis\"><div class=\"kart\"><h1>Müşteriler</h1><p class=\"alt\">Sağlık izleme: son tur 3 dk önce</p><form class=\"ara\" method=\"get\" action=\"/\"><input name=\"q\" value=\"\" placeholder=\"Numara, işletme adı ya da not\"><button>Ara</button></form></div><div class=\"kart\"><p class=\"alt\">Müşteri yok.</p></div></main></div></body></html>"
+   }
+  },
+  {
+   "istek": "GET /",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Müşteriler · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><input type=\"checkbox\" id=\"menu-ac\" class=\"gizli\"><div class=\"ust-mobil\"><label for=\"menu-ac\" class=\"menu-dugme\" title=\"Menü\"><span class=\"gizli\">Menüyü aç/kapat</span><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M3 6h18M3 12h18M3 18h18\"/></svg></label><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a></div><div class=\"yerlesim\"><nav class=\"yan\"><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a><details class=\"grup\" open><summary>Müşteriler</summary><a href=\"/\" class=\"secili\" aria-current=\"page\">Müşteri listesi</a><a href=\"/yeni\">Yeni müşteri</a><a href=\"/bekleyen\">Bekleyen cihazlar</a></details><details class=\"grup\"><summary>Kayıtlar</summary><a href=\"/hareketler\">Hareketler</a><a href=\"/eski-arsivler\">Eski arşivler</a></details><details class=\"grup\"><summary>Ayarlar</summary><a href=\"/listeler\">Engel listeleri</a><a href=\"/sms\">SMS ayarları</a><a href=\"/uyari\">Uyarı ayarları</a><a href=\"/surumler\">Sürümler</a><a href=\"/hesabim\">Hesabım</a></details><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button class=\"ikincil\">Çıkış</button></form></nav><main class=\"genis\"><div class=\"kart\"><h1>Müşteriler</h1><p><b class=\"kotu\">Sağlık izleme: son tur 16 dk önce — izleme çalışmıyor olabilir</b></p><form class=\"ara\" method=\"get\" action=\"/\"><input name=\"q\" value=\"\" placeholder=\"Numara, işletme adı ya da not\"><button>Ara</button></form></div><div class=\"kart\"><p class=\"alt\">Müşteri yok.</p></div></main></div></body></html>"
+   }
+  }
+ ],
+ "veritabanlari": [
+  {
+   "ad": "m.db",
+   "tablolar": {
+    "ayar": [
+     {
+      "anahtar": "saglik_son_tur",
+      "deger": "2026-09-21T16:57:20+03:00"
+     }
+    ],
+    "bekleyen": [],
+    "cihaz": [],
+    "eski_arsiv": [],
+    "hareket": [
+     {
+      "ayrinti": "yönetim",
+      "id": 1,
+      "ip": "203.0.113.5",
+      "kim": "admin",
+      "musteri": null,
+      "olay": "GIRIS",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     }
+    ],
+    "musteri": [],
+    "saglik": [],
+    "sms_sayac": [],
+    "sms_son": [],
+    "sorun": [],
+    "sqlite_sequence": [
+     {
+      "name": "hareket",
+      "seq": 1
+     }
+    ],
+    "surum": []
+   }
+  }
+ ],
+ "yollar": [
+  [
+   "Yonetim",
+   "POST",
+   "/giris",
+   null,
+   303,
+   "/"
+  ],
+  [
+   "Yonetim",
+   "GET",
+   "/",
+   null,
+   200,
+   null
+  ],
+  [
+   "Yonetim",
+   "GET",
+   "/",
+   null,
+   200,
+   null
+  ],
+  [
+   "Yonetim",
+   "GET",
+   "/",
+   null,
+   200,
+   null
+  ]
+ ]
+}

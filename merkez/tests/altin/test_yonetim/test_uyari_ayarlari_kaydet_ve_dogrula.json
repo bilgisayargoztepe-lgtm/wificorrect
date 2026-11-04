@@ -1,0 +1,429 @@
+{
+ "bicim": 1,
+ "dosya": "test_yonetim",
+ "test": "test_uyari_ayarlari_kaydet_ve_dogrula",
+ "cevaplar": [
+  {
+   "istek": "POST /giris",
+   "durum": 303,
+   "basliklar": [
+    [
+     "Location",
+     "/"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ],
+    [
+     "Set-Cookie",
+     "wc_yonetim=<T1>; HttpOnly; Secure; SameSite=Strict; Path=/"
+    ]
+   ],
+   "govde": {
+    "metin": ""
+   }
+  },
+  {
+   "istek": "GET /uyari",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Uyarı ayarları · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><input type=\"checkbox\" id=\"menu-ac\" class=\"gizli\"><div class=\"ust-mobil\"><label for=\"menu-ac\" class=\"menu-dugme\" title=\"Menü\"><span class=\"gizli\">Menüyü aç/kapat</span><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M3 6h18M3 12h18M3 18h18\"/></svg></label><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a></div><div class=\"yerlesim\"><nav class=\"yan\"><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a><details class=\"grup\"><summary>Müşteriler</summary><a href=\"/\">Müşteri listesi</a><a href=\"/yeni\">Yeni müşteri</a><a href=\"/bekleyen\">Bekleyen cihazlar</a></details><details class=\"grup\"><summary>Kayıtlar</summary><a href=\"/hareketler\">Hareketler</a><a href=\"/eski-arsivler\">Eski arşivler</a></details><details class=\"grup\" open><summary>Ayarlar</summary><a href=\"/listeler\">Engel listeleri</a><a href=\"/sms\">SMS ayarları</a><a href=\"/uyari\" class=\"secili\" aria-current=\"page\">Uyarı ayarları</a><a href=\"/surumler\">Sürümler</a><a href=\"/hesabim\">Hesabım</a></details><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button class=\"ikincil\">Çıkış</button></form></nav><main><div class=\"kart\"><h1>Uyarı ayarları</h1><form method=\"post\" action=\"/uyari\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><label for=\"t1\">Telefon 1</label><input id=\"t1\" name=\"tel1\" value=\"\" inputmode=\"tel\" autocomplete=\"off\" placeholder=\"05XX XXX XX XX\"><label for=\"t2\">Telefon 2</label><input id=\"t2\" name=\"tel2\" value=\"\" inputmode=\"tel\" autocomplete=\"off\" placeholder=\"05XX XXX XX XX\"><label for=\"t3\">Telefon 3</label><input id=\"t3\" name=\"tel3\" value=\"\" inputmode=\"tel\" autocomplete=\"off\" placeholder=\"05XX XXX XX XX\"><label><input type=\"checkbox\" name=\"acik\" value=\"1\"> SMS uyarıları açık</label><label for=\"s\">Günlük SMS sınırı (2–100)</label><input id=\"s\" name=\"gunluk_sinir\" value=\"20\" inputmode=\"numeric\" autocomplete=\"off\"><button>Kaydet</button></form><form method=\"post\" action=\"/uyari/deneme\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button class=\"ikincil\">Deneme SMS'i gönder</button></form><p class=\"alt\">Cihaz sağlık sorunları (ulaşılamıyor, kayıt durdu, servis durdu, disk, lisans…) bu numaralara SMS olarak gider. Deneme SMS'i ilk telefona gider ve günlük sayaca girer. Gönderim için SMS ayarları sayfasında NetGSM bilgileri girilmiş olmalı; deneme modu açıksa SMS gitmez.</p></div></main></div></body></html>"
+   }
+  },
+  {
+   "istek": "GET /uyari",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Uyarı ayarları · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><input type=\"checkbox\" id=\"menu-ac\" class=\"gizli\"><div class=\"ust-mobil\"><label for=\"menu-ac\" class=\"menu-dugme\" title=\"Menü\"><span class=\"gizli\">Menüyü aç/kapat</span><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M3 6h18M3 12h18M3 18h18\"/></svg></label><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a></div><div class=\"yerlesim\"><nav class=\"yan\"><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a><details class=\"grup\"><summary>Müşteriler</summary><a href=\"/\">Müşteri listesi</a><a href=\"/yeni\">Yeni müşteri</a><a href=\"/bekleyen\">Bekleyen cihazlar</a></details><details class=\"grup\"><summary>Kayıtlar</summary><a href=\"/hareketler\">Hareketler</a><a href=\"/eski-arsivler\">Eski arşivler</a></details><details class=\"grup\" open><summary>Ayarlar</summary><a href=\"/listeler\">Engel listeleri</a><a href=\"/sms\">SMS ayarları</a><a href=\"/uyari\" class=\"secili\" aria-current=\"page\">Uyarı ayarları</a><a href=\"/surumler\">Sürümler</a><a href=\"/hesabim\">Hesabım</a></details><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button class=\"ikincil\">Çıkış</button></form></nav><main><div class=\"kart\"><h1>Uyarı ayarları</h1><form method=\"post\" action=\"/uyari\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><label for=\"t1\">Telefon 1</label><input id=\"t1\" name=\"tel1\" value=\"\" inputmode=\"tel\" autocomplete=\"off\" placeholder=\"05XX XXX XX XX\"><label for=\"t2\">Telefon 2</label><input id=\"t2\" name=\"tel2\" value=\"\" inputmode=\"tel\" autocomplete=\"off\" placeholder=\"05XX XXX XX XX\"><label for=\"t3\">Telefon 3</label><input id=\"t3\" name=\"tel3\" value=\"\" inputmode=\"tel\" autocomplete=\"off\" placeholder=\"05XX XXX XX XX\"><label><input type=\"checkbox\" name=\"acik\" value=\"1\"> SMS uyarıları açık</label><label for=\"s\">Günlük SMS sınırı (2–100)</label><input id=\"s\" name=\"gunluk_sinir\" value=\"20\" inputmode=\"numeric\" autocomplete=\"off\"><button>Kaydet</button></form><form method=\"post\" action=\"/uyari/deneme\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button class=\"ikincil\">Deneme SMS'i gönder</button></form><p class=\"alt\">Cihaz sağlık sorunları (ulaşılamıyor, kayıt durdu, servis durdu, disk, lisans…) bu numaralara SMS olarak gider. Deneme SMS'i ilk telefona gider ve günlük sayaca girer. Gönderim için SMS ayarları sayfasında NetGSM bilgileri girilmiş olmalı; deneme modu açıksa SMS gitmez.</p></div></main></div></body></html>"
+   }
+  },
+  {
+   "istek": "POST /uyari",
+   "durum": 303,
+   "basliklar": [
+    [
+     "Location",
+     "/uyari"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": ""
+   }
+  },
+  {
+   "istek": "GET /uyari",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Uyarı ayarları · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><input type=\"checkbox\" id=\"menu-ac\" class=\"gizli\"><div class=\"ust-mobil\"><label for=\"menu-ac\" class=\"menu-dugme\" title=\"Menü\"><span class=\"gizli\">Menüyü aç/kapat</span><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M3 6h18M3 12h18M3 18h18\"/></svg></label><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a></div><div class=\"yerlesim\"><nav class=\"yan\"><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a><details class=\"grup\"><summary>Müşteriler</summary><a href=\"/\">Müşteri listesi</a><a href=\"/yeni\">Yeni müşteri</a><a href=\"/bekleyen\">Bekleyen cihazlar</a></details><details class=\"grup\"><summary>Kayıtlar</summary><a href=\"/hareketler\">Hareketler</a><a href=\"/eski-arsivler\">Eski arşivler</a></details><details class=\"grup\" open><summary>Ayarlar</summary><a href=\"/listeler\">Engel listeleri</a><a href=\"/sms\">SMS ayarları</a><a href=\"/uyari\" class=\"secili\" aria-current=\"page\">Uyarı ayarları</a><a href=\"/surumler\">Sürümler</a><a href=\"/hesabim\">Hesabım</a></details><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button class=\"ikincil\">Çıkış</button></form></nav><main><div class=\"kart\"><h1>Uyarı ayarları</h1><form method=\"post\" action=\"/uyari\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><label for=\"t1\">Telefon 1</label><input id=\"t1\" name=\"tel1\" value=\"05331112233\" inputmode=\"tel\" autocomplete=\"off\" placeholder=\"05XX XXX XX XX\"><label for=\"t2\">Telefon 2</label><input id=\"t2\" name=\"tel2\" value=\"05441112244\" inputmode=\"tel\" autocomplete=\"off\" placeholder=\"05XX XXX XX XX\"><label for=\"t3\">Telefon 3</label><input id=\"t3\" name=\"tel3\" value=\"\" inputmode=\"tel\" autocomplete=\"off\" placeholder=\"05XX XXX XX XX\"><label><input type=\"checkbox\" name=\"acik\" value=\"1\" checked> SMS uyarıları açık</label><label for=\"s\">Günlük SMS sınırı (2–100)</label><input id=\"s\" name=\"gunluk_sinir\" value=\"15\" inputmode=\"numeric\" autocomplete=\"off\"><button>Kaydet</button></form><form method=\"post\" action=\"/uyari/deneme\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button class=\"ikincil\">Deneme SMS'i gönder</button></form><p class=\"alt\">Cihaz sağlık sorunları (ulaşılamıyor, kayıt durdu, servis durdu, disk, lisans…) bu numaralara SMS olarak gider. Deneme SMS'i ilk telefona gider ve günlük sayaca girer. Gönderim için SMS ayarları sayfasında NetGSM bilgileri girilmiş olmalı; deneme modu açıksa SMS gitmez.</p></div></main></div></body></html>"
+   }
+  },
+  {
+   "istek": "POST /uyari",
+   "durum": 400,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Uyarı ayarları · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><input type=\"checkbox\" id=\"menu-ac\" class=\"gizli\"><div class=\"ust-mobil\"><label for=\"menu-ac\" class=\"menu-dugme\" title=\"Menü\"><span class=\"gizli\">Menüyü aç/kapat</span><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M3 6h18M3 12h18M3 18h18\"/></svg></label><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a></div><div class=\"yerlesim\"><nav class=\"yan\"><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a><details class=\"grup\"><summary>Müşteriler</summary><a href=\"/\">Müşteri listesi</a><a href=\"/yeni\">Yeni müşteri</a><a href=\"/bekleyen\">Bekleyen cihazlar</a></details><details class=\"grup\"><summary>Kayıtlar</summary><a href=\"/hareketler\">Hareketler</a><a href=\"/eski-arsivler\">Eski arşivler</a></details><details class=\"grup\" open><summary>Ayarlar</summary><a href=\"/listeler\">Engel listeleri</a><a href=\"/sms\">SMS ayarları</a><a href=\"/uyari\" class=\"secili\" aria-current=\"page\">Uyarı ayarları</a><a href=\"/surumler\">Sürümler</a><a href=\"/hesabim\">Hesabım</a></details><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button class=\"ikincil\">Çıkış</button></form></nav><main><div class=\"kart\"><h1>Uyarı ayarları</h1><p class=\"hata\">Geçersiz telefon: 123</p><form method=\"post\" action=\"/uyari\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><label for=\"t1\">Telefon 1</label><input id=\"t1\" name=\"tel1\" value=\"123\" inputmode=\"tel\" autocomplete=\"off\" placeholder=\"05XX XXX XX XX\"><label for=\"t2\">Telefon 2</label><input id=\"t2\" name=\"tel2\" value=\"\" inputmode=\"tel\" autocomplete=\"off\" placeholder=\"05XX XXX XX XX\"><label for=\"t3\">Telefon 3</label><input id=\"t3\" name=\"tel3\" value=\"\" inputmode=\"tel\" autocomplete=\"off\" placeholder=\"05XX XXX XX XX\"><label><input type=\"checkbox\" name=\"acik\" value=\"1\"> SMS uyarıları açık</label><label for=\"s\">Günlük SMS sınırı (2–100)</label><input id=\"s\" name=\"gunluk_sinir\" value=\"15\" inputmode=\"numeric\" autocomplete=\"off\"><button>Kaydet</button></form><form method=\"post\" action=\"/uyari/deneme\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button class=\"ikincil\">Deneme SMS'i gönder</button></form><p class=\"alt\">Cihaz sağlık sorunları (ulaşılamıyor, kayıt durdu, servis durdu, disk, lisans…) bu numaralara SMS olarak gider. Deneme SMS'i ilk telefona gider ve günlük sayaca girer. Gönderim için SMS ayarları sayfasında NetGSM bilgileri girilmiş olmalı; deneme modu açıksa SMS gitmez.</p></div></main></div></body></html>"
+   }
+  },
+  {
+   "istek": "POST /uyari",
+   "durum": 400,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Uyarı ayarları · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><input type=\"checkbox\" id=\"menu-ac\" class=\"gizli\"><div class=\"ust-mobil\"><label for=\"menu-ac\" class=\"menu-dugme\" title=\"Menü\"><span class=\"gizli\">Menüyü aç/kapat</span><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M3 6h18M3 12h18M3 18h18\"/></svg></label><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a></div><div class=\"yerlesim\"><nav class=\"yan\"><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a><details class=\"grup\"><summary>Müşteriler</summary><a href=\"/\">Müşteri listesi</a><a href=\"/yeni\">Yeni müşteri</a><a href=\"/bekleyen\">Bekleyen cihazlar</a></details><details class=\"grup\"><summary>Kayıtlar</summary><a href=\"/hareketler\">Hareketler</a><a href=\"/eski-arsivler\">Eski arşivler</a></details><details class=\"grup\" open><summary>Ayarlar</summary><a href=\"/listeler\">Engel listeleri</a><a href=\"/sms\">SMS ayarları</a><a href=\"/uyari\" class=\"secili\" aria-current=\"page\">Uyarı ayarları</a><a href=\"/surumler\">Sürümler</a><a href=\"/hesabim\">Hesabım</a></details><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button class=\"ikincil\">Çıkış</button></form></nav><main><div class=\"kart\"><h1>Uyarı ayarları</h1><p class=\"hata\">Günlük SMS sınırı 2 ile 100 arasında bir sayı olmalı.</p><form method=\"post\" action=\"/uyari\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><label for=\"t1\">Telefon 1</label><input id=\"t1\" name=\"tel1\" value=\"05331112233\" inputmode=\"tel\" autocomplete=\"off\" placeholder=\"05XX XXX XX XX\"><label for=\"t2\">Telefon 2</label><input id=\"t2\" name=\"tel2\" value=\"\" inputmode=\"tel\" autocomplete=\"off\" placeholder=\"05XX XXX XX XX\"><label for=\"t3\">Telefon 3</label><input id=\"t3\" name=\"tel3\" value=\"\" inputmode=\"tel\" autocomplete=\"off\" placeholder=\"05XX XXX XX XX\"><label><input type=\"checkbox\" name=\"acik\" value=\"1\"> SMS uyarıları açık</label><label for=\"s\">Günlük SMS sınırı (2–100)</label><input id=\"s\" name=\"gunluk_sinir\" value=\"0\" inputmode=\"numeric\" autocomplete=\"off\"><button>Kaydet</button></form><form method=\"post\" action=\"/uyari/deneme\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button class=\"ikincil\">Deneme SMS'i gönder</button></form><p class=\"alt\">Cihaz sağlık sorunları (ulaşılamıyor, kayıt durdu, servis durdu, disk, lisans…) bu numaralara SMS olarak gider. Deneme SMS'i ilk telefona gider ve günlük sayaca girer. Gönderim için SMS ayarları sayfasında NetGSM bilgileri girilmiş olmalı; deneme modu açıksa SMS gitmez.</p></div></main></div></body></html>"
+   }
+  },
+  {
+   "istek": "POST /uyari",
+   "durum": 400,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Uyarı ayarları · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><input type=\"checkbox\" id=\"menu-ac\" class=\"gizli\"><div class=\"ust-mobil\"><label for=\"menu-ac\" class=\"menu-dugme\" title=\"Menü\"><span class=\"gizli\">Menüyü aç/kapat</span><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M3 6h18M3 12h18M3 18h18\"/></svg></label><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a></div><div class=\"yerlesim\"><nav class=\"yan\"><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a><details class=\"grup\"><summary>Müşteriler</summary><a href=\"/\">Müşteri listesi</a><a href=\"/yeni\">Yeni müşteri</a><a href=\"/bekleyen\">Bekleyen cihazlar</a></details><details class=\"grup\"><summary>Kayıtlar</summary><a href=\"/hareketler\">Hareketler</a><a href=\"/eski-arsivler\">Eski arşivler</a></details><details class=\"grup\" open><summary>Ayarlar</summary><a href=\"/listeler\">Engel listeleri</a><a href=\"/sms\">SMS ayarları</a><a href=\"/uyari\" class=\"secili\" aria-current=\"page\">Uyarı ayarları</a><a href=\"/surumler\">Sürümler</a><a href=\"/hesabim\">Hesabım</a></details><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button class=\"ikincil\">Çıkış</button></form></nav><main><div class=\"kart\"><h1>Uyarı ayarları</h1><p class=\"hata\">Günlük SMS sınırı 2 ile 100 arasında bir sayı olmalı.</p><form method=\"post\" action=\"/uyari\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><label for=\"t1\">Telefon 1</label><input id=\"t1\" name=\"tel1\" value=\"05331112233\" inputmode=\"tel\" autocomplete=\"off\" placeholder=\"05XX XXX XX XX\"><label for=\"t2\">Telefon 2</label><input id=\"t2\" name=\"tel2\" value=\"\" inputmode=\"tel\" autocomplete=\"off\" placeholder=\"05XX XXX XX XX\"><label for=\"t3\">Telefon 3</label><input id=\"t3\" name=\"tel3\" value=\"\" inputmode=\"tel\" autocomplete=\"off\" placeholder=\"05XX XXX XX XX\"><label><input type=\"checkbox\" name=\"acik\" value=\"1\"> SMS uyarıları açık</label><label for=\"s\">Günlük SMS sınırı (2–100)</label><input id=\"s\" name=\"gunluk_sinir\" value=\"1\" inputmode=\"numeric\" autocomplete=\"off\"><button>Kaydet</button></form><form method=\"post\" action=\"/uyari/deneme\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button class=\"ikincil\">Deneme SMS'i gönder</button></form><p class=\"alt\">Cihaz sağlık sorunları (ulaşılamıyor, kayıt durdu, servis durdu, disk, lisans…) bu numaralara SMS olarak gider. Deneme SMS'i ilk telefona gider ve günlük sayaca girer. Gönderim için SMS ayarları sayfasında NetGSM bilgileri girilmiş olmalı; deneme modu açıksa SMS gitmez.</p></div></main></div></body></html>"
+   }
+  },
+  {
+   "istek": "POST /uyari",
+   "durum": 400,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Uyarı ayarları · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><input type=\"checkbox\" id=\"menu-ac\" class=\"gizli\"><div class=\"ust-mobil\"><label for=\"menu-ac\" class=\"menu-dugme\" title=\"Menü\"><span class=\"gizli\">Menüyü aç/kapat</span><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M3 6h18M3 12h18M3 18h18\"/></svg></label><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a></div><div class=\"yerlesim\"><nav class=\"yan\"><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a><details class=\"grup\"><summary>Müşteriler</summary><a href=\"/\">Müşteri listesi</a><a href=\"/yeni\">Yeni müşteri</a><a href=\"/bekleyen\">Bekleyen cihazlar</a></details><details class=\"grup\"><summary>Kayıtlar</summary><a href=\"/hareketler\">Hareketler</a><a href=\"/eski-arsivler\">Eski arşivler</a></details><details class=\"grup\" open><summary>Ayarlar</summary><a href=\"/listeler\">Engel listeleri</a><a href=\"/sms\">SMS ayarları</a><a href=\"/uyari\" class=\"secili\" aria-current=\"page\">Uyarı ayarları</a><a href=\"/surumler\">Sürümler</a><a href=\"/hesabim\">Hesabım</a></details><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button class=\"ikincil\">Çıkış</button></form></nav><main><div class=\"kart\"><h1>Uyarı ayarları</h1><p class=\"hata\">Günlük SMS sınırı 2 ile 100 arasında bir sayı olmalı.</p><form method=\"post\" action=\"/uyari\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><label for=\"t1\">Telefon 1</label><input id=\"t1\" name=\"tel1\" value=\"05331112233\" inputmode=\"tel\" autocomplete=\"off\" placeholder=\"05XX XXX XX XX\"><label for=\"t2\">Telefon 2</label><input id=\"t2\" name=\"tel2\" value=\"\" inputmode=\"tel\" autocomplete=\"off\" placeholder=\"05XX XXX XX XX\"><label for=\"t3\">Telefon 3</label><input id=\"t3\" name=\"tel3\" value=\"\" inputmode=\"tel\" autocomplete=\"off\" placeholder=\"05XX XXX XX XX\"><label><input type=\"checkbox\" name=\"acik\" value=\"1\"> SMS uyarıları açık</label><label for=\"s\">Günlük SMS sınırı (2–100)</label><input id=\"s\" name=\"gunluk_sinir\" value=\"101\" inputmode=\"numeric\" autocomplete=\"off\"><button>Kaydet</button></form><form method=\"post\" action=\"/uyari/deneme\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button class=\"ikincil\">Deneme SMS'i gönder</button></form><p class=\"alt\">Cihaz sağlık sorunları (ulaşılamıyor, kayıt durdu, servis durdu, disk, lisans…) bu numaralara SMS olarak gider. Deneme SMS'i ilk telefona gider ve günlük sayaca girer. Gönderim için SMS ayarları sayfasında NetGSM bilgileri girilmiş olmalı; deneme modu açıksa SMS gitmez.</p></div></main></div></body></html>"
+   }
+  },
+  {
+   "istek": "POST /uyari",
+   "durum": 400,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Uyarı ayarları · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><input type=\"checkbox\" id=\"menu-ac\" class=\"gizli\"><div class=\"ust-mobil\"><label for=\"menu-ac\" class=\"menu-dugme\" title=\"Menü\"><span class=\"gizli\">Menüyü aç/kapat</span><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M3 6h18M3 12h18M3 18h18\"/></svg></label><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a></div><div class=\"yerlesim\"><nav class=\"yan\"><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a><details class=\"grup\"><summary>Müşteriler</summary><a href=\"/\">Müşteri listesi</a><a href=\"/yeni\">Yeni müşteri</a><a href=\"/bekleyen\">Bekleyen cihazlar</a></details><details class=\"grup\"><summary>Kayıtlar</summary><a href=\"/hareketler\">Hareketler</a><a href=\"/eski-arsivler\">Eski arşivler</a></details><details class=\"grup\" open><summary>Ayarlar</summary><a href=\"/listeler\">Engel listeleri</a><a href=\"/sms\">SMS ayarları</a><a href=\"/uyari\" class=\"secili\" aria-current=\"page\">Uyarı ayarları</a><a href=\"/surumler\">Sürümler</a><a href=\"/hesabim\">Hesabım</a></details><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button class=\"ikincil\">Çıkış</button></form></nav><main><div class=\"kart\"><h1>Uyarı ayarları</h1><p class=\"hata\">Günlük SMS sınırı 2 ile 100 arasında bir sayı olmalı.</p><form method=\"post\" action=\"/uyari\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><label for=\"t1\">Telefon 1</label><input id=\"t1\" name=\"tel1\" value=\"05331112233\" inputmode=\"tel\" autocomplete=\"off\" placeholder=\"05XX XXX XX XX\"><label for=\"t2\">Telefon 2</label><input id=\"t2\" name=\"tel2\" value=\"\" inputmode=\"tel\" autocomplete=\"off\" placeholder=\"05XX XXX XX XX\"><label for=\"t3\">Telefon 3</label><input id=\"t3\" name=\"tel3\" value=\"\" inputmode=\"tel\" autocomplete=\"off\" placeholder=\"05XX XXX XX XX\"><label><input type=\"checkbox\" name=\"acik\" value=\"1\"> SMS uyarıları açık</label><label for=\"s\">Günlük SMS sınırı (2–100)</label><input id=\"s\" name=\"gunluk_sinir\" value=\"abc\" inputmode=\"numeric\" autocomplete=\"off\"><button>Kaydet</button></form><form method=\"post\" action=\"/uyari/deneme\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button class=\"ikincil\">Deneme SMS'i gönder</button></form><p class=\"alt\">Cihaz sağlık sorunları (ulaşılamıyor, kayıt durdu, servis durdu, disk, lisans…) bu numaralara SMS olarak gider. Deneme SMS'i ilk telefona gider ve günlük sayaca girer. Gönderim için SMS ayarları sayfasında NetGSM bilgileri girilmiş olmalı; deneme modu açıksa SMS gitmez.</p></div></main></div></body></html>"
+   }
+  },
+  {
+   "istek": "POST /uyari",
+   "durum": 400,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Uyarı ayarları · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><input type=\"checkbox\" id=\"menu-ac\" class=\"gizli\"><div class=\"ust-mobil\"><label for=\"menu-ac\" class=\"menu-dugme\" title=\"Menü\"><span class=\"gizli\">Menüyü aç/kapat</span><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M3 6h18M3 12h18M3 18h18\"/></svg></label><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a></div><div class=\"yerlesim\"><nav class=\"yan\"><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a><details class=\"grup\"><summary>Müşteriler</summary><a href=\"/\">Müşteri listesi</a><a href=\"/yeni\">Yeni müşteri</a><a href=\"/bekleyen\">Bekleyen cihazlar</a></details><details class=\"grup\"><summary>Kayıtlar</summary><a href=\"/hareketler\">Hareketler</a><a href=\"/eski-arsivler\">Eski arşivler</a></details><details class=\"grup\" open><summary>Ayarlar</summary><a href=\"/listeler\">Engel listeleri</a><a href=\"/sms\">SMS ayarları</a><a href=\"/uyari\" class=\"secili\" aria-current=\"page\">Uyarı ayarları</a><a href=\"/surumler\">Sürümler</a><a href=\"/hesabim\">Hesabım</a></details><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button class=\"ikincil\">Çıkış</button></form></nav><main><div class=\"kart\"><h1>Uyarı ayarları</h1><p class=\"hata\">Günlük SMS sınırı 2 ile 100 arasında bir sayı olmalı.</p><form method=\"post\" action=\"/uyari\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><label for=\"t1\">Telefon 1</label><input id=\"t1\" name=\"tel1\" value=\"05331112233\" inputmode=\"tel\" autocomplete=\"off\" placeholder=\"05XX XXX XX XX\"><label for=\"t2\">Telefon 2</label><input id=\"t2\" name=\"tel2\" value=\"\" inputmode=\"tel\" autocomplete=\"off\" placeholder=\"05XX XXX XX XX\"><label for=\"t3\">Telefon 3</label><input id=\"t3\" name=\"tel3\" value=\"\" inputmode=\"tel\" autocomplete=\"off\" placeholder=\"05XX XXX XX XX\"><label><input type=\"checkbox\" name=\"acik\" value=\"1\"> SMS uyarıları açık</label><label for=\"s\">Günlük SMS sınırı (2–100)</label><input id=\"s\" name=\"gunluk_sinir\" value=\"\" inputmode=\"numeric\" autocomplete=\"off\"><button>Kaydet</button></form><form method=\"post\" action=\"/uyari/deneme\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button class=\"ikincil\">Deneme SMS'i gönder</button></form><p class=\"alt\">Cihaz sağlık sorunları (ulaşılamıyor, kayıt durdu, servis durdu, disk, lisans…) bu numaralara SMS olarak gider. Deneme SMS'i ilk telefona gider ve günlük sayaca girer. Gönderim için SMS ayarları sayfasında NetGSM bilgileri girilmiş olmalı; deneme modu açıksa SMS gitmez.</p></div></main></div></body></html>"
+   }
+  },
+  {
+   "istek": "POST /uyari",
+   "durum": 400,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Uyarı ayarları · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><input type=\"checkbox\" id=\"menu-ac\" class=\"gizli\"><div class=\"ust-mobil\"><label for=\"menu-ac\" class=\"menu-dugme\" title=\"Menü\"><span class=\"gizli\">Menüyü aç/kapat</span><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M3 6h18M3 12h18M3 18h18\"/></svg></label><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a></div><div class=\"yerlesim\"><nav class=\"yan\"><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a><details class=\"grup\"><summary>Müşteriler</summary><a href=\"/\">Müşteri listesi</a><a href=\"/yeni\">Yeni müşteri</a><a href=\"/bekleyen\">Bekleyen cihazlar</a></details><details class=\"grup\"><summary>Kayıtlar</summary><a href=\"/hareketler\">Hareketler</a><a href=\"/eski-arsivler\">Eski arşivler</a></details><details class=\"grup\" open><summary>Ayarlar</summary><a href=\"/listeler\">Engel listeleri</a><a href=\"/sms\">SMS ayarları</a><a href=\"/uyari\" class=\"secili\" aria-current=\"page\">Uyarı ayarları</a><a href=\"/surumler\">Sürümler</a><a href=\"/hesabim\">Hesabım</a></details><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button class=\"ikincil\">Çıkış</button></form></nav><main><div class=\"kart\"><h1>Uyarı ayarları</h1><p class=\"hata\">Günlük SMS sınırı 2 ile 100 arasında bir sayı olmalı.</p><form method=\"post\" action=\"/uyari\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><label for=\"t1\">Telefon 1</label><input id=\"t1\" name=\"tel1\" value=\"05331112233\" inputmode=\"tel\" autocomplete=\"off\" placeholder=\"05XX XXX XX XX\"><label for=\"t2\">Telefon 2</label><input id=\"t2\" name=\"tel2\" value=\"\" inputmode=\"tel\" autocomplete=\"off\" placeholder=\"05XX XXX XX XX\"><label for=\"t3\">Telefon 3</label><input id=\"t3\" name=\"tel3\" value=\"\" inputmode=\"tel\" autocomplete=\"off\" placeholder=\"05XX XXX XX XX\"><label><input type=\"checkbox\" name=\"acik\" value=\"1\"> SMS uyarıları açık</label><label for=\"s\">Günlük SMS sınırı (2–100)</label><input id=\"s\" name=\"gunluk_sinir\" value=\"2.5\" inputmode=\"numeric\" autocomplete=\"off\"><button>Kaydet</button></form><form method=\"post\" action=\"/uyari/deneme\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button class=\"ikincil\">Deneme SMS'i gönder</button></form><p class=\"alt\">Cihaz sağlık sorunları (ulaşılamıyor, kayıt durdu, servis durdu, disk, lisans…) bu numaralara SMS olarak gider. Deneme SMS'i ilk telefona gider ve günlük sayaca girer. Gönderim için SMS ayarları sayfasında NetGSM bilgileri girilmiş olmalı; deneme modu açıksa SMS gitmez.</p></div></main></div></body></html>"
+   }
+  },
+  {
+   "istek": "POST /uyari",
+   "durum": 303,
+   "basliklar": [
+    [
+     "Location",
+     "/uyari"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": ""
+   }
+  },
+  {
+   "istek": "POST /uyari",
+   "durum": 303,
+   "basliklar": [
+    [
+     "Location",
+     "/uyari"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": ""
+   }
+  }
+ ],
+ "veritabanlari": [
+  {
+   "ad": "m.db",
+   "tablolar": {
+    "ayar": [
+     {
+      "anahtar": "uyari",
+      "deger": "{\"telefonlar\": [\"905331112233\"], \"acik\": false, \"gunluk_sinir\": 2}"
+     }
+    ],
+    "bekleyen": [],
+    "cihaz": [],
+    "eski_arsiv": [],
+    "hareket": [
+     {
+      "ayrinti": "yönetim",
+      "id": 1,
+      "ip": "203.0.113.5",
+      "kim": "admin",
+      "musteri": null,
+      "olay": "GIRIS",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     },
+     {
+      "ayrinti": "telefon=2 acik=1 sinir=15",
+      "id": 2,
+      "ip": "203.0.113.5",
+      "kim": "admin",
+      "musteri": null,
+      "olay": "UYARI_AYAR",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     },
+     {
+      "ayrinti": "telefon=1 acik=0 sinir=20",
+      "id": 3,
+      "ip": "203.0.113.5",
+      "kim": "admin",
+      "musteri": null,
+      "olay": "UYARI_AYAR",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     },
+     {
+      "ayrinti": "telefon=1 acik=0 sinir=2",
+      "id": 4,
+      "ip": "203.0.113.5",
+      "kim": "admin",
+      "musteri": null,
+      "olay": "UYARI_AYAR",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     }
+    ],
+    "musteri": [],
+    "saglik": [],
+    "sms_sayac": [],
+    "sms_son": [],
+    "sorun": [],
+    "sqlite_sequence": [
+     {
+      "name": "hareket",
+      "seq": 4
+     }
+    ],
+    "surum": []
+   }
+  }
+ ],
+ "yollar": [
+  [
+   "Yonetim",
+   "POST",
+   "/giris",
+   null,
+   303,
+   "/"
+  ],
+  [
+   "Yonetim",
+   "GET",
+   "/uyari",
+   null,
+   200,
+   null
+  ],
+  [
+   "Yonetim",
+   "GET",
+   "/uyari",
+   null,
+   200,
+   null
+  ],
+  [
+   "Yonetim",
+   "POST",
+   "/uyari",
+   null,
+   303,
+   "/uyari"
+  ],
+  [
+   "Yonetim",
+   "GET",
+   "/uyari",
+   null,
+   200,
+   null
+  ],
+  [
+   "Yonetim",
+   "POST",
+   "/uyari",
+   null,
+   400,
+   null
+  ],
+  [
+   "Yonetim",
+   "POST",
+   "/uyari",
+   null,
+   400,
+   null
+  ],
+  [
+   "Yonetim",
+   "POST",
+   "/uyari",
+   null,
+   400,
+   null
+  ],
+  [
+   "Yonetim",
+   "POST",
+   "/uyari",
+   null,
+   400,
+   null
+  ],
+  [
+   "Yonetim",
+   "POST",
+   "/uyari",
+   null,
+   400,
+   null
+  ],
+  [
+   "Yonetim",
+   "POST",
+   "/uyari",
+   null,
+   400,
+   null
+  ],
+  [
+   "Yonetim",
+   "POST",
+   "/uyari",
+   null,
+   400,
+   null
+  ],
+  [
+   "Yonetim",
+   "POST",
+   "/uyari",
+   null,
+   303,
+   "/uyari"
+  ],
+  [
+   "Yonetim",
+   "POST",
+   "/uyari",
+   null,
+   303,
+   "/uyari"
+  ]
+ ]
+}

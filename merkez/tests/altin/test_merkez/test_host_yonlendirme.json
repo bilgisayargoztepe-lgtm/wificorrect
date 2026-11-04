@@ -1,0 +1,142 @@
+{
+ "bicim": 1,
+ "dosya": "test_merkez",
+ "test": "test_host_yonlendirme",
+ "cevaplar": [
+  {
+   "istek": "GET /",
+   "durum": 200,
+   "basliklar": [],
+   "govde": {
+    "metin": "Y / 1.1.1.1"
+   }
+  },
+  {
+   "istek": "GET /",
+   "durum": 200,
+   "basliklar": [],
+   "govde": {
+    "metin": "M / 1.1.1.1"
+   }
+  },
+  {
+   "istek": "POST /api/giris",
+   "durum": 200,
+   "basliklar": [],
+   "govde": {
+    "metin": "A /api/giris 1.1.1.1"
+   }
+  },
+  {
+   "istek": "GET /",
+   "durum": 404,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/plain; charset=utf-8"
+    ]
+   ],
+   "govde": {
+    "metin": "Bulunamadı"
+   }
+  },
+  {
+   "istek": "GET /",
+   "durum": 404,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/plain; charset=utf-8"
+    ]
+   ],
+   "govde": {
+    "metin": "Bulunamadı"
+   }
+  },
+  {
+   "istek": "GET /",
+   "durum": 404,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/plain; charset=utf-8"
+    ]
+   ],
+   "govde": {
+    "metin": "Bulunamadı"
+   }
+  },
+  {
+   "istek": "GET /",
+   "durum": 404,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/plain; charset=utf-8"
+    ]
+   ],
+   "govde": {
+    "metin": "Bulunamadı"
+   }
+  }
+ ],
+ "veritabanlari": [],
+ "yollar": [
+  [
+   "Merkez",
+   "GET",
+   "/",
+   "yonetim.wificorrect.com",
+   200,
+   null
+  ],
+  [
+   "Merkez",
+   "GET",
+   "/",
+   "panel.wificorrect.com",
+   200,
+   null
+  ],
+  [
+   "Merkez",
+   "POST",
+   "/api/giris",
+   "api.wificorrect.com",
+   200,
+   null
+  ],
+  [
+   "Merkez",
+   "GET",
+   "/",
+   "wificorrect.com",
+   404,
+   null
+  ],
+  [
+   "Merkez",
+   "GET",
+   "/",
+   "evil.com",
+   404,
+   null
+  ],
+  [
+   "Merkez",
+   "GET",
+   "/",
+   "",
+   404,
+   null
+  ],
+  [
+   "Merkez",
+   "GET",
+   "/",
+   "yonetim.wificorrect.com.evil.com",
+   404,
+   null
+  ]
+ ]
+}

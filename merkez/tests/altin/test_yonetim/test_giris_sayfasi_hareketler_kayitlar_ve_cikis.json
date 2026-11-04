@@ -1,0 +1,304 @@
+{
+ "bicim": 1,
+ "dosya": "test_yonetim",
+ "test": "test_giris_sayfasi_hareketler_kayitlar_ve_cikis",
+ "cevaplar": [
+  {
+   "istek": "POST /giris",
+   "durum": 303,
+   "basliklar": [
+    [
+     "Location",
+     "/"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ],
+    [
+     "Set-Cookie",
+     "wc_yonetim=<T1>; HttpOnly; Secure; SameSite=Strict; Path=/"
+    ]
+   ],
+   "govde": {
+    "metin": ""
+   }
+  },
+  {
+   "istek": "GET /giris",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Giriş · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><header><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_ACIK}</a></header><main><div class=\"kart\"><h1>Yönetim merkezi</h1><p class=\"alt\">Hizmet sağlayıcı girişi.</p><form method=\"post\" action=\"/giris\"><label for=\"k\">Kullanıcı adı</label><input id=\"k\" name=\"kullanici\" autocomplete=\"username\" autocapitalize=\"none\" spellcheck=\"false\" required><label for=\"s\">Parola</label><input id=\"s\" name=\"sifre\" type=\"password\" autocomplete=\"current-password\" required><button>Giriş yap</button></form></div></main></body></html>"
+   }
+  },
+  {
+   "istek": "GET /giris",
+   "durum": 303,
+   "basliklar": [
+    [
+     "Location",
+     "/"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": ""
+   }
+  },
+  {
+   "istek": "GET /hareketler",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Hareketler · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><input type=\"checkbox\" id=\"menu-ac\" class=\"gizli\"><div class=\"ust-mobil\"><label for=\"menu-ac\" class=\"menu-dugme\" title=\"Menü\"><span class=\"gizli\">Menüyü aç/kapat</span><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M3 6h18M3 12h18M3 18h18\"/></svg></label><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a></div><div class=\"yerlesim\"><nav class=\"yan\"><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a><details class=\"grup\"><summary>Müşteriler</summary><a href=\"/\">Müşteri listesi</a><a href=\"/yeni\">Yeni müşteri</a><a href=\"/bekleyen\">Bekleyen cihazlar</a></details><details class=\"grup\" open><summary>Kayıtlar</summary><a href=\"/hareketler\" class=\"secili\" aria-current=\"page\">Hareketler</a><a href=\"/eski-arsivler\">Eski arşivler</a></details><details class=\"grup\"><summary>Ayarlar</summary><a href=\"/listeler\">Engel listeleri</a><a href=\"/sms\">SMS ayarları</a><a href=\"/uyari\">Uyarı ayarları</a><a href=\"/surumler\">Sürümler</a><a href=\"/hesabim\">Hesabım</a></details><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button class=\"ikincil\">Çıkış</button></form></nav><main class=\"genis\"><div class=\"kart\"><h1>Hareketler</h1><div class=\"kaydir\"><table class=\"detay\"><tr><th>Zaman</th><th>Kim</th><th>IP</th><th>Olay</th><th>Müşteri</th><th>Ayrıntı</th></tr><tr><td>21.09.2026 17:13:20</td><td>admin</td><td>203.0.113.5</td><td>DENEME</td><td>5721885</td><td>ayrıntı &lt;1&gt;</td></tr><tr><td>21.09.2026 17:13:20</td><td>admin</td><td>203.0.113.5</td><td>GIRIS</td><td></td><td>yönetim</td></tr></table></div></div></main></div></body></html>"
+   }
+  },
+  {
+   "istek": "GET /m/5721885/hareketler",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Hareketler · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><input type=\"checkbox\" id=\"menu-ac\" class=\"gizli\"><div class=\"ust-mobil\"><label for=\"menu-ac\" class=\"menu-dugme\" title=\"Menü\"><span class=\"gizli\">Menüyü aç/kapat</span><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M3 6h18M3 12h18M3 18h18\"/></svg></label><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a></div><div class=\"yerlesim\"><nav class=\"yan\"><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a><details class=\"grup\" open><summary>Müşteriler</summary><a href=\"/\" class=\"secili\" aria-current=\"page\">Müşteri listesi</a><a href=\"/yeni\">Yeni müşteri</a><a href=\"/bekleyen\">Bekleyen cihazlar</a></details><details class=\"grup\"><summary>Kayıtlar</summary><a href=\"/hareketler\">Hareketler</a><a href=\"/eski-arsivler\">Eski arşivler</a></details><details class=\"grup\"><summary>Ayarlar</summary><a href=\"/listeler\">Engel listeleri</a><a href=\"/sms\">SMS ayarları</a><a href=\"/uyari\">Uyarı ayarları</a><a href=\"/surumler\">Sürümler</a><a href=\"/hesabim\">Hesabım</a></details><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button class=\"ikincil\">Çıkış</button></form></nav><main class=\"genis\"><div class=\"kart\"><h1>Müşteri 5721885 · hareketler</h1><div class=\"kaydir\"><table class=\"detay\"><tr><th>Zaman</th><th>Kim</th><th>IP</th><th>Olay</th><th>Müşteri</th><th>Ayrıntı</th></tr><tr><td>21.09.2026 17:13:20</td><td>admin</td><td>203.0.113.5</td><td>DENEME</td><td>5721885</td><td>ayrıntı &lt;1&gt;</td></tr></table></div></div></main></div></body></html>"
+   }
+  },
+  {
+   "istek": "GET /m/5721885/kayitlar",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Müşteri 5721885 · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><input type=\"checkbox\" id=\"menu-ac\" class=\"gizli\"><div class=\"ust-mobil\"><label for=\"menu-ac\" class=\"menu-dugme\" title=\"Menü\"><span class=\"gizli\">Menüyü aç/kapat</span><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M3 6h18M3 12h18M3 18h18\"/></svg></label><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a></div><div class=\"yerlesim\"><nav class=\"yan\"><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a><details class=\"grup\" open><summary>Müşteriler</summary><a href=\"/\" class=\"secili\" aria-current=\"page\">Müşteri listesi</a><a href=\"/yeni\">Yeni müşteri</a><a href=\"/bekleyen\">Bekleyen cihazlar</a></details><details class=\"grup\"><summary>Kayıtlar</summary><a href=\"/hareketler\">Hareketler</a><a href=\"/eski-arsivler\">Eski arşivler</a></details><details class=\"grup\"><summary>Ayarlar</summary><a href=\"/listeler\">Engel listeleri</a><a href=\"/sms\">SMS ayarları</a><a href=\"/uyari\">Uyarı ayarları</a><a href=\"/surumler\">Sürümler</a><a href=\"/hesabim\">Hesabım</a></details><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button class=\"ikincil\">Çıkış</button></form></nav><main><div class=\"kart\"><h1>Müşteri 5721885</h1><p class=\"alt\">Son 30 gün · her gün internete çıkan farklı kişi sayısı</p></div><div class=\"kart\"><p class=\"alt\">Henüz veri yok. Cihazdan ilk gün geldiğinde burada görünecek.</p></div><div class=\"kart\"><h2>Kişi ara</h2><form class=\"ara\" method=\"post\" action=\"/m/5721885/kayitlar/ara\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><input name=\"q\" value=\"\" maxlength=\"50\" placeholder=\"Telefon, ad soyad, T.C. no, pasaport ya da oda\" aria-label=\"Kişi ara\" autocomplete=\"off\"><select name=\"tur\" aria-label=\"Arama türü\"><option value=\"kisi\" selected>Telefon, ad soyad, T.C. kimlik no ya da pasaport no</option><option value=\"oda\">Oda numarası</option></select><input class=\"uyruk\" name=\"uyruk\" value=\"\" maxlength=\"2\" placeholder=\"Uyruk\" aria-label=\"Pasaport uyruğu (isteğe bağlı, ör. DE)\" autocomplete=\"off\"><button>Ara</button></form></div></main></div></body></html>"
+   }
+  },
+  {
+   "istek": "GET /hesabim",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Hesabım · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><input type=\"checkbox\" id=\"menu-ac\" class=\"gizli\"><div class=\"ust-mobil\"><label for=\"menu-ac\" class=\"menu-dugme\" title=\"Menü\"><span class=\"gizli\">Menüyü aç/kapat</span><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M3 6h18M3 12h18M3 18h18\"/></svg></label><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a></div><div class=\"yerlesim\"><nav class=\"yan\"><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a><details class=\"grup\"><summary>Müşteriler</summary><a href=\"/\">Müşteri listesi</a><a href=\"/yeni\">Yeni müşteri</a><a href=\"/bekleyen\">Bekleyen cihazlar</a></details><details class=\"grup\"><summary>Kayıtlar</summary><a href=\"/hareketler\">Hareketler</a><a href=\"/eski-arsivler\">Eski arşivler</a></details><details class=\"grup\" open><summary>Ayarlar</summary><a href=\"/listeler\">Engel listeleri</a><a href=\"/sms\">SMS ayarları</a><a href=\"/uyari\">Uyarı ayarları</a><a href=\"/surumler\">Sürümler</a><a href=\"/hesabim\" class=\"secili\" aria-current=\"page\">Hesabım</a></details><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button class=\"ikincil\">Çıkış</button></form></nav><main><div class=\"kart\"><h1>Hesabım</h1><h2>Yönetici parolası</h2><p class=\"alt\">Bu yönetim sayfasına girişin parolası.</p><form method=\"post\" action=\"/hesabim\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><label for=\"m\">Mevcut parola</label><input id=\"m\" name=\"mevcut\" type=\"password\" required><label for=\"y\">Yeni parola (en az 12)</label><input id=\"y\" name=\"yeni\" type=\"password\" minlength=\"12\" required><label for=\"t\">Yeni parola (tekrar)</label><input id=\"t\" name=\"tekrar\" type=\"password\" minlength=\"12\" required><button>Değiştir</button></form></div><div class=\"kart\"><h2>Admin parolası (bütün cihazlar)</h2><p>Durum: <b>tanımsız (cihazlar kendi admin parolasını korur)</b></p><form method=\"post\" action=\"/admin-parolasi\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><label for=\"p1\">Yeni admin parolası (en az 10 karakter)</label><input id=\"p1\" name=\"parola\" type=\"password\" autocomplete=\"new-password\" required><label for=\"p2\">Parola (tekrar)</label><input id=\"p2\" name=\"parola2\" type=\"password\" autocomplete=\"new-password\" required><button>Kaydet</button></form><p class=\"alt\">Bütün cihazlarda <b>admin</b> kullanıcısı bu parolayla girer. Cihazlar bir sonraki eşitlemede (her gün 06:00) alır; siz değiştirmedikçe değişmez. Parola burada saklanmaz, yalnızca özeti tutulur — unutursanız yenisini belirleyin.</p></div></main></div></body></html>"
+   }
+  },
+  {
+   "istek": "POST /cikis",
+   "durum": 303,
+   "basliklar": [
+    [
+     "Location",
+     "/giris"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ],
+    [
+     "Set-Cookie",
+     "wc_yonetim=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0"
+    ]
+   ],
+   "govde": {
+    "metin": ""
+   }
+  },
+  {
+   "istek": "GET /",
+   "durum": 303,
+   "basliklar": [
+    [
+     "Location",
+     "/giris"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": ""
+   }
+  }
+ ],
+ "veritabanlari": [
+  {
+   "ad": "m.db",
+   "tablolar": {
+    "ayar": [],
+    "bekleyen": [],
+    "cihaz": [],
+    "eski_arsiv": [],
+    "hareket": [
+     {
+      "ayrinti": "yönetim",
+      "id": 1,
+      "ip": "203.0.113.5",
+      "kim": "admin",
+      "musteri": null,
+      "olay": "GIRIS",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     },
+     {
+      "ayrinti": "ayrıntı <1>",
+      "id": 2,
+      "ip": "203.0.113.5",
+      "kim": "admin",
+      "musteri": 5721885,
+      "olay": "DENEME",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     }
+    ],
+    "musteri": [
+     {
+      "ap_parola": "6vwWeTxWbXDf",
+      "askida": 0,
+      "bitis": "",
+      "guncelleme_hemen": 0.0,
+      "guncelleme_hemen_surum": "",
+      "guncelleme_kanali": "kararli",
+      "lisans_bitis": "2027-09-21",
+      "not_": "Bocafe",
+      "numara": 5721885,
+      "olusturma": "2026-09-21T17:13:20+03:00",
+      "ozet": "d90c15dec0075f237d3059fa700a720fed4ee39bb37176aca150648da3189d62",
+      "parola_acik": "6bnuKUG4dyZ7",
+      "son_giris": "",
+      "tuz": "<T3>",
+      "uyelik": "aktif",
+      "yineleme": 120000
+     }
+    ],
+    "saglik": [],
+    "sms_sayac": [],
+    "sms_son": [],
+    "sorun": [],
+    "sqlite_sequence": [
+     {
+      "name": "hareket",
+      "seq": 2
+     }
+    ],
+    "surum": []
+   }
+  }
+ ],
+ "yollar": [
+  [
+   "Yonetim",
+   "POST",
+   "/giris",
+   null,
+   303,
+   "/"
+  ],
+  [
+   "Yonetim",
+   "GET",
+   "/giris",
+   null,
+   200,
+   null
+  ],
+  [
+   "Yonetim",
+   "GET",
+   "/giris",
+   null,
+   303,
+   "/"
+  ],
+  [
+   "Yonetim",
+   "GET",
+   "/hareketler",
+   null,
+   200,
+   null
+  ],
+  [
+   "Yonetim",
+   "GET",
+   "/m/5721885/hareketler",
+   null,
+   200,
+   null
+  ],
+  [
+   "Yonetim",
+   "GET",
+   "/m/5721885/kayitlar",
+   null,
+   200,
+   null
+  ],
+  [
+   "Yonetim",
+   "GET",
+   "/hesabim",
+   null,
+   200,
+   null
+  ],
+  [
+   "Yonetim",
+   "POST",
+   "/cikis",
+   null,
+   303,
+   "/giris"
+  ],
+  [
+   "Yonetim",
+   "GET",
+   "/",
+   null,
+   303,
+   "/giris"
+  ]
+ ]
+}

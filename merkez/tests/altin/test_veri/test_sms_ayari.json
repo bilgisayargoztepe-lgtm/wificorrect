@@ -1,0 +1,31 @@
+{
+ "bicim": 1,
+ "dosya": "test_veri",
+ "test": "test_sms_ayari",
+ "cevaplar": [],
+ "veritabanlari": [
+  {
+   "ad": "m.db",
+   "tablolar": {
+    "ayar": [
+     {
+      "anahtar": "sms",
+      "deger": "{\"mock\": true, \"usercode\": \"\", \"password\": \"\", \"msgheader\": \"\", \"appkey\": \"\"}"
+     }
+    ],
+    "bekleyen": [],
+    "cihaz": [],
+    "eski_arsiv": [],
+    "hareket": [],
+    "musteri": [],
+    "saglik": [],
+    "sms_sayac": [],
+    "sms_son": [],
+    "sorun": [],
+    "sqlite_sequence": [],
+    "surum": []
+   }
+  }
+ ],
+ "yollar": []
+}

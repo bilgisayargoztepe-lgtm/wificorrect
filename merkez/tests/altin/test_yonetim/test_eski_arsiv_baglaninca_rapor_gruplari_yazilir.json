@@ -1,0 +1,189 @@
+{
+ "bicim": 1,
+ "dosya": "test_yonetim",
+ "test": "test_eski_arsiv_baglaninca_rapor_gruplari_yazilir",
+ "cevaplar": [
+  {
+   "istek": "POST /giris",
+   "durum": 303,
+   "basliklar": [
+    [
+     "Location",
+     "/"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ],
+    [
+     "Set-Cookie",
+     "wc_yonetim=<T1>; HttpOnly; Secure; SameSite=Strict; Path=/"
+    ]
+   ],
+   "govde": {
+    "metin": ""
+   }
+  },
+  {
+   "istek": "GET /eski-arsivler",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Eski arşivler · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><input type=\"checkbox\" id=\"menu-ac\" class=\"gizli\"><div class=\"ust-mobil\"><label for=\"menu-ac\" class=\"menu-dugme\" title=\"Menü\"><span class=\"gizli\">Menüyü aç/kapat</span><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M3 6h18M3 12h18M3 18h18\"/></svg></label><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a></div><div class=\"yerlesim\"><nav class=\"yan\"><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a><details class=\"grup\"><summary>Müşteriler</summary><a href=\"/\">Müşteri listesi</a><a href=\"/yeni\">Yeni müşteri</a><a href=\"/bekleyen\">Bekleyen cihazlar</a></details><details class=\"grup\" open><summary>Kayıtlar</summary><a href=\"/hareketler\">Hareketler</a><a href=\"/eski-arsivler\" class=\"secili\" aria-current=\"page\">Eski arşivler</a></details><details class=\"grup\"><summary>Ayarlar</summary><a href=\"/listeler\">Engel listeleri</a><a href=\"/sms\">SMS ayarları</a><a href=\"/uyari\">Uyarı ayarları</a><a href=\"/surumler\">Sürümler</a><a href=\"/hesabim\">Hesabım</a></details><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button class=\"ikincil\">Çıkış</button></form></nav><main class=\"genis\"><div class=\"kart\"><h1>Eski arşivler</h1><p class=\"alt\">OpenWrt dönemi ve elle eklenmiş arşivler. Bir müşteriye bağlanırsa müşteri kayıtlarında görünür.</p><div class=\"kaydir\"><table class=\"detay\"><tr><th>Arşiv</th><th>Tür</th><th>Son gün</th><th>Bağlı müşteri</th></tr><tr><td>bocafe</td><td>eski</td><td>20.09.2026</td><td><form method=\"post\" action=\"/eski-arsivler\" class=\"ara\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><input type=\"hidden\" name=\"ad\" value=\"bocafe\"><input name=\"musteri\" value=\"\" placeholder=\"müşteri no (boş = bağsız)\" inputmode=\"numeric\"><button>Kaydet</button></form></td></tr></table></div></div></main></div></body></html>"
+   }
+  },
+  {
+   "istek": "POST /eski-arsivler",
+   "durum": 303,
+   "basliklar": [
+    [
+     "Location",
+     "/eski-arsivler"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": ""
+   }
+  },
+  {
+   "istek": "POST /eski-arsivler",
+   "durum": 303,
+   "basliklar": [
+    [
+     "Location",
+     "/eski-arsivler"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": ""
+   }
+  }
+ ],
+ "veritabanlari": [
+  {
+   "ad": "m.db",
+   "tablolar": {
+    "ayar": [],
+    "bekleyen": [],
+    "cihaz": [],
+    "eski_arsiv": [
+     {
+      "ad": "bocafe",
+      "musteri": null
+     }
+    ],
+    "hareket": [
+     {
+      "ayrinti": "yönetim",
+      "id": 1,
+      "ip": "203.0.113.5",
+      "kim": "admin",
+      "musteri": null,
+      "olay": "GIRIS",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     },
+     {
+      "ayrinti": "arsiv=bocafe",
+      "id": 2,
+      "ip": "203.0.113.5",
+      "kim": "admin",
+      "musteri": 5721885,
+      "olay": "ESKI_ARSIV_BAGLANDI",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     },
+     {
+      "ayrinti": "arsiv=bocafe",
+      "id": 3,
+      "ip": "203.0.113.5",
+      "kim": "admin",
+      "musteri": null,
+      "olay": "ESKI_ARSIV_BAGLANDI",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     }
+    ],
+    "musteri": [
+     {
+      "ap_parola": "6vwWeTxWbXDf",
+      "askida": 0,
+      "bitis": "",
+      "guncelleme_hemen": 0.0,
+      "guncelleme_hemen_surum": "",
+      "guncelleme_kanali": "kararli",
+      "lisans_bitis": "2027-09-21",
+      "not_": "",
+      "numara": 5721885,
+      "olusturma": "2026-09-21T17:13:20+03:00",
+      "ozet": "d90c15dec0075f237d3059fa700a720fed4ee39bb37176aca150648da3189d62",
+      "parola_acik": "6bnuKUG4dyZ7",
+      "son_giris": "",
+      "tuz": "<T3>",
+      "uyelik": "aktif",
+      "yineleme": 120000
+     }
+    ],
+    "saglik": [],
+    "sms_sayac": [],
+    "sms_son": [],
+    "sorun": [],
+    "sqlite_sequence": [
+     {
+      "name": "hareket",
+      "seq": 3
+     }
+    ],
+    "surum": []
+   }
+  }
+ ],
+ "yollar": [
+  [
+   "Yonetim",
+   "POST",
+   "/giris",
+   null,
+   303,
+   "/"
+  ],
+  [
+   "Yonetim",
+   "GET",
+   "/eski-arsivler",
+   null,
+   200,
+   null
+  ],
+  [
+   "Yonetim",
+   "POST",
+   "/eski-arsivler",
+   null,
+   303,
+   "/eski-arsivler"
+  ],
+  [
+   "Yonetim",
+   "POST",
+   "/eski-arsivler",
+   null,
+   303,
+   "/eski-arsivler"
+  ]
+ ]
+}

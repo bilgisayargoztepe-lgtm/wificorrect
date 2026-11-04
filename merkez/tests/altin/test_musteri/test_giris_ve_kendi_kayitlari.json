@@ -1,0 +1,236 @@
+{
+ "bicim": 1,
+ "dosya": "test_musteri",
+ "test": "test_giris_ve_kendi_kayitlari",
+ "cevaplar": [
+  {
+   "istek": "POST /giris",
+   "durum": 401,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Giriş · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><header><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_ACIK}</a></header><main><div class=\"kart\"><h1>Müşteri girişi</h1><p class=\"alt\">Size verilen müşteri numarası ve parolayla girin.</p><form method=\"post\" action=\"/giris\"><label for=\"k\">Müşteri numarası</label><input id=\"k\" name=\"kullanici\" autocomplete=\"username\" autocapitalize=\"none\" spellcheck=\"false\" required><label for=\"s\">Parola</label><input id=\"s\" name=\"sifre\" type=\"password\" autocomplete=\"current-password\" required><p class=\"hata\">Müşteri numarası veya parola hatalı.</p><button>Giriş yap</button></form></div></main></body></html>"
+   }
+  },
+  {
+   "istek": "POST /giris",
+   "durum": 401,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Giriş · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><header><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_ACIK}</a></header><main><div class=\"kart\"><h1>Müşteri girişi</h1><p class=\"alt\">Size verilen müşteri numarası ve parolayla girin.</p><form method=\"post\" action=\"/giris\"><label for=\"k\">Müşteri numarası</label><input id=\"k\" name=\"kullanici\" autocomplete=\"username\" autocapitalize=\"none\" spellcheck=\"false\" required><label for=\"s\">Parola</label><input id=\"s\" name=\"sifre\" type=\"password\" autocomplete=\"current-password\" required><p class=\"hata\">Müşteri numarası veya parola hatalı.</p><button>Giriş yap</button></form></div></main></body></html>"
+   }
+  },
+  {
+   "istek": "POST /giris",
+   "durum": 303,
+   "basliklar": [
+    [
+     "Location",
+     "/baglan"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ],
+    [
+     "Set-Cookie",
+     "wc_musteri=<T1>; HttpOnly; Secure; SameSite=Strict; Path=/"
+    ]
+   ],
+   "govde": {
+    "metin": ""
+   }
+  },
+  {
+   "istek": "GET /",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Müşteri 5721885 · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><header><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_ACIK}</a><nav><a href=\"/cihaz\">Cihaz paneli</a><a href=\"/\">Yedek arşiv</a><a href=\"/raporlar\">Raporlar</a><a href=\"/parola\">Parola</a><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button class=\"ikincil\">Çıkış</button></form></nav></header><main><div class=\"kart\"><h1>Müşteri 5721885</h1><p class=\"alt\">Son 30 gün · her gün internete çıkan farklı kişi sayısı</p></div><div class=\"kart\"><table><tr><td>20.09.2026</td><td>Paz</td><td class=\"cubuk\"><span style=\"width:100%\"></span></td><td class=\"n\">14</td></tr><tr><td>19.09.2026</td><td>Cmt</td><td class=\"cubuk\"></td><td class=\"n bos\">—</td></tr><tr><td>18.09.2026</td><td>Cum</td><td class=\"cubuk\"></td><td class=\"n bos\">—</td></tr><tr><td>17.09.2026</td><td>Per</td><td class=\"cubuk\"></td><td class=\"n bos\">—</td></tr><tr><td>16.09.2026</td><td>Çar</td><td class=\"cubuk\"></td><td class=\"n bos\">—</td></tr><tr><td>15.09.2026</td><td>Sal</td><td class=\"cubuk\"></td><td class=\"n bos\">—</td></tr><tr><td>14.09.2026</td><td>Pzt</td><td class=\"cubuk\"></td><td class=\"n bos\">—</td></tr><tr><td>13.09.2026</td><td>Paz</td><td class=\"cubuk\"></td><td class=\"n bos\">—</td></tr><tr><td>12.09.2026</td><td>Cmt</td><td class=\"cubuk\"></td><td class=\"n bos\">—</td></tr><tr><td>11.09.2026</td><td>Cum</td><td class=\"cubuk\"></td><td class=\"n bos\">—</td></tr><tr><td>10.09.2026</td><td>Per</td><td class=\"cubuk\"></td><td class=\"n bos\">—</td></tr><tr><td>09.09.2026</td><td>Çar</td><td class=\"cubuk\"></td><td class=\"n bos\">—</td></tr><tr><td>08.09.2026</td><td>Sal</td><td class=\"cubuk\"></td><td class=\"n bos\">—</td></tr><tr><td>07.09.2026</td><td>Pzt</td><td class=\"cubuk\"></td><td class=\"n bos\">—</td></tr><tr><td>06.09.2026</td><td>Paz</td><td class=\"cubuk\"></td><td class=\"n bos\">—</td></tr><tr><td>05.09.2026</td><td>Cmt</td><td class=\"cubuk\"></td><td class=\"n bos\">—</td></tr><tr><td>04.09.2026</td><td>Cum</td><td class=\"cubuk\"></td><td class=\"n bos\">—</td></tr><tr><td>03.09.2026</td><td>Per</td><td class=\"cubuk\"></td><td class=\"n bos\">—</td></tr><tr><td>02.09.2026</td><td>Çar</td><td class=\"cubuk\"></td><td class=\"n bos\">—</td></tr><tr><td>01.09.2026</td><td>Sal</td><td class=\"cubuk\"></td><td class=\"n bos\">—</td></tr><tr><td>31.08.2026</td><td>Pzt</td><td class=\"cubuk\"></td><td class=\"n bos\">—</td></tr><tr><td>30.08.2026</td><td>Paz</td><td class=\"cubuk\"></td><td class=\"n bos\">—</td></tr><tr><td>29.08.2026</td><td>Cmt</td><td class=\"cubuk\"></td><td class=\"n bos\">—</td></tr><tr><td>28.08.2026</td><td>Cum</td><td class=\"cubuk\"></td><td class=\"n bos\">—</td></tr><tr><td>27.08.2026</td><td>Per</td><td class=\"cubuk\"></td><td class=\"n bos\">—</td></tr><tr><td>26.08.2026</td><td>Çar</td><td class=\"cubuk\"></td><td class=\"n bos\">—</td></tr><tr><td>25.08.2026</td><td>Sal</td><td class=\"cubuk\"></td><td class=\"n bos\">—</td></tr><tr><td>24.08.2026</td><td>Pzt</td><td class=\"cubuk\"></td><td class=\"n bos\">—</td></tr><tr><td>23.08.2026</td><td>Paz</td><td class=\"cubuk\"></td><td class=\"n bos\">—</td></tr><tr><td>22.08.2026</td><td>Cmt</td><td class=\"cubuk\"></td><td class=\"n bos\">—</td></tr></table><p class=\"alt\">Son güncelleme: 21.09.2026 17:13</p></div><div class=\"kart\"><h2>Kişi ara</h2><form class=\"ara\" method=\"post\" action=\"/ara\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><input name=\"q\" value=\"\" maxlength=\"50\" placeholder=\"Telefon, ad soyad, T.C. no, pasaport ya da oda\" aria-label=\"Kişi ara\" autocomplete=\"off\"><select name=\"tur\" aria-label=\"Arama türü\"><option value=\"kisi\" selected>Telefon, ad soyad, T.C. kimlik no ya da pasaport no</option><option value=\"oda\">Oda numarası</option></select><input class=\"uyruk\" name=\"uyruk\" value=\"\" maxlength=\"2\" placeholder=\"Uyruk\" aria-label=\"Pasaport uyruğu (isteğe bağlı, ör. DE)\" autocomplete=\"off\"><button>Ara</button></form></div></main></body></html>"
+   }
+  },
+  {
+   "istek": "GET /",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Bocafe Göztepe · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><header><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_ACIK}</a><nav><a href=\"/cihaz\">Cihaz paneli</a><a href=\"/\">Yedek arşiv</a><a href=\"/raporlar\">Raporlar</a><a href=\"/parola\">Parola</a><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button class=\"ikincil\">Çıkış</button></form></nav></header><main><div class=\"kart\"><h1>Bocafe Göztepe</h1><p class=\"alt\">Son 30 gün · her gün internete çıkan farklı kişi sayısı</p></div><div class=\"kart\"><table><tr><td>20.09.2026</td><td>Paz</td><td class=\"cubuk\"><span style=\"width:100%\"></span></td><td class=\"n\">14</td></tr><tr><td>19.09.2026</td><td>Cmt</td><td class=\"cubuk\"></td><td class=\"n bos\">—</td></tr><tr><td>18.09.2026</td><td>Cum</td><td class=\"cubuk\"></td><td class=\"n bos\">—</td></tr><tr><td>17.09.2026</td><td>Per</td><td class=\"cubuk\"></td><td class=\"n bos\">—</td></tr><tr><td>16.09.2026</td><td>Çar</td><td class=\"cubuk\"></td><td class=\"n bos\">—</td></tr><tr><td>15.09.2026</td><td>Sal</td><td class=\"cubuk\"></td><td class=\"n bos\">—</td></tr><tr><td>14.09.2026</td><td>Pzt</td><td class=\"cubuk\"></td><td class=\"n bos\">—</td></tr><tr><td>13.09.2026</td><td>Paz</td><td class=\"cubuk\"></td><td class=\"n bos\">—</td></tr><tr><td>12.09.2026</td><td>Cmt</td><td class=\"cubuk\"></td><td class=\"n bos\">—</td></tr><tr><td>11.09.2026</td><td>Cum</td><td class=\"cubuk\"></td><td class=\"n bos\">—</td></tr><tr><td>10.09.2026</td><td>Per</td><td class=\"cubuk\"></td><td class=\"n bos\">—</td></tr><tr><td>09.09.2026</td><td>Çar</td><td class=\"cubuk\"></td><td class=\"n bos\">—</td></tr><tr><td>08.09.2026</td><td>Sal</td><td class=\"cubuk\"></td><td class=\"n bos\">—</td></tr><tr><td>07.09.2026</td><td>Pzt</td><td class=\"cubuk\"></td><td class=\"n bos\">—</td></tr><tr><td>06.09.2026</td><td>Paz</td><td class=\"cubuk\"></td><td class=\"n bos\">—</td></tr><tr><td>05.09.2026</td><td>Cmt</td><td class=\"cubuk\"></td><td class=\"n bos\">—</td></tr><tr><td>04.09.2026</td><td>Cum</td><td class=\"cubuk\"></td><td class=\"n bos\">—</td></tr><tr><td>03.09.2026</td><td>Per</td><td class=\"cubuk\"></td><td class=\"n bos\">—</td></tr><tr><td>02.09.2026</td><td>Çar</td><td class=\"cubuk\"></td><td class=\"n bos\">—</td></tr><tr><td>01.09.2026</td><td>Sal</td><td class=\"cubuk\"></td><td class=\"n bos\">—</td></tr><tr><td>31.08.2026</td><td>Pzt</td><td class=\"cubuk\"></td><td class=\"n bos\">—</td></tr><tr><td>30.08.2026</td><td>Paz</td><td class=\"cubuk\"></td><td class=\"n bos\">—</td></tr><tr><td>29.08.2026</td><td>Cmt</td><td class=\"cubuk\"></td><td class=\"n bos\">—</td></tr><tr><td>28.08.2026</td><td>Cum</td><td class=\"cubuk\"></td><td class=\"n bos\">—</td></tr><tr><td>27.08.2026</td><td>Per</td><td class=\"cubuk\"></td><td class=\"n bos\">—</td></tr><tr><td>26.08.2026</td><td>Çar</td><td class=\"cubuk\"></td><td class=\"n bos\">—</td></tr><tr><td>25.08.2026</td><td>Sal</td><td class=\"cubuk\"></td><td class=\"n bos\">—</td></tr><tr><td>24.08.2026</td><td>Pzt</td><td class=\"cubuk\"></td><td class=\"n bos\">—</td></tr><tr><td>23.08.2026</td><td>Paz</td><td class=\"cubuk\"></td><td class=\"n bos\">—</td></tr><tr><td>22.08.2026</td><td>Cmt</td><td class=\"cubuk\"></td><td class=\"n bos\">—</td></tr></table><p class=\"alt\">Son güncelleme: 21.09.2026 17:13</p></div><div class=\"kart\"><h2>Kişi ara</h2><form class=\"ara\" method=\"post\" action=\"/ara\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><input name=\"q\" value=\"\" maxlength=\"50\" placeholder=\"Telefon, ad soyad, T.C. no, pasaport ya da oda\" aria-label=\"Kişi ara\" autocomplete=\"off\"><select name=\"tur\" aria-label=\"Arama türü\"><option value=\"kisi\" selected>Telefon, ad soyad, T.C. kimlik no ya da pasaport no</option><option value=\"oda\">Oda numarası</option></select><input class=\"uyruk\" name=\"uyruk\" value=\"\" maxlength=\"2\" placeholder=\"Uyruk\" aria-label=\"Pasaport uyruğu (isteğe bağlı, ör. DE)\" autocomplete=\"off\"><button>Ara</button></form></div></main></body></html>"
+   }
+  }
+ ],
+ "veritabanlari": [
+  {
+   "ad": "m.db",
+   "tablolar": {
+    "ayar": [],
+    "bekleyen": [],
+    "cihaz": [
+     {
+      "admin_ozet": "",
+      "admin_parola": "",
+      "admin_tuz": "",
+      "admin_yineleme": 0,
+      "adres": "",
+      "anahtar_ozet": "ad124cf6935977307edf5d0b60ed37358cf3af60c617edc493dd8de0558d0829",
+      "ayrilma": "",
+      "baglanma": "2026-09-21T17:13:20+03:00",
+      "durum": "bagli",
+      "id": 1,
+      "isletme_adi": "Bocafe Göztepe",
+      "isletme_turu": "",
+      "musteri": 5721885,
+      "otomatik": 0,
+      "son_eslesme": "",
+      "ssh_pub": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI c",
+      "surum": "",
+      "tunel_ip": "",
+      "unvan": "",
+      "wg_pub": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+     }
+    ],
+    "eski_arsiv": [],
+    "hareket": [
+     {
+      "ayrinti": "müşteri paneli",
+      "id": 1,
+      "ip": "203.0.113.5",
+      "kim": "5721885",
+      "musteri": 5721885,
+      "olay": "GIRIS",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     }
+    ],
+    "musteri": [
+     {
+      "ap_parola": "6vwWeTxWbXDf",
+      "askida": 0,
+      "bitis": "",
+      "guncelleme_hemen": 0.0,
+      "guncelleme_hemen_surum": "",
+      "guncelleme_kanali": "kararli",
+      "lisans_bitis": "2027-09-21",
+      "not_": "",
+      "numara": 5721885,
+      "olusturma": "2026-09-21T17:13:20+03:00",
+      "ozet": "fcd77d2f1464acefd0bf9649c59c9103b30bf9b4aa14a1930fdbc86ae817e02c",
+      "parola_acik": "6bnuKUG4dyZ7",
+      "son_giris": "2026-09-21T17:13:20+03:00",
+      "tuz": "<T3>",
+      "uyelik": "aktif",
+      "yineleme": 120000
+     },
+     {
+      "ap_parola": "eJAHEtbPVMuP",
+      "askida": 0,
+      "bitis": "",
+      "guncelleme_hemen": 0.0,
+      "guncelleme_hemen_surum": "",
+      "guncelleme_kanali": "kararli",
+      "lisans_bitis": "2027-09-21",
+      "not_": "",
+      "numara": 8592499,
+      "olusturma": "2026-09-21T17:13:20+03:00",
+      "ozet": "2699afc514475a0f0b09a91b38801e6642f4571a405c74c9573c89f6a09058e6",
+      "parola_acik": "HrMvjRVphQyd",
+      "son_giris": "",
+      "tuz": "<T4>",
+      "uyelik": "aktif",
+      "yineleme": 120000
+     }
+    ],
+    "saglik": [],
+    "sms_sayac": [],
+    "sms_son": [],
+    "sorun": [],
+    "sqlite_sequence": [
+     {
+      "name": "hareket",
+      "seq": 1
+     },
+     {
+      "name": "cihaz",
+      "seq": 1
+     }
+    ],
+    "surum": []
+   }
+  }
+ ],
+ "yollar": [
+  [
+   "Musteri",
+   "POST",
+   "/giris",
+   null,
+   401,
+   null
+  ],
+  [
+   "Musteri",
+   "POST",
+   "/giris",
+   null,
+   401,
+   null
+  ],
+  [
+   "Musteri",
+   "POST",
+   "/giris",
+   null,
+   303,
+   "/baglan"
+  ],
+  [
+   "Musteri",
+   "GET",
+   "/",
+   null,
+   200,
+   null
+  ],
+  [
+   "Musteri",
+   "GET",
+   "/",
+   null,
+   200,
+   null
+  ]
+ ]
+}

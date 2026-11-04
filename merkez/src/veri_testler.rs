@@ -6,6 +6,7 @@ use std::sync::Arc;
 use serde_json::{json, Value};
 
 use super::*;
+use crate::altin::Kayit;
 use crate::guvenlik;
 use crate::ortak::tests::gecici_dizin;
 
@@ -36,6 +37,7 @@ fn gocmus_kopya() -> PathBuf {
 
 #[test]
 fn musteri_numara_sirasi_ve_parola() {
+    let _k = Kayit::bas("test_veri", "test_musteri_numara_sirasi_ve_parola");
     let (v, _d) = yeni();
     let (n1, p1) = v.musteri_ekle("Bocafe, Göztepe", None).unwrap();
     let mut numaralar = vec![n1];
@@ -60,6 +62,7 @@ fn musteri_numara_sirasi_ve_parola() {
 
 #[test]
 fn cihaz_bagla_tek_cihaz_ve_yeniden_deneme() {
+    let _k = Kayit::bas("test_veri", "test_cihaz_bagla_tek_cihaz_ve_yeniden_deneme");
     let (v, _d) = yeni();
     let (n, _) = v.musteri_ekle("", None).unwrap();
     let (cid, a1) = v.cihaz_bagla(n, WG1, SSH, "Bocafe", "Bocafe Ltd.", "1.0").unwrap();
@@ -73,6 +76,7 @@ fn cihaz_bagla_tek_cihaz_ve_yeniden_deneme() {
 
 #[test]
 fn serbest_birakma_akisi() {
+    let _k = Kayit::bas("test_veri", "test_serbest_birakma_akisi");
     let (v, _d) = yeni();
     let (n, _) = v.musteri_ekle("", None).unwrap();
     let (cid, a) = v.cihaz_bagla(n, WG1, SSH, "", "", "").unwrap();
@@ -86,7 +90,12 @@ fn serbest_birakma_akisi() {
     let durumlar: Vec<String> = v.cihaz_gecmisi(n).unwrap().into_iter().map(|c| c.durum).collect();
     assert_eq!(durumlar, ["serbest", "serbest"]);
     assert!(v.serbest_birak(n, false).unwrap().is_none());
+}
+
+#[test]
+fn serbest_iptal_bagliya_doner() {
     // iptal: serbest_birakiliyor → bagli
+    let (v, _d) = yeni();
     let (m, _) = v.musteri_ekle("", None).unwrap();
     v.cihaz_bagla(m, "C".repeat(43).as_str(), SSH, "", "", "").unwrap();
     v.serbest_birak(m, false).unwrap();
@@ -96,6 +105,7 @@ fn serbest_birakma_akisi() {
 
 #[test]
 fn uyelik_hareket_eski_arsiv() {
+    let _k = Kayit::bas("test_veri", "test_uyelik_hareket_eski_arsiv");
     let (v, _d) = yeni();
     let (n, _) = v.musteri_ekle("", None).unwrap();
     v.uyelik(n, "bitti").unwrap();
@@ -116,12 +126,20 @@ fn uyelik_hareket_eski_arsiv() {
     v.eski_arsiv_bagla("bocafe-test", None).unwrap();
     assert_eq!(v.eski_arsivler().unwrap(), [("bocafe".to_string(), Some(n)), ("bocafe-test".to_string(), None)]);
     assert_eq!(v.arsivler(n).unwrap(), [n.to_string(), "bocafe".to_string()]);
+}
+
+#[test]
+fn eski_arsiv_bagi_degisir() {
+    let (v, _d) = yeni();
+    let (n, _) = v.musteri_ekle("", None).unwrap();
+    v.eski_arsiv_bagla("bocafe", Some(n)).unwrap();
     v.eski_arsiv_bagla("bocafe", None).unwrap(); // ON CONFLICT: bağ değişir
     assert_eq!(v.arsivler(n).unwrap(), [n.to_string()]);
 }
 
 #[test]
 fn rapor_gruplari_yaz() {
+    let _k = Kayit::bas("test_veri", "test_rapor_gruplari_yaz");
     let (v, d) = yeni();
     let (n1, _) = v.musteri_ekle("", None).unwrap();
     let (n2, _) = v.musteri_ekle("", None).unwrap();
@@ -144,6 +162,7 @@ fn rapor_gruplari_yaz() {
 
 #[test]
 fn kalici() {
+    let _k = Kayit::bas("test_veri", "test_kalici");
     let d = gecici_dizin();
     let yol = d.join("m.db");
     let (n, p) = {
@@ -155,6 +174,7 @@ fn kalici() {
 
 #[test]
 fn parola_acik_ve_lisans() {
+    let _k = Kayit::bas("test_veri", "test_parola_acik_ve_lisans");
     let (v, _d) = yeni(); // saat: 2026-09-21
     let (n, p) = v.musteri_ekle("", None).unwrap();
     let m = v.musteri(n).unwrap().unwrap();
@@ -178,6 +198,7 @@ fn parola_acik_ve_lisans() {
 
 #[test]
 fn ap_yonetim_parolasi() {
+    let _k = Kayit::bas("test_veri", "test_ap_yonetim_parolasi");
     let (v, _d) = yeni();
     let (n, pw) = v.musteri_ekle("", Some("musteri-parola-1")).unwrap();
     let ap = v.musteri(n).unwrap().unwrap().ap_parola;
@@ -193,6 +214,7 @@ fn ap_yonetim_parolasi() {
 
 #[test]
 fn silinen_veri_sayfalarda_kalmaz() {
+    let _k = Kayit::bas("test_veri", "test_silinen_veri_sayfalarda_kalmaz");
     let (v, _d) = yeni();
     let c = v.kilit();
     let (sd, fk): (i64, i64) = (
@@ -204,6 +226,7 @@ fn silinen_veri_sayfalarda_kalmaz() {
 
 #[test]
 fn tek_admin_parolasi_ve_belirlenen_musteri_parolasi() {
+    let _k = Kayit::bas("test_veri", "test_tek_admin_parolasi_ve_belirlenen_musteri_parolasi");
     let (v, _d) = yeni();
     assert!(v.admin_parolasi().unwrap().is_none());
     for kotu in ["kisa", ""] {
@@ -226,6 +249,7 @@ fn tek_admin_parolasi_ve_belirlenen_musteri_parolasi() {
 
 #[test]
 fn sms_ayari() {
+    let _k = Kayit::bas("test_veri", "test_sms_ayari");
     let (v, _d) = yeni();
     assert!(v.sms_ayari().unwrap().is_none());
     let h = v.sms_ayari_koy(&json!({"mock": false, "usercode": "850", "password": "", "msgheader": "BASLIK", "appkey": ""}));

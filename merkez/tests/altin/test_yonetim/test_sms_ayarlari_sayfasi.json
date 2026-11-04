@@ -1,0 +1,245 @@
+{
+ "bicim": 1,
+ "dosya": "test_yonetim",
+ "test": "test_sms_ayarlari_sayfasi",
+ "cevaplar": [
+  {
+   "istek": "POST /giris",
+   "durum": 303,
+   "basliklar": [
+    [
+     "Location",
+     "/"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ],
+    [
+     "Set-Cookie",
+     "wc_yonetim=<T1>; HttpOnly; Secure; SameSite=Strict; Path=/"
+    ]
+   ],
+   "govde": {
+    "metin": ""
+   }
+  },
+  {
+   "istek": "GET /sms",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>SMS ayarları · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><input type=\"checkbox\" id=\"menu-ac\" class=\"gizli\"><div class=\"ust-mobil\"><label for=\"menu-ac\" class=\"menu-dugme\" title=\"Menü\"><span class=\"gizli\">Menüyü aç/kapat</span><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M3 6h18M3 12h18M3 18h18\"/></svg></label><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a></div><div class=\"yerlesim\"><nav class=\"yan\"><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a><details class=\"grup\"><summary>Müşteriler</summary><a href=\"/\">Müşteri listesi</a><a href=\"/yeni\">Yeni müşteri</a><a href=\"/bekleyen\">Bekleyen cihazlar</a></details><details class=\"grup\"><summary>Kayıtlar</summary><a href=\"/hareketler\">Hareketler</a><a href=\"/eski-arsivler\">Eski arşivler</a></details><details class=\"grup\" open><summary>Ayarlar</summary><a href=\"/listeler\">Engel listeleri</a><a href=\"/sms\" class=\"secili\" aria-current=\"page\">SMS ayarları</a><a href=\"/uyari\">Uyarı ayarları</a><a href=\"/surumler\">Sürümler</a><a href=\"/hesabim\">Hesabım</a></details><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button class=\"ikincil\">Çıkış</button></form></nav><main><div class=\"kart\"><h1>SMS ayarları</h1><form method=\"post\" action=\"/sms\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><label><input type=\"checkbox\" name=\"mock\" value=\"1\" checked> Deneme modu (SMS gönderilmez)</label><label for=\"tr\">Türk numaraları için sağlayıcı</label><select id=\"tr\" name=\"tr_saglayici\"><option value=\"netgsm\" selected>NetGSM</option><option value=\"twilio\">Twilio</option></select><h2>NetGSM</h2><label for=\"u\">NetGSM kullanıcı kodu</label><input id=\"u\" name=\"usercode\" value=\"\" autocomplete=\"off\"><label for=\"p\">API şifresi (tanımsız)</label><input id=\"p\" name=\"password\" type=\"password\" autocomplete=\"new-password\" placeholder=\"değiştirmek için yazın (boş = aynı kalır)\"><label for=\"b\">Mesaj başlığı</label><input id=\"b\" name=\"msgheader\" value=\"\" maxlength=\"11\"><label for=\"a\">Uygulama anahtarı (opsiyonel)</label><input id=\"a\" name=\"appkey\" value=\"\"><h2>Twilio Verify</h2><label><input type=\"checkbox\" name=\"twilio_acik\" value=\"1\"> Twilio açık (yabancı numaralar Twilio'dan gider)</label><label for=\"ta\">Account SID</label><input id=\"ta\" name=\"account_sid\" value=\"\" autocomplete=\"off\"><label for=\"tt\">Auth token (tanımsız)</label><input id=\"tt\" name=\"auth_token\" type=\"password\" autocomplete=\"new-password\" placeholder=\"değiştirmek için yazın (boş = aynı kalır)\"><label for=\"tk\">API key SID (opsiyonel)</label><input id=\"tk\" name=\"api_key_sid\" value=\"\" autocomplete=\"off\"><label for=\"ts\">API key secret (tanımsız)</label><input id=\"ts\" name=\"api_key_secret\" type=\"password\" autocomplete=\"new-password\" placeholder=\"değiştirmek için yazın (boş = aynı kalır)\"><label for=\"tv\">Verify service SID</label><input id=\"tv\" name=\"verify_sid\" value=\"\" autocomplete=\"off\"><button>Kaydet</button></form><p class=\"alt\">Doğrulama SMS'leri cihazların isteğiyle bu sunucudan gönderilir (değişiklik hemen geçerli). NetGSM bilgileri eski sürümlü cihazlara bir sonraki eşitlemede (her gün 06:00) de gider; Twilio bilgileri hiçbir cihaza gitmez.</p></div></main></div></body></html>"
+   }
+  },
+  {
+   "istek": "GET /sms",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>SMS ayarları · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><input type=\"checkbox\" id=\"menu-ac\" class=\"gizli\"><div class=\"ust-mobil\"><label for=\"menu-ac\" class=\"menu-dugme\" title=\"Menü\"><span class=\"gizli\">Menüyü aç/kapat</span><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M3 6h18M3 12h18M3 18h18\"/></svg></label><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a></div><div class=\"yerlesim\"><nav class=\"yan\"><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a><details class=\"grup\"><summary>Müşteriler</summary><a href=\"/\">Müşteri listesi</a><a href=\"/yeni\">Yeni müşteri</a><a href=\"/bekleyen\">Bekleyen cihazlar</a></details><details class=\"grup\"><summary>Kayıtlar</summary><a href=\"/hareketler\">Hareketler</a><a href=\"/eski-arsivler\">Eski arşivler</a></details><details class=\"grup\" open><summary>Ayarlar</summary><a href=\"/listeler\">Engel listeleri</a><a href=\"/sms\" class=\"secili\" aria-current=\"page\">SMS ayarları</a><a href=\"/uyari\">Uyarı ayarları</a><a href=\"/surumler\">Sürümler</a><a href=\"/hesabim\">Hesabım</a></details><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button class=\"ikincil\">Çıkış</button></form></nav><main><div class=\"kart\"><h1>SMS ayarları</h1><form method=\"post\" action=\"/sms\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><label><input type=\"checkbox\" name=\"mock\" value=\"1\" checked> Deneme modu (SMS gönderilmez)</label><label for=\"tr\">Türk numaraları için sağlayıcı</label><select id=\"tr\" name=\"tr_saglayici\"><option value=\"netgsm\" selected>NetGSM</option><option value=\"twilio\">Twilio</option></select><h2>NetGSM</h2><label for=\"u\">NetGSM kullanıcı kodu</label><input id=\"u\" name=\"usercode\" value=\"\" autocomplete=\"off\"><label for=\"p\">API şifresi (tanımsız)</label><input id=\"p\" name=\"password\" type=\"password\" autocomplete=\"new-password\" placeholder=\"değiştirmek için yazın (boş = aynı kalır)\"><label for=\"b\">Mesaj başlığı</label><input id=\"b\" name=\"msgheader\" value=\"\" maxlength=\"11\"><label for=\"a\">Uygulama anahtarı (opsiyonel)</label><input id=\"a\" name=\"appkey\" value=\"\"><h2>Twilio Verify</h2><label><input type=\"checkbox\" name=\"twilio_acik\" value=\"1\"> Twilio açık (yabancı numaralar Twilio'dan gider)</label><label for=\"ta\">Account SID</label><input id=\"ta\" name=\"account_sid\" value=\"\" autocomplete=\"off\"><label for=\"tt\">Auth token (tanımsız)</label><input id=\"tt\" name=\"auth_token\" type=\"password\" autocomplete=\"new-password\" placeholder=\"değiştirmek için yazın (boş = aynı kalır)\"><label for=\"tk\">API key SID (opsiyonel)</label><input id=\"tk\" name=\"api_key_sid\" value=\"\" autocomplete=\"off\"><label for=\"ts\">API key secret (tanımsız)</label><input id=\"ts\" name=\"api_key_secret\" type=\"password\" autocomplete=\"new-password\" placeholder=\"değiştirmek için yazın (boş = aynı kalır)\"><label for=\"tv\">Verify service SID</label><input id=\"tv\" name=\"verify_sid\" value=\"\" autocomplete=\"off\"><button>Kaydet</button></form><p class=\"alt\">Doğrulama SMS'leri cihazların isteğiyle bu sunucudan gönderilir (değişiklik hemen geçerli). NetGSM bilgileri eski sürümlü cihazlara bir sonraki eşitlemede (her gün 06:00) de gider; Twilio bilgileri hiçbir cihaza gitmez.</p></div></main></div></body></html>"
+   }
+  },
+  {
+   "istek": "POST /sms",
+   "durum": 400,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>SMS ayarları · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><input type=\"checkbox\" id=\"menu-ac\" class=\"gizli\"><div class=\"ust-mobil\"><label for=\"menu-ac\" class=\"menu-dugme\" title=\"Menü\"><span class=\"gizli\">Menüyü aç/kapat</span><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M3 6h18M3 12h18M3 18h18\"/></svg></label><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a></div><div class=\"yerlesim\"><nav class=\"yan\"><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a><details class=\"grup\"><summary>Müşteriler</summary><a href=\"/\">Müşteri listesi</a><a href=\"/yeni\">Yeni müşteri</a><a href=\"/bekleyen\">Bekleyen cihazlar</a></details><details class=\"grup\"><summary>Kayıtlar</summary><a href=\"/hareketler\">Hareketler</a><a href=\"/eski-arsivler\">Eski arşivler</a></details><details class=\"grup\" open><summary>Ayarlar</summary><a href=\"/listeler\">Engel listeleri</a><a href=\"/sms\" class=\"secili\" aria-current=\"page\">SMS ayarları</a><a href=\"/uyari\">Uyarı ayarları</a><a href=\"/surumler\">Sürümler</a><a href=\"/hesabim\">Hesabım</a></details><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button class=\"ikincil\">Çıkış</button></form></nav><main><div class=\"kart\"><h1>SMS ayarları</h1><p class=\"hata\">Deneme modu kapalıyken şu alanlar gerekli: password</p><form method=\"post\" action=\"/sms\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><label><input type=\"checkbox\" name=\"mock\" value=\"1\"> Deneme modu (SMS gönderilmez)</label><label for=\"tr\">Türk numaraları için sağlayıcı</label><select id=\"tr\" name=\"tr_saglayici\"><option value=\"netgsm\" selected>NetGSM</option><option value=\"twilio\">Twilio</option></select><h2>NetGSM</h2><label for=\"u\">NetGSM kullanıcı kodu</label><input id=\"u\" name=\"usercode\" value=\"850\" autocomplete=\"off\"><label for=\"p\">API şifresi (tanımsız)</label><input id=\"p\" name=\"password\" type=\"password\" autocomplete=\"new-password\" placeholder=\"değiştirmek için yazın (boş = aynı kalır)\"><label for=\"b\">Mesaj başlığı</label><input id=\"b\" name=\"msgheader\" value=\"BASLIK\" maxlength=\"11\"><label for=\"a\">Uygulama anahtarı (opsiyonel)</label><input id=\"a\" name=\"appkey\" value=\"\"><h2>Twilio Verify</h2><label><input type=\"checkbox\" name=\"twilio_acik\" value=\"1\"> Twilio açık (yabancı numaralar Twilio'dan gider)</label><label for=\"ta\">Account SID</label><input id=\"ta\" name=\"account_sid\" value=\"\" autocomplete=\"off\"><label for=\"tt\">Auth token (tanımsız)</label><input id=\"tt\" name=\"auth_token\" type=\"password\" autocomplete=\"new-password\" placeholder=\"değiştirmek için yazın (boş = aynı kalır)\"><label for=\"tk\">API key SID (opsiyonel)</label><input id=\"tk\" name=\"api_key_sid\" value=\"\" autocomplete=\"off\"><label for=\"ts\">API key secret (tanımsız)</label><input id=\"ts\" name=\"api_key_secret\" type=\"password\" autocomplete=\"new-password\" placeholder=\"değiştirmek için yazın (boş = aynı kalır)\"><label for=\"tv\">Verify service SID</label><input id=\"tv\" name=\"verify_sid\" value=\"\" autocomplete=\"off\"><button>Kaydet</button></form><p class=\"alt\">Doğrulama SMS'leri cihazların isteğiyle bu sunucudan gönderilir (değişiklik hemen geçerli). NetGSM bilgileri eski sürümlü cihazlara bir sonraki eşitlemede (her gün 06:00) de gider; Twilio bilgileri hiçbir cihaza gitmez.</p></div></main></div></body></html>"
+   }
+  },
+  {
+   "istek": "POST /sms",
+   "durum": 303,
+   "basliklar": [
+    [
+     "Location",
+     "/sms"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": ""
+   }
+  },
+  {
+   "istek": "GET /sms",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>SMS ayarları · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><input type=\"checkbox\" id=\"menu-ac\" class=\"gizli\"><div class=\"ust-mobil\"><label for=\"menu-ac\" class=\"menu-dugme\" title=\"Menü\"><span class=\"gizli\">Menüyü aç/kapat</span><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M3 6h18M3 12h18M3 18h18\"/></svg></label><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a></div><div class=\"yerlesim\"><nav class=\"yan\"><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a><details class=\"grup\"><summary>Müşteriler</summary><a href=\"/\">Müşteri listesi</a><a href=\"/yeni\">Yeni müşteri</a><a href=\"/bekleyen\">Bekleyen cihazlar</a></details><details class=\"grup\"><summary>Kayıtlar</summary><a href=\"/hareketler\">Hareketler</a><a href=\"/eski-arsivler\">Eski arşivler</a></details><details class=\"grup\" open><summary>Ayarlar</summary><a href=\"/listeler\">Engel listeleri</a><a href=\"/sms\" class=\"secili\" aria-current=\"page\">SMS ayarları</a><a href=\"/uyari\">Uyarı ayarları</a><a href=\"/surumler\">Sürümler</a><a href=\"/hesabim\">Hesabım</a></details><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button class=\"ikincil\">Çıkış</button></form></nav><main><div class=\"kart\"><h1>SMS ayarları</h1><form method=\"post\" action=\"/sms\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><label><input type=\"checkbox\" name=\"mock\" value=\"1\"> Deneme modu (SMS gönderilmez)</label><label for=\"tr\">Türk numaraları için sağlayıcı</label><select id=\"tr\" name=\"tr_saglayici\"><option value=\"netgsm\" selected>NetGSM</option><option value=\"twilio\">Twilio</option></select><h2>NetGSM</h2><label for=\"u\">NetGSM kullanıcı kodu</label><input id=\"u\" name=\"usercode\" value=\"8503027084\" autocomplete=\"off\"><label for=\"p\">API şifresi (tanımlı)</label><input id=\"p\" name=\"password\" type=\"password\" autocomplete=\"new-password\" placeholder=\"değiştirmek için yazın (boş = aynı kalır)\"><label for=\"b\">Mesaj başlığı</label><input id=\"b\" name=\"msgheader\" value=\"gztp.blgsyr\" maxlength=\"11\"><label for=\"a\">Uygulama anahtarı (opsiyonel)</label><input id=\"a\" name=\"appkey\" value=\"\"><h2>Twilio Verify</h2><label><input type=\"checkbox\" name=\"twilio_acik\" value=\"1\"> Twilio açık (yabancı numaralar Twilio'dan gider)</label><label for=\"ta\">Account SID</label><input id=\"ta\" name=\"account_sid\" value=\"\" autocomplete=\"off\"><label for=\"tt\">Auth token (tanımsız)</label><input id=\"tt\" name=\"auth_token\" type=\"password\" autocomplete=\"new-password\" placeholder=\"değiştirmek için yazın (boş = aynı kalır)\"><label for=\"tk\">API key SID (opsiyonel)</label><input id=\"tk\" name=\"api_key_sid\" value=\"\" autocomplete=\"off\"><label for=\"ts\">API key secret (tanımsız)</label><input id=\"ts\" name=\"api_key_secret\" type=\"password\" autocomplete=\"new-password\" placeholder=\"değiştirmek için yazın (boş = aynı kalır)\"><label for=\"tv\">Verify service SID</label><input id=\"tv\" name=\"verify_sid\" value=\"\" autocomplete=\"off\"><button>Kaydet</button></form><p class=\"alt\">Doğrulama SMS'leri cihazların isteğiyle bu sunucudan gönderilir (değişiklik hemen geçerli). NetGSM bilgileri eski sürümlü cihazlara bir sonraki eşitlemede (her gün 06:00) de gider; Twilio bilgileri hiçbir cihaza gitmez.</p></div></main></div></body></html>"
+   }
+  },
+  {
+   "istek": "POST /sms",
+   "durum": 303,
+   "basliklar": [
+    [
+     "Location",
+     "/sms"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": ""
+   }
+  }
+ ],
+ "veritabanlari": [
+  {
+   "ad": "m.db",
+   "tablolar": {
+    "ayar": [
+     {
+      "anahtar": "sms",
+      "deger": "{\"mock\": true, \"usercode\": \"8503027084\", \"password\": \"gizli-1\", \"msgheader\": \"gztp.blgsyr\", \"appkey\": \"\", \"tr_saglayici\": \"netgsm\", \"twilio\": {\"acik\": false, \"account_sid\": \"\", \"auth_token\": \"\", \"api_key_sid\": \"\", \"api_key_secret\": \"\", \"verify_sid\": \"\"}}"
+     }
+    ],
+    "bekleyen": [],
+    "cihaz": [],
+    "eski_arsiv": [],
+    "hareket": [
+     {
+      "ayrinti": "yönetim",
+      "id": 1,
+      "ip": "203.0.113.5",
+      "kim": "admin",
+      "musteri": null,
+      "olay": "GIRIS",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     },
+     {
+      "ayrinti": "değişen=mock,usercode,msgheader,password",
+      "id": 2,
+      "ip": "203.0.113.5",
+      "kim": "admin",
+      "musteri": null,
+      "olay": "SMS_AYARI",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     },
+     {
+      "ayrinti": "değişen=mock",
+      "id": 3,
+      "ip": "203.0.113.5",
+      "kim": "admin",
+      "musteri": null,
+      "olay": "SMS_AYARI",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     }
+    ],
+    "musteri": [],
+    "saglik": [],
+    "sms_sayac": [],
+    "sms_son": [],
+    "sorun": [],
+    "sqlite_sequence": [
+     {
+      "name": "hareket",
+      "seq": 3
+     }
+    ],
+    "surum": []
+   }
+  }
+ ],
+ "yollar": [
+  [
+   "Yonetim",
+   "POST",
+   "/giris",
+   null,
+   303,
+   "/"
+  ],
+  [
+   "Yonetim",
+   "GET",
+   "/sms",
+   null,
+   200,
+   null
+  ],
+  [
+   "Yonetim",
+   "GET",
+   "/sms",
+   null,
+   200,
+   null
+  ],
+  [
+   "Yonetim",
+   "POST",
+   "/sms",
+   null,
+   400,
+   null
+  ],
+  [
+   "Yonetim",
+   "POST",
+   "/sms",
+   null,
+   303,
+   "/sms"
+  ],
+  [
+   "Yonetim",
+   "GET",
+   "/sms",
+   null,
+   200,
+   null
+  ],
+  [
+   "Yonetim",
+   "POST",
+   "/sms",
+   null,
+   303,
+   "/sms"
+  ]
+ ]
+}

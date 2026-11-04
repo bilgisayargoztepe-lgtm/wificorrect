@@ -1,0 +1,492 @@
+{
+ "bicim": 1,
+ "dosya": "test_bekleme",
+ "test": "test_bagla_cevabi_ortak_sms_sirlarini_tasimaz",
+ "cevaplar": [
+  {
+   "istek": "POST /api/bekliyor",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "durum": "bekle"
+    }
+   }
+  },
+  {
+   "istek": "POST /giris",
+   "durum": 303,
+   "basliklar": [
+    [
+     "Location",
+     "/baglan"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ],
+    [
+     "Set-Cookie",
+     "wc_musteri=<T1>; HttpOnly; Secure; SameSite=Strict; Path=/"
+    ]
+   ],
+   "govde": {
+    "metin": ""
+   }
+  },
+  {
+   "istek": "GET /baglan",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><meta http-equiv=\"refresh\" content=\"5\"><title>Cihazınız bağlanıyor · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><header><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_ACIK}</a><nav><a href=\"/cihaz\">Cihaz paneli</a><a href=\"/\">Yedek arşiv</a><a href=\"/raporlar\">Raporlar</a><a href=\"/parola\">Parola</a><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button class=\"ikincil\">Çıkış</button></form></nav></header><main><div class=\"kart\"><h1>Cihazınız bağlanıyor</h1><p>Cihazınız bulundu ve hesabınıza bağlanıyor. Bu birkaç dakika sürebilir; bu sayfa kendini yeniler.</p></div></main></body></html>"
+   }
+  },
+  {
+   "istek": "POST /api/bekliyor",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "durum": "baglan",
+     "belirtec": "<T3>"
+    }
+   }
+  },
+  {
+   "istek": "POST /api/bagla",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "tuz": "<T6>",
+     "ozet": "897f810951d451d511874284e364753cf470a1608a3620a0f827ad25f2250931",
+     "yineleme": 120000,
+     "lisans": "aktif",
+     "lisans_bitis": "2027-09-21",
+     "ap_parola": "6bnuKUG4dyZ7",
+     "admin": {
+      "tuz": "<T4>",
+      "ozet": "fae6d5cd554670c95eac462747067a89a141d2a9f7d46e62695e34bd20b1dd96",
+      "yineleme": 120000
+     },
+     "sms": {
+      "etkin_mock": false
+     },
+     "cihaz_anahtari": "<T5>",
+     "tunel_ip": "10.99.0.10",
+     "sunucu_pub": "SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS=",
+     "uc_nokta": "vpn.wificorrect.com:51820",
+     "yedek_hedefi": "wfc-5721885@10.99.0.1:",
+     "numara": "5721885"
+    }
+   }
+  },
+  {
+   "istek": "POST /api/eslesme",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "tuz": "<T6>",
+     "ozet": "897f810951d451d511874284e364753cf470a1608a3620a0f827ad25f2250931",
+     "yineleme": 120000,
+     "lisans": "aktif",
+     "lisans_bitis": "2027-09-21",
+     "ap_parola": "6bnuKUG4dyZ7",
+     "admin": {
+      "tuz": "<T4>",
+      "ozet": "fae6d5cd554670c95eac462747067a89a141d2a9f7d46e62695e34bd20b1dd96",
+      "yineleme": 120000
+     },
+     "sms": {
+      "etkin_mock": false
+     },
+     "durum": "bagli",
+     "uyelik": "aktif"
+    }
+   }
+  },
+  {
+   "istek": "POST /api/giris",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "tuz": "<T8>",
+     "ozet": "849bf833cedd7412e5c2e8dc17506dc7a611cfd8770a24be3bf2019ec718afdc",
+     "yineleme": 120000,
+     "lisans": "aktif",
+     "lisans_bitis": "2027-09-21",
+     "ap_parola": "6vwWeTxWbXDf",
+     "admin": {
+      "tuz": "<T4>",
+      "ozet": "fae6d5cd554670c95eac462747067a89a141d2a9f7d46e62695e34bd20b1dd96",
+      "yineleme": 120000
+     },
+     "sms": {
+      "etkin_mock": false,
+      "mock": false,
+      "provider": "netgsm",
+      "netgsm": {
+       "usercode": "8500000000",
+       "password": "netgsm-gizli",
+       "msgheader": "BASLIK",
+       "appkey": ""
+      }
+     },
+     "cihaz_anahtari": "<T7>",
+     "tunel_ip": "10.99.0.10",
+     "sunucu_pub": "SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS=",
+     "uc_nokta": "vpn.wificorrect.com:51820",
+     "yedek_hedefi": "wfc-8592499@10.99.0.1:"
+    }
+   }
+  },
+  {
+   "istek": "POST /api/eslesme",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "tuz": "<T8>",
+     "ozet": "849bf833cedd7412e5c2e8dc17506dc7a611cfd8770a24be3bf2019ec718afdc",
+     "yineleme": 120000,
+     "lisans": "aktif",
+     "lisans_bitis": "2027-09-21",
+     "ap_parola": "6vwWeTxWbXDf",
+     "admin": {
+      "tuz": "<T4>",
+      "ozet": "fae6d5cd554670c95eac462747067a89a141d2a9f7d46e62695e34bd20b1dd96",
+      "yineleme": 120000
+     },
+     "sms": {
+      "etkin_mock": false,
+      "mock": false,
+      "provider": "netgsm",
+      "netgsm": {
+       "usercode": "8500000000",
+       "password": "netgsm-gizli",
+       "msgheader": "BASLIK",
+       "appkey": ""
+      }
+     },
+     "durum": "bagli",
+     "uyelik": "aktif"
+    }
+   }
+  }
+ ],
+ "veritabanlari": [
+  {
+   "ad": "m.db",
+   "tablolar": {
+    "ayar": [
+     {
+      "anahtar": "sms",
+      "deger": "{\"mock\": false, \"usercode\": \"8500000000\", \"password\": \"netgsm-gizli\", \"msgheader\": \"BASLIK\", \"appkey\": \"\", \"tr_saglayici\": \"netgsm\", \"twilio\": {\"acik\": false, \"account_sid\": \"\", \"auth_token\": \"\", \"api_key_sid\": \"\", \"api_key_secret\": \"\", \"verify_sid\": \"\"}}"
+     },
+     {
+      "anahtar": "admin",
+      "deger": "{\"tuz\": \"<T4>\", \"ozet\": \"fae6d5cd554670c95eac462747067a89a141d2a9f7d46e62695e34bd20b1dd96\", \"yineleme\": 120000}"
+     }
+    ],
+    "bekleyen": [
+     {
+      "ayrilma": 1790000000.0,
+      "baglandi": 1790000000.0,
+      "belirtec_bitis": 0.0,
+      "belirtec_ozet": "",
+      "cihaz": 1,
+      "ilk": 1790000000.0,
+      "ip": "203.0.113.5",
+      "kimlik": "11111111111111111111111111111111",
+      "musteri": 5721885,
+      "sir_ozet": "ffe054fe7ae0cb6dc65c3af9b61d5209f439851db43d0ba5997337df154668eb",
+      "son": 1790000000.0,
+      "ssh_pub": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI cihaz",
+      "surum": "0.4.13",
+      "wan_mac": "00:0e:c4:ce:a0:9b",
+      "wg_pub": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+     }
+    ],
+    "cihaz": [
+     {
+      "admin_ozet": "",
+      "admin_parola": "",
+      "admin_tuz": "",
+      "admin_yineleme": 0,
+      "adres": "",
+      "anahtar_ozet": "14f55c6d7fa0ce49e9f1e4be5fae80793beabf6f15a6ed32c1efd03b217093ba",
+      "ayrilma": "",
+      "baglanma": "2026-09-21T17:13:20+03:00",
+      "durum": "bagli",
+      "id": 1,
+      "isletme_adi": "",
+      "isletme_turu": "",
+      "musteri": 5721885,
+      "otomatik": 1,
+      "son_eslesme": "2026-09-21T17:13:20+03:00",
+      "ssh_pub": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI cihaz",
+      "surum": "0.4.7",
+      "tunel_ip": "10.99.0.10",
+      "unvan": "",
+      "wg_pub": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+     },
+     {
+      "admin_ozet": "",
+      "admin_parola": "",
+      "admin_tuz": "",
+      "admin_yineleme": 0,
+      "adres": "",
+      "anahtar_ozet": "08674fbfff2c091caa846b56c2a2a31ac83a3902360acdb587ba534e93160801",
+      "ayrilma": "",
+      "baglanma": "2026-09-21T17:13:20+03:00",
+      "durum": "bagli",
+      "id": 2,
+      "isletme_adi": "",
+      "isletme_turu": "",
+      "musteri": 8592499,
+      "otomatik": 0,
+      "son_eslesme": "2026-09-21T17:13:20+03:00",
+      "ssh_pub": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI cihaz",
+      "surum": "",
+      "tunel_ip": "10.99.0.10",
+      "unvan": "",
+      "wg_pub": "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB="
+     }
+    ],
+    "eski_arsiv": [],
+    "hareket": [
+     {
+      "ayrinti": "kimlik=11111111 surum=0.4.13 mac=00:0e:c4:ce:a0:9b",
+      "id": 1,
+      "ip": "203.0.113.5",
+      "kim": "bekleyen:11111111",
+      "musteri": null,
+      "olay": "CIHAZ_BEKLIYOR",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     },
+     {
+      "ayrinti": "müşteri paneli",
+      "id": 2,
+      "ip": "203.0.113.5",
+      "kim": "5721885",
+      "musteri": 5721885,
+      "olay": "GIRIS",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     },
+     {
+      "ayrinti": "kimlik=11111111 secim=tek",
+      "id": 3,
+      "ip": "203.0.113.5",
+      "kim": "5721885",
+      "musteri": 5721885,
+      "olay": "CIHAZ_OTOMATIK_AYRILDI",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     },
+     {
+      "ayrinti": "cihaz=1 tunel=10.99.0.10 otomatik kimlik=11111111",
+      "id": 4,
+      "ip": "203.0.113.5",
+      "kim": "5721885",
+      "musteri": 5721885,
+      "olay": "CIHAZ_BAGLANDI",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     },
+     {
+      "ayrinti": "cihaz=2 tunel=10.99.0.10",
+      "id": 5,
+      "ip": "203.0.113.5",
+      "kim": "8592499",
+      "musteri": 8592499,
+      "olay": "CIHAZ_BAGLANDI",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     }
+    ],
+    "musteri": [
+     {
+      "ap_parola": "6bnuKUG4dyZ7",
+      "askida": 0,
+      "bitis": "",
+      "guncelleme_hemen": 0.0,
+      "guncelleme_hemen_surum": "",
+      "guncelleme_kanali": "kararli",
+      "lisans_bitis": "2027-09-21",
+      "not_": "",
+      "numara": 5721885,
+      "olusturma": "2026-09-21T17:13:20+03:00",
+      "ozet": "897f810951d451d511874284e364753cf470a1608a3620a0f827ad25f2250931",
+      "parola_acik": "musteri-parola-1",
+      "son_giris": "2026-09-21T17:13:20+03:00",
+      "tuz": "<T6>",
+      "uyelik": "aktif",
+      "yineleme": 120000
+     },
+     {
+      "ap_parola": "6vwWeTxWbXDf",
+      "askida": 0,
+      "bitis": "",
+      "guncelleme_hemen": 0.0,
+      "guncelleme_hemen_surum": "",
+      "guncelleme_kanali": "kararli",
+      "lisans_bitis": "2027-09-21",
+      "not_": "",
+      "numara": 8592499,
+      "olusturma": "2026-09-21T17:13:20+03:00",
+      "ozet": "849bf833cedd7412e5c2e8dc17506dc7a611cfd8770a24be3bf2019ec718afdc",
+      "parola_acik": "musteri-parola-2",
+      "son_giris": "",
+      "tuz": "<T8>",
+      "uyelik": "aktif",
+      "yineleme": 120000
+     }
+    ],
+    "saglik": [],
+    "sms_sayac": [],
+    "sms_son": [],
+    "sorun": [],
+    "sqlite_sequence": [
+     {
+      "name": "hareket",
+      "seq": 5
+     },
+     {
+      "name": "cihaz",
+      "seq": 2
+     }
+    ],
+    "surum": []
+   }
+  }
+ ],
+ "yollar": [
+  [
+   "Api",
+   "POST",
+   "/api/bekliyor",
+   null,
+   200,
+   null
+  ],
+  [
+   "Musteri",
+   "POST",
+   "/giris",
+   null,
+   303,
+   "/baglan"
+  ],
+  [
+   "Musteri",
+   "GET",
+   "/baglan",
+   null,
+   200,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/bekliyor",
+   null,
+   200,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/bagla",
+   null,
+   200,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/eslesme",
+   null,
+   200,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/giris",
+   null,
+   200,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/eslesme",
+   null,
+   200,
+   null
+  ]
+ ]
+}

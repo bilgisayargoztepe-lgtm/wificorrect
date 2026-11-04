@@ -503,7 +503,7 @@ impl serde_json::ser::Formatter for PyBicim {
     }
 }
 
-fn py_json(v: &Value, ascii: bool) -> String {
+pub(crate) fn py_json(v: &Value, ascii: bool) -> String {
     let mut tampon = Vec::new();
     let mut ser = serde_json::Serializer::with_formatter(&mut tampon, PyBicim { ascii });
     if v.serialize(&mut ser).is_err() {
@@ -581,6 +581,8 @@ impl Veri {
     pub fn ac(yol: &Path, saat: Saat) -> Result<Veri, String> {
         let c = Connection::open(yol).map_err(|e| format!("Veritabanı açılamadı: {e}"))?;
         sema_hazirla(&c)?;
+        #[cfg(test)]
+        crate::altin::veri_acildi(yol); // altın kayıt: testin sonunda tabloları karşılaştırılır
         Ok(Veri { saat, db: Mutex::new(c) })
     }
 

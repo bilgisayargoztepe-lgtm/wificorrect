@@ -1,0 +1,54 @@
+{
+ "bicim": 1,
+ "dosya": "test_saglik",
+ "test": "test_sorun_kapat_ve_gecmis",
+ "cevaplar": [],
+ "veritabanlari": [
+  {
+   "ad": "m.db",
+   "tablolar": {
+    "ayar": [],
+    "bekleyen": [],
+    "cihaz": [],
+    "eski_arsiv": [],
+    "hareket": [],
+    "musteri": [],
+    "saglik": [],
+    "sms_sayac": [],
+    "sms_son": [],
+    "sorun": [
+     {
+      "acilis": "2026-09-21T17:13:20+03:00",
+      "acilis_sms": "mock",
+      "id": 1,
+      "kapanis": "2026-09-21T17:23:20+03:00",
+      "kapanis_sms": "hata:30",
+      "metin": "Disk dolu (%91)",
+      "musteri": 5,
+      "onem": "uyari",
+      "tur": "disk_dolu"
+     },
+     {
+      "acilis": "2026-09-21T17:23:20+03:00",
+      "acilis_sms": "",
+      "id": 2,
+      "kapanis": "",
+      "kapanis_sms": "",
+      "metin": "Disk dolu (%92)",
+      "musteri": 5,
+      "onem": "uyari",
+      "tur": "disk_dolu"
+     }
+    ],
+    "sqlite_sequence": [
+     {
+      "name": "sorun",
+      "seq": 2
+     }
+    ],
+    "surum": []
+   }
+  }
+ ],
+ "yollar": []
+}

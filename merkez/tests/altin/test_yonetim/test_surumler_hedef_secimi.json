@@ -1,0 +1,298 @@
+{
+ "bicim": 1,
+ "dosya": "test_yonetim",
+ "test": "test_surumler_hedef_secimi",
+ "cevaplar": [
+  {
+   "istek": "POST /giris",
+   "durum": 303,
+   "basliklar": [
+    [
+     "Location",
+     "/"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ],
+    [
+     "Set-Cookie",
+     "wc_yonetim=<T1>; HttpOnly; Secure; SameSite=Strict; Path=/"
+    ]
+   ],
+   "govde": {
+    "metin": ""
+   }
+  },
+  {
+   "istek": "GET /surumler",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Sürümler · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><input type=\"checkbox\" id=\"menu-ac\" class=\"gizli\"><div class=\"ust-mobil\"><label for=\"menu-ac\" class=\"menu-dugme\" title=\"Menü\"><span class=\"gizli\">Menüyü aç/kapat</span><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M3 6h18M3 12h18M3 18h18\"/></svg></label><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a></div><div class=\"yerlesim\"><nav class=\"yan\"><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a><details class=\"grup\"><summary>Müşteriler</summary><a href=\"/\">Müşteri listesi</a><a href=\"/yeni\">Yeni müşteri</a><a href=\"/bekleyen\">Bekleyen cihazlar</a></details><details class=\"grup\"><summary>Kayıtlar</summary><a href=\"/hareketler\">Hareketler</a><a href=\"/eski-arsivler\">Eski arşivler</a></details><details class=\"grup\" open><summary>Ayarlar</summary><a href=\"/listeler\">Engel listeleri</a><a href=\"/sms\">SMS ayarları</a><a href=\"/uyari\">Uyarı ayarları</a><a href=\"/surumler\" class=\"secili\" aria-current=\"page\">Sürümler</a><a href=\"/hesabim\">Hesabım</a></details><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button class=\"ikincil\">Çıkış</button></form></nav><main class=\"genis\"><div class=\"kart\"><h1>Sürümler</h1><form method=\"post\" action=\"/surumler/al\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button>GitHub'dan yeni sürümleri al</button></form><div class=\"kaydir\"><table class=\"detay\"><tr><th>Sürüm</th><th>Kaynak</th><th>Tarih</th><th>Boyut</th><th>sha256</th><th>Kurulu cihaz</th></tr><tr><td>1.2.0</td><td>github</td><td>21.09.2026 17:13</td><td>2,0 KB</td><td>abababababab</td><td>0</td></tr></table></div></div><div class=\"kart\"><h2>Kanal hedefleri</h2><form method=\"post\" action=\"/surumler/hedef\" class=\"ara\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><input type=\"hidden\" name=\"kanal\" value=\"kararli\"><label for=\"k-kararli\">Kararlı kanal hedefi</label><select id=\"k-kararli\" name=\"surum\"><option value=\"\">Hedef yok</option><option value=\"en-son\">Her zaman en son sürüm (şu an 1.2.0)</option><option value=\"1.2.0\">1.2.0</option></select><button>Kaydet</button></form><form method=\"post\" action=\"/surumler/hedef\" class=\"ara\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><input type=\"hidden\" name=\"kanal\" value=\"test\"><label for=\"k-test\">Test kanal hedefi</label><select id=\"k-test\" name=\"surum\"><option value=\"\">Hedef yok</option><option value=\"en-son\">Her zaman en son sürüm (şu an 1.2.0)</option><option value=\"1.2.0\">1.2.0</option></select><button>Kaydet</button></form><p class=\"alt\">Cihazlar kendi kanalının hedefini bir sonraki sağlık raporunda (5 dk) öğrenir ve kurar; hedef yoksa o kanaldaki cihazlar güncellenmez. <b>Her zaman en son sürüm</b>: GitHub'dan alınmış en yüksek sürüm; merkez GitHub'a saatte bir bakıp yeni sürümü kendisi alır. Elle eklenen (yerel) paketler buna girmez, onları kanalda ayrıca seçin.</p></div></main></div></body></html>"
+   }
+  },
+  {
+   "istek": "POST /surumler/hedef",
+   "durum": 403,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Geçersiz istek · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><input type=\"checkbox\" id=\"menu-ac\" class=\"gizli\"><div class=\"ust-mobil\"><label for=\"menu-ac\" class=\"menu-dugme\" title=\"Menü\"><span class=\"gizli\">Menüyü aç/kapat</span><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M3 6h18M3 12h18M3 18h18\"/></svg></label><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a></div><div class=\"yerlesim\"><nav class=\"yan\"><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a><details class=\"grup\"><summary>Müşteriler</summary><a href=\"/\">Müşteri listesi</a><a href=\"/yeni\">Yeni müşteri</a><a href=\"/bekleyen\">Bekleyen cihazlar</a></details><details class=\"grup\"><summary>Kayıtlar</summary><a href=\"/hareketler\">Hareketler</a><a href=\"/eski-arsivler\">Eski arşivler</a></details><details class=\"grup\" open><summary>Ayarlar</summary><a href=\"/listeler\">Engel listeleri</a><a href=\"/sms\">SMS ayarları</a><a href=\"/uyari\">Uyarı ayarları</a><a href=\"/surumler\" class=\"secili\" aria-current=\"page\">Sürümler</a><a href=\"/hesabim\">Hesabım</a></details><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button class=\"ikincil\">Çıkış</button></form></nav><main><div class=\"kart\"><h1>Geçersiz istek</h1><p>Sayfayı yenileyip tekrar deneyin.</p><p><a href=\"/\">Ana sayfa</a></p></div></main></div></body></html>"
+   }
+  },
+  {
+   "istek": "POST /surumler/hedef",
+   "durum": 303,
+   "basliklar": [
+    [
+     "Location",
+     "/surumler"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": ""
+   }
+  },
+  {
+   "istek": "GET /surumler",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Sürümler · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><input type=\"checkbox\" id=\"menu-ac\" class=\"gizli\"><div class=\"ust-mobil\"><label for=\"menu-ac\" class=\"menu-dugme\" title=\"Menü\"><span class=\"gizli\">Menüyü aç/kapat</span><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M3 6h18M3 12h18M3 18h18\"/></svg></label><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a></div><div class=\"yerlesim\"><nav class=\"yan\"><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a><details class=\"grup\"><summary>Müşteriler</summary><a href=\"/\">Müşteri listesi</a><a href=\"/yeni\">Yeni müşteri</a><a href=\"/bekleyen\">Bekleyen cihazlar</a></details><details class=\"grup\"><summary>Kayıtlar</summary><a href=\"/hareketler\">Hareketler</a><a href=\"/eski-arsivler\">Eski arşivler</a></details><details class=\"grup\" open><summary>Ayarlar</summary><a href=\"/listeler\">Engel listeleri</a><a href=\"/sms\">SMS ayarları</a><a href=\"/uyari\">Uyarı ayarları</a><a href=\"/surumler\" class=\"secili\" aria-current=\"page\">Sürümler</a><a href=\"/hesabim\">Hesabım</a></details><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button class=\"ikincil\">Çıkış</button></form></nav><main class=\"genis\"><div class=\"kart\"><h1>Sürümler</h1><form method=\"post\" action=\"/surumler/al\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button>GitHub'dan yeni sürümleri al</button></form><div class=\"kaydir\"><table class=\"detay\"><tr><th>Sürüm</th><th>Kaynak</th><th>Tarih</th><th>Boyut</th><th>sha256</th><th>Kurulu cihaz</th></tr><tr><td>1.2.0</td><td>github</td><td>21.09.2026 17:13</td><td>2,0 KB</td><td>abababababab</td><td>0</td></tr></table></div></div><div class=\"kart\"><h2>Kanal hedefleri</h2><form method=\"post\" action=\"/surumler/hedef\" class=\"ara\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><input type=\"hidden\" name=\"kanal\" value=\"kararli\"><label for=\"k-kararli\">Kararlı kanal hedefi</label><select id=\"k-kararli\" name=\"surum\"><option value=\"\">Hedef yok</option><option value=\"en-son\">Her zaman en son sürüm (şu an 1.2.0)</option><option value=\"1.2.0\">1.2.0</option></select><button>Kaydet</button></form><form method=\"post\" action=\"/surumler/hedef\" class=\"ara\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><input type=\"hidden\" name=\"kanal\" value=\"test\"><label for=\"k-test\">Test kanal hedefi</label><select id=\"k-test\" name=\"surum\"><option value=\"\">Hedef yok</option><option value=\"en-son\">Her zaman en son sürüm (şu an 1.2.0)</option><option value=\"1.2.0\" selected>1.2.0</option></select><button>Kaydet</button></form><p class=\"alt\">Cihazlar kendi kanalının hedefini bir sonraki sağlık raporunda (5 dk) öğrenir ve kurar; hedef yoksa o kanaldaki cihazlar güncellenmez. <b>Her zaman en son sürüm</b>: GitHub'dan alınmış en yüksek sürüm; merkez GitHub'a saatte bir bakıp yeni sürümü kendisi alır. Elle eklenen (yerel) paketler buna girmez, onları kanalda ayrıca seçin.</p></div></main></div></body></html>"
+   }
+  },
+  {
+   "istek": "POST /surumler/hedef",
+   "durum": 400,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Hedef kaydedilmedi · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><input type=\"checkbox\" id=\"menu-ac\" class=\"gizli\"><div class=\"ust-mobil\"><label for=\"menu-ac\" class=\"menu-dugme\" title=\"Menü\"><span class=\"gizli\">Menüyü aç/kapat</span><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M3 6h18M3 12h18M3 18h18\"/></svg></label><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a></div><div class=\"yerlesim\"><nav class=\"yan\"><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a><details class=\"grup\"><summary>Müşteriler</summary><a href=\"/\">Müşteri listesi</a><a href=\"/yeni\">Yeni müşteri</a><a href=\"/bekleyen\">Bekleyen cihazlar</a></details><details class=\"grup\"><summary>Kayıtlar</summary><a href=\"/hareketler\">Hareketler</a><a href=\"/eski-arsivler\">Eski arşivler</a></details><details class=\"grup\" open><summary>Ayarlar</summary><a href=\"/listeler\">Engel listeleri</a><a href=\"/sms\">SMS ayarları</a><a href=\"/uyari\">Uyarı ayarları</a><a href=\"/surumler\" class=\"secili\" aria-current=\"page\">Sürümler</a><a href=\"/hesabim\">Hesabım</a></details><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button class=\"ikincil\">Çıkış</button></form></nav><main><div class=\"kart\"><h1>Hedef kaydedilmedi</h1><p>Kanal ya da sürüm geçersiz (sürüm depoda olmalı).</p><p><a href=\"/\">Ana sayfa</a></p></div></main></div></body></html>"
+   }
+  },
+  {
+   "istek": "POST /surumler/hedef",
+   "durum": 400,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Hedef kaydedilmedi · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><input type=\"checkbox\" id=\"menu-ac\" class=\"gizli\"><div class=\"ust-mobil\"><label for=\"menu-ac\" class=\"menu-dugme\" title=\"Menü\"><span class=\"gizli\">Menüyü aç/kapat</span><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M3 6h18M3 12h18M3 18h18\"/></svg></label><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a></div><div class=\"yerlesim\"><nav class=\"yan\"><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a><details class=\"grup\"><summary>Müşteriler</summary><a href=\"/\">Müşteri listesi</a><a href=\"/yeni\">Yeni müşteri</a><a href=\"/bekleyen\">Bekleyen cihazlar</a></details><details class=\"grup\"><summary>Kayıtlar</summary><a href=\"/hareketler\">Hareketler</a><a href=\"/eski-arsivler\">Eski arşivler</a></details><details class=\"grup\" open><summary>Ayarlar</summary><a href=\"/listeler\">Engel listeleri</a><a href=\"/sms\">SMS ayarları</a><a href=\"/uyari\">Uyarı ayarları</a><a href=\"/surumler\" class=\"secili\" aria-current=\"page\">Sürümler</a><a href=\"/hesabim\">Hesabım</a></details><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button class=\"ikincil\">Çıkış</button></form></nav><main><div class=\"kart\"><h1>Hedef kaydedilmedi</h1><p>Kanal ya da sürüm geçersiz (sürüm depoda olmalı).</p><p><a href=\"/\">Ana sayfa</a></p></div></main></div></body></html>"
+   }
+  },
+  {
+   "istek": "POST /surumler/hedef",
+   "durum": 400,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Hedef kaydedilmedi · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><input type=\"checkbox\" id=\"menu-ac\" class=\"gizli\"><div class=\"ust-mobil\"><label for=\"menu-ac\" class=\"menu-dugme\" title=\"Menü\"><span class=\"gizli\">Menüyü aç/kapat</span><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M3 6h18M3 12h18M3 18h18\"/></svg></label><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a></div><div class=\"yerlesim\"><nav class=\"yan\"><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a><details class=\"grup\"><summary>Müşteriler</summary><a href=\"/\">Müşteri listesi</a><a href=\"/yeni\">Yeni müşteri</a><a href=\"/bekleyen\">Bekleyen cihazlar</a></details><details class=\"grup\"><summary>Kayıtlar</summary><a href=\"/hareketler\">Hareketler</a><a href=\"/eski-arsivler\">Eski arşivler</a></details><details class=\"grup\" open><summary>Ayarlar</summary><a href=\"/listeler\">Engel listeleri</a><a href=\"/sms\">SMS ayarları</a><a href=\"/uyari\">Uyarı ayarları</a><a href=\"/surumler\" class=\"secili\" aria-current=\"page\">Sürümler</a><a href=\"/hesabim\">Hesabım</a></details><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button class=\"ikincil\">Çıkış</button></form></nav><main><div class=\"kart\"><h1>Hedef kaydedilmedi</h1><p>Kanal ya da sürüm geçersiz (sürüm depoda olmalı).</p><p><a href=\"/\">Ana sayfa</a></p></div></main></div></body></html>"
+   }
+  },
+  {
+   "istek": "POST /surumler/hedef",
+   "durum": 303,
+   "basliklar": [
+    [
+     "Location",
+     "/surumler"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": ""
+   }
+  }
+ ],
+ "veritabanlari": [
+  {
+   "ad": "m.db",
+   "tablolar": {
+    "ayar": [],
+    "bekleyen": [],
+    "cihaz": [],
+    "eski_arsiv": [],
+    "hareket": [
+     {
+      "ayrinti": "yönetim",
+      "id": 1,
+      "ip": "203.0.113.5",
+      "kim": "admin",
+      "musteri": null,
+      "olay": "GIRIS",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     },
+     {
+      "ayrinti": "kanal=test surum=1.2.0",
+      "id": 2,
+      "ip": "203.0.113.5",
+      "kim": "admin",
+      "musteri": null,
+      "olay": "KANAL_HEDEF",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     },
+     {
+      "ayrinti": "kanal=test surum=-",
+      "id": 3,
+      "ip": "203.0.113.5",
+      "kim": "admin",
+      "musteri": null,
+      "olay": "KANAL_HEDEF",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     }
+    ],
+    "musteri": [],
+    "saglik": [],
+    "sms_sayac": [],
+    "sms_son": [],
+    "sorun": [],
+    "sqlite_sequence": [
+     {
+      "name": "hareket",
+      "seq": 3
+     }
+    ],
+    "surum": [
+     {
+      "boyut": 2048,
+      "kaynak": "github",
+      "sha256": "abababababababababababababababababababababababababababababababab",
+      "surum": "1.2.0",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     }
+    ]
+   }
+  }
+ ],
+ "yollar": [
+  [
+   "Yonetim",
+   "POST",
+   "/giris",
+   null,
+   303,
+   "/"
+  ],
+  [
+   "Yonetim",
+   "GET",
+   "/surumler",
+   null,
+   200,
+   null
+  ],
+  [
+   "Yonetim",
+   "POST",
+   "/surumler/hedef",
+   null,
+   403,
+   null
+  ],
+  [
+   "Yonetim",
+   "POST",
+   "/surumler/hedef",
+   null,
+   303,
+   "/surumler"
+  ],
+  [
+   "Yonetim",
+   "GET",
+   "/surumler",
+   null,
+   200,
+   null
+  ],
+  [
+   "Yonetim",
+   "POST",
+   "/surumler/hedef",
+   null,
+   400,
+   null
+  ],
+  [
+   "Yonetim",
+   "POST",
+   "/surumler/hedef",
+   null,
+   400,
+   null
+  ],
+  [
+   "Yonetim",
+   "POST",
+   "/surumler/hedef",
+   null,
+   400,
+   null
+  ],
+  [
+   "Yonetim",
+   "POST",
+   "/surumler/hedef",
+   null,
+   303,
+   "/surumler"
+  ]
+ ]
+}

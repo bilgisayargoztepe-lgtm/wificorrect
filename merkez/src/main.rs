@@ -2,11 +2,15 @@
 // İskelet: modüllerin çoğu sonraki görevlerde kullanılır.
 #![allow(dead_code)]
 
+#[cfg(test)]
+mod altin;
 mod detay;
 mod guvenlik;
 mod merkez;
 mod ortak;
 mod sunucu;
+#[cfg(test)]
+mod test_yardim;
 mod twilio;
 mod veri;
 mod web;

@@ -28,8 +28,10 @@ def ortam(tmp):
 
 
 def sayi_yaz(tmp, ad, sayilar):
-    with open(os.path.join(tmp, "ist", ad + ".json"), "w", encoding="utf-8") as f:
+    yol = os.path.join(tmp, "ist", ad + ".json")
+    with open(yol, "w", encoding="utf-8") as f:
         json.dump(sayilar, f)
+    os.utime(yol, (Saat.t, Saat.t))  # "Son güncelleme" sahte saatle (gerçek saate bağlı olmasın: altın kayıt)
 
 
 def gun_yaz(tmp, ad, gun, kisiler=(), dizin=None):

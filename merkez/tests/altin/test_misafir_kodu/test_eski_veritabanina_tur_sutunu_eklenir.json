@@ -1,0 +1,73 @@
+{
+ "bicim": 1,
+ "dosya": "test_misafir_kodu",
+ "test": "test_eski_veritabanina_tur_sutunu_eklenir",
+ "cevaplar": [],
+ "veritabanlari": [
+  {
+   "ad": "m.db",
+   "tablolar": {
+    "ayar": [],
+    "bekleyen": [],
+    "cihaz": [
+     {
+      "admin_ozet": "",
+      "admin_parola": "",
+      "admin_tuz": "",
+      "admin_yineleme": 0,
+      "adres": "",
+      "anahtar_ozet": "h",
+      "ayrilma": "",
+      "baglanma": "2026-01-01",
+      "durum": "bagli",
+      "id": 1,
+      "isletme_adi": "",
+      "isletme_turu": "",
+      "musteri": 1111111,
+      "otomatik": 0,
+      "son_eslesme": "",
+      "ssh_pub": "s",
+      "surum": "",
+      "tunel_ip": "",
+      "unvan": "",
+      "wg_pub": "p"
+     }
+    ],
+    "eski_arsiv": [],
+    "hareket": [],
+    "musteri": [
+     {
+      "ap_parola": "6bnuKUG4dyZ7",
+      "askida": 0,
+      "bitis": "",
+      "guncelleme_hemen": 0.0,
+      "guncelleme_hemen_surum": "",
+      "guncelleme_kanali": "kararli",
+      "lisans_bitis": "2027-01-01",
+      "not_": "",
+      "numara": 1111111,
+      "olusturma": "2026-01-01T00:00",
+      "ozet": "o",
+      "parola_acik": "",
+      "son_giris": "",
+      "tuz": "t",
+      "uyelik": "aktif",
+      "yineleme": 1
+     }
+    ],
+    "saglik": [],
+    "sms_sayac": [],
+    "sms_son": [],
+    "sorun": [],
+    "sqlite_sequence": [
+     {
+      "name": "cihaz",
+      "seq": 1
+     }
+    ],
+    "surum": []
+   }
+  }
+ ],
+ "yollar": []
+}

@@ -1,0 +1,917 @@
+{
+ "bicim": 1,
+ "dosya": "test_misafir_kodu",
+ "test": "test_merkez_tc_pasaport_oda_aramasi",
+ "cevaplar": [
+  {
+   "istek": "POST /giris",
+   "durum": 303,
+   "basliklar": [
+    [
+     "Location",
+     "/baglan"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ],
+    [
+     "Set-Cookie",
+     "wc_musteri=<T1>; HttpOnly; Secure; SameSite=Strict; Path=/"
+    ]
+   ],
+   "govde": {
+    "metin": ""
+   }
+  },
+  {
+   "istek": "GET /gerekce?donus=%2F",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Gerekçe · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><header><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_ACIK}</a><nav><a href=\"/cihaz\">Cihaz paneli</a><a href=\"/\">Yedek arşiv</a><a href=\"/raporlar\">Raporlar</a><a href=\"/parola\">Parola</a><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button class=\"ikincil\">Çıkış</button></form></nav></header><main><div class=\"kart\"><h1>Gerekçe</h1><p>Müşterilerin kişisel verisine bakmak için gerekçe yazın.</p><p class=\"alt\">Gerekçe 30 dakika geçerlidir; bu süredeki her görüntüleme gerekçeyle kaydedilir.</p><form method=\"post\" action=\"/gerekce\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><input type=\"hidden\" name=\"donus\" value=\"/\"><label for=\"g\">Gerekçe</label><input id=\"g\" name=\"gerekce\" list=\"oneriler\" minlength=\"5\" maxlength=\"200\" required><datalist id=\"oneriler\"><option value=\"Emniyet / savcılık talebi\"><option value=\"Müşteri şikâyeti\"><option value=\"Müşterinin kendi talebi\"><option value=\"Teknik sorun incelemesi\"></datalist><button>Devam</button></form></div></main></body></html>"
+   }
+  },
+  {
+   "istek": "POST /gerekce",
+   "durum": 303,
+   "basliklar": [
+    [
+     "Location",
+     "/"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": ""
+   }
+  },
+  {
+   "istek": "GET /ara",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Arama · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><header><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_ACIK}</a><nav><a href=\"/cihaz\">Cihaz paneli</a><a href=\"/\">Yedek arşiv</a><a href=\"/raporlar\">Raporlar</a><a href=\"/parola\">Parola</a><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button class=\"ikincil\">Çıkış</button></form></nav></header><main><p><a href=\"/\">← Özet</a></p><div class=\"kart\"><h1>Kişi ara</h1><form class=\"ara\" method=\"post\" action=\"/ara\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><input name=\"q\" value=\"\" maxlength=\"50\" placeholder=\"Telefon, ad soyad, T.C. no, pasaport ya da oda\" aria-label=\"Kişi ara\" autocomplete=\"off\"><select name=\"tur\" aria-label=\"Arama türü\"><option value=\"kisi\" selected>Telefon, ad soyad, T.C. kimlik no ya da pasaport no</option><option value=\"oda\">Oda numarası</option></select><input class=\"uyruk\" name=\"uyruk\" value=\"\" maxlength=\"2\" placeholder=\"Uyruk\" aria-label=\"Pasaport uyruğu (isteğe bağlı, ör. DE)\" autocomplete=\"off\"><button>Ara</button></form><p class=\"alt\">T.C. kimlik ve pasaport numarasıyla yalnızca tam numara aranır; sonuçlarda kimlikler maskelidir.</p></div></main></body></html>"
+   }
+  },
+  {
+   "istek": "POST /ara",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Arama · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><header><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_ACIK}</a><nav><a href=\"/cihaz\">Cihaz paneli</a><a href=\"/\">Yedek arşiv</a><a href=\"/raporlar\">Raporlar</a><a href=\"/parola\">Parola</a><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button class=\"ikincil\">Çıkış</button></form></nav></header><main><p><a href=\"/\">← Özet</a></p><div class=\"kart\"><h1>Kişi ara</h1><form class=\"ara\" method=\"post\" action=\"/ara\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><input name=\"q\" value=\"\" maxlength=\"50\" placeholder=\"Telefon, ad soyad, T.C. no, pasaport ya da oda\" aria-label=\"Kişi ara\" autocomplete=\"off\"><select name=\"tur\" aria-label=\"Arama türü\"><option value=\"kisi\" selected>Telefon, ad soyad, T.C. kimlik no ya da pasaport no</option><option value=\"oda\">Oda numarası</option></select><input class=\"uyruk\" name=\"uyruk\" value=\"\" maxlength=\"2\" placeholder=\"Uyruk\" aria-label=\"Pasaport uyruğu (isteğe bağlı, ör. DE)\" autocomplete=\"off\"><button>Ara</button></form><p class=\"alt\">T.C. kimlik ve pasaport numarasıyla yalnızca tam numara aranır; sonuçlarda kimlikler maskelidir.</p></div><div class=\"kart\"><b>Deniz Kara</b> · 100******46<p><a href=\"/gun/2026-09-20#kbec38939c97e7cbf\">20.09.2026</a></p></div></main></body></html>"
+   }
+  },
+  {
+   "istek": "GET /ara",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Arama · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><header><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_ACIK}</a><nav><a href=\"/cihaz\">Cihaz paneli</a><a href=\"/\">Yedek arşiv</a><a href=\"/raporlar\">Raporlar</a><a href=\"/parola\">Parola</a><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button class=\"ikincil\">Çıkış</button></form></nav></header><main><p><a href=\"/\">← Özet</a></p><div class=\"kart\"><h1>Kişi ara</h1><form class=\"ara\" method=\"post\" action=\"/ara\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><input name=\"q\" value=\"\" maxlength=\"50\" placeholder=\"Telefon, ad soyad, T.C. no, pasaport ya da oda\" aria-label=\"Kişi ara\" autocomplete=\"off\"><select name=\"tur\" aria-label=\"Arama türü\"><option value=\"kisi\" selected>Telefon, ad soyad, T.C. kimlik no ya da pasaport no</option><option value=\"oda\">Oda numarası</option></select><input class=\"uyruk\" name=\"uyruk\" value=\"\" maxlength=\"2\" placeholder=\"Uyruk\" aria-label=\"Pasaport uyruğu (isteğe bağlı, ör. DE)\" autocomplete=\"off\"><button>Ara</button></form><p class=\"alt\">T.C. kimlik ve pasaport numarasıyla yalnızca tam numara aranır; sonuçlarda kimlikler maskelidir.</p></div></main></body></html>"
+   }
+  },
+  {
+   "istek": "POST /ara",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Arama · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><header><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_ACIK}</a><nav><a href=\"/cihaz\">Cihaz paneli</a><a href=\"/\">Yedek arşiv</a><a href=\"/raporlar\">Raporlar</a><a href=\"/parola\">Parola</a><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button class=\"ikincil\">Çıkış</button></form></nav></header><main><p><a href=\"/\">← Özet</a></p><div class=\"kart\"><h1>Kişi ara</h1><form class=\"ara\" method=\"post\" action=\"/ara\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><input name=\"q\" value=\"\" maxlength=\"50\" placeholder=\"Telefon, ad soyad, T.C. no, pasaport ya da oda\" aria-label=\"Kişi ara\" autocomplete=\"off\"><select name=\"tur\" aria-label=\"Arama türü\"><option value=\"kisi\" selected>Telefon, ad soyad, T.C. kimlik no ya da pasaport no</option><option value=\"oda\">Oda numarası</option></select><input class=\"uyruk\" name=\"uyruk\" value=\"\" maxlength=\"2\" placeholder=\"Uyruk\" aria-label=\"Pasaport uyruğu (isteğe bağlı, ör. DE)\" autocomplete=\"off\"><button>Ara</button></form><p class=\"alt\">T.C. kimlik ve pasaport numarasıyla yalnızca tam numara aranır; sonuçlarda kimlikler maskelidir.</p></div><div class=\"kart\"><b>Deniz Kara</b> · 100******46<p><a href=\"/gun/2026-09-20#kbec38939c97e7cbf\">20.09.2026</a></p></div></main></body></html>"
+   }
+  },
+  {
+   "istek": "GET /ara",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Arama · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><header><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_ACIK}</a><nav><a href=\"/cihaz\">Cihaz paneli</a><a href=\"/\">Yedek arşiv</a><a href=\"/raporlar\">Raporlar</a><a href=\"/parola\">Parola</a><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button class=\"ikincil\">Çıkış</button></form></nav></header><main><p><a href=\"/\">← Özet</a></p><div class=\"kart\"><h1>Kişi ara</h1><form class=\"ara\" method=\"post\" action=\"/ara\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><input name=\"q\" value=\"\" maxlength=\"50\" placeholder=\"Telefon, ad soyad, T.C. no, pasaport ya da oda\" aria-label=\"Kişi ara\" autocomplete=\"off\"><select name=\"tur\" aria-label=\"Arama türü\"><option value=\"kisi\" selected>Telefon, ad soyad, T.C. kimlik no ya da pasaport no</option><option value=\"oda\">Oda numarası</option></select><input class=\"uyruk\" name=\"uyruk\" value=\"\" maxlength=\"2\" placeholder=\"Uyruk\" aria-label=\"Pasaport uyruğu (isteğe bağlı, ör. DE)\" autocomplete=\"off\"><button>Ara</button></form><p class=\"alt\">T.C. kimlik ve pasaport numarasıyla yalnızca tam numara aranır; sonuçlarda kimlikler maskelidir.</p></div></main></body></html>"
+   }
+  },
+  {
+   "istek": "POST /ara",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Arama · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><header><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_ACIK}</a><nav><a href=\"/cihaz\">Cihaz paneli</a><a href=\"/\">Yedek arşiv</a><a href=\"/raporlar\">Raporlar</a><a href=\"/parola\">Parola</a><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button class=\"ikincil\">Çıkış</button></form></nav></header><main><p><a href=\"/\">← Özet</a></p><div class=\"kart\"><h1>Kişi ara</h1><form class=\"ara\" method=\"post\" action=\"/ara\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><input name=\"q\" value=\"\" maxlength=\"50\" placeholder=\"Telefon, ad soyad, T.C. no, pasaport ya da oda\" aria-label=\"Kişi ara\" autocomplete=\"off\"><select name=\"tur\" aria-label=\"Arama türü\"><option value=\"kisi\" selected>Telefon, ad soyad, T.C. kimlik no ya da pasaport no</option><option value=\"oda\">Oda numarası</option></select><input class=\"uyruk\" name=\"uyruk\" value=\"\" maxlength=\"2\" placeholder=\"Uyruk\" aria-label=\"Pasaport uyruğu (isteğe bağlı, ör. DE)\" autocomplete=\"off\"><button>Ara</button></form><p class=\"alt\">T.C. kimlik ve pasaport numarasıyla yalnızca tam numara aranır; sonuçlarda kimlikler maskelidir.</p></div><div class=\"kart\"><b>Deniz Kara</b> · 100******46<p><a href=\"/gun/2026-09-20#kbec38939c97e7cbf\">20.09.2026</a></p></div></main></body></html>"
+   }
+  },
+  {
+   "istek": "GET /ara",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Arama · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><header><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_ACIK}</a><nav><a href=\"/cihaz\">Cihaz paneli</a><a href=\"/\">Yedek arşiv</a><a href=\"/raporlar\">Raporlar</a><a href=\"/parola\">Parola</a><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button class=\"ikincil\">Çıkış</button></form></nav></header><main><p><a href=\"/\">← Özet</a></p><div class=\"kart\"><h1>Kişi ara</h1><form class=\"ara\" method=\"post\" action=\"/ara\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><input name=\"q\" value=\"\" maxlength=\"50\" placeholder=\"Telefon, ad soyad, T.C. no, pasaport ya da oda\" aria-label=\"Kişi ara\" autocomplete=\"off\"><select name=\"tur\" aria-label=\"Arama türü\"><option value=\"kisi\" selected>Telefon, ad soyad, T.C. kimlik no ya da pasaport no</option><option value=\"oda\">Oda numarası</option></select><input class=\"uyruk\" name=\"uyruk\" value=\"\" maxlength=\"2\" placeholder=\"Uyruk\" aria-label=\"Pasaport uyruğu (isteğe bağlı, ör. DE)\" autocomplete=\"off\"><button>Ara</button></form><p class=\"alt\">T.C. kimlik ve pasaport numarasıyla yalnızca tam numara aranır; sonuçlarda kimlikler maskelidir.</p></div></main></body></html>"
+   }
+  },
+  {
+   "istek": "POST /ara",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Arama · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><header><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_ACIK}</a><nav><a href=\"/cihaz\">Cihaz paneli</a><a href=\"/\">Yedek arşiv</a><a href=\"/raporlar\">Raporlar</a><a href=\"/parola\">Parola</a><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button class=\"ikincil\">Çıkış</button></form></nav></header><main><p><a href=\"/\">← Özet</a></p><div class=\"kart\"><h1>Kişi ara</h1><form class=\"ara\" method=\"post\" action=\"/ara\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><input name=\"q\" value=\"10000000147\" maxlength=\"50\" placeholder=\"Telefon, ad soyad, T.C. no, pasaport ya da oda\" aria-label=\"Kişi ara\" autocomplete=\"off\"><select name=\"tur\" aria-label=\"Arama türü\"><option value=\"kisi\" selected>Telefon, ad soyad, T.C. kimlik no ya da pasaport no</option><option value=\"oda\">Oda numarası</option></select><input class=\"uyruk\" name=\"uyruk\" value=\"\" maxlength=\"2\" placeholder=\"Uyruk\" aria-label=\"Pasaport uyruğu (isteğe bağlı, ör. DE)\" autocomplete=\"off\"><button>Ara</button></form><p class=\"alt\">T.C. kimlik ve pasaport numarasıyla yalnızca tam numara aranır; sonuçlarda kimlikler maskelidir.</p></div><p class=\"alt\">Sonuç yok.</p></main></body></html>"
+   }
+  },
+  {
+   "istek": "GET /ara",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Arama · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><header><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_ACIK}</a><nav><a href=\"/cihaz\">Cihaz paneli</a><a href=\"/\">Yedek arşiv</a><a href=\"/raporlar\">Raporlar</a><a href=\"/parola\">Parola</a><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button class=\"ikincil\">Çıkış</button></form></nav></header><main><p><a href=\"/\">← Özet</a></p><div class=\"kart\"><h1>Kişi ara</h1><form class=\"ara\" method=\"post\" action=\"/ara\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><input name=\"q\" value=\"\" maxlength=\"50\" placeholder=\"Telefon, ad soyad, T.C. no, pasaport ya da oda\" aria-label=\"Kişi ara\" autocomplete=\"off\"><select name=\"tur\" aria-label=\"Arama türü\"><option value=\"kisi\" selected>Telefon, ad soyad, T.C. kimlik no ya da pasaport no</option><option value=\"oda\">Oda numarası</option></select><input class=\"uyruk\" name=\"uyruk\" value=\"\" maxlength=\"2\" placeholder=\"Uyruk\" aria-label=\"Pasaport uyruğu (isteğe bağlı, ör. DE)\" autocomplete=\"off\"><button>Ara</button></form><p class=\"alt\">T.C. kimlik ve pasaport numarasıyla yalnızca tam numara aranır; sonuçlarda kimlikler maskelidir.</p></div></main></body></html>"
+   }
+  },
+  {
+   "istek": "POST /ara",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Arama · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><header><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_ACIK}</a><nav><a href=\"/cihaz\">Cihaz paneli</a><a href=\"/\">Yedek arşiv</a><a href=\"/raporlar\">Raporlar</a><a href=\"/parola\">Parola</a><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button class=\"ikincil\">Çıkış</button></form></nav></header><main><p><a href=\"/\">← Özet</a></p><div class=\"kart\"><h1>Kişi ara</h1><form class=\"ara\" method=\"post\" action=\"/ara\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><input name=\"q\" value=\"000000\" maxlength=\"50\" placeholder=\"Telefon, ad soyad, T.C. no, pasaport ya da oda\" aria-label=\"Kişi ara\" autocomplete=\"off\"><select name=\"tur\" aria-label=\"Arama türü\"><option value=\"kisi\" selected>Telefon, ad soyad, T.C. kimlik no ya da pasaport no</option><option value=\"oda\">Oda numarası</option></select><input class=\"uyruk\" name=\"uyruk\" value=\"\" maxlength=\"2\" placeholder=\"Uyruk\" aria-label=\"Pasaport uyruğu (isteğe bağlı, ör. DE)\" autocomplete=\"off\"><button>Ara</button></form><p class=\"alt\">T.C. kimlik ve pasaport numarasıyla yalnızca tam numara aranır; sonuçlarda kimlikler maskelidir.</p></div><div class=\"kart\"><b>Ayşe Yılmaz</b> · 905330000001<p><a href=\"/gun/2026-09-20#k9914d123ca0c625e\">20.09.2026</a></p></div></main></body></html>"
+   }
+  },
+  {
+   "istek": "GET /ara",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Arama · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><header><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_ACIK}</a><nav><a href=\"/cihaz\">Cihaz paneli</a><a href=\"/\">Yedek arşiv</a><a href=\"/raporlar\">Raporlar</a><a href=\"/parola\">Parola</a><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button class=\"ikincil\">Çıkış</button></form></nav></header><main><p><a href=\"/\">← Özet</a></p><div class=\"kart\"><h1>Kişi ara</h1><form class=\"ara\" method=\"post\" action=\"/ara\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><input name=\"q\" value=\"\" maxlength=\"50\" placeholder=\"Telefon, ad soyad, T.C. no, pasaport ya da oda\" aria-label=\"Kişi ara\" autocomplete=\"off\"><select name=\"tur\" aria-label=\"Arama türü\"><option value=\"kisi\" selected>Telefon, ad soyad, T.C. kimlik no ya da pasaport no</option><option value=\"oda\">Oda numarası</option></select><input class=\"uyruk\" name=\"uyruk\" value=\"\" maxlength=\"2\" placeholder=\"Uyruk\" aria-label=\"Pasaport uyruğu (isteğe bağlı, ör. DE)\" autocomplete=\"off\"><button>Ara</button></form><p class=\"alt\">T.C. kimlik ve pasaport numarasıyla yalnızca tam numara aranır; sonuçlarda kimlikler maskelidir.</p></div></main></body></html>"
+   }
+  },
+  {
+   "istek": "POST /ara",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Arama · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><header><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_ACIK}</a><nav><a href=\"/cihaz\">Cihaz paneli</a><a href=\"/\">Yedek arşiv</a><a href=\"/raporlar\">Raporlar</a><a href=\"/parola\">Parola</a><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button class=\"ikincil\">Çıkış</button></form></nav></header><main><p><a href=\"/\">← Özet</a></p><div class=\"kart\"><h1>Kişi ara</h1><form class=\"ara\" method=\"post\" action=\"/ara\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><input name=\"q\" value=\"\" maxlength=\"50\" placeholder=\"Telefon, ad soyad, T.C. no, pasaport ya da oda\" aria-label=\"Kişi ara\" autocomplete=\"off\"><select name=\"tur\" aria-label=\"Arama türü\"><option value=\"kisi\" selected>Telefon, ad soyad, T.C. kimlik no ya da pasaport no</option><option value=\"oda\">Oda numarası</option></select><input class=\"uyruk\" name=\"uyruk\" value=\"\" maxlength=\"2\" placeholder=\"Uyruk\" aria-label=\"Pasaport uyruğu (isteğe bağlı, ör. DE)\" autocomplete=\"off\"><button>Ara</button></form><p class=\"alt\">T.C. kimlik ve pasaport numarasıyla yalnızca tam numara aranır; sonuçlarda kimlikler maskelidir.</p></div><div class=\"kart\"><b>Hans Muller</b> · DE X12***67<p><a href=\"/gun/2026-09-20#k3d5bccda450256bc\">20.09.2026</a></p></div></main></body></html>"
+   }
+  },
+  {
+   "istek": "GET /ara",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Arama · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><header><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_ACIK}</a><nav><a href=\"/cihaz\">Cihaz paneli</a><a href=\"/\">Yedek arşiv</a><a href=\"/raporlar\">Raporlar</a><a href=\"/parola\">Parola</a><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button class=\"ikincil\">Çıkış</button></form></nav></header><main><p><a href=\"/\">← Özet</a></p><div class=\"kart\"><h1>Kişi ara</h1><form class=\"ara\" method=\"post\" action=\"/ara\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><input name=\"q\" value=\"\" maxlength=\"50\" placeholder=\"Telefon, ad soyad, T.C. no, pasaport ya da oda\" aria-label=\"Kişi ara\" autocomplete=\"off\"><select name=\"tur\" aria-label=\"Arama türü\"><option value=\"kisi\" selected>Telefon, ad soyad, T.C. kimlik no ya da pasaport no</option><option value=\"oda\">Oda numarası</option></select><input class=\"uyruk\" name=\"uyruk\" value=\"\" maxlength=\"2\" placeholder=\"Uyruk\" aria-label=\"Pasaport uyruğu (isteğe bağlı, ör. DE)\" autocomplete=\"off\"><button>Ara</button></form><p class=\"alt\">T.C. kimlik ve pasaport numarasıyla yalnızca tam numara aranır; sonuçlarda kimlikler maskelidir.</p></div></main></body></html>"
+   }
+  },
+  {
+   "istek": "POST /ara",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Arama · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><header><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_ACIK}</a><nav><a href=\"/cihaz\">Cihaz paneli</a><a href=\"/\">Yedek arşiv</a><a href=\"/raporlar\">Raporlar</a><a href=\"/parola\">Parola</a><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button class=\"ikincil\">Çıkış</button></form></nav></header><main><p><a href=\"/\">← Özet</a></p><div class=\"kart\"><h1>Kişi ara</h1><form class=\"ara\" method=\"post\" action=\"/ara\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><input name=\"q\" value=\"\" maxlength=\"50\" placeholder=\"Telefon, ad soyad, T.C. no, pasaport ya da oda\" aria-label=\"Kişi ara\" autocomplete=\"off\"><select name=\"tur\" aria-label=\"Arama türü\"><option value=\"kisi\" selected>Telefon, ad soyad, T.C. kimlik no ya da pasaport no</option><option value=\"oda\">Oda numarası</option></select><input class=\"uyruk\" name=\"uyruk\" value=\"de\" maxlength=\"2\" placeholder=\"Uyruk\" aria-label=\"Pasaport uyruğu (isteğe bağlı, ör. DE)\" autocomplete=\"off\"><button>Ara</button></form><p class=\"alt\">T.C. kimlik ve pasaport numarasıyla yalnızca tam numara aranır; sonuçlarda kimlikler maskelidir.</p></div><div class=\"kart\"><b>Hans Muller</b> · DE X12***67<p><a href=\"/gun/2026-09-20#k3d5bccda450256bc\">20.09.2026</a></p></div></main></body></html>"
+   }
+  },
+  {
+   "istek": "GET /ara",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Arama · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><header><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_ACIK}</a><nav><a href=\"/cihaz\">Cihaz paneli</a><a href=\"/\">Yedek arşiv</a><a href=\"/raporlar\">Raporlar</a><a href=\"/parola\">Parola</a><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button class=\"ikincil\">Çıkış</button></form></nav></header><main><p><a href=\"/\">← Özet</a></p><div class=\"kart\"><h1>Kişi ara</h1><form class=\"ara\" method=\"post\" action=\"/ara\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><input name=\"q\" value=\"\" maxlength=\"50\" placeholder=\"Telefon, ad soyad, T.C. no, pasaport ya da oda\" aria-label=\"Kişi ara\" autocomplete=\"off\"><select name=\"tur\" aria-label=\"Arama türü\"><option value=\"kisi\" selected>Telefon, ad soyad, T.C. kimlik no ya da pasaport no</option><option value=\"oda\">Oda numarası</option></select><input class=\"uyruk\" name=\"uyruk\" value=\"\" maxlength=\"2\" placeholder=\"Uyruk\" aria-label=\"Pasaport uyruğu (isteğe bağlı, ör. DE)\" autocomplete=\"off\"><button>Ara</button></form><p class=\"alt\">T.C. kimlik ve pasaport numarasıyla yalnızca tam numara aranır; sonuçlarda kimlikler maskelidir.</p></div></main></body></html>"
+   }
+  },
+  {
+   "istek": "POST /ara",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Arama · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><header><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_ACIK}</a><nav><a href=\"/cihaz\">Cihaz paneli</a><a href=\"/\">Yedek arşiv</a><a href=\"/raporlar\">Raporlar</a><a href=\"/parola\">Parola</a><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button class=\"ikincil\">Çıkış</button></form></nav></header><main><p><a href=\"/\">← Özet</a></p><div class=\"kart\"><h1>Kişi ara</h1><form class=\"ara\" method=\"post\" action=\"/ara\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><input name=\"q\" value=\"\" maxlength=\"50\" placeholder=\"Telefon, ad soyad, T.C. no, pasaport ya da oda\" aria-label=\"Kişi ara\" autocomplete=\"off\"><select name=\"tur\" aria-label=\"Arama türü\"><option value=\"kisi\" selected>Telefon, ad soyad, T.C. kimlik no ya da pasaport no</option><option value=\"oda\">Oda numarası</option></select><input class=\"uyruk\" name=\"uyruk\" value=\"FR\" maxlength=\"2\" placeholder=\"Uyruk\" aria-label=\"Pasaport uyruğu (isteğe bağlı, ör. DE)\" autocomplete=\"off\"><button>Ara</button></form><p class=\"alt\">T.C. kimlik ve pasaport numarasıyla yalnızca tam numara aranır; sonuçlarda kimlikler maskelidir.</p></div><p class=\"alt\">Sonuç yok.</p></main></body></html>"
+   }
+  },
+  {
+   "istek": "GET /ara",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Arama · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><header><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_ACIK}</a><nav><a href=\"/cihaz\">Cihaz paneli</a><a href=\"/\">Yedek arşiv</a><a href=\"/raporlar\">Raporlar</a><a href=\"/parola\">Parola</a><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button class=\"ikincil\">Çıkış</button></form></nav></header><main><p><a href=\"/\">← Özet</a></p><div class=\"kart\"><h1>Kişi ara</h1><form class=\"ara\" method=\"post\" action=\"/ara\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><input name=\"q\" value=\"\" maxlength=\"50\" placeholder=\"Telefon, ad soyad, T.C. no, pasaport ya da oda\" aria-label=\"Kişi ara\" autocomplete=\"off\"><select name=\"tur\" aria-label=\"Arama türü\"><option value=\"kisi\" selected>Telefon, ad soyad, T.C. kimlik no ya da pasaport no</option><option value=\"oda\">Oda numarası</option></select><input class=\"uyruk\" name=\"uyruk\" value=\"\" maxlength=\"2\" placeholder=\"Uyruk\" aria-label=\"Pasaport uyruğu (isteğe bağlı, ör. DE)\" autocomplete=\"off\"><button>Ara</button></form><p class=\"alt\">T.C. kimlik ve pasaport numarasıyla yalnızca tam numara aranır; sonuçlarda kimlikler maskelidir.</p></div></main></body></html>"
+   }
+  },
+  {
+   "istek": "POST /ara",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Arama · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><header><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_ACIK}</a><nav><a href=\"/cihaz\">Cihaz paneli</a><a href=\"/\">Yedek arşiv</a><a href=\"/raporlar\">Raporlar</a><a href=\"/parola\">Parola</a><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button class=\"ikincil\">Çıkış</button></form></nav></header><main><p><a href=\"/\">← Özet</a></p><div class=\"kart\"><h1>Kişi ara</h1><form class=\"ara\" method=\"post\" action=\"/ara\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><input name=\"q\" value=\"\" maxlength=\"50\" placeholder=\"Telefon, ad soyad, T.C. no, pasaport ya da oda\" aria-label=\"Kişi ara\" autocomplete=\"off\"><select name=\"tur\" aria-label=\"Arama türü\"><option value=\"kisi\" selected>Telefon, ad soyad, T.C. kimlik no ya da pasaport no</option><option value=\"oda\">Oda numarası</option></select><input class=\"uyruk\" name=\"uyruk\" value=\"\" maxlength=\"2\" placeholder=\"Uyruk\" aria-label=\"Pasaport uyruğu (isteğe bağlı, ör. DE)\" autocomplete=\"off\"><button>Ara</button></form><p class=\"alt\">T.C. kimlik ve pasaport numarasıyla yalnızca tam numara aranır; sonuçlarda kimlikler maskelidir.</p></div><p class=\"alt\">Sonuç yok.</p></main></body></html>"
+   }
+  },
+  {
+   "istek": "GET /ara",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Arama · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><header><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_ACIK}</a><nav><a href=\"/cihaz\">Cihaz paneli</a><a href=\"/\">Yedek arşiv</a><a href=\"/raporlar\">Raporlar</a><a href=\"/parola\">Parola</a><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button class=\"ikincil\">Çıkış</button></form></nav></header><main><p><a href=\"/\">← Özet</a></p><div class=\"kart\"><h1>Kişi ara</h1><form class=\"ara\" method=\"post\" action=\"/ara\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><input name=\"q\" value=\"\" maxlength=\"50\" placeholder=\"Telefon, ad soyad, T.C. no, pasaport ya da oda\" aria-label=\"Kişi ara\" autocomplete=\"off\"><select name=\"tur\" aria-label=\"Arama türü\"><option value=\"kisi\" selected>Telefon, ad soyad, T.C. kimlik no ya da pasaport no</option><option value=\"oda\">Oda numarası</option></select><input class=\"uyruk\" name=\"uyruk\" value=\"\" maxlength=\"2\" placeholder=\"Uyruk\" aria-label=\"Pasaport uyruğu (isteğe bağlı, ör. DE)\" autocomplete=\"off\"><button>Ara</button></form><p class=\"alt\">T.C. kimlik ve pasaport numarasıyla yalnızca tam numara aranır; sonuçlarda kimlikler maskelidir.</p></div></main></body></html>"
+   }
+  },
+  {
+   "istek": "POST /ara",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Arama · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><header><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_ACIK}</a><nav><a href=\"/cihaz\">Cihaz paneli</a><a href=\"/\">Yedek arşiv</a><a href=\"/raporlar\">Raporlar</a><a href=\"/parola\">Parola</a><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button class=\"ikincil\">Çıkış</button></form></nav></header><main><p><a href=\"/\">← Özet</a></p><div class=\"kart\"><h1>Kişi ara</h1><form class=\"ara\" method=\"post\" action=\"/ara\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><input name=\"q\" value=\"101\" maxlength=\"50\" placeholder=\"Telefon, ad soyad, T.C. no, pasaport ya da oda\" aria-label=\"Kişi ara\" autocomplete=\"off\"><select name=\"tur\" aria-label=\"Arama türü\"><option value=\"kisi\">Telefon, ad soyad, T.C. kimlik no ya da pasaport no</option><option value=\"oda\" selected>Oda numarası</option></select><input class=\"uyruk\" name=\"uyruk\" value=\"\" maxlength=\"2\" placeholder=\"Uyruk\" aria-label=\"Pasaport uyruğu (isteğe bağlı, ör. DE)\" autocomplete=\"off\"><button>Ara</button></form><p class=\"alt\">T.C. kimlik ve pasaport numarasıyla yalnızca tam numara aranır; sonuçlarda kimlikler maskelidir.</p></div><div class=\"kart\"><b>Deniz Kara</b> · 100******46<p><a href=\"/gun/2026-09-20#kbec38939c97e7cbf\">20.09.2026</a></p></div></main></body></html>"
+   }
+  },
+  {
+   "istek": "GET /ara",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Arama · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><header><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_ACIK}</a><nav><a href=\"/cihaz\">Cihaz paneli</a><a href=\"/\">Yedek arşiv</a><a href=\"/raporlar\">Raporlar</a><a href=\"/parola\">Parola</a><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button class=\"ikincil\">Çıkış</button></form></nav></header><main><p><a href=\"/\">← Özet</a></p><div class=\"kart\"><h1>Kişi ara</h1><form class=\"ara\" method=\"post\" action=\"/ara\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><input name=\"q\" value=\"\" maxlength=\"50\" placeholder=\"Telefon, ad soyad, T.C. no, pasaport ya da oda\" aria-label=\"Kişi ara\" autocomplete=\"off\"><select name=\"tur\" aria-label=\"Arama türü\"><option value=\"kisi\" selected>Telefon, ad soyad, T.C. kimlik no ya da pasaport no</option><option value=\"oda\">Oda numarası</option></select><input class=\"uyruk\" name=\"uyruk\" value=\"\" maxlength=\"2\" placeholder=\"Uyruk\" aria-label=\"Pasaport uyruğu (isteğe bağlı, ör. DE)\" autocomplete=\"off\"><button>Ara</button></form><p class=\"alt\">T.C. kimlik ve pasaport numarasıyla yalnızca tam numara aranır; sonuçlarda kimlikler maskelidir.</p></div></main></body></html>"
+   }
+  },
+  {
+   "istek": "POST /ara",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Arama · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><header><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_ACIK}</a><nav><a href=\"/cihaz\">Cihaz paneli</a><a href=\"/\">Yedek arşiv</a><a href=\"/raporlar\">Raporlar</a><a href=\"/parola\">Parola</a><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button class=\"ikincil\">Çıkış</button></form></nav></header><main><p><a href=\"/\">← Özet</a></p><div class=\"kart\"><h1>Kişi ara</h1><form class=\"ara\" method=\"post\" action=\"/ara\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><input name=\"q\" value=\"202\" maxlength=\"50\" placeholder=\"Telefon, ad soyad, T.C. no, pasaport ya da oda\" aria-label=\"Kişi ara\" autocomplete=\"off\"><select name=\"tur\" aria-label=\"Arama türü\"><option value=\"kisi\">Telefon, ad soyad, T.C. kimlik no ya da pasaport no</option><option value=\"oda\" selected>Oda numarası</option></select><input class=\"uyruk\" name=\"uyruk\" value=\"\" maxlength=\"2\" placeholder=\"Uyruk\" aria-label=\"Pasaport uyruğu (isteğe bağlı, ör. DE)\" autocomplete=\"off\"><button>Ara</button></form><p class=\"alt\">T.C. kimlik ve pasaport numarasıyla yalnızca tam numara aranır; sonuçlarda kimlikler maskelidir.</p></div><div class=\"kart\"><b>Hans Muller</b> · DE X12***67<p><a href=\"/gun/2026-09-20#k3d5bccda450256bc\">20.09.2026</a></p></div></main></body></html>"
+   }
+  },
+  {
+   "istek": "GET /ara",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Arama · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><header><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_ACIK}</a><nav><a href=\"/cihaz\">Cihaz paneli</a><a href=\"/\">Yedek arşiv</a><a href=\"/raporlar\">Raporlar</a><a href=\"/parola\">Parola</a><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button class=\"ikincil\">Çıkış</button></form></nav></header><main><p><a href=\"/\">← Özet</a></p><div class=\"kart\"><h1>Kişi ara</h1><form class=\"ara\" method=\"post\" action=\"/ara\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><input name=\"q\" value=\"\" maxlength=\"50\" placeholder=\"Telefon, ad soyad, T.C. no, pasaport ya da oda\" aria-label=\"Kişi ara\" autocomplete=\"off\"><select name=\"tur\" aria-label=\"Arama türü\"><option value=\"kisi\" selected>Telefon, ad soyad, T.C. kimlik no ya da pasaport no</option><option value=\"oda\">Oda numarası</option></select><input class=\"uyruk\" name=\"uyruk\" value=\"\" maxlength=\"2\" placeholder=\"Uyruk\" aria-label=\"Pasaport uyruğu (isteğe bağlı, ör. DE)\" autocomplete=\"off\"><button>Ara</button></form><p class=\"alt\">T.C. kimlik ve pasaport numarasıyla yalnızca tam numara aranır; sonuçlarda kimlikler maskelidir.</p></div></main></body></html>"
+   }
+  },
+  {
+   "istek": "POST /ara",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Arama · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><header><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_ACIK}</a><nav><a href=\"/cihaz\">Cihaz paneli</a><a href=\"/\">Yedek arşiv</a><a href=\"/raporlar\">Raporlar</a><a href=\"/parola\">Parola</a><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button class=\"ikincil\">Çıkış</button></form></nav></header><main><p><a href=\"/\">← Özet</a></p><div class=\"kart\"><h1>Kişi ara</h1><form class=\"ara\" method=\"post\" action=\"/ara\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><input name=\"q\" value=\"1010\" maxlength=\"50\" placeholder=\"Telefon, ad soyad, T.C. no, pasaport ya da oda\" aria-label=\"Kişi ara\" autocomplete=\"off\"><select name=\"tur\" aria-label=\"Arama türü\"><option value=\"kisi\">Telefon, ad soyad, T.C. kimlik no ya da pasaport no</option><option value=\"oda\" selected>Oda numarası</option></select><input class=\"uyruk\" name=\"uyruk\" value=\"\" maxlength=\"2\" placeholder=\"Uyruk\" aria-label=\"Pasaport uyruğu (isteğe bağlı, ör. DE)\" autocomplete=\"off\"><button>Ara</button></form><p class=\"alt\">T.C. kimlik ve pasaport numarasıyla yalnızca tam numara aranır; sonuçlarda kimlikler maskelidir.</p></div><p class=\"alt\">Sonuç yok.</p></main></body></html>"
+   }
+  },
+  {
+   "istek": "GET /ara",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Arama · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><header><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_ACIK}</a><nav><a href=\"/cihaz\">Cihaz paneli</a><a href=\"/\">Yedek arşiv</a><a href=\"/raporlar\">Raporlar</a><a href=\"/parola\">Parola</a><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button class=\"ikincil\">Çıkış</button></form></nav></header><main><p><a href=\"/\">← Özet</a></p><div class=\"kart\"><h1>Kişi ara</h1><form class=\"ara\" method=\"post\" action=\"/ara\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><input name=\"q\" value=\"\" maxlength=\"50\" placeholder=\"Telefon, ad soyad, T.C. no, pasaport ya da oda\" aria-label=\"Kişi ara\" autocomplete=\"off\"><select name=\"tur\" aria-label=\"Arama türü\"><option value=\"kisi\" selected>Telefon, ad soyad, T.C. kimlik no ya da pasaport no</option><option value=\"oda\">Oda numarası</option></select><input class=\"uyruk\" name=\"uyruk\" value=\"\" maxlength=\"2\" placeholder=\"Uyruk\" aria-label=\"Pasaport uyruğu (isteğe bağlı, ör. DE)\" autocomplete=\"off\"><button>Ara</button></form><p class=\"alt\">T.C. kimlik ve pasaport numarasıyla yalnızca tam numara aranır; sonuçlarda kimlikler maskelidir.</p></div></main></body></html>"
+   }
+  },
+  {
+   "istek": "POST /ara",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Arama · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><header><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_ACIK}</a><nav><a href=\"/cihaz\">Cihaz paneli</a><a href=\"/\">Yedek arşiv</a><a href=\"/raporlar\">Raporlar</a><a href=\"/parola\">Parola</a><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button class=\"ikincil\">Çıkış</button></form></nav></header><main><p><a href=\"/\">← Özet</a></p><div class=\"kart\"><h1>Kişi ara</h1><form class=\"ara\" method=\"post\" action=\"/ara\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><input name=\"q\" value=\"10\" maxlength=\"50\" placeholder=\"Telefon, ad soyad, T.C. no, pasaport ya da oda\" aria-label=\"Kişi ara\" autocomplete=\"off\"><select name=\"tur\" aria-label=\"Arama türü\"><option value=\"kisi\">Telefon, ad soyad, T.C. kimlik no ya da pasaport no</option><option value=\"oda\" selected>Oda numarası</option></select><input class=\"uyruk\" name=\"uyruk\" value=\"\" maxlength=\"2\" placeholder=\"Uyruk\" aria-label=\"Pasaport uyruğu (isteğe bağlı, ör. DE)\" autocomplete=\"off\"><button>Ara</button></form><p class=\"alt\">T.C. kimlik ve pasaport numarasıyla yalnızca tam numara aranır; sonuçlarda kimlikler maskelidir.</p></div><p class=\"alt\">Sonuç yok.</p></main></body></html>"
+   }
+  }
+ ],
+ "veritabanlari": [
+  {
+   "ad": "m.db",
+   "tablolar": {
+    "ayar": [],
+    "bekleyen": [],
+    "cihaz": [],
+    "eski_arsiv": [],
+    "hareket": [
+     {
+      "ayrinti": "müşteri paneli",
+      "id": 1,
+      "ip": "203.0.113.5",
+      "kim": "5721885",
+      "musteri": 5721885,
+      "olay": "GIRIS",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     },
+     {
+      "ayrinti": "/ · Müşteri şikâyeti",
+      "id": 2,
+      "ip": "203.0.113.5",
+      "kim": "5721885",
+      "musteri": 5721885,
+      "olay": "GEREKCE",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     },
+     {
+      "ayrinti": "/ara · Müşteri şikâyeti",
+      "id": 3,
+      "ip": "203.0.113.5",
+      "kim": "5721885",
+      "musteri": 5721885,
+      "olay": "GORUNTULEME",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     },
+     {
+      "ayrinti": "/ara · Müşteri şikâyeti",
+      "id": 4,
+      "ip": "203.0.113.5",
+      "kim": "5721885",
+      "musteri": 5721885,
+      "olay": "GORUNTULEME",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     },
+     {
+      "ayrinti": "/ara · Müşteri şikâyeti",
+      "id": 5,
+      "ip": "203.0.113.5",
+      "kim": "5721885",
+      "musteri": 5721885,
+      "olay": "GORUNTULEME",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     },
+     {
+      "ayrinti": "/ara · Müşteri şikâyeti",
+      "id": 6,
+      "ip": "203.0.113.5",
+      "kim": "5721885",
+      "musteri": 5721885,
+      "olay": "GORUNTULEME",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     },
+     {
+      "ayrinti": "/ara · Müşteri şikâyeti",
+      "id": 7,
+      "ip": "203.0.113.5",
+      "kim": "5721885",
+      "musteri": 5721885,
+      "olay": "GORUNTULEME",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     },
+     {
+      "ayrinti": "/ara · Müşteri şikâyeti",
+      "id": 8,
+      "ip": "203.0.113.5",
+      "kim": "5721885",
+      "musteri": 5721885,
+      "olay": "GORUNTULEME",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     },
+     {
+      "ayrinti": "/ara · Müşteri şikâyeti",
+      "id": 9,
+      "ip": "203.0.113.5",
+      "kim": "5721885",
+      "musteri": 5721885,
+      "olay": "GORUNTULEME",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     },
+     {
+      "ayrinti": "/ara · Müşteri şikâyeti",
+      "id": 10,
+      "ip": "203.0.113.5",
+      "kim": "5721885",
+      "musteri": 5721885,
+      "olay": "GORUNTULEME",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     },
+     {
+      "ayrinti": "/ara · Müşteri şikâyeti",
+      "id": 11,
+      "ip": "203.0.113.5",
+      "kim": "5721885",
+      "musteri": 5721885,
+      "olay": "GORUNTULEME",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     },
+     {
+      "ayrinti": "/ara · Müşteri şikâyeti",
+      "id": 12,
+      "ip": "203.0.113.5",
+      "kim": "5721885",
+      "musteri": 5721885,
+      "olay": "GORUNTULEME",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     },
+     {
+      "ayrinti": "/ara · Müşteri şikâyeti",
+      "id": 13,
+      "ip": "203.0.113.5",
+      "kim": "5721885",
+      "musteri": 5721885,
+      "olay": "GORUNTULEME",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     },
+     {
+      "ayrinti": "/ara · Müşteri şikâyeti",
+      "id": 14,
+      "ip": "203.0.113.5",
+      "kim": "5721885",
+      "musteri": 5721885,
+      "olay": "GORUNTULEME",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     },
+     {
+      "ayrinti": "/ara · Müşteri şikâyeti",
+      "id": 15,
+      "ip": "203.0.113.5",
+      "kim": "5721885",
+      "musteri": 5721885,
+      "olay": "GORUNTULEME",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     }
+    ],
+    "musteri": [
+     {
+      "ap_parola": "6vwWeTxWbXDf",
+      "askida": 0,
+      "bitis": "",
+      "guncelleme_hemen": 0.0,
+      "guncelleme_hemen_surum": "",
+      "guncelleme_kanali": "kararli",
+      "lisans_bitis": "2027-09-21",
+      "not_": "",
+      "numara": 5721885,
+      "olusturma": "2026-09-21T17:13:20+03:00",
+      "ozet": "fcd77d2f1464acefd0bf9649c59c9103b30bf9b4aa14a1930fdbc86ae817e02c",
+      "parola_acik": "6bnuKUG4dyZ7",
+      "son_giris": "2026-09-21T17:13:20+03:00",
+      "tuz": "<T3>",
+      "uyelik": "aktif",
+      "yineleme": 120000
+     }
+    ],
+    "saglik": [],
+    "sms_sayac": [],
+    "sms_son": [],
+    "sorun": [],
+    "sqlite_sequence": [
+     {
+      "name": "hareket",
+      "seq": 15
+     }
+    ],
+    "surum": []
+   }
+  }
+ ],
+ "yollar": [
+  [
+   "Musteri",
+   "POST",
+   "/giris",
+   null,
+   303,
+   "/baglan"
+  ],
+  [
+   "Musteri",
+   "GET",
+   "/gerekce",
+   null,
+   200,
+   null
+  ],
+  [
+   "Musteri",
+   "POST",
+   "/gerekce",
+   null,
+   303,
+   "/"
+  ],
+  [
+   "Musteri",
+   "GET",
+   "/ara",
+   null,
+   200,
+   null
+  ],
+  [
+   "Musteri",
+   "POST",
+   "/ara",
+   null,
+   200,
+   null
+  ],
+  [
+   "Musteri",
+   "GET",
+   "/ara",
+   null,
+   200,
+   null
+  ],
+  [
+   "Musteri",
+   "POST",
+   "/ara",
+   null,
+   200,
+   null
+  ],
+  [
+   "Musteri",
+   "GET",
+   "/ara",
+   null,
+   200,
+   null
+  ],
+  [
+   "Musteri",
+   "POST",
+   "/ara",
+   null,
+   200,
+   null
+  ],
+  [
+   "Musteri",
+   "GET",
+   "/ara",
+   null,
+   200,
+   null
+  ],
+  [
+   "Musteri",
+   "POST",
+   "/ara",
+   null,
+   200,
+   null
+  ],
+  [
+   "Musteri",
+   "GET",
+   "/ara",
+   null,
+   200,
+   null
+  ],
+  [
+   "Musteri",
+   "POST",
+   "/ara",
+   null,
+   200,
+   null
+  ],
+  [
+   "Musteri",
+   "GET",
+   "/ara",
+   null,
+   200,
+   null
+  ],
+  [
+   "Musteri",
+   "POST",
+   "/ara",
+   null,
+   200,
+   null
+  ],
+  [
+   "Musteri",
+   "GET",
+   "/ara",
+   null,
+   200,
+   null
+  ],
+  [
+   "Musteri",
+   "POST",
+   "/ara",
+   null,
+   200,
+   null
+  ],
+  [
+   "Musteri",
+   "GET",
+   "/ara",
+   null,
+   200,
+   null
+  ],
+  [
+   "Musteri",
+   "POST",
+   "/ara",
+   null,
+   200,
+   null
+  ],
+  [
+   "Musteri",
+   "GET",
+   "/ara",
+   null,
+   200,
+   null
+  ],
+  [
+   "Musteri",
+   "POST",
+   "/ara",
+   null,
+   200,
+   null
+  ],
+  [
+   "Musteri",
+   "GET",
+   "/ara",
+   null,
+   200,
+   null
+  ],
+  [
+   "Musteri",
+   "POST",
+   "/ara",
+   null,
+   200,
+   null
+  ],
+  [
+   "Musteri",
+   "GET",
+   "/ara",
+   null,
+   200,
+   null
+  ],
+  [
+   "Musteri",
+   "POST",
+   "/ara",
+   null,
+   200,
+   null
+  ],
+  [
+   "Musteri",
+   "GET",
+   "/ara",
+   null,
+   200,
+   null
+  ],
+  [
+   "Musteri",
+   "POST",
+   "/ara",
+   null,
+   200,
+   null
+  ],
+  [
+   "Musteri",
+   "GET",
+   "/ara",
+   null,
+   200,
+   null
+  ],
+  [
+   "Musteri",
+   "POST",
+   "/ara",
+   null,
+   200,
+   null
+  ]
+ ]
+}

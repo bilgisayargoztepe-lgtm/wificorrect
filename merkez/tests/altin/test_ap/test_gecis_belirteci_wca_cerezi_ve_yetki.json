@@ -1,0 +1,279 @@
+{
+ "bicim": 1,
+ "dosya": "test_ap",
+ "test": "test_gecis_belirteci_wca_cerezi_ve_yetki",
+ "cevaplar": [
+  {
+   "istek": "GET /_ap-gecis",
+   "durum": 303,
+   "basliklar": [
+    [
+     "Location",
+     "https://ap.wificorrect.com/_ap-giris?t=<T1>"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": ""
+   }
+  },
+  {
+   "istek": "GET /_ap-giris?t=<T?>",
+   "durum": 303,
+   "basliklar": [
+    [
+     "Location",
+     "/"
+    ],
+    [
+     "Set-Cookie",
+     "wca=<T2>; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=1800"
+    ],
+    [
+     "Clear-Site-Data",
+     "\"storage\""
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": ""
+   }
+  },
+  {
+   "istek": "GET /ap-yetki",
+   "durum": 200,
+   "basliklar": [
+    [
+     "X-WFC-Cihaz",
+     "10.99.0.11"
+    ],
+    [
+     "X-WFC-AP-Kullanici",
+     "5721885"
+    ],
+    [
+     "X-WFC-AP",
+     "1"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": ""
+   }
+  },
+  {
+   "istek": "GET /_ap-giris?t=<T?>",
+   "durum": 403,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ],
+    [
+     "X-Frame-Options",
+     "SAMEORIGIN"
+    ],
+    [
+     "Content-Security-Policy",
+     "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; frame-ancestors 'self'"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Bağlantı geçersiz · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><header><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_ACIK}</a></header><main><div class=\"kart\"><h1>Bağlantı geçersiz</h1><p>AP arayüzü bağlantısı geçersiz ya da süresi dolmuş (bağlantı bir dakika geçerlidir ve bir kez kullanılır). Cihaz panelinde Ayarlar → AP kurulumu → AP arayüzüne git ile yeniden açın.</p><p><a href=\"https://cihaz.wificorrect.com/\" target=\"_top\">Cihaz paneline git</a></p></div></main></body></html>"
+   }
+  },
+  {
+   "istek": "GET /_ap-giris?t=",
+   "durum": 403,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ],
+    [
+     "X-Frame-Options",
+     "SAMEORIGIN"
+    ],
+    [
+     "Content-Security-Policy",
+     "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; frame-ancestors 'self'"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Bağlantı geçersiz · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><header><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_ACIK}</a></header><main><div class=\"kart\"><h1>Bağlantı geçersiz</h1><p>AP arayüzü bağlantısı geçersiz ya da süresi dolmuş (bağlantı bir dakika geçerlidir ve bir kez kullanılır). Cihaz panelinde Ayarlar → AP kurulumu → AP arayüzüne git ile yeniden açın.</p><p><a href=\"https://cihaz.wificorrect.com/\" target=\"_top\">Cihaz paneline git</a></p></div></main></body></html>"
+   }
+  },
+  {
+   "istek": "GET /_ap-giris",
+   "durum": 403,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ],
+    [
+     "X-Frame-Options",
+     "SAMEORIGIN"
+    ],
+    [
+     "Content-Security-Policy",
+     "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; frame-ancestors 'self'"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Bağlantı geçersiz · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><header><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_ACIK}</a></header><main><div class=\"kart\"><h1>Bağlantı geçersiz</h1><p>AP arayüzü bağlantısı geçersiz ya da süresi dolmuş (bağlantı bir dakika geçerlidir ve bir kez kullanılır). Cihaz panelinde Ayarlar → AP kurulumu → AP arayüzüne git ile yeniden açın.</p><p><a href=\"https://cihaz.wificorrect.com/\" target=\"_top\">Cihaz paneline git</a></p></div></main></body></html>"
+   }
+  }
+ ],
+ "veritabanlari": [
+  {
+   "ad": "m.db",
+   "tablolar": {
+    "ayar": [],
+    "bekleyen": [],
+    "cihaz": [
+     {
+      "admin_ozet": "",
+      "admin_parola": "",
+      "admin_tuz": "",
+      "admin_yineleme": 0,
+      "adres": "",
+      "anahtar_ozet": "4b3d539199668875d7f7b984e232922e427434cc4b74709eaed94a2dd9805cec",
+      "ayrilma": "",
+      "baglanma": "2026-09-21T17:13:20+03:00",
+      "durum": "bagli",
+      "id": 1,
+      "isletme_adi": "",
+      "isletme_turu": "",
+      "musteri": 5721885,
+      "otomatik": 0,
+      "son_eslesme": "",
+      "ssh_pub": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI c",
+      "surum": "",
+      "tunel_ip": "10.99.0.11",
+      "unvan": "",
+      "wg_pub": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+     }
+    ],
+    "eski_arsiv": [],
+    "hareket": [
+     {
+      "ayrinti": "rol=musteri",
+      "id": 1,
+      "ip": "203.0.113.5",
+      "kim": "5721885",
+      "musteri": 5721885,
+      "olay": "AP_GECIS",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     }
+    ],
+    "musteri": [
+     {
+      "ap_parola": "6bnuKUG4dyZ7",
+      "askida": 0,
+      "bitis": "",
+      "guncelleme_hemen": 0.0,
+      "guncelleme_hemen_surum": "",
+      "guncelleme_kanali": "kararli",
+      "lisans_bitis": "2027-09-21",
+      "not_": "",
+      "numara": 5721885,
+      "olusturma": "2026-09-21T17:13:20+03:00",
+      "ozet": "e4b42aba6380c081c1e40ea833fbd8d6c017c31428ff9779ed2c6c68422dbf14",
+      "parola_acik": "musteri-parola-1",
+      "son_giris": "",
+      "tuz": "<T3>",
+      "uyelik": "aktif",
+      "yineleme": 120000
+     }
+    ],
+    "saglik": [],
+    "sms_sayac": [],
+    "sms_son": [],
+    "sorun": [],
+    "sqlite_sequence": [
+     {
+      "name": "cihaz",
+      "seq": 1
+     },
+     {
+      "name": "hareket",
+      "seq": 1
+     }
+    ],
+    "surum": []
+   }
+  }
+ ],
+ "yollar": [
+  [
+   "Cihaz",
+   "GET",
+   "/_ap-gecis",
+   null,
+   303,
+   "https://ap.wificorrect.com/_ap-giris?t=BLG5GaDfGmUiUtgTstyWAcDbshWF1rVYRCN5H3nPCEo"
+  ],
+  [
+   "Ap",
+   "GET",
+   "/_ap-giris",
+   null,
+   303,
+   "/"
+  ],
+  [
+   "Ap",
+   "GET",
+   "/ap-yetki",
+   null,
+   200,
+   null
+  ],
+  [
+   "Ap",
+   "GET",
+   "/_ap-giris",
+   null,
+   403,
+   null
+  ],
+  [
+   "Ap",
+   "GET",
+   "/_ap-giris",
+   null,
+   403,
+   null
+  ],
+  [
+   "Ap",
+   "GET",
+   "/_ap-giris",
+   null,
+   403,
+   null
+  ]
+ ]
+}

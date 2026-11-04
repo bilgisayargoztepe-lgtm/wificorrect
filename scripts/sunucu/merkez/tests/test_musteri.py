@@ -112,6 +112,19 @@ def test_gerekce_donusu_baska_siteye_gitmez():
             assert r[1]["Location"] == "/", kotu
 
 
+def test_cikis_oturumu_kapatir():
+    """Çıkış CSRF'li POST'la: oturum kapanır, çerez silinir; aynı çerezle sayfa giriş sayfasına döner."""
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        app, v, _ = kur(tmp)
+        n, pw = v.musteri_ekle()
+        c = Y.cerez(Y.giris(app, str(n), pw))
+        f = Y.al(app, "/parola", c)
+        assert Y.gonder(app, "/cikis", c, {"csrf": "yanlis"})[0] == 403
+        r = Y.gonder(app, "/cikis", c, {"csrf": Y.csrf(f)})
+        assert r[0] == 303 and r[1]["Location"] == "/giris"
+        assert r[1]["Set-Cookie"] == "wc_musteri=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0"
+        assert Y.al(app, "/parola", c)[1]["Location"] == "/giris"
+
 if __name__ == "__main__":
     for _name, _fn in sorted(globals().items()):
         if _name.startswith("test_") and callable(_fn):

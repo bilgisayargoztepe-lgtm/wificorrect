@@ -1,0 +1,177 @@
+{
+ "bicim": 1,
+ "dosya": "test_bekleme",
+ "test": "test_eski_kayit_7_gunde_silinir",
+ "cevaplar": [
+  {
+   "istek": "POST /api/bekliyor",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "durum": "bekle"
+    }
+   }
+  },
+  {
+   "istek": "POST /api/bekliyor",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "durum": "bekle"
+    }
+   }
+  },
+  {
+   "istek": "POST /api/bekliyor",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "durum": "bekle"
+    }
+   }
+  }
+ ],
+ "veritabanlari": [
+  {
+   "ad": "m.db",
+   "tablolar": {
+    "ayar": [],
+    "bekleyen": [
+     {
+      "ayrilma": 0.0,
+      "baglandi": 0.0,
+      "belirtec_bitis": 0.0,
+      "belirtec_ozet": "",
+      "cihaz": null,
+      "ilk": 1790604801.0,
+      "ip": "198.51.100.7",
+      "kimlik": "22222222222222222222222222222222",
+      "musteri": null,
+      "sir_ozet": "a0fab1377f49a759b57f63318262ebe89fabfc990e8e93ceac2984561482b9d4",
+      "son": 1790604801.0,
+      "ssh_pub": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI cihaz",
+      "surum": "0.4.13",
+      "wan_mac": "00:0e:c4:ce:a0:9b",
+      "wg_pub": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+     },
+     {
+      "ayrilma": 0.0,
+      "baglandi": 0.0,
+      "belirtec_bitis": 0.0,
+      "belirtec_ozet": "",
+      "cihaz": null,
+      "ilk": 1790604801.0,
+      "ip": "203.0.113.5",
+      "kimlik": "11111111111111111111111111111111",
+      "musteri": null,
+      "sir_ozet": "52b6419d27bd7f547cee3b92f8c17a908b8a49601ecbec161e5030de1dfe9e0a",
+      "son": 1790604801.0,
+      "ssh_pub": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI cihaz",
+      "surum": "0.4.13",
+      "wan_mac": "00:0e:c4:ce:a0:9b",
+      "wg_pub": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+     }
+    ],
+    "cihaz": [],
+    "eski_arsiv": [],
+    "hareket": [
+     {
+      "ayrinti": "kimlik=11111111 surum=0.4.13 mac=00:0e:c4:ce:a0:9b",
+      "id": 1,
+      "ip": "203.0.113.5",
+      "kim": "bekleyen:11111111",
+      "musteri": null,
+      "olay": "CIHAZ_BEKLIYOR",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     },
+     {
+      "ayrinti": "kimlik=22222222 surum=0.4.13 mac=00:0e:c4:ce:a0:9b",
+      "id": 2,
+      "ip": "198.51.100.7",
+      "kim": "bekleyen:22222222",
+      "musteri": null,
+      "olay": "CIHAZ_BEKLIYOR",
+      "zaman": "2026-09-28T17:13:21+03:00"
+     },
+     {
+      "ayrinti": "kimlik=11111111 surum=0.4.13 mac=00:0e:c4:ce:a0:9b",
+      "id": 3,
+      "ip": "203.0.113.5",
+      "kim": "bekleyen:11111111",
+      "musteri": null,
+      "olay": "CIHAZ_BEKLIYOR",
+      "zaman": "2026-09-28T17:13:21+03:00"
+     }
+    ],
+    "musteri": [],
+    "saglik": [],
+    "sms_sayac": [],
+    "sms_son": [],
+    "sorun": [],
+    "sqlite_sequence": [
+     {
+      "name": "hareket",
+      "seq": 3
+     }
+    ],
+    "surum": []
+   }
+  }
+ ],
+ "yollar": [
+  [
+   "Api",
+   "POST",
+   "/api/bekliyor",
+   null,
+   200,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/bekliyor",
+   null,
+   200,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/bekliyor",
+   null,
+   200,
+   null
+  ]
+ ]
+}

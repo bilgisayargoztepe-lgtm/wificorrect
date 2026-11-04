@@ -412,6 +412,7 @@ mod testler {
 
     #[test]
     fn liste_degerli_baslik_ayri_satirlar() {
+        let _k = crate::altin::Kayit::bas("test_merkez", "test_liste_degerli_baslik_ayri_satirlar");
         let c = baslat_deneme(Duration::from_secs(5));
         let t = metin(&al(c.adres(), "GET /coklu HTTP/1.1\r\nHost: api.wificorrect.com\r\n\r\n"));
         assert!(t.starts_with("HTTP/1.0 303 See Other\r\n"), "{t}");
@@ -422,6 +423,7 @@ mod testler {
 
     #[test]
     fn buyuk_govde_tamam_yazilir() {
+        let _k = crate::altin::Kayit::bas("test_merkez", "test_buyuk_govde_parca_parca_yazilir");
         let c = baslat_deneme(Duration::from_secs(5));
         let ham = al(c.adres(), "GET /buyuk HTTP/1.1\r\nHost: api.wificorrect.com\r\n\r\n");
         let ayrac = ham.windows(4).position(|w| w == b"\r\n\r\n").unwrap() + 4;
@@ -500,6 +502,7 @@ mod testler {
     /// başka istek cevaplanır. Sunucu zaman aşımından sonra da çalışmaya devam eder (kabul döngüsü zaman aşımıyla ölmemeli).
     #[test]
     fn soket_zaman_asimi() {
+        let _k = crate::altin::Kayit::bas("test_merkez", "test_soket_zaman_asimi");
         assert_eq!(SOKET_ZAMAN_ASIMI, Duration::from_secs(20));
         let c = baslat_deneme(Duration::from_secs(1));
         let baslangic = Instant::now();

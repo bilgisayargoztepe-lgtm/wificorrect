@@ -1,0 +1,490 @@
+{
+ "bicim": 1,
+ "dosya": "test_api",
+ "test": "test_hatali_parola_kilit_ve_gecersiz_girdi",
+ "cevaplar": [
+  {
+   "istek": "POST /api/giris",
+   "durum": 401,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "hata": "Müşteri numarası veya parola hatalı.",
+     "kod": "hatali"
+    }
+   }
+  },
+  {
+   "istek": "POST /api/giris",
+   "durum": 401,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "hata": "Müşteri numarası veya parola hatalı.",
+     "kod": "hatali"
+    }
+   }
+  },
+  {
+   "istek": "POST /api/giris",
+   "durum": 400,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "hata": "Müşteri numarası 7 haneli olmalı.",
+     "kod": "gecersiz"
+    }
+   }
+  },
+  {
+   "istek": "POST /api/giris",
+   "durum": 401,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "hata": "Müşteri numarası veya parola hatalı.",
+     "kod": "hatali"
+    }
+   }
+  },
+  {
+   "istek": "POST /api/giris",
+   "durum": 401,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "hata": "Müşteri numarası veya parola hatalı.",
+     "kod": "hatali"
+    }
+   }
+  },
+  {
+   "istek": "POST /api/giris",
+   "durum": 401,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "hata": "Müşteri numarası veya parola hatalı.",
+     "kod": "hatali"
+    }
+   }
+  },
+  {
+   "istek": "POST /api/giris",
+   "durum": 401,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "hata": "Müşteri numarası veya parola hatalı.",
+     "kod": "hatali"
+    }
+   }
+  },
+  {
+   "istek": "POST /api/giris",
+   "durum": 429,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "hata": "Çok fazla deneme. 15 dakika sonra tekrar deneyin.",
+     "kod": "kilit"
+    }
+   }
+  },
+  {
+   "istek": "POST /api/giris",
+   "durum": 400,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "hata": "Geçersiz istek.",
+     "kod": "gecersiz"
+    }
+   }
+  },
+  {
+   "istek": "POST /api/giris",
+   "durum": 400,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "hata": "Müşteri numarası 7 haneli olmalı.",
+     "kod": "gecersiz"
+    }
+   }
+  },
+  {
+   "istek": "POST /api/giris",
+   "durum": 401,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "hata": "Müşteri numarası veya parola hatalı.",
+     "kod": "hatali"
+    }
+   }
+  },
+  {
+   "istek": "GET /api/giris",
+   "durum": 404,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "hata": "Bulunamadı.",
+     "kod": "yok"
+    }
+   }
+  },
+  {
+   "istek": "POST /baska",
+   "durum": 404,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "hata": "Bulunamadı.",
+     "kod": "yok"
+    }
+   }
+  },
+  {
+   "istek": "POST /api/giris",
+   "durum": 413,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "hata": "İstek çok büyük.",
+     "kod": "gecersiz"
+    }
+   }
+  }
+ ],
+ "veritabanlari": [
+  {
+   "ad": "m.db",
+   "tablolar": {
+    "ayar": [],
+    "bekleyen": [],
+    "cihaz": [],
+    "eski_arsiv": [],
+    "hareket": [
+     {
+      "ayrinti": "",
+      "id": 1,
+      "ip": "198.51.100.7",
+      "kim": "5721885",
+      "musteri": 5721885,
+      "olay": "CIHAZ_GIRIS_HATALI",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     },
+     {
+      "ayrinti": "",
+      "id": 2,
+      "ip": "198.51.100.8",
+      "kim": "5721885",
+      "musteri": 5721885,
+      "olay": "CIHAZ_GIRIS_HATALI",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     },
+     {
+      "ayrinti": "",
+      "id": 3,
+      "ip": "198.51.100.8",
+      "kim": "5721885",
+      "musteri": 5721885,
+      "olay": "CIHAZ_GIRIS_HATALI",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     },
+     {
+      "ayrinti": "",
+      "id": 4,
+      "ip": "198.51.100.8",
+      "kim": "5721885",
+      "musteri": 5721885,
+      "olay": "CIHAZ_GIRIS_HATALI",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     },
+     {
+      "ayrinti": "",
+      "id": 5,
+      "ip": "198.51.100.8",
+      "kim": "5721885",
+      "musteri": 5721885,
+      "olay": "CIHAZ_GIRIS_HATALI",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     }
+    ],
+    "musteri": [
+     {
+      "ap_parola": "6vwWeTxWbXDf",
+      "askida": 0,
+      "bitis": "",
+      "guncelleme_hemen": 0.0,
+      "guncelleme_hemen_surum": "",
+      "guncelleme_kanali": "kararli",
+      "lisans_bitis": "2027-09-21",
+      "not_": "",
+      "numara": 5721885,
+      "olusturma": "2026-09-21T17:13:20+03:00",
+      "ozet": "fcd77d2f1464acefd0bf9649c59c9103b30bf9b4aa14a1930fdbc86ae817e02c",
+      "parola_acik": "6bnuKUG4dyZ7",
+      "son_giris": "",
+      "tuz": "<T1>",
+      "uyelik": "aktif",
+      "yineleme": 120000
+     }
+    ],
+    "saglik": [],
+    "sms_sayac": [],
+    "sms_son": [],
+    "sorun": [],
+    "sqlite_sequence": [
+     {
+      "name": "hareket",
+      "seq": 5
+     }
+    ],
+    "surum": []
+   }
+  }
+ ],
+ "yollar": [
+  [
+   "Api",
+   "POST",
+   "/api/giris",
+   null,
+   401,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/giris",
+   null,
+   401,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/giris",
+   null,
+   400,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/giris",
+   null,
+   401,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/giris",
+   null,
+   401,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/giris",
+   null,
+   401,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/giris",
+   null,
+   401,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/giris",
+   null,
+   429,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/giris",
+   null,
+   400,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/giris",
+   null,
+   400,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/giris",
+   null,
+   401,
+   null
+  ],
+  [
+   "Api",
+   "GET",
+   "/api/giris",
+   null,
+   404,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/baska",
+   null,
+   404,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/giris",
+   null,
+   413,
+   null
+  ]
+ ]
+}

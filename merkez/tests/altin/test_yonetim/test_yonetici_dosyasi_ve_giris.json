@@ -1,0 +1,166 @@
+{
+ "bicim": 1,
+ "dosya": "test_yonetim",
+ "test": "test_yonetici_dosyasi_ve_giris",
+ "cevaplar": [
+  {
+   "istek": "POST /giris",
+   "durum": 303,
+   "basliklar": [
+    [
+     "Location",
+     "/"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ],
+    [
+     "Set-Cookie",
+     "wc_yonetim=<T1>; HttpOnly; Secure; SameSite=Strict; Path=/"
+    ]
+   ],
+   "govde": {
+    "metin": ""
+   }
+  },
+  {
+   "istek": "POST /giris",
+   "durum": 401,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Giriş · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><header><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_ACIK}</a></header><main><div class=\"kart\"><h1>Yönetim merkezi</h1><p class=\"alt\">Hizmet sağlayıcı girişi.</p><form method=\"post\" action=\"/giris\"><label for=\"k\">Kullanıcı adı</label><input id=\"k\" name=\"kullanici\" autocomplete=\"username\" autocapitalize=\"none\" spellcheck=\"false\" required><label for=\"s\">Parola</label><input id=\"s\" name=\"sifre\" type=\"password\" autocomplete=\"current-password\" required><p class=\"hata\">Kullanıcı adı veya parola hatalı.</p><button>Giriş yap</button></form></div></main></body></html>"
+   }
+  },
+  {
+   "istek": "POST /giris",
+   "durum": 401,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Giriş · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><header><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_ACIK}</a></header><main><div class=\"kart\"><h1>Yönetim merkezi</h1><p class=\"alt\">Hizmet sağlayıcı girişi.</p><form method=\"post\" action=\"/giris\"><label for=\"k\">Kullanıcı adı</label><input id=\"k\" name=\"kullanici\" autocomplete=\"username\" autocapitalize=\"none\" spellcheck=\"false\" required><label for=\"s\">Parola</label><input id=\"s\" name=\"sifre\" type=\"password\" autocomplete=\"current-password\" required><p class=\"hata\">Kullanıcı adı veya parola hatalı.</p><button>Giriş yap</button></form></div></main></body></html>"
+   }
+  },
+  {
+   "istek": "POST /giris",
+   "durum": 401,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Giriş · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><header><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_ACIK}</a></header><main><div class=\"kart\"><h1>Yönetim merkezi</h1><p class=\"alt\">Hizmet sağlayıcı girişi.</p><form method=\"post\" action=\"/giris\"><label for=\"k\">Kullanıcı adı</label><input id=\"k\" name=\"kullanici\" autocomplete=\"username\" autocapitalize=\"none\" spellcheck=\"false\" required><label for=\"s\">Parola</label><input id=\"s\" name=\"sifre\" type=\"password\" autocomplete=\"current-password\" required><p class=\"hata\">Kullanıcı adı veya parola hatalı.</p><button>Giriş yap</button></form></div></main></body></html>"
+   }
+  }
+ ],
+ "veritabanlari": [
+  {
+   "ad": "m.db",
+   "tablolar": {
+    "ayar": [],
+    "bekleyen": [],
+    "cihaz": [],
+    "eski_arsiv": [],
+    "hareket": [
+     {
+      "ayrinti": "yönetim",
+      "id": 1,
+      "ip": "203.0.113.5",
+      "kim": "admin",
+      "musteri": null,
+      "olay": "GIRIS",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     }
+    ],
+    "musteri": [
+     {
+      "ap_parola": "6vwWeTxWbXDf",
+      "askida": 0,
+      "bitis": "",
+      "guncelleme_hemen": 0.0,
+      "guncelleme_hemen_surum": "",
+      "guncelleme_kanali": "kararli",
+      "lisans_bitis": "2027-09-21",
+      "not_": "",
+      "numara": 5721885,
+      "olusturma": "2026-09-21T17:13:20+03:00",
+      "ozet": "869434a2d4aa7e3f3543de1a4f64c305aa6f8a2bc787573694c3b48b33db28ea",
+      "parola_acik": "6bnuKUG4dyZ7",
+      "son_giris": "",
+      "tuz": "<T2>",
+      "uyelik": "aktif",
+      "yineleme": 120000
+     }
+    ],
+    "saglik": [],
+    "sms_sayac": [],
+    "sms_son": [],
+    "sorun": [],
+    "sqlite_sequence": [
+     {
+      "name": "hareket",
+      "seq": 1
+     }
+    ],
+    "surum": []
+   }
+  }
+ ],
+ "yollar": [
+  [
+   "Yonetim",
+   "POST",
+   "/giris",
+   null,
+   303,
+   "/"
+  ],
+  [
+   "Yonetim",
+   "POST",
+   "/giris",
+   null,
+   401,
+   null
+  ],
+  [
+   "Yonetim",
+   "POST",
+   "/giris",
+   null,
+   401,
+   null
+  ],
+  [
+   "Yonetim",
+   "POST",
+   "/giris",
+   null,
+   401,
+   null
+  ]
+ ]
+}

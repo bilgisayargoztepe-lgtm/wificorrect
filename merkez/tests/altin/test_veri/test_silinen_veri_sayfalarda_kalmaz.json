@@ -1,0 +1,26 @@
+{
+ "bicim": 1,
+ "dosya": "test_veri",
+ "test": "test_silinen_veri_sayfalarda_kalmaz",
+ "cevaplar": [],
+ "veritabanlari": [
+  {
+   "ad": "m.db",
+   "tablolar": {
+    "ayar": [],
+    "bekleyen": [],
+    "cihaz": [],
+    "eski_arsiv": [],
+    "hareket": [],
+    "musteri": [],
+    "saglik": [],
+    "sms_sayac": [],
+    "sms_son": [],
+    "sorun": [],
+    "sqlite_sequence": [],
+    "surum": []
+   }
+  }
+ ],
+ "yollar": []
+}

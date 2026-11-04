@@ -1,0 +1,68 @@
+{
+ "bicim": 1,
+ "dosya": "test_listeler",
+ "test": "test_kaynak_hatasi_hareketi_ve_guncel",
+ "cevaplar": [],
+ "veritabanlari": [
+  {
+   "ad": "m.db",
+   "tablolar": {
+    "ayar": [],
+    "bekleyen": [],
+    "cihaz": [],
+    "eski_arsiv": [],
+    "hareket": [
+     {
+      "ayrinti": "kategori=kumar kaynak=A neden=ag yok",
+      "id": 1,
+      "ip": "",
+      "kim": "listeler",
+      "musteri": null,
+      "olay": "LISTE_HATA",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     },
+     {
+      "ayrinti": "kategori=kumar surum=0b0424de sayi=1",
+      "id": 2,
+      "ip": "",
+      "kim": "listeler",
+      "musteri": null,
+      "olay": "LISTE_GUNCEL",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     },
+     {
+      "ayrinti": "kategori=yetiskin neden=Hiçbir kaynak indirilemedi; önceki liste kullanılıyor.",
+      "id": 3,
+      "ip": "",
+      "kim": "listeler",
+      "musteri": null,
+      "olay": "LISTE_HATA",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     },
+     {
+      "ayrinti": "kategori=zararli neden=Hiçbir kaynak indirilemedi; önceki liste kullanılıyor.",
+      "id": 4,
+      "ip": "",
+      "kim": "listeler",
+      "musteri": null,
+      "olay": "LISTE_HATA",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     }
+    ],
+    "musteri": [],
+    "saglik": [],
+    "sms_sayac": [],
+    "sms_son": [],
+    "sorun": [],
+    "sqlite_sequence": [
+     {
+      "name": "hareket",
+      "seq": 4
+     }
+    ],
+    "surum": []
+   }
+  }
+ ],
+ "yollar": []
+}

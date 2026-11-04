@@ -1,0 +1,234 @@
+{
+ "bicim": 1,
+ "dosya": "test_yonetim",
+ "test": "test_musteri_kayitlari_gerekce_ister",
+ "cevaplar": [
+  {
+   "istek": "POST /giris",
+   "durum": 303,
+   "basliklar": [
+    [
+     "Location",
+     "/"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ],
+    [
+     "Set-Cookie",
+     "wc_yonetim=<T1>; HttpOnly; Secure; SameSite=Strict; Path=/"
+    ]
+   ],
+   "govde": {
+    "metin": ""
+   }
+  },
+  {
+   "istek": "GET /m/5721885/kayitlar/",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Müşteri 5721885 · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><input type=\"checkbox\" id=\"menu-ac\" class=\"gizli\"><div class=\"ust-mobil\"><label for=\"menu-ac\" class=\"menu-dugme\" title=\"Menü\"><span class=\"gizli\">Menüyü aç/kapat</span><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M3 6h18M3 12h18M3 18h18\"/></svg></label><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a></div><div class=\"yerlesim\"><nav class=\"yan\"><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a><details class=\"grup\" open><summary>Müşteriler</summary><a href=\"/\" class=\"secili\" aria-current=\"page\">Müşteri listesi</a><a href=\"/yeni\">Yeni müşteri</a><a href=\"/bekleyen\">Bekleyen cihazlar</a></details><details class=\"grup\"><summary>Kayıtlar</summary><a href=\"/hareketler\">Hareketler</a><a href=\"/eski-arsivler\">Eski arşivler</a></details><details class=\"grup\"><summary>Ayarlar</summary><a href=\"/listeler\">Engel listeleri</a><a href=\"/sms\">SMS ayarları</a><a href=\"/uyari\">Uyarı ayarları</a><a href=\"/surumler\">Sürümler</a><a href=\"/hesabim\">Hesabım</a></details><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button class=\"ikincil\">Çıkış</button></form></nav><main><div class=\"kart\"><h1>Müşteri 5721885</h1><p class=\"alt\">Son 30 gün · her gün internete çıkan farklı kişi sayısı</p></div><div class=\"kart\"><table><tr><td>20.09.2026</td><td>Paz</td><td class=\"cubuk\"><span style=\"width:100%\"></span></td><td class=\"n\">9</td></tr><tr><td>19.09.2026</td><td>Cmt</td><td class=\"cubuk\"></td><td class=\"n bos\">—</td></tr><tr><td>18.09.2026</td><td>Cum</td><td class=\"cubuk\"></td><td class=\"n bos\">—</td></tr><tr><td>17.09.2026</td><td>Per</td><td class=\"cubuk\"></td><td class=\"n bos\">—</td></tr><tr><td>16.09.2026</td><td>Çar</td><td class=\"cubuk\"></td><td class=\"n bos\">—</td></tr><tr><td>15.09.2026</td><td>Sal</td><td class=\"cubuk\"></td><td class=\"n bos\">—</td></tr><tr><td>14.09.2026</td><td>Pzt</td><td class=\"cubuk\"></td><td class=\"n bos\">—</td></tr><tr><td>13.09.2026</td><td>Paz</td><td class=\"cubuk\"></td><td class=\"n bos\">—</td></tr><tr><td>12.09.2026</td><td>Cmt</td><td class=\"cubuk\"></td><td class=\"n bos\">—</td></tr><tr><td>11.09.2026</td><td>Cum</td><td class=\"cubuk\"></td><td class=\"n bos\">—</td></tr><tr><td>10.09.2026</td><td>Per</td><td class=\"cubuk\"></td><td class=\"n bos\">—</td></tr><tr><td>09.09.2026</td><td>Çar</td><td class=\"cubuk\"></td><td class=\"n bos\">—</td></tr><tr><td>08.09.2026</td><td>Sal</td><td class=\"cubuk\"></td><td class=\"n bos\">—</td></tr><tr><td>07.09.2026</td><td>Pzt</td><td class=\"cubuk\"></td><td class=\"n bos\">—</td></tr><tr><td>06.09.2026</td><td>Paz</td><td class=\"cubuk\"></td><td class=\"n bos\">—</td></tr><tr><td>05.09.2026</td><td>Cmt</td><td class=\"cubuk\"></td><td class=\"n bos\">—</td></tr><tr><td>04.09.2026</td><td>Cum</td><td class=\"cubuk\"></td><td class=\"n bos\">—</td></tr><tr><td>03.09.2026</td><td>Per</td><td class=\"cubuk\"></td><td class=\"n bos\">—</td></tr><tr><td>02.09.2026</td><td>Çar</td><td class=\"cubuk\"></td><td class=\"n bos\">—</td></tr><tr><td>01.09.2026</td><td>Sal</td><td class=\"cubuk\"></td><td class=\"n bos\">—</td></tr><tr><td>31.08.2026</td><td>Pzt</td><td class=\"cubuk\"></td><td class=\"n bos\">—</td></tr><tr><td>30.08.2026</td><td>Paz</td><td class=\"cubuk\"></td><td class=\"n bos\">—</td></tr><tr><td>29.08.2026</td><td>Cmt</td><td class=\"cubuk\"></td><td class=\"n bos\">—</td></tr><tr><td>28.08.2026</td><td>Cum</td><td class=\"cubuk\"></td><td class=\"n bos\">—</td></tr><tr><td>27.08.2026</td><td>Per</td><td class=\"cubuk\"></td><td class=\"n bos\">—</td></tr><tr><td>26.08.2026</td><td>Çar</td><td class=\"cubuk\"></td><td class=\"n bos\">—</td></tr><tr><td>25.08.2026</td><td>Sal</td><td class=\"cubuk\"></td><td class=\"n bos\">—</td></tr><tr><td>24.08.2026</td><td>Pzt</td><td class=\"cubuk\"></td><td class=\"n bos\">—</td></tr><tr><td>23.08.2026</td><td>Paz</td><td class=\"cubuk\"></td><td class=\"n bos\">—</td></tr><tr><td>22.08.2026</td><td>Cmt</td><td class=\"cubuk\"></td><td class=\"n bos\">—</td></tr></table><p class=\"alt\">Son güncelleme: 21.09.2026 17:13</p></div><div class=\"kart\"><h2>Kişi ara</h2><form class=\"ara\" method=\"post\" action=\"/m/5721885/kayitlar/ara\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><input name=\"q\" value=\"\" maxlength=\"50\" placeholder=\"Telefon, ad soyad, T.C. no, pasaport ya da oda\" aria-label=\"Kişi ara\" autocomplete=\"off\"><select name=\"tur\" aria-label=\"Arama türü\"><option value=\"kisi\" selected>Telefon, ad soyad, T.C. kimlik no ya da pasaport no</option><option value=\"oda\">Oda numarası</option></select><input class=\"uyruk\" name=\"uyruk\" value=\"\" maxlength=\"2\" placeholder=\"Uyruk\" aria-label=\"Pasaport uyruğu (isteğe bağlı, ör. DE)\" autocomplete=\"off\"><button>Ara</button></form></div><div class=\"kart\"><h2>Günler</h2><details open><summary>Eylül 2026 <span class=\"alt\">(1 gün)</span></summary><ul class=\"gunler\"><li><a href=\"/m/5721885/kayitlar/gun/2026-09-20\">20.09.2026 Paz</a> <span class=\"alt\">· 9 kişi</span></li></ul></details></div></main></div></body></html>"
+   }
+  },
+  {
+   "istek": "GET /m/5721885/kayitlar/gun/2026-09-20",
+   "durum": 303,
+   "basliklar": [
+    [
+     "Location",
+     "/gerekce?donus=%2Fm%2F5721885%2Fkayitlar%2Fgun%2F2026-09-20"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": ""
+   }
+  },
+  {
+   "istek": "GET /gerekce?donus=%2F",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Gerekçe · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><input type=\"checkbox\" id=\"menu-ac\" class=\"gizli\"><div class=\"ust-mobil\"><label for=\"menu-ac\" class=\"menu-dugme\" title=\"Menü\"><span class=\"gizli\">Menüyü aç/kapat</span><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M3 6h18M3 12h18M3 18h18\"/></svg></label><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a></div><div class=\"yerlesim\"><nav class=\"yan\"><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a><details class=\"grup\"><summary>Müşteriler</summary><a href=\"/\">Müşteri listesi</a><a href=\"/yeni\">Yeni müşteri</a><a href=\"/bekleyen\">Bekleyen cihazlar</a></details><details class=\"grup\"><summary>Kayıtlar</summary><a href=\"/hareketler\">Hareketler</a><a href=\"/eski-arsivler\">Eski arşivler</a></details><details class=\"grup\"><summary>Ayarlar</summary><a href=\"/listeler\">Engel listeleri</a><a href=\"/sms\">SMS ayarları</a><a href=\"/uyari\">Uyarı ayarları</a><a href=\"/surumler\">Sürümler</a><a href=\"/hesabim\">Hesabım</a></details><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button class=\"ikincil\">Çıkış</button></form></nav><main><div class=\"kart\"><h1>Gerekçe</h1><p>Müşterilerin kişisel verisine bakmak için gerekçe yazın.</p><p class=\"alt\">Gerekçe 30 dakika geçerlidir; bu süredeki her görüntüleme gerekçeyle kaydedilir.</p><form method=\"post\" action=\"/gerekce\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><input type=\"hidden\" name=\"donus\" value=\"/\"><label for=\"g\">Gerekçe</label><input id=\"g\" name=\"gerekce\" list=\"oneriler\" minlength=\"5\" maxlength=\"200\" required><datalist id=\"oneriler\"><option value=\"Emniyet / savcılık talebi\"><option value=\"Müşteri şikâyeti\"><option value=\"Müşterinin kendi talebi\"><option value=\"Teknik sorun incelemesi\"></datalist><button>Devam</button></form></div></main></div></body></html>"
+   }
+  },
+  {
+   "istek": "POST /gerekce",
+   "durum": 303,
+   "basliklar": [
+    [
+     "Location",
+     "/"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": ""
+   }
+  },
+  {
+   "istek": "GET /m/5721885/kayitlar/gun/2026-09-20",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>20.09.2026 · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><input type=\"checkbox\" id=\"menu-ac\" class=\"gizli\"><div class=\"ust-mobil\"><label for=\"menu-ac\" class=\"menu-dugme\" title=\"Menü\"><span class=\"gizli\">Menüyü aç/kapat</span><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M3 6h18M3 12h18M3 18h18\"/></svg></label><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a></div><div class=\"yerlesim\"><nav class=\"yan\"><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a><details class=\"grup\" open><summary>Müşteriler</summary><a href=\"/\" class=\"secili\" aria-current=\"page\">Müşteri listesi</a><a href=\"/yeni\">Yeni müşteri</a><a href=\"/bekleyen\">Bekleyen cihazlar</a></details><details class=\"grup\"><summary>Kayıtlar</summary><a href=\"/hareketler\">Hareketler</a><a href=\"/eski-arsivler\">Eski arşivler</a></details><details class=\"grup\"><summary>Ayarlar</summary><a href=\"/listeler\">Engel listeleri</a><a href=\"/sms\">SMS ayarları</a><a href=\"/uyari\">Uyarı ayarları</a><a href=\"/surumler\">Sürümler</a><a href=\"/hesabim\">Hesabım</a></details><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button class=\"ikincil\">Çıkış</button></form></nav><main><p><a href=\"/m/5721885/kayitlar/\">← Özet</a></p><div class=\"kart\"><h1>20.09.2026 Pazar</h1><p class=\"alt\">1 kişi · ayrıntı için kişiye dokunun</p></div><details class=\"kisi\" id=\"k18193d191befd0f8\"><summary><b>Ayşe</b> · 5330000001 · – · 0 B</summary><div><p class=\"alt\">Cihaz: — · 0 bağlantı · gönderilen 0 B, indirilen 0 B</p><h3>Oturum</h3><p class=\"alt\">Bu gün oturum olayı yok (oturum daha önce başlamış).</p><details><summary>Girdiği siteler (0)</summary><div><p class=\"alt\">Kayıt yok.</p></div></details><details><summary>Bağlantılar (en çok veri kullanan 0 / toplam 0)</summary><div><p class=\"alt\">Kayıt yok.</p></div></details></div></details></main></div></body></html>"
+   }
+  }
+ ],
+ "veritabanlari": [
+  {
+   "ad": "m.db",
+   "tablolar": {
+    "ayar": [],
+    "bekleyen": [],
+    "cihaz": [],
+    "eski_arsiv": [],
+    "hareket": [
+     {
+      "ayrinti": "yönetim",
+      "id": 1,
+      "ip": "203.0.113.5",
+      "kim": "admin",
+      "musteri": null,
+      "olay": "GIRIS",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     },
+     {
+      "ayrinti": "/ · Müşteri şikâyeti",
+      "id": 2,
+      "ip": "203.0.113.5",
+      "kim": "admin",
+      "musteri": null,
+      "olay": "GEREKCE",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     },
+     {
+      "ayrinti": "/m/5721885/kayitlar/gun/2026-09-20 · Müşteri şikâyeti",
+      "id": 3,
+      "ip": "203.0.113.5",
+      "kim": "admin",
+      "musteri": 5721885,
+      "olay": "GORUNTULEME",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     }
+    ],
+    "musteri": [
+     {
+      "ap_parola": "6vwWeTxWbXDf",
+      "askida": 0,
+      "bitis": "",
+      "guncelleme_hemen": 0.0,
+      "guncelleme_hemen_surum": "",
+      "guncelleme_kanali": "kararli",
+      "lisans_bitis": "2027-09-21",
+      "not_": "",
+      "numara": 5721885,
+      "olusturma": "2026-09-21T17:13:20+03:00",
+      "ozet": "d90c15dec0075f237d3059fa700a720fed4ee39bb37176aca150648da3189d62",
+      "parola_acik": "6bnuKUG4dyZ7",
+      "son_giris": "",
+      "tuz": "<T3>",
+      "uyelik": "aktif",
+      "yineleme": 120000
+     }
+    ],
+    "saglik": [],
+    "sms_sayac": [],
+    "sms_son": [],
+    "sorun": [],
+    "sqlite_sequence": [
+     {
+      "name": "hareket",
+      "seq": 3
+     }
+    ],
+    "surum": []
+   }
+  }
+ ],
+ "yollar": [
+  [
+   "Yonetim",
+   "POST",
+   "/giris",
+   null,
+   303,
+   "/"
+  ],
+  [
+   "Yonetim",
+   "GET",
+   "/m/5721885/kayitlar/",
+   null,
+   200,
+   null
+  ],
+  [
+   "Yonetim",
+   "GET",
+   "/m/5721885/kayitlar/gun/2026-09-20",
+   null,
+   303,
+   "/gerekce?donus=%2Fm%2F5721885%2Fkayitlar%2Fgun%2F2026-09-20"
+  ],
+  [
+   "Yonetim",
+   "GET",
+   "/gerekce",
+   null,
+   200,
+   null
+  ],
+  [
+   "Yonetim",
+   "POST",
+   "/gerekce",
+   null,
+   303,
+   "/"
+  ],
+  [
+   "Yonetim",
+   "GET",
+   "/m/5721885/kayitlar/gun/2026-09-20",
+   null,
+   200,
+   null
+  ]
+ ]
+}

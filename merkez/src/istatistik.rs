@@ -2,8 +2,8 @@
 //! Her arşivin (wc-durum'un listesi: cihaz yedekleri + eski arşivler) eksiksiz gelmiş her günü için o gün internete çıkan
 //! farklı telefon sayısını `/var/lib/wificorrect/istatistik/<arşiv>.json`'a yazar. Root çalışır; panel yalnızca bu dosyaları okur.
 //!
-//! Python'dan farklar: istisnalar `Result`'tır (Python `repr(e)` metni yaklaşık `Tür("ileti")`); arşiv listesi
-//! (`durum.arsivler`) Task 12'de `durum` modülü gelene kadar burada yalnızca kaynak klasörleri için yeniden yazıldı.
+//! Python'dan fark: istisnalar `Result`'tır (Python `repr(e)` metni yaklaşık `Tür("ileti")`). Arşiv listesi `durum::arsivler`
+//! (tek kaynak, Python `durum.arsivler`).
 use std::collections::BTreeMap;
 use std::fmt;
 use std::io::Read;
@@ -206,42 +206,6 @@ pub fn arsiv_adi_mi(s: &str) -> bool {
     !b.is_empty() && b.len() <= 32 && (b[0].is_ascii_lowercase() || b[0].is_ascii_digit()) && b[1..].iter().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || matches!(c, b'.' | b'_' | b'-'))
 }
 
-fn gercek_klasor(yol: &Path) -> bool {
-    std::fs::symlink_metadata(yol).map(|m| m.is_dir()).unwrap_or(false)
-}
-
-/// Python `durum.arsivler` (yalnızca `kaynaklar`): yeni arşiv (cihaz yedekleri) önce; aynı ad eski arşivde de varsa ikinci
-/// kaynak olur. Sıra: ekleme sırası.
-/// TODO(Task 12): `durum::arsivler` gelince oradan alınır (tur/pub rapor adımında gerekir).
-pub fn arsiv_kaynaklari(yeni: &Path, eski: &Path) -> Vec<(String, Vec<PathBuf>)> {
-    let mut out: Vec<(String, Vec<PathBuf>)> = Vec::new();
-    let adlar = |kok: &Path| -> Vec<String> {
-        let mut v: Vec<String> = std::fs::read_dir(kok).map(|d| d.filter_map(|x| x.ok().and_then(|x| x.file_name().into_string().ok())).collect()).unwrap_or_default();
-        v.sort();
-        v
-    };
-    if yeni.is_dir() {
-        for ad in adlar(yeni) {
-            let d = yeni.join(&ad).join("veri");
-            if arsiv_adi_mi(&ad) && !sembolik_mi(&yeni.join(&ad)) && d.is_dir() {
-                out.push((ad, vec![d]));
-            }
-        }
-    }
-    if eski.is_dir() {
-        for ad in adlar(eski) {
-            let d = eski.join(&ad);
-            if arsiv_adi_mi(&ad) && !sembolik_mi(&d) && gercek_klasor(&d) {
-                match out.iter_mut().find(|(a, _)| *a == ad) {
-                    Some((_, k)) => k.push(d),
-                    None => out.push((ad, vec![d])),
-                }
-            }
-        }
-    }
-    out
-}
-
 /// Arşiv işleme adımı: `(arşiv adı, hata iletisi)` listesi (Python `main`'in `hatalar`ı; yeni arşiv önce).
 pub fn arsiv_hatalari(y: &Yollar, arsivler: &[(String, Vec<PathBuf>)]) -> Vec<(String, String)> {
     let mut tum = Vec::new();
@@ -267,7 +231,14 @@ pub fn arsiv_hatalari(y: &Yollar, arsivler: &[(String, Vec<PathBuf>)]) -> Vec<(S
 /// Python `main`: her arşivin kaynaklarını işler (yeni arşiv önce), hataları stderr'e yazar. Çıkış kodu: 0, hata varsa 1.
 pub fn calistir(y: &Yollar, simdi: Option<f64>) -> i32 {
     let mut kod = 0;
-    let arsivler = arsiv_kaynaklari(&y.yeni, &y.eski);
+    // Python `durum.arsivler`: okunamayan klasör ya da kayit.csv istisnadır (süreç 1 ile çıkar)
+    let arsivler: Vec<(String, Vec<PathBuf>)> = match crate::durum::arsivler(&y.kayit, &y.yeni, &y.eski) {
+        Ok(a) => a.into_iter().map(|a| (a.ad, a.kaynaklar)).collect(),
+        Err(h) => {
+            eprintln!("{h}");
+            return 1;
+        }
+    };
     for (ad, hata) in arsiv_hatalari(y, &arsivler) {
         eprintln!("{ad}: {hata}");
         kod = 1;
@@ -563,10 +534,10 @@ mod testler {
         for a in ["bocafe", "eski-kafe"] {
             fs::create_dir_all(eski.join(a)).unwrap();
         }
-        let r = arsiv_kaynaklari(&yeni, &eski);
-        let adlar: Vec<&str> = r.iter().map(|(a, _)| a.as_str()).collect();
+        let r = crate::durum::arsivler(&tmp.join("yok.csv"), &yeni, &eski).unwrap();
+        let adlar: Vec<&str> = r.iter().map(|a| a.ad.as_str()).collect();
         assert_eq!(adlar, vec!["1234567", "bocafe", "eski-kafe"]);
-        assert_eq!(r[1].1, vec![yeni.join("bocafe").join("veri"), eski.join("bocafe")]);
+        assert_eq!(r[1].kaynaklar, vec![yeni.join("bocafe").join("veri"), eski.join("bocafe")]);
     }
 }
 
@@ -629,7 +600,7 @@ mod duzeltme_testleri {
             rapor_cikti: tmp.join("rapor"),
             rapor_gruplari: tmp.join("g.json"),
         };
-        let h = arsiv_hatalari(&y, &arsiv_kaynaklari(&y.yeni, &y.eski));
+        let h = arsiv_hatalari(&y, &crate::durum::arsivler(&y.kayit, &y.yeni, &y.eski).unwrap().into_iter().map(|a| (a.ad, a.kaynaklar)).collect::<Vec<_>>());
         assert_eq!(h.len(), 2, "{h:?}");
         assert!(h[0].1.starts_with("2026-09-26") && h[0].0 == "ar", "{h:?}");
     }

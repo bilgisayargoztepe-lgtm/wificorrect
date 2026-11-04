@@ -329,7 +329,7 @@ pub fn sure_metni(sn: i64) -> String {
 }
 
 /// Python `datetime.fromisoformat(str(iso))` (saat dilimi yoksa TR): epoch saniyesi.
-fn epoch(iso: &str) -> Option<f64> {
+pub(crate) fn epoch(iso: &str) -> Option<f64> {
     if let Ok(d) = chrono::DateTime::parse_from_rfc3339(iso) {
         return Some(d.timestamp() as f64 + d.timestamp_subsec_nanos() as f64 / 1e9);
     }

@@ -579,7 +579,7 @@ impl Tasiyici for Curl {
 impl Curl {
     /// `wc_test`: `WC_TEST` ortam değişkeni. Python: `os.environ.get("WC_TEST")` doğru sayılan (boş olmayan) her değerde gerçek
     /// istek reddedilir. Ortam tek yerde okunur; testler değeri doğrudan verir (süreç ortamı değiştirilmez).
-    fn gonder_ortamla(&self, i: &DisIstek, wc_test: Option<std::ffi::OsString>) -> Result<(u16, Vec<u8>), String> {
+    pub(crate) fn gonder_ortamla(&self, i: &DisIstek, wc_test: Option<std::ffi::OsString>) -> Result<(u16, Vec<u8>), String> {
         if wc_test.is_some_and(|v| !v.is_empty()) {
             return Err("WC_TEST".into());
         }

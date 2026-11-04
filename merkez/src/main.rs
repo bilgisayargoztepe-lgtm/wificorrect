@@ -8,6 +8,7 @@ mod ap;
 mod api;
 mod cihaz;
 mod detay;
+mod durum;
 mod guvenlik;
 mod istatistik;
 mod kayitlar;
@@ -20,6 +21,7 @@ mod ortak;
 mod ozet;
 mod rapor;
 mod raporlar;
+mod saglik;
 mod sunucu;
 mod surumler;
 #[cfg(test)]
@@ -41,8 +43,10 @@ fn main() {
         Some("listeler") => std::process::exit(listeler::main_uretim()),
         Some("surumler") => std::process::exit(surumler::main_uretim(&args[1..])),
         Some("yonetici") => std::process::exit(yonetici::main_uretim(&args[1..])),
+        Some("durum") => std::process::exit(durum::main_uretim()),
+        Some("saglik") => std::process::exit(saglik::main_uretim()),
         _ => {
-            eprintln!("Kullanım: wificorrect-merkez surum|sunucu|kuyruk|istatistik|listeler|surumler|yonetici");
+            eprintln!("Kullanım: wificorrect-merkez surum|sunucu|kuyruk|istatistik|listeler|surumler|yonetici|durum|saglik");
             std::process::exit(2);
         }
     }

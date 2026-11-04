@@ -92,19 +92,27 @@ fn normal_dosya(yol: &Path) -> Result<Option<&Path>, SatirHata> {
     }
 }
 
-/// CSV (ya da .gz) satırları; dosya yoksa boş. Normal dosya değilse, gzip bozuksa ya da UTF-8 değilse hata.
-pub fn satirlar(yol: &Path) -> Result<Vec<Satir>, SatirHata> {
-    let Some(yol) = normal_dosya(yol)? else { return Ok(Vec::new()) };
-    ortak::read_rows_sonuc(yol).map_err(|h| match h {
+/// CSV (ya da .gz) satırlarını akışla `f`'ye verir (Python üreteci gibi bellekte yalnızca bir satır); `f` false dönerse
+/// okuma durur. Dosya yoksa hiçbir şey. Normal dosya değilse, gzip bozuksa ya da UTF-8 değilse `Deger`/`Diger`; alan
+/// sınırı (`_csv.Error`) `ValueError` değildir: `Diger`.
+pub fn satirlar(yol: &Path, f: &mut dyn FnMut(Satir) -> bool) -> Result<(), SatirHata> {
+    let Some(yol) = normal_dosya(yol)? else { return Ok(()) };
+    ortak::rows_akis(yol, f).map_err(|h| match h {
         OkumaHata::Utf8 => SatirHata::Deger("geçersiz UTF-8".into()),
         OkumaHata::Io(m) => SatirHata::Diger(m),
+        OkumaHata::Csv(m) => SatirHata::Diger(format!("_csv.Error: {m}")),
     })
 }
 
 /// Günün trafik.csv.gz'sindeki farklı, boş olmayan telefon sayısı (trafik dosyası yoksa 0).
 pub fn farkli_kisi(gun_dizini: &Path) -> Result<usize, SatirHata> {
-    let kisiler: std::collections::HashSet<String> =
-        satirlar(&gun_dizini.join("trafik.csv.gz"))?.into_iter().filter_map(|r| r.get("telefon").filter(|t| !t.is_empty()).cloned()).collect();
+    let mut kisiler: std::collections::HashSet<String> = std::collections::HashSet::new();
+    satirlar(&gun_dizini.join("trafik.csv.gz"), &mut |r| {
+        if let Some(t) = r.get("telefon").filter(|t| !t.is_empty()) {
+            kisiler.insert(t.clone());
+        }
+        true
+    })?;
     Ok(kisiler.len())
 }
 
@@ -234,28 +242,35 @@ pub fn arsiv_kaynaklari(yeni: &Path, eski: &Path) -> Vec<(String, Vec<PathBuf>)>
     out
 }
 
+/// Arşiv işleme adımı: `(arşiv adı, hata iletisi)` listesi (Python `main`'in `hatalar`ı; yeni arşiv önce).
+pub fn arsiv_hatalari(y: &Yollar, arsivler: &[(String, Vec<PathBuf>)]) -> Vec<(String, String)> {
+    let mut tum = Vec::new();
+    for (ad, kaynaklar) in arsivler {
+        let mut hatalar: Vec<String> = Vec::new();
+        for kaynak in kaynaklar {
+            // bir arşivin bozuk klasörü diğerlerini durdurmasın; Python: `hatalar += guncelle(...)` sonraki adım
+            // patlasa da korunur
+            let mut sonuc = || -> Result<(), String> {
+                hatalar.extend(guncelle(kaynak, &y.cikti.join(format!("{ad}.json")))?);
+                hatalar.extend(crate::ozet::detay_guncelle(kaynak, &y.detay.join(ad), y.grup.as_deref())?);
+                Ok(())
+            };
+            if let Err(h) = sonuc() {
+                hatalar.push(h);
+            }
+        }
+        tum.extend(hatalar.into_iter().map(|h| (ad.clone(), h)));
+    }
+    tum
+}
+
 /// Python `main`: her arşivin kaynaklarını işler (yeni arşiv önce), hataları stderr'e yazar. Çıkış kodu: 0, hata varsa 1.
 pub fn calistir(y: &Yollar, simdi: Option<f64>) -> i32 {
     let mut kod = 0;
     let arsivler = arsiv_kaynaklari(&y.yeni, &y.eski);
-    for (ad, kaynaklar) in &arsivler {
-        let mut hatalar: Vec<String> = Vec::new();
-        for kaynak in kaynaklar {
-            // bir arşivin bozuk klasörü diğerlerini durdurmasın
-            let sonuc = (|| -> Result<Vec<String>, String> {
-                let mut h = guncelle(kaynak, &y.cikti.join(format!("{ad}.json")))?;
-                h.extend(crate::ozet::detay_guncelle(kaynak, &y.detay.join(ad), y.grup.as_deref())?);
-                Ok(h)
-            })();
-            match sonuc {
-                Ok(h) => hatalar.extend(h),
-                Err(h) => hatalar.push(h),
-            }
-        }
-        for hata in hatalar {
-            eprintln!("{ad}: {hata}");
-            kod = 1;
-        }
+    for (ad, hata) in arsiv_hatalari(y, &arsivler) {
+        eprintln!("{ad}: {hata}");
+        kod = 1;
     }
     // TASK 6: haftalık/aylık raporlar (ham özet önbelleği + müşteri başına dönem raporları): `rapor::calistir(arsivler,
     // rapor_gruplari, rapor_ham, rapor_cikti, grup, simdi)`; hatası yukarıdakileri etkilemez, `rapor: <hata>` basar, kod=1.
@@ -467,5 +482,70 @@ mod testler {
         let adlar: Vec<&str> = r.iter().map(|(a, _)| a.as_str()).collect();
         assert_eq!(adlar, vec!["1234567", "bocafe", "eski-kafe"]);
         assert_eq!(r[1].1, vec![yeni.join("bocafe").join("veri"), eski.join("bocafe")]);
+    }
+}
+
+#[cfg(test)]
+mod duzeltme_testleri {
+    use super::*;
+    use crate::test_yardim::gecici_dizin;
+    use std::fs;
+    use std::io::Write;
+
+    fn gz(yol: &Path, metin: &str) {
+        fs::create_dir_all(yol.parent().unwrap()).unwrap();
+        let mut e = flate2::write::GzEncoder::new(fs::File::create(yol).unwrap(), flate2::Compression::fast());
+        e.write_all(metin.as_bytes()).unwrap();
+        e.finish().unwrap();
+    }
+
+    fn gun(kok: &Path, ad: &str, trafik: &str) -> PathBuf {
+        let d = kok.join("gunluk").join(ad);
+        gz(&d.join("trafik.csv.gz"), trafik);
+        fs::write(d.join("MANIFEST.sha256"), "abc  trafik.csv.gz\n").unwrap();
+        d
+    }
+
+    #[test]
+    fn alan_siniri_asan_gun_hata_diger_gunler_surer() {
+        let tmp = gecici_dizin();
+        let (kafe, js) = (tmp.join("k"), tmp.join("k.json"));
+        gun(&kafe, "2026-09-26", &format!("telefon;ad\n5551112233;{}\n", "x".repeat(ortak::ALAN_SINIRI + 1)));
+        gun(&kafe, "2026-09-27", "telefon;ad\n5551112233;a\n");
+        let hatalar = guncelle(&kafe, &js).unwrap();
+        // Python: csv.Error `Exception`, o gün düşer ve iletisi kaydedilir; sonraki gün hesaplanır
+        assert!(hatalar.len() == 1 && hatalar[0].starts_with("2026-09-26") && hatalar[0].contains("field larger"), "{hatalar:?}");
+        assert_eq!(fs::read_to_string(&js).unwrap().contains("2026-09-27"), true);
+        assert!(!fs::read_to_string(&js).unwrap().contains("2026-09-26"));
+        // sınırdaki alan geçer
+        let d = gun(&kafe, "2026-09-28", &format!("telefon;ad\n5551112233;{}\n", "x".repeat(ortak::ALAN_SINIRI)));
+        assert_eq!(farkli_kisi(&d).unwrap(), 1);
+    }
+
+    #[test]
+    fn guncelle_hatalari_detay_basarisiz_olsa_da_korunur() {
+        let tmp = gecici_dizin();
+        let (yeni, eski) = (tmp.join("yeni"), tmp.join("eski"));
+        let kafe = yeni.join("ar").join("veri");
+        gun(&kafe, "2026-09-26", "telefon\n5551112233\n");
+        // bozuk gün: guncelle hata listesine yazar
+        fs::write(kafe.join("gunluk/2026-09-26/trafik.csv.gz"), b"\x1f\x8b\x08\x00bozuk").unwrap();
+        // detay hedefi dosya: detay_guncelle klasör açamayıp Err verir
+        fs::create_dir_all(tmp.join("detay")).unwrap();
+        fs::write(tmp.join("detay/ar"), "x").unwrap();
+        let y = Yollar {
+            kayit: tmp.join("kayit.csv"),
+            yeni,
+            eski,
+            cikti: tmp.join("ist"),
+            detay: tmp.join("detay"),
+            grup: None,
+            rapor_ham: tmp.join("ham"),
+            rapor_cikti: tmp.join("rapor"),
+            rapor_gruplari: tmp.join("g.json"),
+        };
+        let h = arsiv_hatalari(&y, &arsiv_kaynaklari(&y.yeni, &y.eski));
+        assert_eq!(h.len(), 2, "{h:?}");
+        assert!(h[0].1.starts_with("2026-09-26") && h[0].0 == "ar", "{h:?}");
     }
 }

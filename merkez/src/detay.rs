@@ -370,7 +370,7 @@ pub fn kisi_html(k: &Value, sir: &[u8]) -> String {
         })
         .collect();
     let bag_t = tablo(&["Saat", "Protokol", "Hedef", "Gönderilen", "İndirilen", "Süre"], &bag_satirlari, "Kayıt yok.");
-    let toplam = int_of(k.get("gonderilen")) + int_of(k.get("alinan"));
+    let toplam = int_of(k.get("gonderilen")).saturating_add(int_of(k.get("alinan")));
     let mac = mac_listesi(k.get("mac"));
     format!(
         "<details class=\"kisi\" id=\"k{}\"><summary><b>{}</b> · {} · {}–{} · {}</summary><div>\
@@ -388,7 +388,7 @@ pub fn kisi_html(k: &Value, sir: &[u8]) -> String {
         e(if mac.is_empty() { "—" } else { &mac }),
         boyut(int_of(k.get("gonderilen"))),
         boyut(int_of(k.get("alinan"))),
-        siteler.len() as i64 + diger,
+        (siteler.len() as i64).saturating_add(diger),
         baglantilar.len()
     )
 }

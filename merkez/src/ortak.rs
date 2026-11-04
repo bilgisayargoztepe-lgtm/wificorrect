@@ -210,31 +210,196 @@ fn satirlar_metinden(metin: &str) -> Vec<BTreeMap<String, String>> {
         .collect()
 }
 
-/// `read_rows_sonuc` hatası: `Utf8` Python'da `UnicodeDecodeError` (bir `ValueError`), `Io` açılamayan/bozuk dosya
-/// (gzip `BadGzipFile`/`EOFError`/`OSError`).
+/// `rows_akis` hatası: `Utf8` Python'da `UnicodeDecodeError` (bir `ValueError`), `Io` açılamayan/bozuk dosya
+/// (gzip `BadGzipFile`/`EOFError`/`OSError`), `Csv` Python `_csv.Error` (alan sınırı aşıldı; `ValueError` değil).
 #[derive(Debug)]
 pub enum OkumaHata {
     Utf8,
     Io(String),
+    Csv(String),
 }
 
-/// `read_rows` gibi, ama hata yutmaz (Python `common.read_rows` istisna fırlatır): dosya yoksa boş; bozuk/kesik gzip,
-/// okunamayan dosya ya da geçersiz UTF-8 `Err`.
-pub fn read_rows_sonuc(yol: &Path) -> Result<Vec<BTreeMap<String, String>>, OkumaHata> {
-    let mut f = match std::fs::File::open(yol) {
+/// Python `csv.field_size_limit()` varsayılanı (karakter).
+pub const ALAN_SINIRI: usize = 131_072;
+
+/// Akışlı CSV ayrıştırıcısı: bayt bayt, yalnızca o anki alan ve satır bellekte. Anlam `csv_coz` ile aynı
+/// (`;`, `"` alıntı ve `""` kaçışı, CRLF/LF/CR, boş satır atlanır, başta BOM).
+struct CsvAkis<'a> {
+    f: &'a mut dyn FnMut(BTreeMap<String, String>) -> bool,
+    baslik: Option<Vec<String>>,
+    alintida: bool,
+    alan_basi: bool,
+    satir_bos: bool,
+    bekleyen_tirnak: bool,
+    bekleyen_cr: bool,
+    alan: Vec<u8>,
+    alan_karakter: usize,
+    satir: Vec<String>,
+    dur: bool,
+}
+
+impl CsvAkis<'_> {
+    fn alan_bitir(&mut self) -> Result<(), OkumaHata> {
+        let b = std::mem::take(&mut self.alan);
+        self.alan_karakter = 0;
+        self.satir.push(String::from_utf8(b).map_err(|_| OkumaHata::Utf8)?);
+        Ok(())
+    }
+
+    fn satir_bitir(&mut self) {
+        let s = std::mem::take(&mut self.satir);
+        match &self.baslik {
+            None => self.baslik = Some(s),
+            Some(b) => {
+                if !(self.f)(b.iter().cloned().zip(s).collect()) {
+                    self.dur = true;
+                }
+            }
+        }
+    }
+
+    fn ekle(&mut self, b: u8) -> Result<(), OkumaHata> {
+        if b & 0xC0 != 0x80 {
+            self.alan_karakter += 1;
+            if self.alan_karakter > ALAN_SINIRI {
+                return Err(OkumaHata::Csv(format!("field larger than field limit ({ALAN_SINIRI})")));
+            }
+        }
+        self.alan.push(b);
+        Ok(())
+    }
+
+    fn isle(&mut self, b: u8) -> Result<(), OkumaHata> {
+        if self.bekleyen_cr {
+            self.bekleyen_cr = false;
+            if b == b'\n' {
+                return Ok(());
+            }
+        }
+        if self.bekleyen_tirnak {
+            self.bekleyen_tirnak = false;
+            if b == b'"' {
+                return self.ekle(b'"');
+            }
+            self.alintida = false;
+        }
+        if self.alintida {
+            if b == b'"' {
+                self.bekleyen_tirnak = true;
+                return Ok(());
+            }
+            return self.ekle(b);
+        }
+        match b {
+            b';' => {
+                self.alan_bitir()?;
+                self.satir_bos = false;
+                self.alan_basi = true;
+            }
+            b'\r' | b'\n' => {
+                self.bekleyen_cr = b == b'\r';
+                if !self.satir_bos {
+                    self.alan_bitir()?;
+                    self.satir_bitir();
+                }
+                self.satir_bos = true;
+                self.alan_basi = true;
+            }
+            b'"' if self.alan_basi => {
+                self.alintida = true;
+                self.alan_basi = false;
+                self.satir_bos = false;
+            }
+            _ => {
+                self.ekle(b)?;
+                self.alan_basi = false;
+                self.satir_bos = false;
+            }
+        }
+        Ok(())
+    }
+
+    fn son(&mut self) -> Result<(), OkumaHata> {
+        if self.bekleyen_tirnak {
+            self.bekleyen_tirnak = false;
+            self.alintida = false;
+        }
+        if !self.satir_bos {
+            self.alan_bitir()?;
+            self.satir_bitir();
+        }
+        Ok(())
+    }
+}
+
+/// Akışlı okuma: satırları tek tek `f`'ye verir (`f` false dönerse okuma durur ve `Ok` dönülür; Python'da üreteci
+/// bırakmak gibi, sonrasındaki bozukluk görülmez). Bellekte en çok bir okuma tamponu + bir alan + bir satır.
+pub fn rows_akis_okuyucu<R: Read>(mut r: R, f: &mut dyn FnMut(BTreeMap<String, String>) -> bool) -> Result<(), OkumaHata> {
+    let mut a = CsvAkis {
+        f,
+        baslik: None,
+        alintida: false,
+        alan_basi: true,
+        satir_bos: true,
+        bekleyen_tirnak: false,
+        bekleyen_cr: false,
+        alan: Vec::new(),
+        alan_karakter: 0,
+        satir: Vec::new(),
+        dur: false,
+    };
+    let mut tampon = [0u8; 32 * 1024];
+    let mut bas: Vec<u8> = Vec::new(); // ilk 3 bayt: BOM kararı için
+    let mut basta = true;
+    loop {
+        let n = match r.read(&mut tampon) {
+            Ok(n) => n,
+            Err(e) if e.kind() == std::io::ErrorKind::Interrupted => continue,
+            Err(e) => return Err(OkumaHata::Io(e.to_string())),
+        };
+        let mut dilim = &tampon[..n];
+        if basta {
+            let al = (3 - bas.len()).min(dilim.len());
+            bas.extend_from_slice(&dilim[..al]);
+            dilim = &dilim[al..];
+            if bas.len() == 3 || n == 0 {
+                basta = false;
+                let ham = std::mem::take(&mut bas);
+                let ham = if ham == [0xEF, 0xBB, 0xBF] { &[][..] } else { &ham[..] };
+                for &b in ham {
+                    a.isle(b)?;
+                }
+            }
+        }
+        if !basta {
+            for &b in dilim {
+                a.isle(b)?;
+                if a.dur {
+                    return Ok(());
+                }
+            }
+        }
+        if n == 0 {
+            break;
+        }
+    }
+    a.son()?;
+    Ok(())
+}
+
+/// `read_rows` gibi, ama akışlı ve hata yutmaz (Python `common.read_rows` bir üreteçtir ve istisna fırlatır): dosya
+/// yoksa hiçbir şey; bozuk/kesik gzip, okunamayan dosya, geçersiz UTF-8 ya da aşılan alan sınırı `Err`.
+pub fn rows_akis(yol: &Path, f: &mut dyn FnMut(BTreeMap<String, String>) -> bool) -> Result<(), OkumaHata> {
+    let dosya = match std::fs::File::open(yol) {
         Ok(f) => f,
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(()),
         Err(e) => return Err(OkumaHata::Io(e.to_string())),
     };
-    let mut ham = Vec::new();
-    let oku = if yol.extension().map(|e| e == "gz").unwrap_or(false) {
-        flate2::read::MultiGzDecoder::new(f).read_to_end(&mut ham)
+    if yol.extension().map(|e| e == "gz").unwrap_or(false) {
+        rows_akis_okuyucu(flate2::read::MultiGzDecoder::new(dosya), f)
     } else {
-        f.read_to_end(&mut ham)
-    };
-    oku.map_err(|e| OkumaHata::Io(e.to_string()))?;
-    let metin = String::from_utf8(ham).map_err(|_| OkumaHata::Utf8)?;
-    Ok(satirlar_metinden(&metin))
+        rows_akis_okuyucu(dosya, f)
+    }
 }
 
 /// Türkiye GSM numarasını 10 haneye (5XXXXXXXXX) çevirir; geçersizse None.
@@ -713,5 +878,118 @@ pub(crate) mod tests {
         let mut i = istek();
         i.url = "http://127.0.0.1:1/".into();
         assert!(Curl.calistir(&i).is_err());
+    }
+}
+
+#[cfg(test)]
+mod akis_testleri {
+    use super::*;
+    use std::cell::Cell;
+    use std::rc::Rc;
+
+    /// Her `read` çağrısında en çok `adim` bayt veren, toplam okunanı sayan okuyucu.
+    struct Sayan<R: Read> {
+        ic: R,
+        adim: usize,
+        okunan: Rc<Cell<usize>>,
+    }
+
+    impl<R: Read> Read for Sayan<R> {
+        fn read(&mut self, b: &mut [u8]) -> std::io::Result<usize> {
+            let n = b.len().min(self.adim);
+            let k = self.ic.read(&mut b[..n])?;
+            self.okunan.set(self.okunan.get() + k);
+            Ok(k)
+        }
+    }
+
+    fn hepsi(metin: &[u8], adim: usize) -> Result<Vec<BTreeMap<String, String>>, OkumaHata> {
+        let mut out = Vec::new();
+        let sayac = Rc::new(Cell::new(0));
+        rows_akis_okuyucu(Sayan { ic: metin, adim, okunan: sayac }, &mut |r| {
+            out.push(r);
+            true
+        })?;
+        Ok(out)
+    }
+
+    #[test]
+    fn akis_csv_coz_ile_ayni_her_parca_boyunda() {
+        let girdiler: [&str; 7] = [
+            "\u{feff}a;b;c\r\n1;2;3\r\n\r\n4;\"x;y\";\"z\"\"w\"\n",
+            "a;b\n\"1\n2\";3\r5;6",
+            "a;b\r\n\r\n\n1;2",
+            "a;b\n\"x\"y;\"\"\n;;\n",
+            "ş;ğ\nçok;İ\n",
+            "a\n",
+            "",
+        ];
+        for g in girdiler {
+            let beklenen = satirlar_metinden(g);
+            for adim in [1, 2, 3, 5, 100] {
+                let sonuc = hepsi(g.as_bytes(), adim).unwrap();
+                assert_eq!(sonuc, beklenen, "{g:?} adim={adim}");
+            }
+        }
+    }
+
+    #[test]
+    fn akis_bellek_sinirli_ilk_satir_dosya_bitmeden_gelir() {
+        // 300 bin satır (~15 MB): ilk satır işlenirken kaynaktan okunan bir tampondan fazla değil
+        let mut m = String::from("a;b;c;d;e\n");
+        for i in 0..300_000 {
+            m.push_str(&format!("{i};{i};xxxxxxxxxx;yyyyyyyyyy;zzzzzzzzzz\n"));
+        }
+        let toplam = m.len();
+        let okunan = Rc::new(Cell::new(0));
+        let (mut ilk_okunan, mut sayi, mut son) = (None, 0usize, String::new());
+        rows_akis_okuyucu(Sayan { ic: m.as_bytes(), adim: usize::MAX, okunan: okunan.clone() }, &mut |r| {
+            if ilk_okunan.is_none() {
+                ilk_okunan = Some(okunan.get());
+            }
+            sayi += 1;
+            son = r["a"].clone();
+            true
+        })
+        .unwrap();
+        assert_eq!((sayi, son.as_str()), (300_000, "299999"));
+        assert!(toplam > 10_000_000);
+        assert!(ilk_okunan.unwrap() <= 32 * 1024, "ilk satırda {} bayt okunmuştu", ilk_okunan.unwrap());
+    }
+
+    #[test]
+    fn akis_gz_dosyasi_ve_durdurma() {
+        let d = tests::gecici_dizin();
+        let yol = d.join("t.csv.gz");
+        let mut e = flate2::write::GzEncoder::new(std::fs::File::create(&yol).unwrap(), flate2::Compression::fast());
+        use std::io::Write;
+        e.write_all(b"\xef\xbb\xbfa;b\n1;2\n3;4\n").unwrap();
+        e.finish().unwrap();
+        let mut n = 0;
+        rows_akis(&yol, &mut |_| {
+            n += 1;
+            false // ilk satırda dur
+        })
+        .unwrap();
+        assert_eq!(n, 1);
+        // bozuk gz sonradan görülür; durdurulduysa görülmez (Python üreteci bırakmak gibi)
+        let kesik = d.join("k.csv.gz");
+        let tam = std::fs::read(&yol).unwrap();
+        std::fs::write(&kesik, &tam[..tam.len() - 6]).unwrap();
+        assert!(matches!(rows_akis(&kesik, &mut |_| true), Err(OkumaHata::Io(_))));
+        assert!(rows_akis(&d.join("yok.csv.gz"), &mut |_| true).is_ok());
+    }
+
+    #[test]
+    fn akis_alan_siniri_python_gibi() {
+        let tam = format!("a\n{}\n", "x".repeat(ALAN_SINIRI));
+        assert_eq!(hepsi(tam.as_bytes(), 4096).unwrap().len(), 1);
+        let asan = format!("a\n{}\n", "x".repeat(ALAN_SINIRI + 1));
+        assert!(matches!(hepsi(asan.as_bytes(), 4096), Err(OkumaHata::Csv(_))));
+        // karakter sayılır, bayt değil: 131072 'ş' (262144 bayt) sınırda geçer
+        let cok_bayt = format!("a\n{}\n", "ş".repeat(ALAN_SINIRI));
+        assert_eq!(hepsi(cok_bayt.as_bytes(), 4096).unwrap().len(), 1);
+        assert!(matches!(hepsi(format!("a\n\"{}\"\n", "ş".repeat(ALAN_SINIRI + 1)).as_bytes(), 4096), Err(OkumaHata::Csv(_))));
+        assert!(matches!(hepsi(b"a\n\xff\n", 4096), Err(OkumaHata::Utf8)));
     }
 }

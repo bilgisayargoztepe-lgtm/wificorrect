@@ -112,7 +112,7 @@ impl Kayitlar {
                         let n = detay::int_of(Some(v));
                         satirlar.push_str(&format!(
                             "<tr>{tarih}<td class=\"cubuk\"><span style=\"width:{}%\"></span></td><td class=\"n\">{n}</td></tr>",
-                            (n * 100).div_euclid(enbuyuk)
+                            n.saturating_mul(100).div_euclid(enbuyuk)
                         ));
                     }
                 }

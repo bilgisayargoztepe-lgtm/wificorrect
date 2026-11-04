@@ -82,8 +82,15 @@ fn klasor(yol: &Path, grup: Option<&str>) -> Result<(), String> {
 
 /// Kafe arşiv kökündeki index.csv: `{telefon: satır}`. Yoksa, normal dosya değilse ya da UTF-8 değilse boş.
 pub fn index_oku(kafe_dizini: &Path) -> Result<Index, String> {
-    match satirlar(&kafe_dizini.join("index.csv")) {
-        Ok(s) => Ok(s.into_iter().filter(|r| r.get("telefon").is_some_and(|t| !t.is_empty())).map(|r| (r["telefon"].clone(), r)).collect()),
+    let mut index = Index::new();
+    let sonuc = satirlar(&kafe_dizini.join("index.csv"), &mut |r| {
+        if let Some(t) = r.get("telefon").filter(|t| !t.is_empty()).cloned() {
+            index.insert(t, r);
+        }
+        true
+    });
+    match sonuc {
+        Ok(()) => Ok(index),
         Err(SatirHata::Deger(_)) => Ok(HashMap::new()),
         Err(h) => Err(hata_oku(h)),
     }
@@ -101,12 +108,15 @@ fn kayit_adi(gun_dizini: &Path, tel: &str) -> Result<Option<(String, String)>, S
     if !(6..=40).contains(&ad.len()) || sembolik_mi(&k) {
         return Ok(None);
     }
-    for r in satirlar(&k.join(format!("{ad}.csv.gz")))? {
+    let mut bulunan = None;
+    satirlar(&k.join(format!("{ad}.csv.gz")), &mut |r| {
         if ver(&r, "olay") == "KAYIT" && !ver(&r, "ad").is_empty() {
-            return Ok(Some((ver(&r, "ad").to_string(), ver(&r, "soyad").to_string())));
+            bulunan = Some((ver(&r, "ad").to_string(), ver(&r, "soyad").to_string()));
+            return false; // Python: ilk KAYIT'ta döner, sonrası okunmaz
         }
-    }
-    Ok(None)
+        true
+    })?;
+    Ok(bulunan)
 }
 
 struct Site {
@@ -150,7 +160,9 @@ struct Kisi {
 }
 
 fn baglanti_sirasi(a: &Baglanti, b: &Baglanti) -> std::cmp::Ordering {
-    (-(a.gonderilen + a.alinan)).cmp(&-(b.gonderilen + b.alinan)).then_with(|| a.zaman.cmp(&b.zaman))
+    // Python: (-(g+a), zaman) artan; yani toplam azalan. Taşma doymalı, negatif almadan.
+    let (ta, tb) = (a.gonderilen.saturating_add(a.alinan), b.gonderilen.saturating_add(b.alinan));
+    tb.cmp(&ta).then_with(|| a.zaman.cmp(&b.zaman))
 }
 
 /// Bir günün kişi bazında özeti; kişiler adı olanlar önce, ad soyad sonra telefon sırasıyla.
@@ -193,9 +205,9 @@ pub fn gun_ozeti(gun_dizini: &Path, index: &Index) -> Result<Vec<Value>, SatirHa
         k
     }
 
-    for r in satirlar(&gun_dizini.join("oturum.csv.gz"))? {
+    satirlar(&gun_dizini.join("oturum.csv.gz"), &mut |r| {
         if ver(&r, "telefon").is_empty() {
-            continue;
+            return true;
         }
         let k = kisi(&mut kisiler, &mut dizin, &r);
         if !ver(&r, "ad").is_empty() && k.ad.is_empty() {
@@ -205,10 +217,11 @@ pub fn gun_ozeti(gun_dizini: &Path, index: &Index) -> Result<Vec<Value>, SatirHa
         if ver(&r, "olay").starts_with("OTURUM_") {
             k.oturumlar.push(Oturum { olay: ver(&r, "olay").into(), zaman: ver(&r, "zaman").into(), ic_ip: ver(&r, "ic_ip").into(), ek: ver(&r, "ek").into() });
         }
-    }
-    for r in satirlar(&gun_dizini.join("dns.csv.gz"))? {
+        true
+    })?;
+    satirlar(&gun_dizini.join("dns.csv.gz"), &mut |r| {
         if ver(&r, "telefon").is_empty() {
-            continue;
+            return true;
         }
         let k = kisi(&mut kisiler, &mut dizin, &r);
         let alan = py_strip(ver(&r, "alan_adi")).to_lowercase().trim_end_matches('.').to_string();
@@ -223,7 +236,7 @@ pub fn gun_ozeti(gun_dizini: &Path, index: &Index) -> Result<Vec<Value>, SatirHa
                 }
             };
             let s = &mut k.siteler[i];
-            s.sayi += 1;
+            s.sayi = s.sayi.saturating_add(1);
             if zaman < s.ilk {
                 s.ilk = zaman.clone();
             }
@@ -231,19 +244,20 @@ pub fn gun_ozeti(gun_dizini: &Path, index: &Index) -> Result<Vec<Value>, SatirHa
                 s.son = zaman;
             }
         }
-    }
-    for r in satirlar(&gun_dizini.join("trafik.csv.gz"))? {
+        true
+    })?;
+    satirlar(&gun_dizini.join("trafik.csv.gz"), &mut |r| {
         if ver(&r, "telefon").is_empty() {
-            continue;
+            return true;
         }
         let k = kisi(&mut kisiler, &mut dizin, &r);
         if ver(&r, "olay") != "BAGLANTI_BITIS" {
-            continue;
+            return true;
         }
         let (g, a) = (sayi(r.get("gonderilen_bayt")), sayi(r.get("alinan_bayt")));
-        k.gonderilen += g;
-        k.alinan += a;
-        k.baglanti_sayisi += 1;
+        k.gonderilen = k.gonderilen.saturating_add(g);
+        k.alinan = k.alinan.saturating_add(a);
+        k.baglanti_sayisi = k.baglanti_sayisi.saturating_add(1);
         k.baglantilar.push(Baglanti {
             zaman: ver(&r, "zaman").into(),
             protokol: ver(&r, "protokol").into(),
@@ -258,7 +272,8 @@ pub fn gun_ozeti(gun_dizini: &Path, index: &Index) -> Result<Vec<Value>, SatirHa
             k.baglantilar.sort_by(baglanti_sirasi);
             k.baglantilar.truncate(BAGLANTI_SINIRI);
         }
-    }
+        true
+    })?;
     for k in kisiler.iter_mut() {
         if k.ad.is_empty() {
             let mut ad = kayit_adi(gun_dizini, &k.telefon)?;
@@ -781,5 +796,32 @@ mod testler {
         assert_eq!(dosya_adi("../../../index"), "index");
         assert_eq!(dizin_kaydi(&json!({"gun": "2026-09-27", "kisiler": [{"telefon": A, "ad": "x", "soyad": "y", "oturumlar": []}]})), Some(("2026-09-27".into(), vec![(A.into(), "x".into(), "y".into(), vec![])])));
         assert_eq!(dizin_kaydi(&json!({"gun": "2026-09-27", "kisiler": [{"telefon": A}]})), None); // KeyError
+    }
+}
+
+#[cfg(test)]
+mod tasma_testleri {
+    use super::*;
+    use crate::test_yardim::gecici_dizin;
+
+    #[test]
+    fn dev_bayt_degerleri_doyar_panik_etmez() {
+        let tmp = gecici_dizin();
+        let d = tmp.join("gunluk").join("2026-09-27");
+        std::fs::create_dir_all(&d).unwrap();
+        let mut m = String::from("zaman;olay;telefon;gonderilen_bayt;alinan_bayt\n");
+        for i in 0..3 {
+            m.push_str(&format!("2026-09-27T10:00:0{i}+03:00;BAGLANTI_BITIS;5330000001;{};{}\n", i64::MAX, i64::MAX));
+        }
+        m.push_str("2026-09-27T10:00:09+03:00;BAGLANTI_BITIS;5330000001;-9223372036854775808;-9223372036854775808\n");
+        let mut e = flate2::write::GzEncoder::new(std::fs::File::create(d.join("trafik.csv.gz")).unwrap(), flate2::Compression::fast());
+        std::io::Write::write_all(&mut e, m.as_bytes()).unwrap();
+        e.finish().unwrap();
+        let k = gun_ozeti(&d, &Index::new()).unwrap();
+        assert_eq!(k.len(), 1);
+        assert_eq!(k[0]["baglanti_sayisi"], json!(4));
+        assert_eq!(k[0]["gonderilen"], json!(0)); // MAX üç kez doyar; py_int büyüklüğü doyurur (MIN -> -MAX), toplam 0
+        let html = crate::detay::kisi_html(&k[0], b"s");
+        assert!(html.contains("<details"));
     }
 }

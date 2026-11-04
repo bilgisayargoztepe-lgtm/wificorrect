@@ -1,8 +1,10 @@
 {
- "bicim": 1,
+ "bicim": 2,
  "dosya": "test_rapor",
  "test": "test_gun_durumu_hizmet_oncesi_ve_gelecek",
+ "platform_farki": [],
  "cevaplar": [],
  "veritabanlari": [],
+ "dosyalar": [],
  "yollar": []
 }

@@ -1,8 +1,10 @@
 {
- "bicim": 1,
+ "bicim": 2,
  "dosya": "test_ap",
  "test": "test_caddyfile_cihaz_blogu_ap_gecisi",
+ "platform_farki": [],
  "cevaplar": [],
  "veritabanlari": [],
+ "dosyalar": [],
  "yollar": []
 }

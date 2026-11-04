@@ -1,8 +1,47 @@
 {
- "bicim": 1,
+ "bicim": 2,
  "dosya": "test_listeler",
  "test": "test_sinir_ve_kesildi",
+ "platform_farki": [],
  "cevaplar": [],
  "veritabanlari": [],
+ "dosyalar": [
+  {
+   "kaynak/": {
+    "dizin": true
+   },
+   "kaynak/kumar-1cee97163277.txt.gz": {
+    "metin": "b0.com\nb1.com\nb2.com\nb3.com\n",
+    "gz": true
+   },
+   "kaynak/kumar-1e76245f6f33.txt.gz": {
+    "metin": "a0.com\na1.com\na2.com\na3.com\n",
+    "gz": true
+   },
+   "kumar.json": {
+    "json": {
+     "kategori": "kumar",
+     "sha256": "578c30f6c0fbe9ea1c837c98e0927dbf4e08b12452c1ae32332b6289f31f71df",
+     "sayi": 5,
+     "zaman": "2026-09-21T17:13:20+03:00",
+     "kesildi": true,
+     "kaynaklar": [
+      {
+       "ad": "A",
+       "sayi": 4
+      },
+      {
+       "ad": "B",
+       "sayi": 4
+      }
+     ]
+    }
+   },
+   "kumar.txt.gz": {
+    "metin": "a0.com\na1.com\na2.com\na3.com\nb0.com\n",
+    "gz": true
+   }
+  }
+ ],
  "yollar": []
 }

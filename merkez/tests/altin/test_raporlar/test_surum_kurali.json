@@ -1,8 +1,10 @@
 {
- "bicim": 1,
+ "bicim": 2,
  "dosya": "test_raporlar",
  "test": "test_surum_kurali",
+ "platform_farki": [],
  "cevaplar": [],
  "veritabanlari": [],
+ "dosyalar": [],
  "yollar": []
 }

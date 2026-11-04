@@ -1,8 +1,48 @@
 {
- "bicim": 1,
+ "bicim": 2,
  "dosya": "test_wc_istatistik",
  "test": "test_guncelle_artimli",
+ "platform_farki": [],
  "cevaplar": [],
  "veritabanlari": [],
+ "dosyalar": [
+  {
+   "bocafe/": {
+    "dizin": true
+   },
+   "bocafe/gunluk/": {
+    "dizin": true
+   },
+   "bocafe/gunluk/2026-09-26/": {
+    "dizin": true
+   },
+   "bocafe/gunluk/2026-09-26/MANIFEST.sha256": {
+    "metin": "# gun=2026-09-26 onceki_zincir=0\nabc123  trafik.csv.gz\n"
+   },
+   "bocafe/gunluk/2026-09-26/trafik.csv.gz": {
+    "metin": "﻿zaman;olay;telefon;ad;soyad;mac;ic_ip;protokol;ic_port;hedef_ip;hedef_port;nat_ip;nat_port;alan_adi;gonderilen_bayt;alinan_bayt;sure_sn;oturum_id;ek\n2026-09-26T10:00:00+03:00;BAGLANTI_BASLA;5551112233;;;;;;;;;;;;;;;;\n",
+    "gz": true
+   },
+   "bocafe/gunluk/2026-09-27/": {
+    "dizin": true
+   },
+   "bocafe/gunluk/2026-09-27/MANIFEST.sha256": {
+    "metin": "# gun=2026-09-27 onceki_zincir=0\nabc123  trafik.csv.gz\n"
+   },
+   "bocafe/gunluk/2026-09-27/trafik.csv.gz": {
+    "metin": "﻿zaman;olay;telefon;ad;soyad;mac;ic_ip;protokol;ic_port;hedef_ip;hedef_port;nat_ip;nat_port;alan_adi;gonderilen_bayt;alinan_bayt;sure_sn;oturum_id;ek\n2026-09-27T10:00:00+03:00;BAGLANTI_BASLA;5551112233;;;;;;;;;;;;;;;;\n2026-09-27T10:00:00+03:00;BAGLANTI_BASLA;5559998877;;;;;;;;;;;;;;;;\n",
+    "gz": true
+   },
+   "ist/": {
+    "dizin": true
+   },
+   "ist/bocafe.json": {
+    "json": {
+     "2026-09-26": 99,
+     "2026-09-27": 2
+    }
+   }
+  }
+ ],
  "yollar": []
 }

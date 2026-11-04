@@ -238,6 +238,8 @@ class Cikarici:
 
 def kayitlari_oku(dizin):
     for kok, _, adlar in os.walk(dizin):
+        if os.path.samefile(kok, dizin):
+            continue  # _krom.json
         for a in sorted(adlar):
             yol = os.path.join(kok, a)
             if a.endswith(".json"):

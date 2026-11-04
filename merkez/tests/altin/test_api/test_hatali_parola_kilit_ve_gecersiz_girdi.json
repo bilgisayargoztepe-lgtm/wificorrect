@@ -1,7 +1,8 @@
 {
- "bicim": 1,
+ "bicim": 2,
  "dosya": "test_api",
  "test": "test_hatali_parola_kilit_ve_gecersiz_girdi",
+ "platform_farki": [],
  "cevaplar": [
   {
    "istek": "POST /api/giris",
@@ -354,7 +355,7 @@
       "ozet": "fcd77d2f1464acefd0bf9649c59c9103b30bf9b4aa14a1930fdbc86ae817e02c",
       "parola_acik": "6bnuKUG4dyZ7",
       "son_giris": "",
-      "tuz": "<T1>",
+      "tuz": "<T1:32>",
       "uyelik": "aktif",
       "yineleme": 120000
      }
@@ -370,6 +371,16 @@
      }
     ],
     "surum": []
+   }
+  }
+ ],
+ "dosyalar": [
+  {
+   "detay/": {
+    "dizin": true
+   },
+   "ist/": {
+    "dizin": true
    }
   }
  ],

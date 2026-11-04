@@ -1,8 +1,142 @@
 {
- "bicim": 1,
+ "bicim": 2,
  "dosya": "test_wc_istatistik",
  "test": "test_main_bozuk_arsiv_digerlerini_durdurmaz",
+ "platform_farki": [],
  "cevaplar": [],
  "veritabanlari": [],
+ "dosyalar": [
+  {
+   "detay/": {
+    "dizin": true
+   },
+   "detay/a-kafe/": {
+    "dizin": true
+   },
+   "detay/a-kafe/kisiler.json": {
+    "json": {}
+   },
+   "detay/b-kafe/": {
+    "dizin": true
+   },
+   "detay/b-kafe/2026-10-01.json": {
+    "json": {
+     "gun": "2026-10-01",
+     "kisiler": [
+      {
+       "telefon": "5334553132",
+       "ad": "",
+       "soyad": "",
+       "mac": [],
+       "oturumlar": [],
+       "gonderilen": 0,
+       "alinan": 0,
+       "baglanti_sayisi": 0,
+       "ilk": "2026-10-01T10:00:00+03:00",
+       "son": "2026-10-01T10:00:00+03:00",
+       "siteler": [],
+       "baglantilar": [],
+       "diger_site_sayisi": 0
+      }
+     ]
+    }
+   },
+   "detay/b-kafe/kisiler.json": {
+    "json": {
+     "5334553132": {
+      "ad": "",
+      "soyad": "",
+      "gunler": [
+       "2026-10-01"
+      ],
+      "odalar": {}
+     }
+    }
+   },
+   "eski/": {
+    "dizin": true
+   },
+   "eski/a-kafe/": {
+    "dizin": true
+   },
+   "eski/a-kafe/gunluk": {
+    "metin": "x"
+   },
+   "eski/b-kafe/": {
+    "dizin": true
+   },
+   "eski/b-kafe/gunluk/": {
+    "dizin": true
+   },
+   "eski/b-kafe/gunluk/2026-10-01/": {
+    "dizin": true
+   },
+   "eski/b-kafe/gunluk/2026-10-01/MANIFEST.sha256": {
+    "metin": "# gun=2026-10-01 onceki_zincir=0\nabc123  trafik.csv.gz\n"
+   },
+   "eski/b-kafe/gunluk/2026-10-01/trafik.csv.gz": {
+    "metin": "﻿zaman;olay;telefon;ad;soyad;mac;ic_ip;protokol;ic_port;hedef_ip;hedef_port;nat_ip;nat_port;alan_adi;gonderilen_bayt;alinan_bayt;sure_sn;oturum_id;ek\n2026-10-01T10:00:00+03:00;BAGLANTI_BASLA;5334553132;;;;;;;;;;;;;;;;\n",
+    "gz": true
+   },
+   "ist/": {
+    "dizin": true
+   },
+   "ist/a-kafe.json": {
+    "json": {}
+   },
+   "ist/b-kafe.json": {
+    "json": {
+     "2026-10-01": 1
+    }
+   },
+   "kayit.csv": {
+    "metin": ""
+   },
+   "rapor-ham/": {
+    "dizin": true
+   },
+   "rapor-ham/.sir": {
+    "ikili": {
+     "sha256": "7367f5c378b7b3ffdaea52b319f1f22a43cb73b62ac3d1730daf28259f299017",
+     "uzunluk": 32
+    }
+   },
+   "rapor-ham/a-kafe/": {
+    "dizin": true
+   },
+   "rapor-ham/b-kafe/": {
+    "dizin": true
+   },
+   "rapor-ham/b-kafe/2026-10-01.json": {
+    "json": {
+     "bicim": 2,
+     "imza": "<KARARSIZ>",
+     "sir_izi": "56f2e982",
+     "manifest_sha": "1320e5cfc0c0ae9ffc88c11a974e508c45b07d2c9e24d50f12cca9fc2f8cee5b",
+     "dosya_ok": false,
+     "misafir": [
+      "f49ef1453e2065f8"
+     ],
+     "saat": {
+      "10": [
+       "f49ef1453e2065f8"
+      ]
+     },
+     "giris": {
+      "sms": 0,
+      "kod": 0
+     },
+     "izinli": [],
+     "gonderilen": 0,
+     "alinan": 0,
+     "sms": 0,
+     "surum": null
+    }
+   },
+   "rapor/": {
+    "dizin": true
+   }
+  }
+ ],
  "yollar": []
 }

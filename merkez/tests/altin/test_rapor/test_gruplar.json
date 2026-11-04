@@ -1,8 +1,22 @@
 {
- "bicim": 1,
+ "bicim": 2,
  "dosya": "test_rapor",
  "test": "test_gruplar",
+ "platform_farki": [
+  "os.symlink kurulamadı"
+ ],
  "cevaplar": [],
  "veritabanlari": [],
+ "dosyalar": [
+  {
+   "baska.json": {
+    "json": {
+     "1234567": [
+      "bocafe"
+     ]
+    }
+   }
+  }
+ ],
  "yollar": []
 }

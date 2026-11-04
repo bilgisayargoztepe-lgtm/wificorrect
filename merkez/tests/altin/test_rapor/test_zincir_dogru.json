@@ -1,8 +1,70 @@
 {
- "bicim": 1,
+ "bicim": 2,
  "dosya": "test_rapor",
  "test": "test_zincir_dogru",
+ "platform_farki": [],
  "cevaplar": [],
  "veritabanlari": [],
+ "dosyalar": [
+  {
+   "gunluk/": {
+    "dizin": true
+   },
+   "gunluk/2026-10-01/": {
+    "dizin": true
+   },
+   "gunluk/2026-10-01/MANIFEST.sha256": {
+    "metin": "<KARARSIZ>"
+   },
+   "gunluk/2026-10-01/kullanicilar/": {
+    "dizin": true
+   },
+   "gunluk/2026-10-01/kullanicilar/905551112233.csv.gz": {
+    "metin": "﻿zaman;olay;telefon;ad;soyad;mac;ic_ip;protokol;ic_port;hedef_ip;hedef_port;nat_ip;nat_port;alan_adi;gonderilen_bayt;alinan_bayt;sure_sn;oturum_id;ek\r\n",
+    "gz": true
+   },
+   "gunluk/2026-10-01/trafik.csv.gz": {
+    "metin": "﻿zaman;olay;telefon;ad;soyad;mac;ic_ip;protokol;ic_port;hedef_ip;hedef_port;nat_ip;nat_port;alan_adi;gonderilen_bayt;alinan_bayt;sure_sn;oturum_id;ek\r\n2026-10-01T10:00:00+03:00;BAGLANTI_BASLA;905551112233;;;aa:bb:cc:dd:ee:02;10.50.0.23;;;;;;;;;;;;\r\n",
+    "gz": true
+   },
+   "gunluk/2026-10-02/": {
+    "dizin": true
+   },
+   "gunluk/2026-10-02/MANIFEST.sha256": {
+    "metin": "<KARARSIZ>"
+   },
+   "gunluk/2026-10-02/kullanicilar/": {
+    "dizin": true
+   },
+   "gunluk/2026-10-02/kullanicilar/905551112233.csv.gz": {
+    "metin": "﻿zaman;olay;telefon;ad;soyad;mac;ic_ip;protokol;ic_port;hedef_ip;hedef_port;nat_ip;nat_port;alan_adi;gonderilen_bayt;alinan_bayt;sure_sn;oturum_id;ek\r\n",
+    "gz": true
+   },
+   "gunluk/2026-10-02/trafik.csv.gz": {
+    "metin": "﻿zaman;olay;telefon;ad;soyad;mac;ic_ip;protokol;ic_port;hedef_ip;hedef_port;nat_ip;nat_port;alan_adi;gonderilen_bayt;alinan_bayt;sure_sn;oturum_id;ek\r\n2026-10-02T10:00:00+03:00;BAGLANTI_BASLA;905551112233;;;aa:bb:cc:dd:ee:02;10.50.0.23;;;;;;;;;;;;\r\n",
+    "gz": true
+   },
+   "gunluk/2026-10-03/": {
+    "dizin": true
+   },
+   "gunluk/2026-10-03/MANIFEST.sha256": {
+    "metin": "<KARARSIZ>"
+   },
+   "gunluk/2026-10-03/kullanicilar/": {
+    "dizin": true
+   },
+   "gunluk/2026-10-03/kullanicilar/905551112233.csv.gz": {
+    "metin": "﻿zaman;olay;telefon;ad;soyad;mac;ic_ip;protokol;ic_port;hedef_ip;hedef_port;nat_ip;nat_port;alan_adi;gonderilen_bayt;alinan_bayt;sure_sn;oturum_id;ek\r\n",
+    "gz": true
+   },
+   "gunluk/2026-10-03/trafik.csv.gz": {
+    "metin": "﻿zaman;olay;telefon;ad;soyad;mac;ic_ip;protokol;ic_port;hedef_ip;hedef_port;nat_ip;nat_port;alan_adi;gonderilen_bayt;alinan_bayt;sure_sn;oturum_id;ek\r\n2026-10-03T10:00:00+03:00;BAGLANTI_BASLA;905551112233;;;aa:bb:cc:dd:ee:02;10.50.0.23;;;;;;;;;;;;\r\n",
+    "gz": true
+   },
+   "zincir.txt": {
+    "metin": "<KARARSIZ>"
+   }
+  }
+ ],
  "yollar": []
 }

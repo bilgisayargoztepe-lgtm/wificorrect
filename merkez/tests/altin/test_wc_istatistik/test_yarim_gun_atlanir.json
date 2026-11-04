@@ -1,8 +1,47 @@
 {
- "bicim": 1,
+ "bicim": 2,
  "dosya": "test_wc_istatistik",
  "test": "test_yarim_gun_atlanir",
+ "platform_farki": [],
  "cevaplar": [],
  "veritabanlari": [],
+ "dosyalar": [
+  {
+   "bocafe.json": {
+    "json": {
+     "2026-09-27": 1
+    }
+   },
+   "bocafe/": {
+    "dizin": true
+   },
+   "bocafe/gunluk/": {
+    "dizin": true
+   },
+   "bocafe/gunluk/2026-09-27/": {
+    "dizin": true
+   },
+   "bocafe/gunluk/2026-09-27/MANIFEST.sha256": {
+    "metin": "# gun=2026-09-27 onceki_zincir=0\nabc123  trafik.csv.gz\nabc123  kullanicilar/5551112233.csv.gz\n"
+   },
+   "bocafe/gunluk/2026-09-27/kullanicilar/": {
+    "dizin": true
+   },
+   "bocafe/gunluk/2026-09-27/kullanicilar/5551112233.csv.gz": {
+    "metin": ""
+   },
+   "bocafe/gunluk/2026-09-27/trafik.csv.gz": {
+    "metin": "﻿zaman;olay;telefon;ad;soyad;mac;ic_ip;protokol;ic_port;hedef_ip;hedef_port;nat_ip;nat_port;alan_adi;gonderilen_bayt;alinan_bayt;sure_sn;oturum_id;ek\n2026-09-27T10:00:00+03:00;BAGLANTI_BASLA;5551112233;;;;;;;;;;;;;;;;\n",
+    "gz": true
+   },
+   "bocafe/gunluk/2026-09-28/": {
+    "dizin": true
+   },
+   "bocafe/gunluk/2026-09-28/trafik.csv.gz": {
+    "metin": "﻿zaman;olay;telefon;ad;soyad;mac;ic_ip;protokol;ic_port;hedef_ip;hedef_port;nat_ip;nat_port;alan_adi;gonderilen_bayt;alinan_bayt;sure_sn;oturum_id;ek\n2026-09-28T10:00:00+03:00;BAGLANTI_BASLA;5551112233;;;;;;;;;;;;;;;;\n",
+    "gz": true
+   }
+  }
+ ],
  "yollar": []
 }

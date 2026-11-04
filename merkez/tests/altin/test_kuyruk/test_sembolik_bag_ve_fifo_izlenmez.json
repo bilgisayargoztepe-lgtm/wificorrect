@@ -1,8 +1,12 @@
 {
- "bicim": 1,
+ "bicim": 2,
  "dosya": "test_kuyruk",
  "test": "test_sembolik_bag_ve_fifo_izlenmez",
+ "platform_farki": [
+  "os.O_NOFOLLOW yok"
+ ],
  "cevaplar": [],
  "veritabanlari": [],
+ "dosyalar": [],
  "yollar": []
 }

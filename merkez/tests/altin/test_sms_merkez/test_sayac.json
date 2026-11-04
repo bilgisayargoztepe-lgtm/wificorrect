@@ -1,7 +1,8 @@
 {
- "bicim": 1,
+ "bicim": 2,
  "dosya": "test_sms_merkez",
  "test": "test_sayac",
+ "platform_farki": [],
  "cevaplar": [],
  "veritabanlari": [
   {
@@ -25,6 +26,16 @@
     "sorun": [],
     "sqlite_sequence": [],
     "surum": []
+   }
+  }
+ ],
+ "dosyalar": [
+  {
+   "detay/": {
+    "dizin": true
+   },
+   "ist/": {
+    "dizin": true
    }
   }
  ],

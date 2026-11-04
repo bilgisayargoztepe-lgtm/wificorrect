@@ -1,7 +1,8 @@
 {
- "bicim": 1,
+ "bicim": 2,
  "dosya": "test_api",
  "test": "test_lisans_bilgisi_ve_parola_tipi",
+ "platform_farki": [],
  "cevaplar": [
   {
    "istek": "POST /api/giris",
@@ -18,7 +19,7 @@
    ],
    "govde": {
     "json": {
-     "tuz": "<T2>",
+     "tuz": "<T2:32>",
      "ozet": "fcd77d2f1464acefd0bf9649c59c9103b30bf9b4aa14a1930fdbc86ae817e02c",
      "yineleme": 120000,
      "lisans": "aktif",
@@ -27,7 +28,7 @@
      "sms": {
       "etkin_mock": true
      },
-     "cihaz_anahtari": "<T1>",
+     "cihaz_anahtari": "<T1:43>",
      "tunel_ip": "10.99.0.10",
      "sunucu_pub": "SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS=",
      "uc_nokta": "vpn.wificorrect.com:51820",
@@ -50,7 +51,7 @@
    ],
    "govde": {
     "json": {
-     "tuz": "<T2>",
+     "tuz": "<T2:32>",
      "ozet": "fcd77d2f1464acefd0bf9649c59c9103b30bf9b4aa14a1930fdbc86ae817e02c",
      "yineleme": 120000,
      "lisans": "askida",
@@ -99,7 +100,7 @@
    ],
    "govde": {
     "json": {
-     "tuz": "<T3>",
+     "tuz": "<T3:32>",
      "ozet": "1a1f30c4c361875bfd911340a9f190f0179358b7321dd25ebeac1ed2433c92ed",
      "yineleme": 120000
     }
@@ -172,7 +173,7 @@
       "ozet": "1a1f30c4c361875bfd911340a9f190f0179358b7321dd25ebeac1ed2433c92ed",
       "parola_acik": "yeni-parola-1",
       "son_giris": "",
-      "tuz": "<T3>",
+      "tuz": "<T3:32>",
       "uyelik": "aktif",
       "yineleme": 120000
      }
@@ -192,6 +193,16 @@
      }
     ],
     "surum": []
+   }
+  }
+ ],
+ "dosyalar": [
+  {
+   "detay/": {
+    "dizin": true
+   },
+   "ist/": {
+    "dizin": true
    }
   }
  ],

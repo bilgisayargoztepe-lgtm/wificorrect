@@ -1,8 +1,12 @@
 {
- "bicim": 1,
+ "bicim": 2,
  "dosya": "test_rapor",
  "test": "test_gecici_dosya_hata_sonrasi_kalmaz",
+ "platform_farki": [],
  "cevaplar": [],
  "veritabanlari": [],
+ "dosyalar": [
+  {}
+ ],
  "yollar": []
 }

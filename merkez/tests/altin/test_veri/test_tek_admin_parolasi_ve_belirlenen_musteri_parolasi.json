@@ -1,7 +1,8 @@
 {
- "bicim": 1,
+ "bicim": 2,
  "dosya": "test_veri",
  "test": "test_tek_admin_parolasi_ve_belirlenen_musteri_parolasi",
+ "platform_farki": [],
  "cevaplar": [],
  "veritabanlari": [
   {
@@ -10,7 +11,7 @@
     "ayar": [
      {
       "anahtar": "admin",
-      "deger": "{\"tuz\": \"<T1>\", \"ozet\": \"fa7562e9638a938711f30d0ee8c5a878b83fe7e48ad9fdbc9ad83e813f1a0f8d\", \"yineleme\": 120000}"
+      "deger": "{\"tuz\": \"<T1:32>\", \"ozet\": \"fa7562e9638a938711f30d0ee8c5a878b83fe7e48ad9fdbc9ad83e813f1a0f8d\", \"yineleme\": 120000}"
      }
     ],
     "bekleyen": [],
@@ -55,7 +56,7 @@
       "ozet": "d90c15dec0075f237d3059fa700a720fed4ee39bb37176aca150648da3189d62",
       "parola_acik": "6bnuKUG4dyZ7",
       "son_giris": "",
-      "tuz": "<T2>",
+      "tuz": "<T2:32>",
       "uyelik": "aktif",
       "yineleme": 120000
      },
@@ -73,7 +74,7 @@
       "ozet": "978a2a2f647802de55c73e860a24fecda51576d1371902a1d3b20d0815c692ca",
       "parola_acik": "musteri-parola-1",
       "son_giris": "",
-      "tuz": "<T3>",
+      "tuz": "<T3:32>",
       "uyelik": "aktif",
       "yineleme": 120000
      }
@@ -91,6 +92,9 @@
     "surum": []
    }
   }
+ ],
+ "dosyalar": [
+  {}
  ],
  "yollar": []
 }

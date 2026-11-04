@@ -1,7 +1,8 @@
 {
- "bicim": 1,
+ "bicim": 2,
  "dosya": "test_cihaz",
  "test": "test_belirtec_parola_degisirse_giris_sayfasina",
+ "platform_farki": [],
  "cevaplar": [
   {
    "istek": "POST /giris",
@@ -17,7 +18,7 @@
     ],
     [
      "Set-Cookie",
-     "wc_musteri=<T1>; HttpOnly; Secure; SameSite=Strict; Path=/"
+     "wc_musteri=<T1:43>; HttpOnly; Secure; SameSite=Strict; Path=/"
     ]
    ],
    "govde": {
@@ -30,7 +31,7 @@
    "basliklar": [
     [
      "Location",
-     "https://cihaz.wificorrect.com/_giris?t=<T2>"
+     "https://cihaz.wificorrect.com/_giris?t=<T2:43>"
     ],
     [
      "Cache-Control",
@@ -42,7 +43,7 @@
    }
   },
   {
-   "istek": "GET /_giris?t=<T?>",
+   "istek": "GET /_giris?t=<T?:43>",
    "durum": 303,
    "basliklar": [
     [
@@ -116,7 +117,7 @@
       "ozet": "a91c51e46c84af26de4a899c7e82868501626408be1fa7e56a26a1dbd535d652",
       "parola_acik": "yeni-parola-12",
       "son_giris": "2026-09-21T17:13:20+03:00",
-      "tuz": "<T3>",
+      "tuz": "<T3:32>",
       "uyelik": "aktif",
       "yineleme": 120000
      }
@@ -136,6 +137,16 @@
      }
     ],
     "surum": []
+   }
+  }
+ ],
+ "dosyalar": [
+  {
+   "detay/": {
+    "dizin": true
+   },
+   "ist/": {
+    "dizin": true
    }
   }
  ],

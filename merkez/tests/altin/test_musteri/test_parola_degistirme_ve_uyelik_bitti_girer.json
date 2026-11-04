@@ -1,7 +1,8 @@
 {
- "bicim": 1,
+ "bicim": 2,
  "dosya": "test_musteri",
  "test": "test_parola_degistirme_ve_uyelik_bitti_girer",
+ "platform_farki": [],
  "cevaplar": [
   {
    "istek": "POST /giris",
@@ -17,7 +18,7 @@
     ],
     [
      "Set-Cookie",
-     "wc_musteri=<T1>; HttpOnly; Secure; SameSite=Strict; Path=/"
+     "wc_musteri=<T1:43>; HttpOnly; Secure; SameSite=Strict; Path=/"
     ]
    ],
    "govde": {
@@ -38,7 +39,7 @@
     ]
    ],
    "govde": {
-    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Parola · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><header><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_ACIK}</a><nav><a href=\"/cihaz\">Cihaz paneli</a><a href=\"/\">Yedek arşiv</a><a href=\"/raporlar\">Raporlar</a><a href=\"/parola\">Parola</a><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button class=\"ikincil\">Çıkış</button></form></nav></header><main><div class=\"kart\"><h1>Parola değiştir</h1><p class=\"alt\">Yeni parola en az 10 karakter olmalı.</p><form method=\"post\" action=\"/parola\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><label for=\"m\">Mevcut parola</label><input id=\"m\" name=\"mevcut\" type=\"password\" autocomplete=\"current-password\" required><label for=\"y\">Yeni parola</label><input id=\"y\" name=\"yeni\" type=\"password\" autocomplete=\"new-password\" minlength=\"10\" required><label for=\"t\">Yeni parola (tekrar)</label><input id=\"t\" name=\"tekrar\" type=\"password\" autocomplete=\"new-password\" minlength=\"10\" required><button>Değiştir</button></form><p><a href=\"/\">← Özete dön</a></p></div></main></body></html>"
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Parola · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><header><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_ACIK}</a><nav><a href=\"/cihaz\">Cihaz paneli</a><a href=\"/\">Yedek arşiv</a><a href=\"/raporlar\">Raporlar</a><a href=\"/parola\">Parola</a><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2:32>\"><button class=\"ikincil\">Çıkış</button></form></nav></header><main><div class=\"kart\"><h1>Parola değiştir</h1><p class=\"alt\">Yeni parola en az 10 karakter olmalı.</p><form method=\"post\" action=\"/parola\"><input type=\"hidden\" name=\"csrf\" value=\"<T2:32>\"><label for=\"m\">Mevcut parola</label><input id=\"m\" name=\"mevcut\" type=\"password\" autocomplete=\"current-password\" required><label for=\"y\">Yeni parola</label><input id=\"y\" name=\"yeni\" type=\"password\" autocomplete=\"new-password\" minlength=\"10\" required><label for=\"t\">Yeni parola (tekrar)</label><input id=\"t\" name=\"tekrar\" type=\"password\" autocomplete=\"new-password\" minlength=\"10\" required><button>Değiştir</button></form><p><a href=\"/\">← Özete dön</a></p></div></main></body></html>"
    }
   },
   {
@@ -55,7 +56,7 @@
     ]
    ],
    "govde": {
-    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Parola · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><header><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_ACIK}</a><nav><a href=\"/cihaz\">Cihaz paneli</a><a href=\"/\">Yedek arşiv</a><a href=\"/raporlar\">Raporlar</a><a href=\"/parola\">Parola</a><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button class=\"ikincil\">Çıkış</button></form></nav></header><main><div class=\"kart\"><h1>Parola değiştir</h1><p class=\"alt\">Yeni parola en az 10 karakter olmalı.</p><form method=\"post\" action=\"/parola\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><label for=\"m\">Mevcut parola</label><input id=\"m\" name=\"mevcut\" type=\"password\" autocomplete=\"current-password\" required><label for=\"y\">Yeni parola</label><input id=\"y\" name=\"yeni\" type=\"password\" autocomplete=\"new-password\" minlength=\"10\" required><label for=\"t\">Yeni parola (tekrar)</label><input id=\"t\" name=\"tekrar\" type=\"password\" autocomplete=\"new-password\" minlength=\"10\" required><p class=\"hata\">Mevcut parola yanlış.</p><button>Değiştir</button></form><p><a href=\"/\">← Özete dön</a></p></div></main></body></html>"
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Parola · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><header><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_ACIK}</a><nav><a href=\"/cihaz\">Cihaz paneli</a><a href=\"/\">Yedek arşiv</a><a href=\"/raporlar\">Raporlar</a><a href=\"/parola\">Parola</a><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2:32>\"><button class=\"ikincil\">Çıkış</button></form></nav></header><main><div class=\"kart\"><h1>Parola değiştir</h1><p class=\"alt\">Yeni parola en az 10 karakter olmalı.</p><form method=\"post\" action=\"/parola\"><input type=\"hidden\" name=\"csrf\" value=\"<T2:32>\"><label for=\"m\">Mevcut parola</label><input id=\"m\" name=\"mevcut\" type=\"password\" autocomplete=\"current-password\" required><label for=\"y\">Yeni parola</label><input id=\"y\" name=\"yeni\" type=\"password\" autocomplete=\"new-password\" minlength=\"10\" required><label for=\"t\">Yeni parola (tekrar)</label><input id=\"t\" name=\"tekrar\" type=\"password\" autocomplete=\"new-password\" minlength=\"10\" required><p class=\"hata\">Mevcut parola yanlış.</p><button>Değiştir</button></form><p><a href=\"/\">← Özete dön</a></p></div></main></body></html>"
    }
   },
   {
@@ -72,7 +73,7 @@
     ]
    ],
    "govde": {
-    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Parola · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><header><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_ACIK}</a><nav><a href=\"/cihaz\">Cihaz paneli</a><a href=\"/\">Yedek arşiv</a><a href=\"/raporlar\">Raporlar</a><a href=\"/parola\">Parola</a><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button class=\"ikincil\">Çıkış</button></form></nav></header><main><div class=\"kart\"><h1>Parola değiştir</h1><p class=\"alt\">Yeni parola en az 10 karakter olmalı.</p><form method=\"post\" action=\"/parola\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><label for=\"m\">Mevcut parola</label><input id=\"m\" name=\"mevcut\" type=\"password\" autocomplete=\"current-password\" required><label for=\"y\">Yeni parola</label><input id=\"y\" name=\"yeni\" type=\"password\" autocomplete=\"new-password\" minlength=\"10\" required><label for=\"t\">Yeni parola (tekrar)</label><input id=\"t\" name=\"tekrar\" type=\"password\" autocomplete=\"new-password\" minlength=\"10\" required><p class=\"hata\">Yeni parolalar aynı değil.</p><button>Değiştir</button></form><p><a href=\"/\">← Özete dön</a></p></div></main></body></html>"
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Parola · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><header><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_ACIK}</a><nav><a href=\"/cihaz\">Cihaz paneli</a><a href=\"/\">Yedek arşiv</a><a href=\"/raporlar\">Raporlar</a><a href=\"/parola\">Parola</a><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2:32>\"><button class=\"ikincil\">Çıkış</button></form></nav></header><main><div class=\"kart\"><h1>Parola değiştir</h1><p class=\"alt\">Yeni parola en az 10 karakter olmalı.</p><form method=\"post\" action=\"/parola\"><input type=\"hidden\" name=\"csrf\" value=\"<T2:32>\"><label for=\"m\">Mevcut parola</label><input id=\"m\" name=\"mevcut\" type=\"password\" autocomplete=\"current-password\" required><label for=\"y\">Yeni parola</label><input id=\"y\" name=\"yeni\" type=\"password\" autocomplete=\"new-password\" minlength=\"10\" required><label for=\"t\">Yeni parola (tekrar)</label><input id=\"t\" name=\"tekrar\" type=\"password\" autocomplete=\"new-password\" minlength=\"10\" required><p class=\"hata\">Yeni parolalar aynı değil.</p><button>Değiştir</button></form><p><a href=\"/\">← Özete dön</a></p></div></main></body></html>"
    }
   },
   {
@@ -89,11 +90,11 @@
     ],
     [
      "Set-Cookie",
-     "wc_musteri=<T3>; HttpOnly; Secure; SameSite=Strict; Path=/"
+     "wc_musteri=<T3:43>; HttpOnly; Secure; SameSite=Strict; Path=/"
     ]
    ],
    "govde": {
-    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Parola · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><header><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_ACIK}</a><nav><a href=\"/cihaz\">Cihaz paneli</a><a href=\"/\">Yedek arşiv</a><a href=\"/raporlar\">Raporlar</a><a href=\"/parola\">Parola</a><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button class=\"ikincil\">Çıkış</button></form></nav></header><main><div class=\"kart\"><h1>Parola değiştir</h1><p class=\"alt\">Yeni parola en az 10 karakter olmalı.</p><form method=\"post\" action=\"/parola\"><input type=\"hidden\" name=\"csrf\" value=\"<T4>\"><label for=\"m\">Mevcut parola</label><input id=\"m\" name=\"mevcut\" type=\"password\" autocomplete=\"current-password\" required><label for=\"y\">Yeni parola</label><input id=\"y\" name=\"yeni\" type=\"password\" autocomplete=\"new-password\" minlength=\"10\" required><label for=\"t\">Yeni parola (tekrar)</label><input id=\"t\" name=\"tekrar\" type=\"password\" autocomplete=\"new-password\" minlength=\"10\" required><p class=\"tamam\">Parolanız değiştirildi. Cihazınızda ertesi sabah 06:00&#x27;dan sonra geçerli olur.</p><button>Değiştir</button></form><p><a href=\"/\">← Özete dön</a></p></div></main></body></html>"
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Parola · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><header><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_ACIK}</a><nav><a href=\"/cihaz\">Cihaz paneli</a><a href=\"/\">Yedek arşiv</a><a href=\"/raporlar\">Raporlar</a><a href=\"/parola\">Parola</a><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2:32>\"><button class=\"ikincil\">Çıkış</button></form></nav></header><main><div class=\"kart\"><h1>Parola değiştir</h1><p class=\"alt\">Yeni parola en az 10 karakter olmalı.</p><form method=\"post\" action=\"/parola\"><input type=\"hidden\" name=\"csrf\" value=\"<T4:32>\"><label for=\"m\">Mevcut parola</label><input id=\"m\" name=\"mevcut\" type=\"password\" autocomplete=\"current-password\" required><label for=\"y\">Yeni parola</label><input id=\"y\" name=\"yeni\" type=\"password\" autocomplete=\"new-password\" minlength=\"10\" required><label for=\"t\">Yeni parola (tekrar)</label><input id=\"t\" name=\"tekrar\" type=\"password\" autocomplete=\"new-password\" minlength=\"10\" required><p class=\"tamam\">Parolanız değiştirildi. Cihazınızda ertesi sabah 06:00&#x27;dan sonra geçerli olur.</p><button>Değiştir</button></form><p><a href=\"/\">← Özete dön</a></p></div></main></body></html>"
    }
   },
   {
@@ -127,7 +128,7 @@
     ]
    ],
    "govde": {
-    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Müşteri 5721885 · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><header><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_ACIK}</a><nav><a href=\"/cihaz\">Cihaz paneli</a><a href=\"/\">Yedek arşiv</a><a href=\"/raporlar\">Raporlar</a><a href=\"/parola\">Parola</a><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T4>\"><button class=\"ikincil\">Çıkış</button></form></nav></header><main><div class=\"kart\"><h1>Müşteri 5721885</h1><p class=\"alt\">Son 30 gün · her gün internete çıkan farklı kişi sayısı</p></div><div class=\"kart\"><p class=\"alt\">Henüz veri yok. Cihazdan ilk gün geldiğinde burada görünecek.</p></div><div class=\"kart\"><h2>Kişi ara</h2><form class=\"ara\" method=\"post\" action=\"/ara\"><input type=\"hidden\" name=\"csrf\" value=\"<T4>\"><input name=\"q\" value=\"\" maxlength=\"50\" placeholder=\"Telefon, ad soyad, T.C. no, pasaport ya da oda\" aria-label=\"Kişi ara\" autocomplete=\"off\"><select name=\"tur\" aria-label=\"Arama türü\"><option value=\"kisi\" selected>Telefon, ad soyad, T.C. kimlik no ya da pasaport no</option><option value=\"oda\">Oda numarası</option></select><input class=\"uyruk\" name=\"uyruk\" value=\"\" maxlength=\"2\" placeholder=\"Uyruk\" aria-label=\"Pasaport uyruğu (isteğe bağlı, ör. DE)\" autocomplete=\"off\"><button>Ara</button></form></div></main></body></html>"
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Müşteri 5721885 · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><header><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_ACIK}</a><nav><a href=\"/cihaz\">Cihaz paneli</a><a href=\"/\">Yedek arşiv</a><a href=\"/raporlar\">Raporlar</a><a href=\"/parola\">Parola</a><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T4:32>\"><button class=\"ikincil\">Çıkış</button></form></nav></header><main><div class=\"kart\"><h1>Müşteri 5721885</h1><p class=\"alt\">Son 30 gün · her gün internete çıkan farklı kişi sayısı</p></div><div class=\"kart\"><p class=\"alt\">Henüz veri yok. Cihazdan ilk gün geldiğinde burada görünecek.</p></div><div class=\"kart\"><h2>Kişi ara</h2><form class=\"ara\" method=\"post\" action=\"/ara\"><input type=\"hidden\" name=\"csrf\" value=\"<T4:32>\"><input name=\"q\" value=\"\" maxlength=\"50\" placeholder=\"Telefon, ad soyad, T.C. no, pasaport ya da oda\" aria-label=\"Kişi ara\" autocomplete=\"off\"><select name=\"tur\" aria-label=\"Arama türü\"><option value=\"kisi\" selected>Telefon, ad soyad, T.C. kimlik no ya da pasaport no</option><option value=\"oda\">Oda numarası</option></select><input class=\"uyruk\" name=\"uyruk\" value=\"\" maxlength=\"2\" placeholder=\"Uyruk\" aria-label=\"Pasaport uyruğu (isteğe bağlı, ör. DE)\" autocomplete=\"off\"><button>Ara</button></form></div></main></body></html>"
    }
   }
  ],
@@ -174,7 +175,7 @@
       "ozet": "1a1f30c4c361875bfd911340a9f190f0179358b7321dd25ebeac1ed2433c92ed",
       "parola_acik": "yeni-parola-1",
       "son_giris": "2026-09-21T17:13:20+03:00",
-      "tuz": "<T5>",
+      "tuz": "<T5:32>",
       "uyelik": "bitti",
       "yineleme": 120000
      }
@@ -190,6 +191,16 @@
      }
     ],
     "surum": []
+   }
+  }
+ ],
+ "dosyalar": [
+  {
+   "detay/": {
+    "dizin": true
+   },
+   "ist/": {
+    "dizin": true
    }
   }
  ],

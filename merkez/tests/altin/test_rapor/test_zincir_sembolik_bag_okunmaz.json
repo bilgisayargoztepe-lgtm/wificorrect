@@ -1,8 +1,24 @@
 {
- "bicim": 1,
+ "bicim": 2,
  "dosya": "test_rapor",
  "test": "test_zincir_sembolik_bag_okunmaz",
+ "platform_farki": [
+  "os.symlink kurulamadı"
+ ],
  "cevaplar": [],
  "veritabanlari": [],
+ "dosyalar": [
+  {
+   "a/": {
+    "dizin": true
+   },
+   "b/": {
+    "dizin": true
+   },
+   "b/zincir.txt": {
+    "metin": "2026-10-01;aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa;6b0440c1ce48fe6bbbdc6b7b1499bf9aa8b74171dcdb3eeff952e1e7cf527813\n"
+   }
+  }
+ ],
  "yollar": []
 }

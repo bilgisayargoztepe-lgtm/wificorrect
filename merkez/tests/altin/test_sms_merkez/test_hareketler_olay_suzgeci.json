@@ -1,7 +1,8 @@
 {
- "bicim": 1,
+ "bicim": 2,
  "dosya": "test_sms_merkez",
  "test": "test_hareketler_olay_suzgeci",
+ "platform_farki": [],
  "cevaplar": [],
  "veritabanlari": [
   {
@@ -79,6 +80,16 @@
      }
     ],
     "surum": []
+   }
+  }
+ ],
+ "dosyalar": [
+  {
+   "detay/": {
+    "dizin": true
+   },
+   "ist/": {
+    "dizin": true
    }
   }
  ],

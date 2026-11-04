@@ -1,7 +1,8 @@
 {
- "bicim": 1,
+ "bicim": 2,
  "dosya": "test_listeler",
  "test": "test_kaynak_hatasi_hareketi_ve_guncel",
+ "platform_farki": [],
  "cevaplar": [],
  "veritabanlari": [
   {
@@ -61,6 +62,69 @@
      }
     ],
     "surum": []
+   }
+  }
+ ],
+ "dosyalar": [
+  {
+   "detay/": {
+    "dizin": true
+   },
+   "ist/": {
+    "dizin": true
+   },
+   "l/": {
+    "dizin": true
+   },
+   "l/.kilit": {
+    "metin": ""
+   },
+   "l/kaynak/": {
+    "dizin": true
+   },
+   "l/kaynak/kumar-4d50e35b22de.txt.gz": {
+    "metin": "b.com\n",
+    "gz": true
+   },
+   "l/kumar.json": {
+    "json": {
+     "kategori": "kumar",
+     "sha256": "0b0424de36ef3cb760f0cf898a9bc2f4f662118500d9d18b200d8240864cdce7",
+     "sayi": 1,
+     "zaman": "2026-09-21T17:13:20+03:00",
+     "kesildi": false,
+     "kaynaklar": [
+      {
+       "ad": "A",
+       "sayi": 0,
+       "hata": "ag yok"
+      },
+      {
+       "ad": "B",
+       "sayi": 1
+      }
+     ]
+    }
+   },
+   "l/kumar.txt.gz": {
+    "metin": "b.com\n",
+    "gz": true
+   },
+   "l/yetiskin.json": {
+    "json": {
+     "kategori": "yetiskin",
+     "hata": "Hiçbir kaynak indirilemedi; önceki liste kullanılıyor.",
+     "hata_zaman": "2026-09-21T17:13:20+03:00",
+     "kaynaklar": []
+    }
+   },
+   "l/zararli.json": {
+    "json": {
+     "kategori": "zararli",
+     "hata": "Hiçbir kaynak indirilemedi; önceki liste kullanılıyor.",
+     "hata_zaman": "2026-09-21T17:13:20+03:00",
+     "kaynaklar": []
+    }
    }
   }
  ],

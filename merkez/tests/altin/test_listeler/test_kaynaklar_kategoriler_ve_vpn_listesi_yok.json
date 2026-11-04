@@ -1,8 +1,10 @@
 {
- "bicim": 1,
+ "bicim": 2,
  "dosya": "test_listeler",
  "test": "test_kaynaklar_kategoriler_ve_vpn_listesi_yok",
+ "platform_farki": [],
  "cevaplar": [],
  "veritabanlari": [],
+ "dosyalar": [],
  "yollar": []
 }

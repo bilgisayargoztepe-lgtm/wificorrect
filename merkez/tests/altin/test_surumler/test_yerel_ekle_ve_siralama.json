@@ -1,7 +1,8 @@
 {
- "bicim": 1,
+ "bicim": 2,
  "dosya": "test_surumler",
  "test": "test_yerel_ekle_ve_siralama",
+ "platform_farki": [],
  "cevaplar": [],
  "veritabanlari": [
   {
@@ -34,6 +35,28 @@
       "zaman": "2026-09-21T17:13:20+03:00"
      }
     ]
+   }
+  }
+ ],
+ "dosyalar": [
+  {
+   "a.deb": {
+    "metin": "yerel"
+   },
+   "detay/": {
+    "dizin": true
+   },
+   "ist/": {
+    "dizin": true
+   },
+   "surumler/": {
+    "dizin": true
+   },
+   "surumler/0.10.0.deb": {
+    "metin": "yerel"
+   },
+   "surumler/0.9.2.deb": {
+    "metin": "yerel"
    }
   }
  ],

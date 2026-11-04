@@ -19,8 +19,9 @@ fn sabit_saat() -> Saat {
     Arc::new(|| SAAT)
 }
 
+/// Python `with tempfile.TemporaryDirectory() as tmp: v = yeni(tmp)` (dizin altın kayda bildirilir).
 fn yeni() -> (Veri, PathBuf) {
-    let d = gecici_dizin();
+    let d = crate::test_yardim::gecici_dizin();
     (Veri::ac(&d.join("m.db"), sabit_saat()).unwrap(), d)
 }
 
@@ -163,7 +164,7 @@ fn rapor_gruplari_yaz() {
 #[test]
 fn kalici() {
     let _k = Kayit::bas("test_veri", "test_kalici");
-    let d = gecici_dizin();
+    let d = crate::test_yardim::gecici_dizin();
     let yol = d.join("m.db");
     let (n, p) = {
         let v = Veri::ac(&yol, sabit_saat()).unwrap();

@@ -1,7 +1,8 @@
 {
- "bicim": 1,
+ "bicim": 2,
  "dosya": "test_saglik",
  "test": "test_liste_denetimi_durum_bozukken_de_calisir",
+ "platform_farki": [],
  "cevaplar": [],
  "veritabanlari": [
   {
@@ -67,6 +68,19 @@
      }
     ],
     "surum": []
+   }
+  }
+ ],
+ "dosyalar": [
+  {
+   "listeler/": {
+    "dizin": true
+   },
+   "listeler/kumar.json": {
+    "json": {
+     "kategori": "kumar",
+     "hata": "Hiçbir kaynak indirilemedi."
+    }
    }
   }
  ],

@@ -1,7 +1,8 @@
 {
- "bicim": 1,
+ "bicim": 2,
  "dosya": "test_yonetim",
  "test": "test_yonetici_dosyasi_ve_giris",
+ "platform_farki": [],
  "cevaplar": [
   {
    "istek": "POST /giris",
@@ -17,7 +18,7 @@
     ],
     [
      "Set-Cookie",
-     "wc_yonetim=<T1>; HttpOnly; Secure; SameSite=Strict; Path=/"
+     "wc_yonetim=<T1:43>; HttpOnly; Secure; SameSite=Strict; Path=/"
     ]
    ],
    "govde": {
@@ -110,7 +111,7 @@
       "ozet": "869434a2d4aa7e3f3543de1a4f64c305aa6f8a2bc787573694c3b48b33db28ea",
       "parola_acik": "6bnuKUG4dyZ7",
       "son_giris": "",
-      "tuz": "<T2>",
+      "tuz": "<T2:32>",
       "uyelik": "aktif",
       "yineleme": 120000
      }
@@ -126,6 +127,38 @@
      }
     ],
     "surum": []
+   }
+  }
+ ],
+ "dosyalar": [
+  {
+   "detay/": {
+    "dizin": true
+   },
+   "durum.json": {
+    "json": {
+     "zaman": "",
+     "arsivler": {}
+    }
+   },
+   "ist/": {
+    "dizin": true
+   },
+   "y.json": {
+    "json": {
+     "kullanici": "serkan",
+     "tuz": "<T3:32>",
+     "ozet": "83f17415f405a2ca5be826ece859e984a861fa87c5fa8a5bb6bb9d87c09bdcbc",
+     "yineleme": 120000
+    }
+   },
+   "yonetici.json": {
+    "json": {
+     "kullanici": "serkan",
+     "tuz": "<T4:32>",
+     "ozet": "75b2d1df7fd3fc02aa2b67219a6feb10390cfd9911114b4d78ba842c5da4a3bd",
+     "yineleme": 120000
+    }
    }
   }
  ],

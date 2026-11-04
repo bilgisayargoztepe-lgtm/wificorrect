@@ -1,7 +1,8 @@
 {
- "bicim": 1,
+ "bicim": 2,
  "dosya": "test_surumler",
  "test": "test_gecersiz_etiket_atlanir",
+ "platform_farki": [],
  "cevaplar": [],
  "veritabanlari": [
   {
@@ -34,6 +35,25 @@
       "zaman": "2026-09-21T17:13:20+03:00"
      }
     ]
+   }
+  }
+ ],
+ "dosyalar": [
+  {
+   "detay/": {
+    "dizin": true
+   },
+   "ist/": {
+    "dizin": true
+   },
+   "s/": {
+    "dizin": true
+   },
+   "s/0.4.0.deb": {
+    "metin": "deb-0.4.0"
+   },
+   "s/0.4.1.deb": {
+    "metin": "deb-0.4.1"
    }
   }
  ],

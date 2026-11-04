@@ -1,7 +1,8 @@
 {
- "bicim": 1,
+ "bicim": 2,
  "dosya": "test_veri",
  "test": "test_silinen_veri_sayfalarda_kalmaz",
+ "platform_farki": [],
  "cevaplar": [],
  "veritabanlari": [
   {
@@ -21,6 +22,9 @@
     "surum": []
    }
   }
+ ],
+ "dosyalar": [
+  {}
  ],
  "yollar": []
 }

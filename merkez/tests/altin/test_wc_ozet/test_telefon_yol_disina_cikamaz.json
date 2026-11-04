@@ -1,8 +1,23 @@
 {
- "bicim": 1,
+ "bicim": 2,
  "dosya": "test_wc_ozet",
  "test": "test_telefon_yol_disina_cikamaz",
+ "platform_farki": [],
  "cevaplar": [],
  "veritabanlari": [],
+ "dosyalar": [
+  {
+   "gunluk/": {
+    "dizin": true
+   },
+   "gunluk/2026-09-27/": {
+    "dizin": true
+   },
+   "gunluk/2026-09-27/dns.csv.gz": {
+    "metin": "﻿zaman;olay;telefon;ad;soyad;mac;ic_ip;protokol;ic_port;hedef_ip;hedef_port;nat_ip;nat_port;alan_adi;gonderilen_bayt;alinan_bayt;sure_sn;oturum_id;ek\nx;DNS;../../../index;;;;;;;;;;;a.com;;;;;\n",
+    "gz": true
+   }
+  }
+ ],
  "yollar": []
 }

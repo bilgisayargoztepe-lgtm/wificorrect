@@ -1,8 +1,19 @@
 {
- "bicim": 1,
+ "bicim": 2,
  "dosya": "test_misafir_kodu",
  "test": "test_opak_ve_sir_dosyasi",
+ "platform_farki": [],
  "cevaplar": [],
  "veritabanlari": [],
+ "dosyalar": [
+  {
+   "kisi_sir": {
+    "ikili": {
+     "sha256": "f775fb607e177fa73691a6e464888c42578820a2455fb0be7db5c71b2575a2c9",
+     "uzunluk": 32
+    }
+   }
+  }
+ ],
  "yollar": []
 }

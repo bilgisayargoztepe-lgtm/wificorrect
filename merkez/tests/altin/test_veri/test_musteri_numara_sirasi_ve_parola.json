@@ -1,7 +1,8 @@
 {
- "bicim": 1,
+ "bicim": 2,
  "dosya": "test_veri",
  "test": "test_musteri_numara_sirasi_ve_parola",
+ "platform_farki": [],
  "cevaplar": [],
  "veritabanlari": [
   {
@@ -27,7 +28,7 @@
       "ozet": "99d777934c494d7312fefa9a74482281b0c7a590f3751ed23813e2f0510a28fd",
       "parola_acik": "mWfaqA32KQcM",
       "son_giris": "",
-      "tuz": "<T1>",
+      "tuz": "<T1:32>",
       "uyelik": "aktif",
       "yineleme": 120000
      },
@@ -45,7 +46,7 @@
       "ozet": "3b83b44c8a23ca929372a2838d2b1a11f8a75756702cea9c65e2130e8009ea08",
       "parola_acik": "gQxn4M4KFnxF",
       "son_giris": "",
-      "tuz": "<T2>",
+      "tuz": "<T2:32>",
       "uyelik": "aktif",
       "yineleme": 120000
      },
@@ -63,7 +64,7 @@
       "ozet": "82a432097e65b41b2ef9852393b75f6ec37c809f44d330525185fb94e0a2bdcd",
       "parola_acik": "fJdqZcFqeyWC",
       "son_giris": "",
-      "tuz": "<T3>",
+      "tuz": "<T3:32>",
       "uyelik": "aktif",
       "yineleme": 120000
      },
@@ -81,7 +82,7 @@
       "ozet": "46b85d866ec7b7bc0638f26e312582c1d7184b3d026fc97f2d2154650c1b3f4a",
       "parola_acik": "HzKCKtzKNpyP",
       "son_giris": "",
-      "tuz": "<T4>",
+      "tuz": "<T4:32>",
       "uyelik": "aktif",
       "yineleme": 120000
      },
@@ -99,7 +100,7 @@
       "ozet": "08013d71d4d76371d716f0abc77de85747f7ea2071f54cdea2f631ed8f81e3eb",
       "parola_acik": "JRsuavQcsdW2",
       "son_giris": "",
-      "tuz": "<T5>",
+      "tuz": "<T5:32>",
       "uyelik": "aktif",
       "yineleme": 120000
      },
@@ -117,7 +118,7 @@
       "ozet": "0700c77c90b5b94a547e3d4b4a98b6ad0e82ce5a365fb000498d9932afabfad2",
       "parola_acik": "QYr2bgDHKspx",
       "son_giris": "",
-      "tuz": "<T6>",
+      "tuz": "<T6:32>",
       "uyelik": "aktif",
       "yineleme": 120000
      },
@@ -135,7 +136,7 @@
       "ozet": "c9d163ae8d59ee27d469a1f5633044ea4da225e935765182561e26da9c902976",
       "parola_acik": "6GqdeD2UZbJz",
       "son_giris": "",
-      "tuz": "<T7>",
+      "tuz": "<T7:32>",
       "uyelik": "aktif",
       "yineleme": 120000
      },
@@ -153,7 +154,7 @@
       "ozet": "9c4f223aaec94330f813169d01bf1fe428b5135d59fc3b1eb57c5f5edb4724d6",
       "parola_acik": "qs7zaxAfmzPA",
       "son_giris": "",
-      "tuz": "<T8>",
+      "tuz": "<T8:32>",
       "uyelik": "aktif",
       "yineleme": 120000
      },
@@ -171,7 +172,7 @@
       "ozet": "5e3b5fe70e5843020819d454824b00087ceea998d4f39020602e6af6832b5101",
       "parola_acik": "EFSmRt9F3SKX",
       "son_giris": "",
-      "tuz": "<T9>",
+      "tuz": "<T9:32>",
       "uyelik": "aktif",
       "yineleme": 120000
      },
@@ -189,7 +190,7 @@
       "ozet": "887b57202162ee776d1653f1b7d975da1d61b213e00b207b3808c2a3eebe19c9",
       "parola_acik": "pu7S3SFQD3Rd",
       "son_giris": "",
-      "tuz": "<T10>",
+      "tuz": "<T10:32>",
       "uyelik": "aktif",
       "yineleme": 120000
      },
@@ -207,7 +208,7 @@
       "ozet": "b96f65f12bc4fae625c9700430421d7cc02954f64b926eb954d4b8a6d1c28415",
       "parola_acik": "eRGjDzYrDWam",
       "son_giris": "",
-      "tuz": "<T11>",
+      "tuz": "<T11:32>",
       "uyelik": "aktif",
       "yineleme": 120000
      },
@@ -225,7 +226,7 @@
       "ozet": "2ac596df4ad8704b345af31d2919208276a348eee42a81d61f0ecf69d9a666cd",
       "parola_acik": "KhUcZtc6fhNP",
       "son_giris": "",
-      "tuz": "<T12>",
+      "tuz": "<T12:32>",
       "uyelik": "aktif",
       "yineleme": 120000
      },
@@ -243,7 +244,7 @@
       "ozet": "e103633333cac2c90b552874f248db0c80848e7edbd4e8ca5d47e5c48e046f0b",
       "parola_acik": "AURc9jLVzChY",
       "son_giris": "",
-      "tuz": "<T13>",
+      "tuz": "<T13:32>",
       "uyelik": "aktif",
       "yineleme": 120000
      },
@@ -261,7 +262,7 @@
       "ozet": "ba3e498cd672796eb90e9c47f269c24cf0d136df8584ec2658db2b8393b2de41",
       "parola_acik": "wYsjkD9TyfJm",
       "son_giris": "",
-      "tuz": "<T14>",
+      "tuz": "<T14:32>",
       "uyelik": "aktif",
       "yineleme": 120000
      },
@@ -279,7 +280,7 @@
       "ozet": "54980c5cf7f9c02a040a0923178308a010bf8bbda9c03c9168694748a5878350",
       "parola_acik": "x6NRUC9bKuKm",
       "son_giris": "",
-      "tuz": "<T15>",
+      "tuz": "<T15:32>",
       "uyelik": "aktif",
       "yineleme": 120000
      },
@@ -297,7 +298,7 @@
       "ozet": "997ccf74ef7e9a3a6f9859baa73843739f53ade64f911803dd1a31e629939cba",
       "parola_acik": "cHGtxt2skXf2",
       "son_giris": "",
-      "tuz": "<T16>",
+      "tuz": "<T16:32>",
       "uyelik": "aktif",
       "yineleme": 120000
      },
@@ -315,7 +316,7 @@
       "ozet": "079e2b40cd73aeca0d07a58b09b4f140aaa12b2af6c08551db71fd4d4ab4a63a",
       "parola_acik": "2vVeCCddUCg3",
       "son_giris": "",
-      "tuz": "<T17>",
+      "tuz": "<T17:32>",
       "uyelik": "aktif",
       "yineleme": 120000
      },
@@ -333,7 +334,7 @@
       "ozet": "4aab51c523d117e28de883e05e5b23073d1a8192e038a5519e8bf21395bb411e",
       "parola_acik": "cWNXhqTA2GeE",
       "son_giris": "",
-      "tuz": "<T18>",
+      "tuz": "<T18:32>",
       "uyelik": "aktif",
       "yineleme": 120000
      },
@@ -351,7 +352,7 @@
       "ozet": "18181756e568b1d395d976115a8b09c29ffb2645265cf52ce8b3b180bc56de6a",
       "parola_acik": "CP9CQgdtabMP",
       "son_giris": "",
-      "tuz": "<T19>",
+      "tuz": "<T19:32>",
       "uyelik": "aktif",
       "yineleme": 120000
      },
@@ -369,7 +370,7 @@
       "ozet": "c1f5e4fddff73c23f03b64f36a8844903b67e74e470350a51f83c00f93c8e63d",
       "parola_acik": "jSPKxtDufXPy",
       "son_giris": "",
-      "tuz": "<T20>",
+      "tuz": "<T20:32>",
       "uyelik": "aktif",
       "yineleme": 120000
      },
@@ -387,7 +388,7 @@
       "ozet": "e15742bc50da1c9756d3d676fb03379fdc42cf8dde6f203c01bf961475919c11",
       "parola_acik": "9rzkvCdP3ZWE",
       "son_giris": "",
-      "tuz": "<T21>",
+      "tuz": "<T21:32>",
       "uyelik": "aktif",
       "yineleme": 120000
      },
@@ -405,7 +406,7 @@
       "ozet": "0c49e7a2ab8fb588f13f141ecab74ff076b53bea2861bf30607f094271f22c05",
       "parola_acik": "gqmZ9LVZZtWD",
       "son_giris": "",
-      "tuz": "<T22>",
+      "tuz": "<T22:32>",
       "uyelik": "aktif",
       "yineleme": 120000
      },
@@ -423,7 +424,7 @@
       "ozet": "be51644bf468281339582fb1ad7142196e5d7a537644f74a6f3e855e05dd2f22",
       "parola_acik": "YD6UK5fLpgm2",
       "son_giris": "",
-      "tuz": "<T23>",
+      "tuz": "<T23:32>",
       "uyelik": "aktif",
       "yineleme": 120000
      },
@@ -441,7 +442,7 @@
       "ozet": "0374598293da52970522cbc55b5a3e7803bdb6f159dfacf745b92f685e0c395d",
       "parola_acik": "LE67HMPEscn7",
       "son_giris": "",
-      "tuz": "<T24>",
+      "tuz": "<T24:32>",
       "uyelik": "aktif",
       "yineleme": 120000
      },
@@ -459,7 +460,7 @@
       "ozet": "7f941cf70e168174af3112a6975ff28c7be117ba7d88b10e2e68a3f0dc505351",
       "parola_acik": "Hu69jsnNhucC",
       "son_giris": "",
-      "tuz": "<T25>",
+      "tuz": "<T25:32>",
       "uyelik": "aktif",
       "yineleme": 120000
      },
@@ -477,7 +478,7 @@
       "ozet": "c3fc1ccb1adb05cfe5a71c3f3c0f152e294a6607687eee0886b8776d479e5bdd",
       "parola_acik": "bdwd3ndjXf4d",
       "son_giris": "",
-      "tuz": "<T26>",
+      "tuz": "<T26:32>",
       "uyelik": "aktif",
       "yineleme": 120000
      },
@@ -495,7 +496,7 @@
       "ozet": "fde8c41a5f08a5c457b1ce8d3f3d4b41ee193d03817238f23548370fad1d840c",
       "parola_acik": "xLu2Fvf4qWWU",
       "son_giris": "",
-      "tuz": "<T27>",
+      "tuz": "<T27:32>",
       "uyelik": "aktif",
       "yineleme": 120000
      },
@@ -513,7 +514,7 @@
       "ozet": "2699afc514475a0f0b09a91b38801e6642f4571a405c74c9573c89f6a09058e6",
       "parola_acik": "HrMvjRVphQyd",
       "son_giris": "",
-      "tuz": "<T28>",
+      "tuz": "<T28:32>",
       "uyelik": "aktif",
       "yineleme": 120000
      },
@@ -531,7 +532,7 @@
       "ozet": "1b9393255efc0002b5f4f2387c36ad66f0d5ef04a1b66647380e8232a5ff07f8",
       "parola_acik": "CDpdbEFr7kE7",
       "son_giris": "",
-      "tuz": "<T29>",
+      "tuz": "<T29:32>",
       "uyelik": "aktif",
       "yineleme": 120000
      },
@@ -549,7 +550,7 @@
       "ozet": "f9ef346fb7e1e1de5fd718437df852a410c354a8e4bda3048c50de04d58d0b35",
       "parola_acik": "hWMnxQtVTpyF",
       "son_giris": "",
-      "tuz": "<T30>",
+      "tuz": "<T30:32>",
       "uyelik": "aktif",
       "yineleme": 120000
      },
@@ -567,7 +568,7 @@
       "ozet": "6d87927a2f65beb76f7c39ca2c1054184b11f3ff20a73b65c493a32598f111fe",
       "parola_acik": "RvREJfcxHFRW",
       "son_giris": "",
-      "tuz": "<T31>",
+      "tuz": "<T31:32>",
       "uyelik": "aktif",
       "yineleme": 120000
      }
@@ -580,6 +581,9 @@
     "surum": []
    }
   }
+ ],
+ "dosyalar": [
+  {}
  ],
  "yollar": []
 }

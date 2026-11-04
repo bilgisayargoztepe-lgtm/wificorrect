@@ -1,13 +1,15 @@
-//! Altın kayıt (yalnızca testler): Python testlerinin cevapları ve veritabanlarının son hâli
+//! Altın kayıt (yalnızca testler): Python testlerinin cevapları, veritabanlarının son hâli ve geçici dizinlerindeki dosyalar
 //! (scripts/sunucu/parite/kaydet.py → tests/altin/<dosya>/<test>.json[.gz]) Rust'taki aynı testinkiyle karşılaştırılır.
-//! Kayıt biçimi ve normalleştirme kaydet.py'nin başındaki tarifin aynısıdır.
+//! Kayıt biçimi (2) ve normalleştirme kaydet.py'nin başındaki tarifin aynısıdır.
 //!
 //! Kullanım: testin ilk satırı `let _k = Kayit::bas("test_yonetim", "test_x");` (Python dosyasının ve testinin adı).
 //! Kayıt açıkken bu iş parçacığında rastgelelik belirlenimlidir; `test_yardim`'ın istek yardımcıları cevapları,
-//! `Veri::ac` veritabanı dosyalarını bildirir. Kayıt düşünce (test panik etmediyse) karşılaştırır, ilk farkı yazıp panik eder.
+//! `test_yardim::gecici_dizin` geçici dizinleri, `Veri::ac` veritabanı dosyalarını bildirir. Kayıt düşünce (test panik
+//! etmediyse) karşılaştırır, ilk farkı yazıp panik eder.
 use std::cell::RefCell;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::io::Read;
+use std::marker::PhantomData;
 use std::path::{Path, PathBuf};
 
 use rusqlite::types::ValueRef;
@@ -18,7 +20,9 @@ use sha2::{Digest, Sha256};
 use crate::guvenlik::rastgele;
 use crate::web::{self, Istek, Yanit};
 
-/// Karşılaştırılan başlıklar (küçük harfle) ve `x-wfc-` ile başlayanlar; diğerleri (ör. sunucunun eklediği) karşılaştırılmaz.
+const BICIM: u64 = 2;
+/// Karşılaştırılan başlıklar (küçük harfle) ve `x-wfc-` ile başlayanlar. Uygulamanın başka başlık vermesi farktır
+/// (Python kaydedicisi de reddeder): gerekiyorsa iki tarafta da listeye eklenir.
 const SECILI_BASLIKLAR: [&str; 11] = [
     "location",
     "set-cookie",
@@ -34,6 +38,10 @@ const SECILI_BASLIKLAR: [&str; 11] = [
 ];
 /// Bundan kısa üretilen değerler belirteç sayılmaz (sıradan metinle karışmasın).
 const BELIRTEC_EN_AZ: usize = 8;
+const SQLITE_IMZA: &[u8] = b"SQLite format 3\0";
+/// kaydet.py'nin iki koşusunda farklı çıkan yaprak (gz baytlarının ya da dosya zamanının özeti): karşılaştırılmaz.
+const KARARSIZ: &str = "<KARARSIZ>";
+const GUNLUK_EKLERI: [&str; 3] = ["-journal", "-wal", "-shm"];
 
 #[derive(Default)]
 struct Durum {
@@ -41,20 +49,34 @@ struct Durum {
     cevaplar: Vec<(String, Yanit)>,
     /// Açılan veritabanı dosyaları, ilk açılış sırasıyla (yol başına bir kez).
     veritabanlari: Vec<PathBuf>,
+    /// Testin geçici dizinleri, açılış sırasıyla.
+    dizinler: Vec<PathBuf>,
 }
 
 thread_local! {
     static ETKIN: RefCell<Option<Durum>> = const { RefCell::new(None) };
 }
 
-/// Bir testin altın kaydı. Düşünce karşılaştırır (`altinsiz` değilse).
+/// Bir testin altın kaydı. Düşünce karşılaştırır (`altinsiz` değilse). İş parçacığına bağlıdır (Send değil).
 pub struct Kayit {
     dosya: String,
     test: String,
     /// Yalnızca spec'teki bilinçli farklar: belirlenimli kip açılır, karşılaştırılmaz.
     altinsiz: Option<String>,
     _kip: rastgele::Belirlenimli,
+    _is_parcacigi: PhantomData<*const ()>,
 }
+
+// Derleme anında: Kayit Send olsaydı iki uygulama da uyar, `<Kayit as SendIse<_>>` belirsiz kalır ve derleme durur
+// (static_assertions'ın assert_not_impl_any! yöntemi).
+trait SendIse<A> {
+    fn yok() {}
+}
+impl<T: ?Sized> SendIse<()> for T {}
+impl<T: ?Sized + Send> SendIse<u8> for T {}
+const _: fn() = || {
+    let _ = <Kayit as SendIse<_>>::yok;
+};
 
 impl Kayit {
     /// Python `tests/<dosya>.py` içindeki `<test>`'in kaydı: `Kayit::bas("test_yonetim", "test_yeni_musteri_parola_bir_kez")`.
@@ -74,20 +96,24 @@ impl Kayit {
             assert!(e.is_none(), "bu iş parçacığında zaten açık bir altın kayıt var");
             *e = Some(Durum::default());
         });
-        Kayit { dosya: dosya.into(), test: test.into(), altinsiz, _kip: rastgele::belirlenimli() }
+        Kayit { dosya: dosya.into(), test: test.into(), altinsiz, _kip: rastgele::belirlenimli(), _is_parcacigi: PhantomData }
     }
 }
 
 impl Drop for Kayit {
     fn drop(&mut self) {
         let durum = ETKIN.with(|e| e.borrow_mut().take());
-        if self.altinsiz.is_some() || std::thread::panicking() {
+        if std::thread::panicking() {
             return;
         }
-        if let Some(d) = durum {
-            if let Err(m) = karsilastir(&self.dosya, &self.test, &d) {
-                panic!("altın kayıt farkı ({}/{}): {m}", self.dosya, self.test);
-            }
+        let Some(d) = durum else {
+            panic!("altın kayıt durumu bu iş parçacığında yok ({}/{})", self.dosya, self.test);
+        };
+        if self.altinsiz.is_some() {
+            return;
+        }
+        if let Err(m) = karsilastir(&self.dosya, &self.test, &d) {
+            panic!("altın kayıt farkı ({}/{}): {m}", self.dosya, self.test);
         }
     }
 }
@@ -118,6 +144,19 @@ pub(crate) fn veri_acildi(yol: &Path) {
     });
 }
 
+/// Bu iş parçacığında kayıt açıksa geçici dizini bildirir (`test_yardim::gecici_dizin` çağırır; Python'da
+/// `tempfile.mkdtemp`/`TemporaryDirectory`).
+pub(crate) fn dizin_acildi(yol: &Path) {
+    ETKIN.with(|e| {
+        if let Some(d) = e.borrow_mut().as_mut() {
+            let tam = std::fs::canonicalize(yol).unwrap_or_else(|_| yol.to_path_buf());
+            if !d.dizinler.contains(&tam) {
+                d.dizinler.push(tam);
+            }
+        }
+    });
+}
+
 // --- kayıt biçimi (kaydet.py ile birebir) ---
 
 fn secili(ad: &str) -> bool {
@@ -129,10 +168,18 @@ fn hex(b: &[u8]) -> String {
     b.iter().map(|x| format!("{x:02x}")).collect()
 }
 
-/// Ortak CSS, logolar ve sekme simgesi yer tutucuya.
+fn ikili(b: &[u8]) -> Value {
+    json!({ "ikili": { "sha256": hex(&Sha256::digest(b)), "uzunluk": b.len() } })
+}
+
+fn kromlar() -> [(&'static str, &'static str); 4] {
+    [("CSS", web::CSS), ("LOGO_ACIK", web::LOGO_ACIK.as_str()), ("LOGO_KOYU", web::LOGO_KOYU.as_str()), ("FAVICON", web::FAVICON.as_str())]
+}
+
+/// Ortak CSS, logolar ve sekme simgesi yer tutucuya (iki tarafın bu metinleri aynı mı: `_krom.json` testi).
 fn krom(s: &str) -> String {
     let mut s = s.to_string();
-    for (ad, deger) in [("CSS", web::CSS), ("LOGO_ACIK", web::LOGO_ACIK.as_str()), ("LOGO_KOYU", web::LOGO_KOYU.as_str()), ("FAVICON", web::FAVICON.as_str())] {
+    for (ad, deger) in kromlar() {
         if !deger.is_empty() {
             s = s.replace(deger, &format!("{{{ad}}}"));
         }
@@ -158,10 +205,80 @@ fn govde_bicimi(basliklar: &[(String, String)], govde: &[u8]) -> Value {
             return json!({ "metin": krom(m) });
         }
     }
-    json!({ "ikili": { "sha256": hex(&Sha256::digest(govde)), "uzunluk": govde.len() } })
+    if govde.starts_with(&[0x1f, 0x8b]) {
+        // gzip (ör. /api/liste): sıkıştırılmış baytlar uygulamaya göre değişir, içerik değişmez
+        let mut acik = Vec::new();
+        if flate2::read::MultiGzDecoder::new(govde).read_to_end(&mut acik).is_err() {
+            return ikili(govde);
+        }
+        let mut out = match std::str::from_utf8(&acik) {
+            Ok(m) => json!({ "metin": m }),
+            Err(_) => ikili(&acik),
+        };
+        out["gz"] = Value::Bool(true);
+        return out;
+    }
+    ikili(govde)
 }
 
-/// Belirteçlerin `<Tn>` olması: en soldaki-en uzun eşleşme, n ilk görünüş sırası.
+/// Dosya içeriği: .gz açılır ("gz": true; açılamazsa ham bayt ikili); .json → JSON değeri; UTF-8 → metin; değilse ikili.
+fn dosya_bicimi(ad: &str, bayt: &[u8]) -> Value {
+    let (mut ad, mut gz, mut acik) = (ad, false, Vec::new());
+    let mut bayt = bayt;
+    if ad.ends_with(".gz") && !bayt.is_empty() {
+        if flate2::read::MultiGzDecoder::new(bayt).read_to_end(&mut acik).is_err() {
+            return ikili(bayt);
+        }
+        (ad, gz, bayt) = (&ad[..ad.len() - 3], true, &acik[..]);
+    }
+    let metin = std::str::from_utf8(bayt).ok();
+    let deger = if ad.ends_with(".json") { metin.and_then(|m| serde_json::from_str::<Value>(m).ok()) } else { None };
+    let mut out = match (deger, metin) {
+        (Some(v), _) => json!({ "json": v }),
+        (None, Some(m)) => json!({ "metin": m }),
+        (None, None) => ikili(bayt),
+    };
+    if gz {
+        out["gz"] = Value::Bool(true);
+    }
+    out
+}
+
+/// {göreli yol (/ ile): içerik}, yola göre sıralı. Dizinler "yol/". Veritabanları, günlükleri, bağlar ve özel dosyalar alınmaz.
+fn dizin_dok(kok: &Path) -> Result<BTreeMap<String, Value>, String> {
+    fn yuru(kok: &Path, d: &Path, out: &mut BTreeMap<String, Value>) -> Result<(), String> {
+        let hata = |e: std::io::Error| format!("{}: {e}", d.display());
+        for e in std::fs::read_dir(d).map_err(hata)? {
+            let e = e.map_err(hata)?;
+            let yol = e.path();
+            let md = std::fs::symlink_metadata(&yol).map_err(hata)?;
+            let goreli = yol.strip_prefix(kok).map(|g| g.to_string_lossy().replace('\\', "/")).unwrap_or_default();
+            if md.file_type().is_symlink() {
+                continue;
+            }
+            if md.is_dir() {
+                out.insert(format!("{goreli}/"), json!({ "dizin": true }));
+                yuru(kok, &yol, out)?;
+                continue;
+            }
+            let ad = e.file_name().to_string_lossy().into_owned();
+            if !md.is_file() || GUNLUK_EKLERI.iter().any(|g| ad.ends_with(g)) {
+                continue;
+            }
+            let bayt = std::fs::read(&yol).map_err(hata)?;
+            if bayt.starts_with(SQLITE_IMZA) {
+                continue;
+            }
+            out.insert(goreli, dosya_bicimi(&ad, &bayt));
+        }
+        Ok(())
+    }
+    let mut out = BTreeMap::new();
+    yuru(kok, kok, &mut out)?;
+    Ok(out)
+}
+
+/// Belirteçlerin `<Tn:UZUNLUK>` olması: en soldaki-en uzun eşleşme, n ilk görünüş sırası.
 struct Belirtecler {
     liste: Vec<String>,
     no: HashMap<String, usize>,
@@ -197,9 +314,9 @@ impl Belirtecler {
             if numarali {
                 let yeni = self.no.len() + 1;
                 let n = *self.no.entry(self.liste[k].clone()).or_insert(yeni);
-                out.push_str(&format!("<T{n}>"));
+                out.push_str(&format!("<T{n}:{uzunluk}>"));
             } else {
-                out.push_str("<T?>");
+                out.push_str(&format!("<T?:{uzunluk}>"));
             }
             konum = i + uzunluk;
         }
@@ -226,11 +343,21 @@ impl Belirtecler {
             x => x.clone(),
         }
     }
+
+    /// Gövde ya da dosya içeriği: {"metin"} ve {"json"} normalleşir, diğerleri olduğu gibi.
+    fn icerik(&mut self, d: &mut Value) {
+        if let Some(Value::String(m)) = d.get_mut("metin") {
+            *m = self.degistir(m, true);
+        } else if let Some(j) = d.get("json") {
+            let n = self.json(j);
+            d["json"] = n;
+        }
+    }
 }
 
-/// kaydet.py `normallestir`: istekler (numarasız), sonra cevaplar (başlıklar, gövde), sonra veritabanları (tablo adı,
-/// rowid, sütun adı sırasıyla).
-fn normallestir(cevaplar: &mut [Value], vts: &mut [Value], uretilen: &[String]) {
+/// kaydet.py `normallestir`: istekler (numarasız), sonra cevaplar (başlıklar, gövde), veritabanları (tablo adı, rowid,
+/// sütun adı sırasıyla), dosyalar (dizin sırası, yol sırası; önce yol, sonra içerik).
+fn normallestir(cevaplar: &mut [Value], vts: &mut [Value], dizinler: &mut [Value], uretilen: &[String]) {
     let mut b = Belirtecler::yeni(uretilen);
     for c in cevaplar.iter_mut() {
         let s = c["istek"].as_str().unwrap_or("").to_string();
@@ -244,13 +371,7 @@ fn normallestir(cevaplar: &mut [Value], vts: &mut [Value], uretilen: &[String]) 
                 }
             }
         }
-        let g = &mut c["govde"];
-        if let Some(Value::String(m)) = g.get_mut("metin") {
-            *m = b.degistir(m, true);
-        } else if let Some(j) = g.get("json") {
-            let n = b.json(j);
-            g["json"] = n;
-        }
+        b.icerik(&mut c["govde"]);
     }
     for vt in vts.iter_mut() {
         let Some(Value::Object(tablolar)) = vt.get_mut("tablolar") else { continue };
@@ -269,6 +390,18 @@ fn normallestir(cevaplar: &mut [Value], vts: &mut [Value], uretilen: &[String]) 
                 }
             }
         }
+    }
+    for dz in dizinler.iter_mut() {
+        let Value::Object(eski) = std::mem::take(dz) else { continue };
+        let mut yollar: Vec<(String, Value)> = eski.into_iter().collect();
+        yollar.sort_by(|a, b| a.0.cmp(&b.0));
+        let mut yeni = Map::new();
+        for (yol, mut icerik) in yollar {
+            let ny = b.degistir(&yol, true);
+            b.icerik(&mut icerik);
+            yeni.insert(ny, icerik);
+        }
+        *dz = Value::Object(yeni);
     }
 }
 
@@ -312,7 +445,9 @@ fn tablolar(yol: &Path) -> Result<Value, String> {
 }
 
 fn kayit_oku(dosya: &str, test: &str) -> Result<Value, String> {
-    kayit_oku_dizinden(&Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/altin"), dosya, test)
+    let k = kayit_oku_dizinden(&Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/altin"), dosya, test)?;
+    kayit_dogrula(&k, dosya, test)?;
+    Ok(k)
 }
 
 /// <altin>/<dosya>/<test>.json ya da .json.gz (kayıtlar 15 MB'ı aşınca kaydet.py hepsini gzip'ler).
@@ -334,28 +469,52 @@ fn kayit_oku_dizinden(altin: &Path, dosya: &str, test: &str) -> Result<Value, St
     serde_json::from_slice(&bayt).map_err(|e| format!("tests/altin/{dosya}/{test}: bozuk JSON: {e}"))
 }
 
-/// Rust testinin kaydı (kaydet.py biçiminde, normalleştirilmiş).
-fn gelen_kayit(d: &Durum) -> Result<(Vec<Value>, Vec<Value>), String> {
-    let mut cevaplar: Vec<Value> = d
-        .cevaplar
-        .iter()
-        .map(|(istek, y)| {
-            let basliklar: Vec<Value> = y.basliklar.iter().filter(|(k, _)| secili(k)).map(|(k, v)| json!([k, v])).collect();
-            json!({ "istek": istek, "durum": y.durum, "basliklar": basliklar, "govde": govde_bicimi(&y.basliklar, &y.govde) })
-        })
-        .collect();
+/// Biçim ve zorunlu alanlar: bozuk ya da eski biçimli kayıt boş sayılmaz.
+fn kayit_dogrula(k: &Value, dosya: &str, test: &str) -> Result<(), String> {
+    let yer = format!("tests/altin/{dosya}/{test}");
+    if k["bicim"].as_u64() != Some(BICIM) {
+        return Err(format!("{yer}: kayıt biçimi {} (beklenen {BICIM}); kaydet.py ile yeniden üretin", k["bicim"]));
+    }
+    if k["dosya"].as_str() != Some(dosya) || k["test"].as_str() != Some(test) {
+        return Err(format!("{yer}: kayıt başka teste ait ({}/{})", k["dosya"], k["test"]));
+    }
+    for alan in ["cevaplar", "veritabanlari", "dosyalar", "platform_farki"] {
+        if !k[alan].is_array() {
+            return Err(format!("{yer}: `{alan}` alanı yok ya da dizi değil"));
+        }
+    }
+    Ok(())
+}
+
+/// Rust testinin kaydı (kaydet.py biçiminde, normalleştirilmiş): (cevaplar, veritabanları, dosyalar).
+fn gelen_kayit(d: &Durum) -> Result<(Vec<Value>, Vec<Value>, Vec<Value>), String> {
+    let mut cevaplar = Vec::new();
+    for (i, (istek, y)) in d.cevaplar.iter().enumerate() {
+        if let Some((k, _)) = y.basliklar.iter().find(|(k, _)| !secili(k)) {
+            return Err(format!(
+                "cevap #{} ({istek}): seçili olmayan başlık `{k}` (Python kaydı bunu reddeder; gerekiyorsa iki tarafta SECILI_BASLIKLAR'a ekleyin)",
+                i + 1
+            ));
+        }
+        let basliklar: Vec<Value> = y.basliklar.iter().map(|(k, v)| json!([k, v])).collect();
+        cevaplar.push(json!({ "istek": istek, "durum": y.durum, "basliklar": basliklar, "govde": govde_bicimi(&y.basliklar, &y.govde) }));
+    }
     let mut vts = Vec::new();
     for yol in &d.veritabanlari {
         let ad = yol.file_name().map(|a| a.to_string_lossy().into_owned()).unwrap_or_else(|| yol.display().to_string());
         vts.push(json!({ "ad": ad, "tablolar": tablolar(yol)? }));
     }
-    normallestir(&mut cevaplar, &mut vts, &rastgele::uretilenler());
-    Ok((cevaplar, vts))
+    let mut dizinler = Vec::new();
+    for yol in &d.dizinler {
+        dizinler.push(Value::Object(dizin_dok(yol)?.into_iter().collect()));
+    }
+    normallestir(&mut cevaplar, &mut vts, &mut dizinler, &rastgele::uretilenler());
+    Ok((cevaplar, vts, dizinler))
 }
 
 fn karsilastir(dosya: &str, test: &str, d: &Durum) -> Result<(), String> {
     let beklenen = kayit_oku(dosya, test)?;
-    let (cevaplar, vts) = gelen_kayit(d)?;
+    let (cevaplar, vts, dizinler) = gelen_kayit(d)?;
     let bos = Vec::new();
     let b_cevap = beklenen["cevaplar"].as_array().unwrap_or(&bos);
     for i in 0..b_cevap.len().max(cevaplar.len()) {
@@ -382,6 +541,40 @@ fn karsilastir(dosya: &str, test: &str, d: &Durum) -> Result<(), String> {
         }
         tablo_farki(&yer, &b["tablolar"], &g["tablolar"])?;
     }
+    // Python testi Windows'ta bir Linux adımını atladıysa (sembolik bağ, FIFO) Rust testi Linux'ta o adımı da yapar
+    if beklenen["platform_farki"].as_array().is_none_or(|p| p.is_empty()) {
+        dosya_farki(beklenen["dosyalar"].as_array().unwrap_or(&bos), &dizinler)?;
+    }
+    Ok(())
+}
+
+fn dosya_farki(b: &[Value], g: &[Value]) -> Result<(), String> {
+    if b.len() != g.len() {
+        return Err(format!("geçici dizin sayısı: Python {}, Rust {} (Rust testi dizinlerini test_yardim::gecici_dizin ile açmalı)", b.len(), g.len()));
+    }
+    let bos = Map::new();
+    for (i, (x, y)) in b.iter().zip(g).enumerate() {
+        let (x, y) = (x.as_object().unwrap_or(&bos), y.as_object().unwrap_or(&bos));
+        let yer = format!("geçici dizin #{}", i + 1);
+        let eksik: Vec<&String> = x.keys().filter(|k| !y.contains_key(k.as_str())).collect();
+        let fazla: Vec<&String> = y.keys().filter(|k| !x.contains_key(k.as_str())).collect();
+        if !eksik.is_empty() || !fazla.is_empty() {
+            return Err(format!("{yer}: dosyalar farklı; Rust'ta eksik {eksik:?}, Rust'ta fazla {fazla:?}"));
+        }
+        let mut yollar: Vec<&String> = x.keys().collect();
+        yollar.sort();
+        for yol in yollar {
+            let (p, q) = (&x[yol.as_str()], &y[yol.as_str()]);
+            if let (Some(Value::String(m)), Some(Value::String(n))) = (p.get("metin"), q.get("metin")) {
+                if m != KARARSIZ && m != n {
+                    return Err(format!("{yer}, dosya {yol}: içerik farklı, {}", metin_farki(m, n)));
+                }
+            }
+            if let Some(m) = json_farki("$", p, q) {
+                return Err(format!("{yer}, dosya {yol}: {m}"));
+            }
+        }
+    }
     Ok(())
 }
 
@@ -390,23 +583,26 @@ fn cevap_farki(i: usize, b: &Value, g: &Value) -> Result<(), String> {
     if b["istek"] != g["istek"] {
         return Err(format!("{yer}: istek farklı; Rust: {}", g["istek"]));
     }
-    if b["durum"] != g["durum"] {
+    if json_farki("", &b["durum"], &g["durum"]).is_some() {
         return Err(format!("{yer}: durum Python {}, Rust {}", b["durum"], g["durum"]));
     }
     let bos = Vec::new();
     let (bb, gb) = (b["basliklar"].as_array().unwrap_or(&bos), g["basliklar"].as_array().unwrap_or(&bos));
     let baslik_esit = bb.len() == gb.len()
         && bb.iter().zip(gb).all(|(x, y)| {
-            x[0].as_str().unwrap_or("").eq_ignore_ascii_case(y[0].as_str().unwrap_or("")) && x[1] == y[1]
+            x[0].as_str().unwrap_or("").eq_ignore_ascii_case(y[0].as_str().unwrap_or("")) && json_farki("", &x[1], &y[1]).is_none()
         });
     if !baslik_esit {
         let goster = |l: &[Value]| l.iter().map(|x| format!("{}: {}", x[0].as_str().unwrap_or(""), x[1].as_str().unwrap_or(""))).collect::<Vec<_>>().join("\n    ");
         return Err(format!("{yer}: başlıklar farklı\n  Python:\n    {}\n  Rust:\n    {}", goster(bb), goster(gb)));
     }
     let (bg, gg) = (&b["govde"], &g["govde"]);
+    if bg.as_str() == Some(KARARSIZ) {
+        return Ok(());
+    }
     match (bg.get("metin"), gg.get("metin")) {
         (Some(Value::String(x)), Some(Value::String(y))) => {
-            if x != y {
+            if x != KARARSIZ && x != y {
                 return Err(format!("{yer}: gövde farklı, {}", metin_farki(x, y)));
             }
             return Ok(());
@@ -420,7 +616,7 @@ fn cevap_farki(i: usize, b: &Value, g: &Value) -> Result<(), String> {
             None => Ok(()),
         };
     }
-    if bg != gg {
+    if json_farki("", bg, gg).is_some() {
         return Err(format!("{yer}: gövde farklı\n  Python: {}\n  Rust:   {}", kisalt(&bg.to_string()), kisalt(&gg.to_string())));
     }
     Ok(())
@@ -455,8 +651,12 @@ fn metin_farki(b: &str, g: &str) -> String {
     )
 }
 
-/// İlk farkın yolu ($.a.b[3]) ve iki değer; aynıysa None. Nesnelerde anahtar sırası önemsiz.
+/// İlk farkın yolu ($.a.b[3]) ve iki değer; aynıysa None. Nesnelerde anahtar sırası önemsiz; beklenen KARARSIZ ise her değer
+/// kabul.
 fn json_farki(yol: &str, b: &Value, g: &Value) -> Option<String> {
+    if b.as_str() == Some(KARARSIZ) {
+        return None;
+    }
     match (b, g) {
         (Value::Object(x), Value::Object(y)) => {
             let mut anahtarlar: Vec<&String> = x.keys().chain(y.keys()).collect();
@@ -567,19 +767,30 @@ mod testler {
     }
 
     #[test]
+    fn krom_python_ile_ayni() {
+        // kaydet.py `_krom.json`: Python web.CSS/LOGO_ACIK/LOGO_KOYU/FAVICON'un sha256'sı; yer tutucular ancak aynıysa güvenli
+        let yol = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/altin/_krom.json");
+        let k: Value = serde_json::from_str(&std::fs::read_to_string(&yol).expect("_krom.json")).expect("json");
+        for (ad, deger) in kromlar() {
+            assert!(!deger.is_empty(), "{ad} boş");
+            assert_eq!(k[ad].as_str(), Some(hex(&Sha256::digest(deger.as_bytes())).as_str()), "{ad} Python'unkinden farklı");
+        }
+    }
+
+    #[test]
     fn belirtecler_ilk_gorunus_sirasiyla_en_uzun_eslesme() {
         let t1 = "AAAAAAAAAAAAAAAA".to_string();
         let t2 = "AAAAAAAAAAAAAAAABBBB".to_string(); // t1 ile başlıyor: en uzunu seçilir
         let t3 = "cccccccc".to_string();
         let kisa = "abc".to_string(); // 8'den kısa: belirteç değil
         let mut b = Belirtecler::yeni(&[t1.clone(), t2.clone(), t3.clone(), kisa, t1.clone()]);
-        assert_eq!(b.degistir("x cccccccc y AAAAAAAAAAAAAAAABBBB z AAAAAAAAAAAAAAAA abc", true), "x <T1> y <T2> z <T3> abc");
-        assert_eq!(b.degistir("AAAAAAAAAAAAAAAA/cccccccc", true), "<T3>/<T1>");
-        assert_eq!(b.degistir("t=cccccccc", false), "t=<T?>");
-        // JSON: anahtarlar sıralı dolaşılır, nesnenin sırası korunur
+        assert_eq!(b.degistir("x cccccccc y AAAAAAAAAAAAAAAABBBB z AAAAAAAAAAAAAAAA abc", true), "x <T1:8> y <T2:20> z <T3:16> abc");
+        assert_eq!(b.degistir("AAAAAAAAAAAAAAAA/cccccccc", true), "<T3:16>/<T1:8>");
+        assert_eq!(b.degistir("t=cccccccc", false), "t=<T?:8>");
+        // JSON: anahtarlar sıralı dolaşılır, nesnenin sırası korunur (kaydet.py ile aynı)
         let mut b = Belirtecler::yeni(&[t1.clone(), t3.clone()]);
         let v = b.json(&json!({"z": "cccccccc", "a": ["AAAAAAAAAAAAAAAA", 1], "cccccccc": true}));
-        assert_eq!(v.to_string(), r#"{"z":"<T2>","a":["<T1>",1],"<T2>":true}"#); // kaydet.py ile aynı
+        assert_eq!(v.to_string(), r#"{"z":"<T2:8>","a":["<T1:16>",1],"<T2:8>":true}"#);
     }
 
     #[test]
@@ -589,6 +800,10 @@ mod testler {
         assert_eq!(govde_bicimi(&b("application/json"), b"{bozuk"), json!({"metin": "{bozuk"}));
         assert_eq!(govde_bicimi(&[], b"Y / 1.1.1.1"), json!({"metin": "Y / 1.1.1.1"}));
         assert_eq!(govde_bicimi(&b("application/octet-stream"), b""), json!({"metin": ""}));
+        // gzip gövde açılır (sıkıştırma uygulamaya göre değişir)
+        let mut e = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+        std::io::Write::write_all(&mut e, b"a.com\n").unwrap();
+        assert_eq!(govde_bicimi(&b("application/gzip"), &e.finish().unwrap()), json!({"metin": "a.com\n", "gz": true}));
         let ikili = govde_bicimi(&b("application/gzip"), b"abc");
         assert_eq!(ikili["ikili"]["uzunluk"], 3);
         assert_eq!(ikili["ikili"]["sha256"], "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
@@ -596,6 +811,54 @@ mod testler {
         let sayfa = format!("<style>{}</style>{}{}", web::CSS, &*web::LOGO_ACIK, &*web::FAVICON);
         assert_eq!(govde_bicimi(&b("text/html; charset=utf-8"), sayfa.as_bytes()), json!({"metin": "<style>{CSS}</style>{LOGO_ACIK}{FAVICON}"}));
         assert!(secili("X-WFC-Cihaz") && secili("set-cookie") && !secili("Content-Length") && !secili("Server"));
+    }
+
+    #[test]
+    fn dosya_bicimleri_ve_dizin_dokumu() {
+        use std::io::Write;
+        let gz = |b: &[u8]| {
+            let mut e = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+            e.write_all(b).unwrap();
+            e.finish().unwrap()
+        };
+        assert_eq!(dosya_bicimi("a.json", br#"{"x": [1]}"#), json!({"json": {"x": [1]}}));
+        assert_eq!(dosya_bicimi("a.json", b"bozuk"), json!({"metin": "bozuk"}));
+        assert_eq!(dosya_bicimi("a.txt", "ç\n".as_bytes()), json!({"metin": "ç\n"}));
+        assert_eq!(dosya_bicimi("a.txt.gz", &gz(b"x\n")), json!({"metin": "x\n", "gz": true}));
+        assert_eq!(dosya_bicimi("k.json.gz", &gz(br#"{"a": 1}"#)), json!({"json": {"a": 1}, "gz": true}));
+        assert_eq!(dosya_bicimi("b.gz", b"bozuk gz"), ikili(b"bozuk gz"));
+        assert_eq!(dosya_bicimi("b.gz", b""), json!({"metin": ""}));
+        assert_eq!(dosya_bicimi("b.bin", &[0xff, 0, 1]), ikili(&[0xff, 0, 1]));
+        // dizin: göreli yollar sıralı, dizinler "/", veritabanı ve günlüğü, bağ ve FIFO alınmaz
+        let d = crate::ortak::tests::gecici_dizin();
+        std::fs::create_dir_all(d.join("b/c")).unwrap();
+        std::fs::write(d.join("b/c/z.json"), "[1]").unwrap();
+        std::fs::write(d.join("a.txt"), "x").unwrap();
+        crate::veri::Veri::ac(&d.join("m.db"), std::sync::Arc::new(|| 0.0)).unwrap();
+        std::fs::write(d.join("m.db-journal"), "j").unwrap();
+        #[cfg(unix)]
+        {
+            std::os::unix::fs::symlink(d.join("a.txt"), d.join("bag")).unwrap();
+            let fifo = std::ffi::CString::new(d.join("fifo").to_string_lossy().as_bytes()).unwrap();
+            // SAFETY: geçerli, NUL ile biten yol
+            assert_eq!(unsafe { libc::mkfifo(fifo.as_ptr(), 0o600) }, 0);
+        }
+        let dok = dizin_dok(&d).unwrap();
+        assert_eq!(dok.keys().collect::<Vec<_>>(), ["a.txt", "b/", "b/c/", "b/c/z.json"]);
+        assert_eq!(dok["b/c/z.json"], json!({"json": [1]}));
+    }
+
+    #[test]
+    fn kararsiz_yaprak_karsilastirilmaz() {
+        let b = json!({"imza": KARARSIZ, "sayi": 3, "l": [KARARSIZ, 1]});
+        assert!(json_farki("$", &b, &json!({"imza": "abc", "sayi": 3, "l": [{"x": 1}, 1]})).is_none());
+        assert!(json_farki("$", &b, &json!({"imza": "abc", "sayi": 4, "l": [0, 1]})).unwrap().starts_with("$.sayi"));
+        assert!(json_farki("$", &b, &json!({"sayi": 3, "l": [0, 1]})).is_some()); // anahtar yine olmalı
+        let dz = |v: Value| vec![v];
+        assert!(dosya_farki(&dz(json!({"M": {"metin": KARARSIZ}})), &dz(json!({"M": {"metin": "x"}}))).is_ok());
+        let c = |govde: Value| json!({"istek": "GET /", "durum": 200, "basliklar": [], "govde": govde});
+        assert!(cevap_farki(0, &c(json!({"metin": KARARSIZ})), &c(json!({"metin": "y"}))).is_ok());
+        assert!(cevap_farki(0, &c(json!({"ikili": {"sha256": KARARSIZ, "uzunluk": KARARSIZ}})), &c(json!({"ikili": {"sha256": "a", "uzunluk": 3}}))).is_ok());
     }
 
     #[test]
@@ -610,6 +873,26 @@ mod testler {
         let e = tablo_farki("vt", &t(json!([{"k": "a"}])), &t(json!([{"k": "x"}]))).unwrap_err();
         assert!(e.contains("tablo t, satır 1") && e.contains("sütun k"), "{e}");
         assert!(tablo_farki("vt", &t(json!([{"k": "a"}])), &t(json!([]))).unwrap_err().contains("satır sayısı Python 1, Rust 0"));
+        let dz = |v: Value| vec![v];
+        let e = dosya_farki(&dz(json!({"a.txt": {"metin": "x\ny"}})), &dz(json!({"a.txt": {"metin": "x\nz"}}))).unwrap_err();
+        assert!(e.starts_with("geçici dizin #1, dosya a.txt: içerik farklı, satır 2, sütun 1"), "{e}");
+        let e = dosya_farki(&dz(json!({"a/": {"dizin": true}})), &dz(json!({"b": {"metin": ""}}))).unwrap_err();
+        assert!(e.contains("Rust'ta eksik [\"a/\"], Rust'ta fazla [\"b\"]"), "{e}");
+        assert!(dosya_farki(&[], &dz(json!({}))).unwrap_err().starts_with("geçici dizin sayısı: Python 0, Rust 1"));
+    }
+
+    #[test]
+    fn kayit_bicimi_dogrulanir() {
+        let iyi = json!({"bicim": 2, "dosya": "d", "test": "t", "cevaplar": [], "veritabanlari": [], "dosyalar": [], "platform_farki": []});
+        assert!(kayit_dogrula(&iyi, "d", "t").is_ok());
+        let mut eski = iyi.clone();
+        eski["bicim"] = json!(1);
+        assert!(kayit_dogrula(&eski, "d", "t").unwrap_err().contains("kayıt biçimi 1 (beklenen 2)"));
+        let mut eksik = iyi.clone();
+        eksik.as_object_mut().unwrap().remove("dosyalar");
+        assert!(kayit_dogrula(&eksik, "d", "t").unwrap_err().contains("`dosyalar` alanı yok"));
+        assert!(kayit_dogrula(&iyi, "d", "baska").unwrap_err().contains("kayıt başka teste ait"));
+        assert!(kayit_dogrula(&json!([]), "d", "t").is_err());
     }
 
     #[test]
@@ -624,9 +907,9 @@ mod testler {
         let d = crate::ortak::tests::gecici_dizin();
         std::fs::create_dir(d.join("test_x")).unwrap();
         let mut gz = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
-        gz.write_all(br#"{"bicim": 1, "cevaplar": [], "veritabanlari": []}"#).unwrap();
+        gz.write_all(br#"{"bicim": 2, "cevaplar": [], "veritabanlari": []}"#).unwrap();
         std::fs::write(d.join("test_x/test_y.json.gz"), gz.finish().unwrap()).unwrap();
-        assert_eq!(kayit_oku_dizinden(&d, "test_x", "test_y").unwrap()["bicim"], 1);
+        assert_eq!(kayit_oku_dizinden(&d, "test_x", "test_y").unwrap()["bicim"], 2);
     }
 
     fn panik_metni(p: Box<dyn std::any::Any + Send>) -> String {
@@ -649,7 +932,23 @@ mod testler {
     }
 
     #[test]
-    fn fark_tabloyu_yazar() {
+    fn secili_olmayan_baslik_farktir() {
+        struct Fazla;
+        impl crate::merkez::Uygulama for Fazla {
+            fn istek(&self, _: &Istek) -> Yanit {
+                Yanit::yeni(200, &[("X-Baska", "1")], b"Y / 1.1.1.1".to_vec())
+            }
+        }
+        let p = std::panic::catch_unwind(|| {
+            let _k = Kayit::bas("test_merkez", "test_host_yonlendirme");
+            crate::test_yardim::istek(&Fazla, "GET", "/", &[], "", "", "1.1.1.1");
+        })
+        .unwrap_err();
+        assert!(panik_metni(p).contains("cevap #1 (GET /): seçili olmayan başlık `X-Baska`"));
+    }
+
+    #[test]
+    fn fark_tabloyu_ve_dosyayi_yazar() {
         let p = std::panic::catch_unwind(|| {
             let _k = Kayit::bas("test_veri", "test_silinen_veri_sayfalarda_kalmaz");
             let o = crate::test_yardim::ortam();
@@ -658,6 +957,16 @@ mod testler {
         .unwrap_err();
         let m = panik_metni(p);
         assert!(m.contains("veritabanı #1 (m.db), tablo hareket: satır sayısı Python 0, Rust 1"), "{m}");
+        // tablolar aynı, dosya fazla: Python'un geçici dizininde yalnızca veritabanı var
+        let p = std::panic::catch_unwind(|| {
+            let _k = Kayit::bas("test_veri", "test_silinen_veri_sayfalarda_kalmaz");
+            let d = crate::test_yardim::gecici_dizin();
+            crate::veri::Veri::ac(&d.join("m.db"), std::sync::Arc::new(|| 0.0)).unwrap();
+            std::fs::write(d.join("fazla.txt"), "x").unwrap();
+        })
+        .unwrap_err();
+        let m = panik_metni(p);
+        assert!(m.contains("geçici dizin #1: dosyalar farklı; Rust'ta eksik [], Rust'ta fazla [\"fazla.txt\"]"), "{m}");
     }
 
     #[test]
@@ -670,5 +979,14 @@ mod testler {
         // altınsız: karşılaştırılmaz, belirlenimli kip yine açık
         let _k = Kayit::altinsiz("deneme: bilinçli fark");
         assert_eq!(rastgele::token_hex(16), "b0b98249afed054d2391c43341da71fb");
+    }
+
+    #[test]
+    fn platform_farkli_kayitta_dosyalar_karsilastirilmaz() {
+        // Python testi Windows'ta FIFO adımını atladı (geçici dizin hiç açmadı); Rust Linux'ta açar
+        let k = kayit_oku("test_rapor", "test_tamam_mi_fifo_beklemez").unwrap();
+        assert_eq!(k["platform_farki"], json!(["os.mkfifo yok"]));
+        let _k = Kayit::bas("test_rapor", "test_tamam_mi_fifo_beklemez");
+        std::fs::create_dir(crate::test_yardim::gecici_dizin().join("gun")).unwrap();
     }
 }

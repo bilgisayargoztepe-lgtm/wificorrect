@@ -1,7 +1,8 @@
 {
- "bicim": 1,
+ "bicim": 2,
  "dosya": "test_saglik",
  "test": "test_wg_ok_kucuk_filoda_gercek_kopma",
+ "platform_farki": [],
  "cevaplar": [],
  "veritabanlari": [
   {
@@ -108,7 +109,7 @@
       "ozet": "fcd77d2f1464acefd0bf9649c59c9103b30bf9b4aa14a1930fdbc86ae817e02c",
       "parola_acik": "6bnuKUG4dyZ7",
       "son_giris": "",
-      "tuz": "<T1>",
+      "tuz": "<T1:32>",
       "uyelik": "aktif",
       "yineleme": 120000
      },
@@ -126,7 +127,7 @@
       "ozet": "2699afc514475a0f0b09a91b38801e6642f4571a405c74c9573c89f6a09058e6",
       "parola_acik": "HrMvjRVphQyd",
       "son_giris": "",
-      "tuz": "<T2>",
+      "tuz": "<T2:32>",
       "uyelik": "aktif",
       "yineleme": 120000
      }
@@ -259,7 +260,7 @@
       "ozet": "08013d71d4d76371d716f0abc77de85747f7ea2071f54cdea2f631ed8f81e3eb",
       "parola_acik": "JRsuavQcsdW2",
       "son_giris": "",
-      "tuz": "<T3>",
+      "tuz": "<T3:32>",
       "uyelik": "aktif",
       "yineleme": 120000
      }
@@ -287,6 +288,10 @@
     "surum": []
    }
   }
+ ],
+ "dosyalar": [
+  {},
+  {}
  ],
  "yollar": []
 }

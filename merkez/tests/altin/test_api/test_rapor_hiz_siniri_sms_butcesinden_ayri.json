@@ -1,7 +1,8 @@
 {
- "bicim": 1,
+ "bicim": 2,
  "dosya": "test_api",
  "test": "test_rapor_hiz_siniri_sms_butcesinden_ayri",
+ "platform_farki": [],
  "cevaplar": [
   {
    "istek": "POST /api/giris",
@@ -18,7 +19,7 @@
    ],
    "govde": {
     "json": {
-     "tuz": "<T2>",
+     "tuz": "<T2:32>",
      "ozet": "fcd77d2f1464acefd0bf9649c59c9103b30bf9b4aa14a1930fdbc86ae817e02c",
      "yineleme": 120000,
      "lisans": "aktif",
@@ -27,7 +28,7 @@
      "sms": {
       "etkin_mock": true
      },
-     "cihaz_anahtari": "<T1>",
+     "cihaz_anahtari": "<T1:43>",
      "tunel_ip": "10.99.0.10",
      "sunucu_pub": "SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS=",
      "uc_nokta": "vpn.wificorrect.com:51820",
@@ -10600,7 +10601,7 @@
    ],
    "govde": {
     "json": {
-     "tuz": "<T2>",
+     "tuz": "<T2:32>",
      "ozet": "fcd77d2f1464acefd0bf9649c59c9103b30bf9b4aa14a1930fdbc86ae817e02c",
      "yineleme": 120000,
      "lisans": "aktif",
@@ -10629,7 +10630,7 @@
    ],
    "govde": {
     "json": {
-     "tuz": "<T2>",
+     "tuz": "<T2:32>",
      "ozet": "fcd77d2f1464acefd0bf9649c59c9103b30bf9b4aa14a1930fdbc86ae817e02c",
      "yineleme": 120000,
      "lisans": "aktif",
@@ -10658,7 +10659,7 @@
    ],
    "govde": {
     "json": {
-     "tuz": "<T2>",
+     "tuz": "<T2:32>",
      "ozet": "fcd77d2f1464acefd0bf9649c59c9103b30bf9b4aa14a1930fdbc86ae817e02c",
      "yineleme": 120000,
      "lisans": "aktif",
@@ -10687,7 +10688,7 @@
    ],
    "govde": {
     "json": {
-     "tuz": "<T2>",
+     "tuz": "<T2:32>",
      "ozet": "fcd77d2f1464acefd0bf9649c59c9103b30bf9b4aa14a1930fdbc86ae817e02c",
      "yineleme": 120000,
      "lisans": "aktif",
@@ -10716,7 +10717,7 @@
    ],
    "govde": {
     "json": {
-     "tuz": "<T2>",
+     "tuz": "<T2:32>",
      "ozet": "fcd77d2f1464acefd0bf9649c59c9103b30bf9b4aa14a1930fdbc86ae817e02c",
      "yineleme": 120000,
      "lisans": "aktif",
@@ -10745,7 +10746,7 @@
    ],
    "govde": {
     "json": {
-     "tuz": "<T2>",
+     "tuz": "<T2:32>",
      "ozet": "fcd77d2f1464acefd0bf9649c59c9103b30bf9b4aa14a1930fdbc86ae817e02c",
      "yineleme": 120000,
      "lisans": "aktif",
@@ -10774,7 +10775,7 @@
    ],
    "govde": {
     "json": {
-     "tuz": "<T2>",
+     "tuz": "<T2:32>",
      "ozet": "fcd77d2f1464acefd0bf9649c59c9103b30bf9b4aa14a1930fdbc86ae817e02c",
      "yineleme": 120000,
      "lisans": "aktif",
@@ -10803,7 +10804,7 @@
    ],
    "govde": {
     "json": {
-     "tuz": "<T2>",
+     "tuz": "<T2:32>",
      "ozet": "fcd77d2f1464acefd0bf9649c59c9103b30bf9b4aa14a1930fdbc86ae817e02c",
      "yineleme": 120000,
      "lisans": "aktif",
@@ -10832,7 +10833,7 @@
    ],
    "govde": {
     "json": {
-     "tuz": "<T2>",
+     "tuz": "<T2:32>",
      "ozet": "fcd77d2f1464acefd0bf9649c59c9103b30bf9b4aa14a1930fdbc86ae817e02c",
      "yineleme": 120000,
      "lisans": "aktif",
@@ -10861,7 +10862,7 @@
    ],
    "govde": {
     "json": {
-     "tuz": "<T2>",
+     "tuz": "<T2:32>",
      "ozet": "fcd77d2f1464acefd0bf9649c59c9103b30bf9b4aa14a1930fdbc86ae817e02c",
      "yineleme": 120000,
      "lisans": "aktif",
@@ -10890,7 +10891,7 @@
    ],
    "govde": {
     "json": {
-     "tuz": "<T2>",
+     "tuz": "<T2:32>",
      "ozet": "fcd77d2f1464acefd0bf9649c59c9103b30bf9b4aa14a1930fdbc86ae817e02c",
      "yineleme": 120000,
      "lisans": "aktif",
@@ -10919,7 +10920,7 @@
    ],
    "govde": {
     "json": {
-     "tuz": "<T2>",
+     "tuz": "<T2:32>",
      "ozet": "fcd77d2f1464acefd0bf9649c59c9103b30bf9b4aa14a1930fdbc86ae817e02c",
      "yineleme": 120000,
      "lisans": "aktif",
@@ -10948,7 +10949,7 @@
    ],
    "govde": {
     "json": {
-     "tuz": "<T2>",
+     "tuz": "<T2:32>",
      "ozet": "fcd77d2f1464acefd0bf9649c59c9103b30bf9b4aa14a1930fdbc86ae817e02c",
      "yineleme": 120000,
      "lisans": "aktif",
@@ -10977,7 +10978,7 @@
    ],
    "govde": {
     "json": {
-     "tuz": "<T2>",
+     "tuz": "<T2:32>",
      "ozet": "fcd77d2f1464acefd0bf9649c59c9103b30bf9b4aa14a1930fdbc86ae817e02c",
      "yineleme": 120000,
      "lisans": "aktif",
@@ -11006,7 +11007,7 @@
    ],
    "govde": {
     "json": {
-     "tuz": "<T2>",
+     "tuz": "<T2:32>",
      "ozet": "fcd77d2f1464acefd0bf9649c59c9103b30bf9b4aa14a1930fdbc86ae817e02c",
      "yineleme": 120000,
      "lisans": "aktif",
@@ -11035,7 +11036,7 @@
    ],
    "govde": {
     "json": {
-     "tuz": "<T2>",
+     "tuz": "<T2:32>",
      "ozet": "fcd77d2f1464acefd0bf9649c59c9103b30bf9b4aa14a1930fdbc86ae817e02c",
      "yineleme": 120000,
      "lisans": "aktif",
@@ -11064,7 +11065,7 @@
    ],
    "govde": {
     "json": {
-     "tuz": "<T2>",
+     "tuz": "<T2:32>",
      "ozet": "fcd77d2f1464acefd0bf9649c59c9103b30bf9b4aa14a1930fdbc86ae817e02c",
      "yineleme": 120000,
      "lisans": "aktif",
@@ -11093,7 +11094,7 @@
    ],
    "govde": {
     "json": {
-     "tuz": "<T2>",
+     "tuz": "<T2:32>",
      "ozet": "fcd77d2f1464acefd0bf9649c59c9103b30bf9b4aa14a1930fdbc86ae817e02c",
      "yineleme": 120000,
      "lisans": "aktif",
@@ -11122,7 +11123,7 @@
    ],
    "govde": {
     "json": {
-     "tuz": "<T2>",
+     "tuz": "<T2:32>",
      "ozet": "fcd77d2f1464acefd0bf9649c59c9103b30bf9b4aa14a1930fdbc86ae817e02c",
      "yineleme": 120000,
      "lisans": "aktif",
@@ -11151,7 +11152,7 @@
    ],
    "govde": {
     "json": {
-     "tuz": "<T2>",
+     "tuz": "<T2:32>",
      "ozet": "fcd77d2f1464acefd0bf9649c59c9103b30bf9b4aa14a1930fdbc86ae817e02c",
      "yineleme": 120000,
      "lisans": "aktif",
@@ -11200,7 +11201,7 @@
    ],
    "govde": {
     "json": {
-     "tuz": "<T2>",
+     "tuz": "<T2:32>",
      "ozet": "fcd77d2f1464acefd0bf9649c59c9103b30bf9b4aa14a1930fdbc86ae817e02c",
      "yineleme": 120000,
      "lisans": "aktif",
@@ -11229,7 +11230,7 @@
    ],
    "govde": {
     "json": {
-     "tuz": "<T2>",
+     "tuz": "<T2:32>",
      "ozet": "fcd77d2f1464acefd0bf9649c59c9103b30bf9b4aa14a1930fdbc86ae817e02c",
      "yineleme": 120000,
      "lisans": "aktif",
@@ -11258,7 +11259,7 @@
    ],
    "govde": {
     "json": {
-     "tuz": "<T2>",
+     "tuz": "<T2:32>",
      "ozet": "fcd77d2f1464acefd0bf9649c59c9103b30bf9b4aa14a1930fdbc86ae817e02c",
      "yineleme": 120000,
      "lisans": "aktif",
@@ -11287,7 +11288,7 @@
    ],
    "govde": {
     "json": {
-     "tuz": "<T2>",
+     "tuz": "<T2:32>",
      "ozet": "fcd77d2f1464acefd0bf9649c59c9103b30bf9b4aa14a1930fdbc86ae817e02c",
      "yineleme": 120000,
      "lisans": "aktif",
@@ -11316,7 +11317,7 @@
    ],
    "govde": {
     "json": {
-     "tuz": "<T2>",
+     "tuz": "<T2:32>",
      "ozet": "fcd77d2f1464acefd0bf9649c59c9103b30bf9b4aa14a1930fdbc86ae817e02c",
      "yineleme": 120000,
      "lisans": "aktif",
@@ -11345,7 +11346,7 @@
    ],
    "govde": {
     "json": {
-     "tuz": "<T2>",
+     "tuz": "<T2:32>",
      "ozet": "fcd77d2f1464acefd0bf9649c59c9103b30bf9b4aa14a1930fdbc86ae817e02c",
      "yineleme": 120000,
      "lisans": "aktif",
@@ -11374,7 +11375,7 @@
    ],
    "govde": {
     "json": {
-     "tuz": "<T2>",
+     "tuz": "<T2:32>",
      "ozet": "fcd77d2f1464acefd0bf9649c59c9103b30bf9b4aa14a1930fdbc86ae817e02c",
      "yineleme": 120000,
      "lisans": "aktif",
@@ -11403,7 +11404,7 @@
    ],
    "govde": {
     "json": {
-     "tuz": "<T2>",
+     "tuz": "<T2:32>",
      "ozet": "fcd77d2f1464acefd0bf9649c59c9103b30bf9b4aa14a1930fdbc86ae817e02c",
      "yineleme": 120000,
      "lisans": "aktif",
@@ -11432,7 +11433,7 @@
    ],
    "govde": {
     "json": {
-     "tuz": "<T2>",
+     "tuz": "<T2:32>",
      "ozet": "fcd77d2f1464acefd0bf9649c59c9103b30bf9b4aa14a1930fdbc86ae817e02c",
      "yineleme": 120000,
      "lisans": "aktif",
@@ -11461,7 +11462,7 @@
    ],
    "govde": {
     "json": {
-     "tuz": "<T2>",
+     "tuz": "<T2:32>",
      "ozet": "fcd77d2f1464acefd0bf9649c59c9103b30bf9b4aa14a1930fdbc86ae817e02c",
      "yineleme": 120000,
      "lisans": "aktif",
@@ -11490,7 +11491,7 @@
    ],
    "govde": {
     "json": {
-     "tuz": "<T2>",
+     "tuz": "<T2:32>",
      "ozet": "fcd77d2f1464acefd0bf9649c59c9103b30bf9b4aa14a1930fdbc86ae817e02c",
      "yineleme": 120000,
      "lisans": "aktif",
@@ -11519,7 +11520,7 @@
    ],
    "govde": {
     "json": {
-     "tuz": "<T2>",
+     "tuz": "<T2:32>",
      "ozet": "fcd77d2f1464acefd0bf9649c59c9103b30bf9b4aa14a1930fdbc86ae817e02c",
      "yineleme": 120000,
      "lisans": "aktif",
@@ -11548,7 +11549,7 @@
    ],
    "govde": {
     "json": {
-     "tuz": "<T2>",
+     "tuz": "<T2:32>",
      "ozet": "fcd77d2f1464acefd0bf9649c59c9103b30bf9b4aa14a1930fdbc86ae817e02c",
      "yineleme": 120000,
      "lisans": "aktif",
@@ -11577,7 +11578,7 @@
    ],
    "govde": {
     "json": {
-     "tuz": "<T2>",
+     "tuz": "<T2:32>",
      "ozet": "fcd77d2f1464acefd0bf9649c59c9103b30bf9b4aa14a1930fdbc86ae817e02c",
      "yineleme": 120000,
      "lisans": "aktif",
@@ -11606,7 +11607,7 @@
    ],
    "govde": {
     "json": {
-     "tuz": "<T2>",
+     "tuz": "<T2:32>",
      "ozet": "fcd77d2f1464acefd0bf9649c59c9103b30bf9b4aa14a1930fdbc86ae817e02c",
      "yineleme": 120000,
      "lisans": "aktif",
@@ -11635,7 +11636,7 @@
    ],
    "govde": {
     "json": {
-     "tuz": "<T2>",
+     "tuz": "<T2:32>",
      "ozet": "fcd77d2f1464acefd0bf9649c59c9103b30bf9b4aa14a1930fdbc86ae817e02c",
      "yineleme": 120000,
      "lisans": "aktif",
@@ -11664,7 +11665,7 @@
    ],
    "govde": {
     "json": {
-     "tuz": "<T2>",
+     "tuz": "<T2:32>",
      "ozet": "fcd77d2f1464acefd0bf9649c59c9103b30bf9b4aa14a1930fdbc86ae817e02c",
      "yineleme": 120000,
      "lisans": "aktif",
@@ -11693,7 +11694,7 @@
    ],
    "govde": {
     "json": {
-     "tuz": "<T2>",
+     "tuz": "<T2:32>",
      "ozet": "fcd77d2f1464acefd0bf9649c59c9103b30bf9b4aa14a1930fdbc86ae817e02c",
      "yineleme": 120000,
      "lisans": "aktif",
@@ -11722,7 +11723,7 @@
    ],
    "govde": {
     "json": {
-     "tuz": "<T2>",
+     "tuz": "<T2:32>",
      "ozet": "fcd77d2f1464acefd0bf9649c59c9103b30bf9b4aa14a1930fdbc86ae817e02c",
      "yineleme": 120000,
      "lisans": "aktif",
@@ -11751,7 +11752,7 @@
    ],
    "govde": {
     "json": {
-     "tuz": "<T2>",
+     "tuz": "<T2:32>",
      "ozet": "fcd77d2f1464acefd0bf9649c59c9103b30bf9b4aa14a1930fdbc86ae817e02c",
      "yineleme": 120000,
      "lisans": "aktif",
@@ -12123,7 +12124,7 @@
       "ozet": "fcd77d2f1464acefd0bf9649c59c9103b30bf9b4aa14a1930fdbc86ae817e02c",
       "parola_acik": "6bnuKUG4dyZ7",
       "son_giris": "",
-      "tuz": "<T2>",
+      "tuz": "<T2:32>",
       "uyelik": "aktif",
       "yineleme": 120000
      }
@@ -12143,6 +12144,340 @@
      }
     ],
     "surum": []
+   }
+  }
+ ],
+ "dosyalar": [
+  {
+   "detay/": {
+    "dizin": true
+   },
+   "ist/": {
+    "dizin": true
+   },
+   "rapor/": {
+    "dizin": true
+   },
+   "rapor/5721885/": {
+    "dizin": true
+   },
+   "rapor/5721885/ay-2026-09.json": {
+    "json": {
+     "bicim": 2,
+     "tur": "ay",
+     "donem": "2026-09",
+     "baslangic": "2026-09-01",
+     "bitis": "2026-09-30",
+     "uretim": "2026-09-21T12:31:07+03:00",
+     "kesin": false,
+     "imza": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+     "misafir": {
+      "farkli": 41,
+      "yeni": 30,
+      "donen": 11,
+      "giris": 77,
+      "giris_sms": 70,
+      "giris_kod": 7,
+      "izinli_cihaz": 2,
+      "gunluk_ortalama": 4.5,
+      "en_yogun_gun": {
+       "gun": "2026-09-12",
+       "farkli": 9
+      }
+     },
+     "saat": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      5,
+      9,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1
+     ],
+     "hafta_gunu": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+     ],
+     "gunler": [
+      {
+       "gun": "2026-09-01",
+       "durum": "tam",
+       "neden": "",
+       "farkli": 2
+      },
+      {
+       "gun": "2026-09-02",
+       "durum": "tam",
+       "neden": "",
+       "farkli": 2
+      },
+      {
+       "gun": "2026-09-03",
+       "durum": "tam",
+       "neden": "",
+       "farkli": 2
+      },
+      {
+       "gun": "2026-09-04",
+       "durum": "dogrulanamadi",
+       "neden": "zincir_yok",
+       "farkli": 2
+      },
+      {
+       "gun": "2026-09-05",
+       "durum": "kayit_yok",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-06",
+       "durum": "eksik",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-07",
+       "durum": "tam",
+       "neden": "",
+       "farkli": 2
+      },
+      {
+       "gun": "2026-09-08",
+       "durum": "tam",
+       "neden": "",
+       "farkli": 2
+      },
+      {
+       "gun": "2026-09-09",
+       "durum": "tam",
+       "neden": "",
+       "farkli": 2
+      },
+      {
+       "gun": "2026-09-10",
+       "durum": "tam",
+       "neden": "",
+       "farkli": 2
+      },
+      {
+       "gun": "2026-09-11",
+       "durum": "tam",
+       "neden": "",
+       "farkli": 2
+      },
+      {
+       "gun": "2026-09-12",
+       "durum": "tam",
+       "neden": "",
+       "farkli": 2
+      },
+      {
+       "gun": "2026-09-13",
+       "durum": "tam",
+       "neden": "",
+       "farkli": 2
+      },
+      {
+       "gun": "2026-09-14",
+       "durum": "tam",
+       "neden": "",
+       "farkli": 2
+      },
+      {
+       "gun": "2026-09-15",
+       "durum": "tam",
+       "neden": "",
+       "farkli": 2
+      },
+      {
+       "gun": "2026-09-16",
+       "durum": "tam",
+       "neden": "",
+       "farkli": 2
+      },
+      {
+       "gun": "2026-09-17",
+       "durum": "tam",
+       "neden": "",
+       "farkli": 2
+      },
+      {
+       "gun": "2026-09-18",
+       "durum": "tam",
+       "neden": "",
+       "farkli": 2
+      },
+      {
+       "gun": "2026-09-19",
+       "durum": "tam",
+       "neden": "",
+       "farkli": 2
+      },
+      {
+       "gun": "2026-09-20",
+       "durum": "bekleniyor",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-21",
+       "durum": "bugun",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-22",
+       "durum": "gelecek",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-23",
+       "durum": "gelecek",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-24",
+       "durum": "gelecek",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-25",
+       "durum": "gelecek",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-26",
+       "durum": "gelecek",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-27",
+       "durum": "gelecek",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-28",
+       "durum": "gelecek",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-29",
+       "durum": "gelecek",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-30",
+       "durum": "gelecek",
+       "neden": "",
+       "farkli": null
+      }
+     ],
+     "kayit": {
+      "gun": 20,
+      "tam": 16
+     },
+     "kullanim": {
+      "gonderilen": 1073741824,
+      "alinan": 3221225472,
+      "sms": 70,
+      "alanlar": [
+       {
+        "alan": "instagram.com",
+        "misafir": 12
+       },
+       {
+        "alan": "<script>alert(1)</script>.com",
+        "misafir": 3
+       }
+      ]
+     },
+     "surum": "0.4.9",
+     "surum_sonra_degisti": false
+    }
+   },
+   "rapor/5721885/liste.json": {
+    "json": [
+     {
+      "tur": "hafta",
+      "donem": "2026-W39",
+      "baslangic": "2026-09-21",
+      "bitis": "2026-09-27",
+      "kesin": false,
+      "farkli": 3,
+      "kayit_gun": 0,
+      "kayit_tam": 0
+     },
+     {
+      "tur": "hafta",
+      "donem": "2026-W38",
+      "baslangic": "2026-09-14",
+      "bitis": "2026-09-20",
+      "kesin": false,
+      "farkli": 6,
+      "kayit_gun": 7,
+      "kayit_tam": 6
+     },
+     {
+      "tur": "hafta",
+      "donem": "2026-W36",
+      "baslangic": "2026-08-31",
+      "bitis": "2026-09-06",
+      "kesin": true,
+      "farkli": 8,
+      "kayit_gun": 7,
+      "kayit_tam": 7
+     },
+     {
+      "tur": "ay",
+      "donem": "2026-09",
+      "baslangic": "2026-09-01",
+      "bitis": "2026-09-30",
+      "kesin": false,
+      "farkli": 41,
+      "kayit_gun": 20,
+      "kayit_tam": 16
+     },
+     {
+      "tur": "ay",
+      "donem": "2026-08",
+      "baslangic": "2026-08-01",
+      "bitis": "2026-08-31",
+      "kesin": true,
+      "farkli": 50,
+      "kayit_gun": 31,
+      "kayit_tam": 31
+     }
+    ]
    }
   }
  ],

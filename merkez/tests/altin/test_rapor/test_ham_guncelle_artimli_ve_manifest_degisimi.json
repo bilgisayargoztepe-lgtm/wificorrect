@@ -1,8 +1,145 @@
 {
- "bicim": 1,
+ "bicim": 2,
  "dosya": "test_rapor",
  "test": "test_ham_guncelle_artimli_ve_manifest_degisimi",
+ "platform_farki": [],
  "cevaplar": [],
  "veritabanlari": [],
+ "dosyalar": [
+  {
+   "arsiv/": {
+    "dizin": true
+   },
+   "arsiv/gunluk/": {
+    "dizin": true
+   },
+   "arsiv/gunluk/2026-10-05/": {
+    "dizin": true
+   },
+   "arsiv/gunluk/2026-10-05/MANIFEST.sha256": {
+    "metin": "<KARARSIZ>"
+   },
+   "arsiv/gunluk/2026-10-05/denetim.csv.gz": {
+    "metin": "﻿zaman;olay;telefon;ad;soyad;mac;ic_ip;protokol;ic_port;hedef_ip;hedef_port;nat_ip;nat_port;alan_adi;gonderilen_bayt;alinan_bayt;sure_sn;oturum_id;ek\r\n2026-10-05T09:08:00+03:00;OTP_GONDERILDI;905551112233;;;;;;;;;;;;;;;;\r\n2026-10-05T09:08:30+03:00;OTP_GONDERILDI;905559998877;;;;;;;;;;;;;;;;\r\n2026-10-05T09:08:40+03:00;OTP_ISTEK;905559998877;;;;;;;;;;;;;;;;\r\n2026-10-05T03:10:00+03:00;GUNCELLEME_TAMAM;;;;;;;;;;;;;;;;;surum=0.4.8 onceki=0.4.7\r\n2026-10-05T03:20:00+03:00;GUNCELLEME_TAMAM;;;;;;;;;;;;;;;;;surum=0.4.9 onceki=0.4.8\r\n",
+    "gz": true
+   },
+   "arsiv/gunluk/2026-10-05/dns.csv.gz": {
+    "metin": "﻿zaman;olay;telefon;ad;soyad;mac;ic_ip;protokol;ic_port;hedef_ip;hedef_port;nat_ip;nat_port;alan_adi;gonderilen_bayt;alinan_bayt;sure_sn;oturum_id;ek\r\n2026-10-05T09:11:00+03:00;DNS;905551112233;;;;;;;;;;;www.instagram.com;;;;;\r\n2026-10-05T09:12:00+03:00;DNS;905551112233;;;;;;;;;;;i.instagram.com;;;;;\r\n2026-10-05T21:07:00+03:00;DNS;TC:10000000146;;;;;;;;;;;instagram.com.;;;;;\r\n2026-10-05T21:08:00+03:00;DNS;;;;;;;;;;;;facebook.com;;;;;\r\n2026-10-05T21:09:00+03:00;DNS;905551112233;;;;;;;;;;;10.0.0.1;;;;;\r\n2026-10-05T21:10:00+03:00;DNSX;905551112233;;;;;;;;;;;twitter.com;;;;;\r\n",
+    "gz": true
+   },
+   "arsiv/gunluk/2026-10-05/kullanicilar/": {
+    "dizin": true
+   },
+   "arsiv/gunluk/2026-10-05/kullanicilar/905551112233.csv.gz": {
+    "metin": "﻿zaman;olay;telefon;ad;soyad;mac;ic_ip;protokol;ic_port;hedef_ip;hedef_port;nat_ip;nat_port;alan_adi;gonderilen_bayt;alinan_bayt;sure_sn;oturum_id;ek\r\n",
+    "gz": true
+   },
+   "arsiv/gunluk/2026-10-05/kullanicilar/TC": {
+    "metin": ""
+   },
+   "arsiv/gunluk/2026-10-05/oturum.csv.gz": {
+    "metin": "﻿zaman;olay;telefon;ad;soyad;mac;ic_ip;protokol;ic_port;hedef_ip;hedef_port;nat_ip;nat_port;alan_adi;gonderilen_bayt;alinan_bayt;sure_sn;oturum_id;ek\r\n2026-10-05T09:09:00+03:00;OTURUM_BASLA;905551112233;;;;;;;;;;;;;;;;bitis=x sozlesme=1 riza=1\r\n2026-10-05T21:04:00+03:00;OTURUM_BASLA;TC:10000000146;;;;;;;;;;;;;;;;bitis=x sozlesme=1 riza=1 giris=misafir_kodu oda=101\r\n2026-10-05T21:05:00+03:00;OTURUM_BASLA;PASAPORT:DE:X1234567;;;;;;;;;;;;;;;;giris=misafir_kodu\r\n2026-10-05T22:00:00+03:00;OTURUM_UZATILDI;TC:10000000146;;;;;;;;;;;;;;;;giris=misafir_kodu\r\n2026-10-05T23:00:00+03:00;OTURUM_BITIS;905551112233;;;;;;;;;;;;;;;;\r\n",
+    "gz": true
+   },
+   "arsiv/gunluk/2026-10-05/trafik.csv.gz": {
+    "ikili": {
+     "sha256": "<KARARSIZ>",
+     "uzunluk": "<KARARSIZ>"
+    }
+   },
+   "arsiv/gunluk/2026-10-06/": {
+    "dizin": true
+   },
+   "arsiv/gunluk/2026-10-06/MANIFEST.sha256": {
+    "metin": "<KARARSIZ>"
+   },
+   "arsiv/gunluk/2026-10-06/kullanicilar/": {
+    "dizin": true
+   },
+   "arsiv/gunluk/2026-10-06/kullanicilar/905559998877.csv.gz": {
+    "metin": "﻿zaman;olay;telefon;ad;soyad;mac;ic_ip;protokol;ic_port;hedef_ip;hedef_port;nat_ip;nat_port;alan_adi;gonderilen_bayt;alinan_bayt;sure_sn;oturum_id;ek\r\n",
+    "gz": true
+   },
+   "arsiv/gunluk/2026-10-06/trafik.csv.gz": {
+    "metin": "﻿zaman;olay;telefon;ad;soyad;mac;ic_ip;protokol;ic_port;hedef_ip;hedef_port;nat_ip;nat_port;alan_adi;gonderilen_bayt;alinan_bayt;sure_sn;oturum_id;ek\r\n2026-10-06T10:00:00+03:00;BAGLANTI_BASLA;905551112233;;;;;;;;;;;;;;;;\r\n2026-10-06T10:00:00+03:00;BAGLANTI_BASLA;905554443322;;;;;;;;;;;;;;;;\r\n",
+    "gz": true
+   },
+   "arsiv/gunluk/2026-10-07/": {
+    "dizin": true
+   },
+   "arsiv/gunluk/2026-10-07/trafik.csv.gz": {
+    "metin": "﻿zaman;olay;telefon;ad;soyad;mac;ic_ip;protokol;ic_port;hedef_ip;hedef_port;nat_ip;nat_port;alan_adi;gonderilen_bayt;alinan_bayt;sure_sn;oturum_id;ek\r\n2026-10-07T10:00:00+03:00;BAGLANTI_BASLA;905551112233;;;;;;;;;;;;;;;;\r\n",
+    "gz": true
+   },
+   "ham/": {
+    "dizin": true
+   },
+   "ham/1537344/": {
+    "dizin": true
+   },
+   "ham/1537344/2026-10-05.json": {
+    "json": {
+     "bicim": 2,
+     "imza": "<KARARSIZ>",
+     "sir_izi": "ff8da591",
+     "manifest_sha": "<KARARSIZ>",
+     "dosya_ok": true,
+     "misafir": [
+      "64574b970254abdd",
+      "8363c46bf274cda4",
+      "87d722dab93130e1"
+     ],
+     "saat": {
+      "9": [
+       "64574b970254abdd"
+      ],
+      "21": [
+       "8363c46bf274cda4",
+       "87d722dab93130e1"
+      ]
+     },
+     "giris": {
+      "sms": 1,
+      "kod": 2
+     },
+     "izinli": [
+      "6d8416cd8225f8ad"
+     ],
+     "gonderilen": 112,
+     "alinan": 1003,
+     "sms": 2,
+     "surum": "0.4.9"
+    }
+   },
+   "ham/1537344/2026-10-06.json": {
+    "json": {
+     "bicim": 2,
+     "imza": "<KARARSIZ>",
+     "sir_izi": "ff8da591",
+     "manifest_sha": "<KARARSIZ>",
+     "dosya_ok": true,
+     "misafir": [
+      "64574b970254abdd",
+      "92cc14e067c22247"
+     ],
+     "saat": {
+      "10": [
+       "64574b970254abdd",
+       "92cc14e067c22247"
+      ]
+     },
+     "giris": {
+      "sms": 0,
+      "kod": 0
+     },
+     "izinli": [],
+     "gonderilen": 0,
+     "alinan": 0,
+     "sms": 0,
+     "surum": null
+    }
+   }
+  }
+ ],
  "yollar": []
 }

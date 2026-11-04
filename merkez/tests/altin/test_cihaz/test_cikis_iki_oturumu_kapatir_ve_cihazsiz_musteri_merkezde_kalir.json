@@ -1,7 +1,8 @@
 {
- "bicim": 1,
+ "bicim": 2,
  "dosya": "test_cihaz",
  "test": "test_cikis_iki_oturumu_kapatir_ve_cihazsiz_musteri_merkezde_kalir",
+ "platform_farki": [],
  "cevaplar": [
   {
    "istek": "POST /giris",
@@ -17,7 +18,7 @@
     ],
     [
      "Set-Cookie",
-     "wc_musteri=<T1>; HttpOnly; Secure; SameSite=Strict; Path=/"
+     "wc_musteri=<T1:43>; HttpOnly; Secure; SameSite=Strict; Path=/"
     ]
    ],
    "govde": {
@@ -93,7 +94,7 @@
     ],
     [
      "Set-Cookie",
-     "wc_musteri=<T2>; HttpOnly; Secure; SameSite=Strict; Path=/"
+     "wc_musteri=<T2:43>; HttpOnly; Secure; SameSite=Strict; Path=/"
     ]
    ],
    "govde": {
@@ -131,7 +132,7 @@
     ],
     [
      "Set-Cookie",
-     "wc_musteri=<T3>; HttpOnly; Secure; SameSite=Strict; Path=/"
+     "wc_musteri=<T3:43>; HttpOnly; Secure; SameSite=Strict; Path=/"
     ]
    ],
    "govde": {
@@ -152,7 +153,7 @@
     ]
    ],
    "govde": {
-    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Cihaz paneli · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><header><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_ACIK}</a><nav><a href=\"/cihaz\">Cihaz paneli</a><a href=\"/\">Yedek arşiv</a><a href=\"/raporlar\">Raporlar</a><a href=\"/parola\">Parola</a><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T4>\"><button class=\"ikincil\">Çıkış</button></form></nav></header><main><div class=\"kart\"><h1>Cihazınıza şu an ulaşılamıyor</h1><p>Cihaz kapalı, internetsiz ya da lisansı kapalı olabilir. Yedek arşiviniz aşağıdadır.</p><p><a href=\"/\">Yedek arşiv</a></p></div></main></body></html>"
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Cihaz paneli · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><header><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_ACIK}</a><nav><a href=\"/cihaz\">Cihaz paneli</a><a href=\"/\">Yedek arşiv</a><a href=\"/raporlar\">Raporlar</a><a href=\"/parola\">Parola</a><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T4:32>\"><button class=\"ikincil\">Çıkış</button></form></nav></header><main><div class=\"kart\"><h1>Cihazınıza şu an ulaşılamıyor</h1><p>Cihaz kapalı, internetsiz ya da lisansı kapalı olabilir. Yedek arşiviniz aşağıdadır.</p><p><a href=\"/\">Yedek arşiv</a></p></div></main></body></html>"
    }
   }
  ],
@@ -231,7 +232,7 @@
       "ozet": "e4b42aba6380c081c1e40ea833fbd8d6c017c31428ff9779ed2c6c68422dbf14",
       "parola_acik": "musteri-parola-1",
       "son_giris": "2026-09-21T17:13:20+03:00",
-      "tuz": "<T5>",
+      "tuz": "<T5:32>",
       "uyelik": "aktif",
       "yineleme": 120000
      },
@@ -249,7 +250,7 @@
       "ozet": "1880a522a37b7398e82d9da7914e4bf2191927193e342fad10945ea509c7292a",
       "parola_acik": "musteri-parola-2",
       "son_giris": "2026-09-21T17:13:20+03:00",
-      "tuz": "<T6>",
+      "tuz": "<T6:32>",
       "uyelik": "bitti",
       "yineleme": 120000
      }
@@ -269,6 +270,16 @@
      }
     ],
     "surum": []
+   }
+  }
+ ],
+ "dosyalar": [
+  {
+   "detay/": {
+    "dizin": true
+   },
+   "ist/": {
+    "dizin": true
    }
   }
  ],

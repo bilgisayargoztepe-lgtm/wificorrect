@@ -1,8 +1,25 @@
 {
- "bicim": 1,
+ "bicim": 2,
  "dosya": "test_kuyruk",
  "test": "test_gecersiz_girdiler_komut_calistirmaz",
+ "platform_farki": [],
  "cevaplar": [],
  "veritabanlari": [],
+ "dosyalar": [
+  {
+   "kayit.csv": {
+    "metin": ""
+   },
+   "wg/": {
+    "dizin": true
+   },
+   "wg/sunucu.pub": {
+    "metin": "SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS=\n"
+   },
+   "wg/uc-nokta": {
+    "metin": "vpn.wificorrect.com:51820\n"
+   }
+  }
+ ],
  "yollar": []
 }

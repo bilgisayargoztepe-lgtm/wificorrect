@@ -1,8 +1,43 @@
 {
- "bicim": 1,
+ "bicim": 2,
  "dosya": "test_kuyruk",
  "test": "test_main_isler_siler_ve_cop_dosyada_donmez",
+ "platform_farki": [],
  "cevaplar": [],
  "veritabanlari": [],
+ "dosyalar": [
+  {
+   "kayit.csv": {
+    "metin": "cihaz;1234567;10.99.0.10;AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=;wfc-1234567\n"
+   },
+   "kuyruk/": {
+    "dizin": true
+   },
+   "sonuc/": {
+    "dizin": true
+   },
+   "sonuc/0123456789abcdef.json": {
+    "json": {
+     "durum": "hata",
+     "hata": "is okunamadi"
+    }
+   },
+   "sonuc/fedcba9876543210.json": {
+    "json": {
+     "durum": "hata",
+     "hata": "is okunamadi"
+    }
+   },
+   "wg/": {
+    "dizin": true
+   },
+   "wg/sunucu.pub": {
+    "metin": "SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS=\n"
+   },
+   "wg/uc-nokta": {
+    "metin": "vpn.wificorrect.com:51820\n"
+   }
+  }
+ ],
  "yollar": []
 }

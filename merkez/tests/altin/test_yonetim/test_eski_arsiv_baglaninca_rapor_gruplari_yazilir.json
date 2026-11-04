@@ -1,7 +1,8 @@
 {
- "bicim": 1,
+ "bicim": 2,
  "dosya": "test_yonetim",
  "test": "test_eski_arsiv_baglaninca_rapor_gruplari_yazilir",
+ "platform_farki": [],
  "cevaplar": [
   {
    "istek": "POST /giris",
@@ -17,7 +18,7 @@
     ],
     [
      "Set-Cookie",
-     "wc_yonetim=<T1>; HttpOnly; Secure; SameSite=Strict; Path=/"
+     "wc_yonetim=<T1:43>; HttpOnly; Secure; SameSite=Strict; Path=/"
     ]
    ],
    "govde": {
@@ -38,7 +39,7 @@
     ]
    ],
    "govde": {
-    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Eski arşivler · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><input type=\"checkbox\" id=\"menu-ac\" class=\"gizli\"><div class=\"ust-mobil\"><label for=\"menu-ac\" class=\"menu-dugme\" title=\"Menü\"><span class=\"gizli\">Menüyü aç/kapat</span><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M3 6h18M3 12h18M3 18h18\"/></svg></label><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a></div><div class=\"yerlesim\"><nav class=\"yan\"><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a><details class=\"grup\"><summary>Müşteriler</summary><a href=\"/\">Müşteri listesi</a><a href=\"/yeni\">Yeni müşteri</a><a href=\"/bekleyen\">Bekleyen cihazlar</a></details><details class=\"grup\" open><summary>Kayıtlar</summary><a href=\"/hareketler\">Hareketler</a><a href=\"/eski-arsivler\" class=\"secili\" aria-current=\"page\">Eski arşivler</a></details><details class=\"grup\"><summary>Ayarlar</summary><a href=\"/listeler\">Engel listeleri</a><a href=\"/sms\">SMS ayarları</a><a href=\"/uyari\">Uyarı ayarları</a><a href=\"/surumler\">Sürümler</a><a href=\"/hesabim\">Hesabım</a></details><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button class=\"ikincil\">Çıkış</button></form></nav><main class=\"genis\"><div class=\"kart\"><h1>Eski arşivler</h1><p class=\"alt\">OpenWrt dönemi ve elle eklenmiş arşivler. Bir müşteriye bağlanırsa müşteri kayıtlarında görünür.</p><div class=\"kaydir\"><table class=\"detay\"><tr><th>Arşiv</th><th>Tür</th><th>Son gün</th><th>Bağlı müşteri</th></tr><tr><td>bocafe</td><td>eski</td><td>20.09.2026</td><td><form method=\"post\" action=\"/eski-arsivler\" class=\"ara\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><input type=\"hidden\" name=\"ad\" value=\"bocafe\"><input name=\"musteri\" value=\"\" placeholder=\"müşteri no (boş = bağsız)\" inputmode=\"numeric\"><button>Kaydet</button></form></td></tr></table></div></div></main></div></body></html>"
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Eski arşivler · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><input type=\"checkbox\" id=\"menu-ac\" class=\"gizli\"><div class=\"ust-mobil\"><label for=\"menu-ac\" class=\"menu-dugme\" title=\"Menü\"><span class=\"gizli\">Menüyü aç/kapat</span><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M3 6h18M3 12h18M3 18h18\"/></svg></label><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a></div><div class=\"yerlesim\"><nav class=\"yan\"><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a><details class=\"grup\"><summary>Müşteriler</summary><a href=\"/\">Müşteri listesi</a><a href=\"/yeni\">Yeni müşteri</a><a href=\"/bekleyen\">Bekleyen cihazlar</a></details><details class=\"grup\" open><summary>Kayıtlar</summary><a href=\"/hareketler\">Hareketler</a><a href=\"/eski-arsivler\" class=\"secili\" aria-current=\"page\">Eski arşivler</a></details><details class=\"grup\"><summary>Ayarlar</summary><a href=\"/listeler\">Engel listeleri</a><a href=\"/sms\">SMS ayarları</a><a href=\"/uyari\">Uyarı ayarları</a><a href=\"/surumler\">Sürümler</a><a href=\"/hesabim\">Hesabım</a></details><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2:32>\"><button class=\"ikincil\">Çıkış</button></form></nav><main class=\"genis\"><div class=\"kart\"><h1>Eski arşivler</h1><p class=\"alt\">OpenWrt dönemi ve elle eklenmiş arşivler. Bir müşteriye bağlanırsa müşteri kayıtlarında görünür.</p><div class=\"kaydir\"><table class=\"detay\"><tr><th>Arşiv</th><th>Tür</th><th>Son gün</th><th>Bağlı müşteri</th></tr><tr><td>bocafe</td><td>eski</td><td>20.09.2026</td><td><form method=\"post\" action=\"/eski-arsivler\" class=\"ara\"><input type=\"hidden\" name=\"csrf\" value=\"<T2:32>\"><input type=\"hidden\" name=\"ad\" value=\"bocafe\"><input name=\"musteri\" value=\"\" placeholder=\"müşteri no (boş = bağsız)\" inputmode=\"numeric\"><button>Kaydet</button></form></td></tr></table></div></div></main></div></body></html>"
    }
   },
   {
@@ -133,7 +134,7 @@
       "ozet": "d90c15dec0075f237d3059fa700a720fed4ee39bb37176aca150648da3189d62",
       "parola_acik": "6bnuKUG4dyZ7",
       "son_giris": "",
-      "tuz": "<T3>",
+      "tuz": "<T3:32>",
       "uyelik": "aktif",
       "yineleme": 120000
      }
@@ -149,6 +150,40 @@
      }
     ],
     "surum": []
+   }
+  }
+ ],
+ "dosyalar": [
+  {
+   "detay/": {
+    "dizin": true
+   },
+   "durum.json": {
+    "json": {
+     "zaman": "",
+     "arsivler": {
+      "bocafe": {
+       "tur": "eski",
+       "son_gun": "2026-09-20",
+       "boyut": 10,
+       "el_sikisma": null
+      }
+     }
+    }
+   },
+   "ist/": {
+    "dizin": true
+   },
+   "rapor-gruplari.json": {
+    "json": {}
+   },
+   "yonetici.json": {
+    "json": {
+     "kullanici": "serkan",
+     "tuz": "<T4:32>",
+     "ozet": "83f17415f405a2ca5be826ece859e984a861fa87c5fa8a5bb6bb9d87c09bdcbc",
+     "yineleme": 120000
+    }
    }
   }
  ],

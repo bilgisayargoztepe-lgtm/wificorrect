@@ -1,7 +1,8 @@
 {
- "bicim": 1,
+ "bicim": 2,
  "dosya": "test_raporlar",
  "test": "test_musteri_menu_ve_rapor_sayfasi",
+ "platform_farki": [],
  "cevaplar": [
   {
    "istek": "POST /giris",
@@ -17,7 +18,7 @@
     ],
     [
      "Set-Cookie",
-     "wc_musteri=<T1>; HttpOnly; Secure; SameSite=Strict; Path=/"
+     "wc_musteri=<T1:43>; HttpOnly; Secure; SameSite=Strict; Path=/"
     ]
    ],
    "govde": {
@@ -38,7 +39,7 @@
     ]
    ],
    "govde": {
-    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Rapor Eylül 2026 · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><header><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_ACIK}</a><nav><a href=\"/cihaz\">Cihaz paneli</a><a href=\"/\">Yedek arşiv</a><a href=\"/raporlar\">Raporlar</a><a href=\"/parola\">Parola</a><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button class=\"ikincil\">Çıkış</button></form></nav></header><main class=\"genis\"><p class=\"yazdirma alt\"><a href=\"/raporlar\">← Raporlar</a> · Yazdırmak ya da PDF olarak kaydetmek için Ctrl+P'ye basın (telefonda tarayıcı menüsünden Yazdır / Paylaş).</p><div class=\"kart\"><h1>Aylık rapor · Eylül 2026</h1><table><tr><th>İşletme</th><td>Bocafe Göztepe</td></tr><tr><th>Unvan</th><td>Bocafe Gıda Ltd. Şti.</td></tr><tr><th>Müşteri no</th><td>5721885</td></tr><tr><th>Dönem</th><td>01.09.2026 – 30.09.2026</td></tr><tr><th>Üretim</th><td>21.09.2026 12:31</td></tr></table><p class=\"uyarisi\">Dönem sürüyor — her gün 02:30 ve 12:30'da güncellenir.</p></div><div class=\"kart\"><h2>5651 kayıt durumu</h2><p><b>20 günün 16'sı tam</b></p><p class=\"alt\">Tam: kayıt geldi, mühürlü, merkezde yedekli, bütünlük (MANIFEST ve mühür zinciri) doğrulandı. Cihazın ilk kayıt gününden önceki günler sayılmaz.</p><div class=\"kaydir\"><table class=\"detay\"><tr><th>Tarih</th><th>Gün</th><th>Durum</th><th>Misafir</th></tr><tr><td>01.09.2026</td><td>Sal</td><td><span class=\"iyi\">✔ Tam</span></td><td class=\"n\">2</td></tr><tr><td>02.09.2026</td><td>Çar</td><td><span class=\"iyi\">✔ Tam</span></td><td class=\"n\">2</td></tr><tr><td>03.09.2026</td><td>Per</td><td><span class=\"iyi\">✔ Tam</span></td><td class=\"n\">2</td></tr><tr><td>04.09.2026</td><td>Cum</td><td><b class=\"kotu\">Doğrulanamadı</b> <span class=\"alt\">(gün mühür zincirinde yok)</span></td><td class=\"n\">2</td></tr><tr><td>05.09.2026</td><td>Cmt</td><td><b class=\"kotu\">Kayıt gelmedi</b> <span class=\"alt\">(cihaz kapalı, bağlantısız ya da yedek gönderilmedi)</span></td><td class=\"n\"></td></tr><tr><td>06.09.2026</td><td>Paz</td><td><b class=\"kotu\">Eksik geldi</b> <span class=\"alt\">(günün dosyaları merkeze tam ulaşmadı)</span></td><td class=\"n\"></td></tr><tr><td>07.09.2026</td><td>Pzt</td><td><span class=\"iyi\">✔ Tam</span></td><td class=\"n\">2</td></tr><tr><td>08.09.2026</td><td>Sal</td><td><span class=\"iyi\">✔ Tam</span></td><td class=\"n\">2</td></tr><tr><td>09.09.2026</td><td>Çar</td><td><span class=\"iyi\">✔ Tam</span></td><td class=\"n\">2</td></tr><tr><td>10.09.2026</td><td>Per</td><td><span class=\"iyi\">✔ Tam</span></td><td class=\"n\">2</td></tr><tr><td>11.09.2026</td><td>Cum</td><td><span class=\"iyi\">✔ Tam</span></td><td class=\"n\">2</td></tr><tr><td>12.09.2026</td><td>Cmt</td><td><span class=\"iyi\">✔ Tam</span></td><td class=\"n\">2</td></tr><tr><td>13.09.2026</td><td>Paz</td><td><span class=\"iyi\">✔ Tam</span></td><td class=\"n\">2</td></tr><tr><td>14.09.2026</td><td>Pzt</td><td><span class=\"iyi\">✔ Tam</span></td><td class=\"n\">2</td></tr><tr><td>15.09.2026</td><td>Sal</td><td><span class=\"iyi\">✔ Tam</span></td><td class=\"n\">2</td></tr><tr><td>16.09.2026</td><td>Çar</td><td><span class=\"iyi\">✔ Tam</span></td><td class=\"n\">2</td></tr><tr><td>17.09.2026</td><td>Per</td><td><span class=\"iyi\">✔ Tam</span></td><td class=\"n\">2</td></tr><tr><td>18.09.2026</td><td>Cum</td><td><span class=\"iyi\">✔ Tam</span></td><td class=\"n\">2</td></tr><tr><td>19.09.2026</td><td>Cmt</td><td><span class=\"iyi\">✔ Tam</span></td><td class=\"n\">2</td></tr><tr><td>20.09.2026</td><td>Paz</td><td><span class=\"uyarisi\">Bekleniyor</span> <span class=\"alt\">(gece yedeğiyle gelir)</span></td><td class=\"n\"></td></tr><tr><td>21.09.2026</td><td>Pzt</td><td>Sürüyor</td><td class=\"n\"></td></tr><tr><td>22.09.2026</td><td>Sal</td><td><span class=\"bos\">—</span></td><td class=\"n\"></td></tr><tr><td>23.09.2026</td><td>Çar</td><td><span class=\"bos\">—</span></td><td class=\"n\"></td></tr><tr><td>24.09.2026</td><td>Per</td><td><span class=\"bos\">—</span></td><td class=\"n\"></td></tr><tr><td>25.09.2026</td><td>Cum</td><td><span class=\"bos\">—</span></td><td class=\"n\"></td></tr><tr><td>26.09.2026</td><td>Cmt</td><td><span class=\"bos\">—</span></td><td class=\"n\"></td></tr><tr><td>27.09.2026</td><td>Paz</td><td><span class=\"bos\">—</span></td><td class=\"n\"></td></tr><tr><td>28.09.2026</td><td>Pzt</td><td><span class=\"bos\">—</span></td><td class=\"n\"></td></tr><tr><td>29.09.2026</td><td>Sal</td><td><span class=\"bos\">—</span></td><td class=\"n\"></td></tr><tr><td>30.09.2026</td><td>Çar</td><td><span class=\"bos\">—</span></td><td class=\"n\"></td></tr></table></div></div><div class=\"kart\"><h2>Misafirler</h2><table><tr><th>Farklı misafir</th><td>41</td></tr><tr><th>İlk kez gelen (yeni)</th><td>30</td></tr><tr><th>Daha önce de gelmiş</th><td>11</td></tr><tr><th>Toplam giriş</th><td>77</td></tr><tr><th>Günlük ortalama</th><td>4,5</td></tr><tr><th>En yoğun gün</th><td>12.09.2026 Cumartesi · 9 misafir</td></tr></table><h3>Giriş yöntemi</h3><table><tr><th>SMS ile giriş</th><td>70</td></tr><tr><th>Misafir kodu ile giriş</th><td>7</td></tr><tr><th>İzinli cihaz (portalsız)</th><td>2</td></tr></table></div><div class=\"kart\"><h2>Yoğunluk</h2><p class=\"alt\">Her satır: o saatte ya da günde internete çıkan farklı misafir.</p><h3>Saate göre</h3><table><tr><td>00–01</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>01–02</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>02–03</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>03–04</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>04–05</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>05–06</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>06–07</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>07–08</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>08–09</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>09–10</td><td class=\"cubuk\"><span style=\"width:55%\"></span></td><td class=\"n\">5</td></tr><tr><td>10–11</td><td class=\"cubuk\"><span style=\"width:100%\"></span></td><td class=\"n\">9</td></tr><tr><td>11–12</td><td class=\"cubuk\"><span style=\"width:11%\"></span></td><td class=\"n\">1</td></tr><tr><td>12–13</td><td class=\"cubuk\"><span style=\"width:11%\"></span></td><td class=\"n\">1</td></tr><tr><td>13–14</td><td class=\"cubuk\"><span style=\"width:11%\"></span></td><td class=\"n\">1</td></tr><tr><td>14–15</td><td class=\"cubuk\"><span style=\"width:11%\"></span></td><td class=\"n\">1</td></tr><tr><td>15–16</td><td class=\"cubuk\"><span style=\"width:11%\"></span></td><td class=\"n\">1</td></tr><tr><td>16–17</td><td class=\"cubuk\"><span style=\"width:11%\"></span></td><td class=\"n\">1</td></tr><tr><td>17–18</td><td class=\"cubuk\"><span style=\"width:11%\"></span></td><td class=\"n\">1</td></tr><tr><td>18–19</td><td class=\"cubuk\"><span style=\"width:11%\"></span></td><td class=\"n\">1</td></tr><tr><td>19–20</td><td class=\"cubuk\"><span style=\"width:11%\"></span></td><td class=\"n\">1</td></tr><tr><td>20–21</td><td class=\"cubuk\"><span style=\"width:11%\"></span></td><td class=\"n\">1</td></tr><tr><td>21–22</td><td class=\"cubuk\"><span style=\"width:11%\"></span></td><td class=\"n\">1</td></tr><tr><td>22–23</td><td class=\"cubuk\"><span style=\"width:11%\"></span></td><td class=\"n\">1</td></tr><tr><td>23–00</td><td class=\"cubuk\"><span style=\"width:11%\"></span></td><td class=\"n\">1</td></tr></table><h3>Haftanın gününe göre</h3><table><tr><td>Pazartesi</td><td class=\"cubuk\"><span style=\"width:14%\"></span></td><td class=\"n\">1</td></tr><tr><td>Salı</td><td class=\"cubuk\"><span style=\"width:28%\"></span></td><td class=\"n\">2</td></tr><tr><td>Çarşamba</td><td class=\"cubuk\"><span style=\"width:42%\"></span></td><td class=\"n\">3</td></tr><tr><td>Perşembe</td><td class=\"cubuk\"><span style=\"width:57%\"></span></td><td class=\"n\">4</td></tr><tr><td>Cuma</td><td class=\"cubuk\"><span style=\"width:71%\"></span></td><td class=\"n\">5</td></tr><tr><td>Cumartesi</td><td class=\"cubuk\"><span style=\"width:85%\"></span></td><td class=\"n\">6</td></tr><tr><td>Pazar</td><td class=\"cubuk\"><span style=\"width:100%\"></span></td><td class=\"n\">7</td></tr></table></div><div class=\"kart\"><h2>Kullanım</h2><table><tr><th>Toplam veri</th><td>4,0 GB (indirme 3,0 GB, yükleme 1,0 GB)</td></tr><tr><th>Doğrulama SMS&#x27;i</th><td>70</td></tr></table></div><div class=\"kart\"><h2>Cihaz</h2><table><tr><th>Toplam çevrimdışı süre</th><td>Yok</td></tr><tr><th>Yazılım sürümü (dönem sonu)</th><td>0.4.9</td></tr></table><h3>Dönemde açılan sorunlar</h3><p class=\"alt\">Bu dönemde açılan sorun yok.</p><p class=\"alt\">Çevrimdışı süre merkezin cihaza ulaşamadığını fark ettiği andan sayılır; gerçek süre biraz daha uzun olabilir.</p></div></main></body></html>"
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Rapor Eylül 2026 · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><header><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_ACIK}</a><nav><a href=\"/cihaz\">Cihaz paneli</a><a href=\"/\">Yedek arşiv</a><a href=\"/raporlar\">Raporlar</a><a href=\"/parola\">Parola</a><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2:32>\"><button class=\"ikincil\">Çıkış</button></form></nav></header><main class=\"genis\"><p class=\"yazdirma alt\"><a href=\"/raporlar\">← Raporlar</a> · Yazdırmak ya da PDF olarak kaydetmek için Ctrl+P'ye basın (telefonda tarayıcı menüsünden Yazdır / Paylaş).</p><div class=\"kart\"><h1>Aylık rapor · Eylül 2026</h1><table><tr><th>İşletme</th><td>Bocafe Göztepe</td></tr><tr><th>Unvan</th><td>Bocafe Gıda Ltd. Şti.</td></tr><tr><th>Müşteri no</th><td>5721885</td></tr><tr><th>Dönem</th><td>01.09.2026 – 30.09.2026</td></tr><tr><th>Üretim</th><td>21.09.2026 12:31</td></tr></table><p class=\"uyarisi\">Dönem sürüyor — her gün 02:30 ve 12:30'da güncellenir.</p></div><div class=\"kart\"><h2>5651 kayıt durumu</h2><p><b>20 günün 16'sı tam</b></p><p class=\"alt\">Tam: kayıt geldi, mühürlü, merkezde yedekli, bütünlük (MANIFEST ve mühür zinciri) doğrulandı. Cihazın ilk kayıt gününden önceki günler sayılmaz.</p><div class=\"kaydir\"><table class=\"detay\"><tr><th>Tarih</th><th>Gün</th><th>Durum</th><th>Misafir</th></tr><tr><td>01.09.2026</td><td>Sal</td><td><span class=\"iyi\">✔ Tam</span></td><td class=\"n\">2</td></tr><tr><td>02.09.2026</td><td>Çar</td><td><span class=\"iyi\">✔ Tam</span></td><td class=\"n\">2</td></tr><tr><td>03.09.2026</td><td>Per</td><td><span class=\"iyi\">✔ Tam</span></td><td class=\"n\">2</td></tr><tr><td>04.09.2026</td><td>Cum</td><td><b class=\"kotu\">Doğrulanamadı</b> <span class=\"alt\">(gün mühür zincirinde yok)</span></td><td class=\"n\">2</td></tr><tr><td>05.09.2026</td><td>Cmt</td><td><b class=\"kotu\">Kayıt gelmedi</b> <span class=\"alt\">(cihaz kapalı, bağlantısız ya da yedek gönderilmedi)</span></td><td class=\"n\"></td></tr><tr><td>06.09.2026</td><td>Paz</td><td><b class=\"kotu\">Eksik geldi</b> <span class=\"alt\">(günün dosyaları merkeze tam ulaşmadı)</span></td><td class=\"n\"></td></tr><tr><td>07.09.2026</td><td>Pzt</td><td><span class=\"iyi\">✔ Tam</span></td><td class=\"n\">2</td></tr><tr><td>08.09.2026</td><td>Sal</td><td><span class=\"iyi\">✔ Tam</span></td><td class=\"n\">2</td></tr><tr><td>09.09.2026</td><td>Çar</td><td><span class=\"iyi\">✔ Tam</span></td><td class=\"n\">2</td></tr><tr><td>10.09.2026</td><td>Per</td><td><span class=\"iyi\">✔ Tam</span></td><td class=\"n\">2</td></tr><tr><td>11.09.2026</td><td>Cum</td><td><span class=\"iyi\">✔ Tam</span></td><td class=\"n\">2</td></tr><tr><td>12.09.2026</td><td>Cmt</td><td><span class=\"iyi\">✔ Tam</span></td><td class=\"n\">2</td></tr><tr><td>13.09.2026</td><td>Paz</td><td><span class=\"iyi\">✔ Tam</span></td><td class=\"n\">2</td></tr><tr><td>14.09.2026</td><td>Pzt</td><td><span class=\"iyi\">✔ Tam</span></td><td class=\"n\">2</td></tr><tr><td>15.09.2026</td><td>Sal</td><td><span class=\"iyi\">✔ Tam</span></td><td class=\"n\">2</td></tr><tr><td>16.09.2026</td><td>Çar</td><td><span class=\"iyi\">✔ Tam</span></td><td class=\"n\">2</td></tr><tr><td>17.09.2026</td><td>Per</td><td><span class=\"iyi\">✔ Tam</span></td><td class=\"n\">2</td></tr><tr><td>18.09.2026</td><td>Cum</td><td><span class=\"iyi\">✔ Tam</span></td><td class=\"n\">2</td></tr><tr><td>19.09.2026</td><td>Cmt</td><td><span class=\"iyi\">✔ Tam</span></td><td class=\"n\">2</td></tr><tr><td>20.09.2026</td><td>Paz</td><td><span class=\"uyarisi\">Bekleniyor</span> <span class=\"alt\">(gece yedeğiyle gelir)</span></td><td class=\"n\"></td></tr><tr><td>21.09.2026</td><td>Pzt</td><td>Sürüyor</td><td class=\"n\"></td></tr><tr><td>22.09.2026</td><td>Sal</td><td><span class=\"bos\">—</span></td><td class=\"n\"></td></tr><tr><td>23.09.2026</td><td>Çar</td><td><span class=\"bos\">—</span></td><td class=\"n\"></td></tr><tr><td>24.09.2026</td><td>Per</td><td><span class=\"bos\">—</span></td><td class=\"n\"></td></tr><tr><td>25.09.2026</td><td>Cum</td><td><span class=\"bos\">—</span></td><td class=\"n\"></td></tr><tr><td>26.09.2026</td><td>Cmt</td><td><span class=\"bos\">—</span></td><td class=\"n\"></td></tr><tr><td>27.09.2026</td><td>Paz</td><td><span class=\"bos\">—</span></td><td class=\"n\"></td></tr><tr><td>28.09.2026</td><td>Pzt</td><td><span class=\"bos\">—</span></td><td class=\"n\"></td></tr><tr><td>29.09.2026</td><td>Sal</td><td><span class=\"bos\">—</span></td><td class=\"n\"></td></tr><tr><td>30.09.2026</td><td>Çar</td><td><span class=\"bos\">—</span></td><td class=\"n\"></td></tr></table></div></div><div class=\"kart\"><h2>Misafirler</h2><table><tr><th>Farklı misafir</th><td>41</td></tr><tr><th>İlk kez gelen (yeni)</th><td>30</td></tr><tr><th>Daha önce de gelmiş</th><td>11</td></tr><tr><th>Toplam giriş</th><td>77</td></tr><tr><th>Günlük ortalama</th><td>4,5</td></tr><tr><th>En yoğun gün</th><td>12.09.2026 Cumartesi · 9 misafir</td></tr></table><h3>Giriş yöntemi</h3><table><tr><th>SMS ile giriş</th><td>70</td></tr><tr><th>Misafir kodu ile giriş</th><td>7</td></tr><tr><th>İzinli cihaz (portalsız)</th><td>2</td></tr></table></div><div class=\"kart\"><h2>Yoğunluk</h2><p class=\"alt\">Her satır: o saatte ya da günde internete çıkan farklı misafir.</p><h3>Saate göre</h3><table><tr><td>00–01</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>01–02</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>02–03</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>03–04</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>04–05</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>05–06</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>06–07</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>07–08</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>08–09</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>09–10</td><td class=\"cubuk\"><span style=\"width:55%\"></span></td><td class=\"n\">5</td></tr><tr><td>10–11</td><td class=\"cubuk\"><span style=\"width:100%\"></span></td><td class=\"n\">9</td></tr><tr><td>11–12</td><td class=\"cubuk\"><span style=\"width:11%\"></span></td><td class=\"n\">1</td></tr><tr><td>12–13</td><td class=\"cubuk\"><span style=\"width:11%\"></span></td><td class=\"n\">1</td></tr><tr><td>13–14</td><td class=\"cubuk\"><span style=\"width:11%\"></span></td><td class=\"n\">1</td></tr><tr><td>14–15</td><td class=\"cubuk\"><span style=\"width:11%\"></span></td><td class=\"n\">1</td></tr><tr><td>15–16</td><td class=\"cubuk\"><span style=\"width:11%\"></span></td><td class=\"n\">1</td></tr><tr><td>16–17</td><td class=\"cubuk\"><span style=\"width:11%\"></span></td><td class=\"n\">1</td></tr><tr><td>17–18</td><td class=\"cubuk\"><span style=\"width:11%\"></span></td><td class=\"n\">1</td></tr><tr><td>18–19</td><td class=\"cubuk\"><span style=\"width:11%\"></span></td><td class=\"n\">1</td></tr><tr><td>19–20</td><td class=\"cubuk\"><span style=\"width:11%\"></span></td><td class=\"n\">1</td></tr><tr><td>20–21</td><td class=\"cubuk\"><span style=\"width:11%\"></span></td><td class=\"n\">1</td></tr><tr><td>21–22</td><td class=\"cubuk\"><span style=\"width:11%\"></span></td><td class=\"n\">1</td></tr><tr><td>22–23</td><td class=\"cubuk\"><span style=\"width:11%\"></span></td><td class=\"n\">1</td></tr><tr><td>23–00</td><td class=\"cubuk\"><span style=\"width:11%\"></span></td><td class=\"n\">1</td></tr></table><h3>Haftanın gününe göre</h3><table><tr><td>Pazartesi</td><td class=\"cubuk\"><span style=\"width:14%\"></span></td><td class=\"n\">1</td></tr><tr><td>Salı</td><td class=\"cubuk\"><span style=\"width:28%\"></span></td><td class=\"n\">2</td></tr><tr><td>Çarşamba</td><td class=\"cubuk\"><span style=\"width:42%\"></span></td><td class=\"n\">3</td></tr><tr><td>Perşembe</td><td class=\"cubuk\"><span style=\"width:57%\"></span></td><td class=\"n\">4</td></tr><tr><td>Cuma</td><td class=\"cubuk\"><span style=\"width:71%\"></span></td><td class=\"n\">5</td></tr><tr><td>Cumartesi</td><td class=\"cubuk\"><span style=\"width:85%\"></span></td><td class=\"n\">6</td></tr><tr><td>Pazar</td><td class=\"cubuk\"><span style=\"width:100%\"></span></td><td class=\"n\">7</td></tr></table></div><div class=\"kart\"><h2>Kullanım</h2><table><tr><th>Toplam veri</th><td>4,0 GB (indirme 3,0 GB, yükleme 1,0 GB)</td></tr><tr><th>Doğrulama SMS&#x27;i</th><td>70</td></tr></table></div><div class=\"kart\"><h2>Cihaz</h2><table><tr><th>Toplam çevrimdışı süre</th><td>Yok</td></tr><tr><th>Yazılım sürümü (dönem sonu)</th><td>0.4.9</td></tr></table><h3>Dönemde açılan sorunlar</h3><p class=\"alt\">Bu dönemde açılan sorun yok.</p><p class=\"alt\">Çevrimdışı süre merkezin cihaza ulaşamadığını fark ettiği andan sayılır; gerçek süre biraz daha uzun olabilir.</p></div></main></body></html>"
    }
   },
   {
@@ -55,7 +56,7 @@
     ]
    ],
    "govde": {
-    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Rapor 14–20.09.2026 · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><header><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_ACIK}</a><nav><a href=\"/cihaz\">Cihaz paneli</a><a href=\"/\">Yedek arşiv</a><a href=\"/raporlar\">Raporlar</a><a href=\"/parola\">Parola</a><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button class=\"ikincil\">Çıkış</button></form></nav></header><main class=\"genis\"><p class=\"yazdirma alt\"><a href=\"/raporlar\">← Raporlar</a> · Yazdırmak ya da PDF olarak kaydetmek için Ctrl+P'ye basın (telefonda tarayıcı menüsünden Yazdır / Paylaş).</p><div class=\"kart\"><h1>Haftalık rapor · 14–20.09.2026</h1><table><tr><th>İşletme</th><td>Bocafe Göztepe</td></tr><tr><th>Unvan</th><td>Bocafe Gıda Ltd. Şti.</td></tr><tr><th>Müşteri no</th><td>5721885</td></tr><tr><th>Dönem</th><td>14.09.2026 – 20.09.2026</td></tr><tr><th>Üretim</th><td>21.09.2026 02:31</td></tr></table><p class=\"alt\">Geç gelen günlerle birkaç gün içinde değişebilir.</p></div><div class=\"kart\"><h2>5651 kayıt durumu</h2><p><b>7 günün 6'sı tam</b></p><p class=\"alt\">Tam: kayıt geldi, mühürlü, merkezde yedekli, bütünlük (MANIFEST ve mühür zinciri) doğrulandı. Cihazın ilk kayıt gününden önceki günler sayılmaz.</p><div class=\"kaydir\"><table class=\"detay\"><tr><th>Tarih</th><th>Gün</th><th>Durum</th><th>Misafir</th></tr><tr><td>14.09.2026</td><td>Pzt</td><td><span class=\"iyi\">✔ Tam</span></td><td class=\"n\">2</td></tr><tr><td>15.09.2026</td><td>Sal</td><td><span class=\"iyi\">✔ Tam</span></td><td class=\"n\">2</td></tr><tr><td>16.09.2026</td><td>Çar</td><td><span class=\"iyi\">✔ Tam</span></td><td class=\"n\">2</td></tr><tr><td>17.09.2026</td><td>Per</td><td><span class=\"iyi\">✔ Tam</span></td><td class=\"n\">2</td></tr><tr><td>18.09.2026</td><td>Cum</td><td><span class=\"iyi\">✔ Tam</span></td><td class=\"n\">2</td></tr><tr><td>19.09.2026</td><td>Cmt</td><td><span class=\"iyi\">✔ Tam</span></td><td class=\"n\">2</td></tr><tr><td>20.09.2026</td><td>Paz</td><td><span class=\"uyarisi\">Bekleniyor</span> <span class=\"alt\">(gece yedeğiyle gelir)</span></td><td class=\"n\"></td></tr></table></div></div><div class=\"kart\"><h2>Misafirler</h2><table><tr><th>Farklı misafir</th><td>6</td></tr><tr><th>İlk kez gelen (yeni)</th><td>1</td></tr><tr><th>Daha önce de gelmiş</th><td>5</td></tr><tr><th>Toplam giriş</th><td>9</td></tr><tr><th>Günlük ortalama</th><td>2,0</td></tr><tr><th>En yoğun gün</th><td>—</td></tr></table><h3>Giriş yöntemi</h3><table><tr><th>SMS ile giriş</th><td>9</td></tr><tr><th>Misafir kodu ile giriş</th><td>0</td></tr><tr><th>İzinli cihaz (portalsız)</th><td>1</td></tr></table></div><div class=\"kart\"><h2>Yoğunluk</h2><p class=\"alt\">Her satır: o saatte ya da günde internete çıkan farklı misafir.</p><h3>Saate göre</h3><table><tr><td>00–01</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>01–02</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>02–03</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>03–04</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>04–05</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>05–06</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>06–07</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>07–08</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>08–09</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>09–10</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>10–11</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>11–12</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>12–13</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>13–14</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>14–15</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>15–16</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>16–17</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>17–18</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>18–19</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>19–20</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>20–21</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>21–22</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>22–23</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>23–00</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr></table><h3>Haftanın gününe göre</h3><table><tr><td>Pazartesi</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>Salı</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>Çarşamba</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>Perşembe</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>Cuma</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>Cumartesi</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>Pazar</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr></table></div><div class=\"kart\"><h2>Kullanım</h2><table><tr><th>Toplam veri</th><td>0 B (indirme 0 B, yükleme 0 B)</td></tr><tr><th>Doğrulama SMS&#x27;i</th><td>9</td></tr></table></div><div class=\"kart\"><h2>Cihaz</h2><table><tr><th>Toplam çevrimdışı süre</th><td>Yok</td></tr><tr><th>Yazılım sürümü (dönem sonu)</th><td>0.5.0</td></tr></table><h3>Dönemde açılan sorunlar</h3><p class=\"alt\">Bu dönemde açılan sorun yok.</p><p class=\"alt\">Çevrimdışı süre merkezin cihaza ulaşamadığını fark ettiği andan sayılır; gerçek süre biraz daha uzun olabilir.</p></div></main></body></html>"
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Rapor 14–20.09.2026 · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><header><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_ACIK}</a><nav><a href=\"/cihaz\">Cihaz paneli</a><a href=\"/\">Yedek arşiv</a><a href=\"/raporlar\">Raporlar</a><a href=\"/parola\">Parola</a><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2:32>\"><button class=\"ikincil\">Çıkış</button></form></nav></header><main class=\"genis\"><p class=\"yazdirma alt\"><a href=\"/raporlar\">← Raporlar</a> · Yazdırmak ya da PDF olarak kaydetmek için Ctrl+P'ye basın (telefonda tarayıcı menüsünden Yazdır / Paylaş).</p><div class=\"kart\"><h1>Haftalık rapor · 14–20.09.2026</h1><table><tr><th>İşletme</th><td>Bocafe Göztepe</td></tr><tr><th>Unvan</th><td>Bocafe Gıda Ltd. Şti.</td></tr><tr><th>Müşteri no</th><td>5721885</td></tr><tr><th>Dönem</th><td>14.09.2026 – 20.09.2026</td></tr><tr><th>Üretim</th><td>21.09.2026 02:31</td></tr></table><p class=\"alt\">Geç gelen günlerle birkaç gün içinde değişebilir.</p></div><div class=\"kart\"><h2>5651 kayıt durumu</h2><p><b>7 günün 6'sı tam</b></p><p class=\"alt\">Tam: kayıt geldi, mühürlü, merkezde yedekli, bütünlük (MANIFEST ve mühür zinciri) doğrulandı. Cihazın ilk kayıt gününden önceki günler sayılmaz.</p><div class=\"kaydir\"><table class=\"detay\"><tr><th>Tarih</th><th>Gün</th><th>Durum</th><th>Misafir</th></tr><tr><td>14.09.2026</td><td>Pzt</td><td><span class=\"iyi\">✔ Tam</span></td><td class=\"n\">2</td></tr><tr><td>15.09.2026</td><td>Sal</td><td><span class=\"iyi\">✔ Tam</span></td><td class=\"n\">2</td></tr><tr><td>16.09.2026</td><td>Çar</td><td><span class=\"iyi\">✔ Tam</span></td><td class=\"n\">2</td></tr><tr><td>17.09.2026</td><td>Per</td><td><span class=\"iyi\">✔ Tam</span></td><td class=\"n\">2</td></tr><tr><td>18.09.2026</td><td>Cum</td><td><span class=\"iyi\">✔ Tam</span></td><td class=\"n\">2</td></tr><tr><td>19.09.2026</td><td>Cmt</td><td><span class=\"iyi\">✔ Tam</span></td><td class=\"n\">2</td></tr><tr><td>20.09.2026</td><td>Paz</td><td><span class=\"uyarisi\">Bekleniyor</span> <span class=\"alt\">(gece yedeğiyle gelir)</span></td><td class=\"n\"></td></tr></table></div></div><div class=\"kart\"><h2>Misafirler</h2><table><tr><th>Farklı misafir</th><td>6</td></tr><tr><th>İlk kez gelen (yeni)</th><td>1</td></tr><tr><th>Daha önce de gelmiş</th><td>5</td></tr><tr><th>Toplam giriş</th><td>9</td></tr><tr><th>Günlük ortalama</th><td>2,0</td></tr><tr><th>En yoğun gün</th><td>—</td></tr></table><h3>Giriş yöntemi</h3><table><tr><th>SMS ile giriş</th><td>9</td></tr><tr><th>Misafir kodu ile giriş</th><td>0</td></tr><tr><th>İzinli cihaz (portalsız)</th><td>1</td></tr></table></div><div class=\"kart\"><h2>Yoğunluk</h2><p class=\"alt\">Her satır: o saatte ya da günde internete çıkan farklı misafir.</p><h3>Saate göre</h3><table><tr><td>00–01</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>01–02</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>02–03</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>03–04</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>04–05</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>05–06</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>06–07</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>07–08</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>08–09</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>09–10</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>10–11</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>11–12</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>12–13</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>13–14</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>14–15</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>15–16</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>16–17</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>17–18</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>18–19</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>19–20</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>20–21</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>21–22</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>22–23</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>23–00</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr></table><h3>Haftanın gününe göre</h3><table><tr><td>Pazartesi</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>Salı</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>Çarşamba</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>Perşembe</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>Cuma</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>Cumartesi</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>Pazar</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr></table></div><div class=\"kart\"><h2>Kullanım</h2><table><tr><th>Toplam veri</th><td>0 B (indirme 0 B, yükleme 0 B)</td></tr><tr><th>Doğrulama SMS&#x27;i</th><td>9</td></tr></table></div><div class=\"kart\"><h2>Cihaz</h2><table><tr><th>Toplam çevrimdışı süre</th><td>Yok</td></tr><tr><th>Yazılım sürümü (dönem sonu)</th><td>0.5.0</td></tr></table><h3>Dönemde açılan sorunlar</h3><p class=\"alt\">Bu dönemde açılan sorun yok.</p><p class=\"alt\">Çevrimdışı süre merkezin cihaza ulaşamadığını fark ettiği andan sayılır; gerçek süre biraz daha uzun olabilir.</p></div></main></body></html>"
    }
   }
  ],
@@ -116,7 +117,7 @@
       "ozet": "fcd77d2f1464acefd0bf9649c59c9103b30bf9b4aa14a1930fdbc86ae817e02c",
       "parola_acik": "6bnuKUG4dyZ7",
       "son_giris": "2026-09-21T17:13:20+03:00",
-      "tuz": "<T3>",
+      "tuz": "<T3:32>",
       "uyelik": "aktif",
       "yineleme": 120000
      }
@@ -136,6 +137,399 @@
      }
     ],
     "surum": []
+   }
+  }
+ ],
+ "dosyalar": [
+  {
+   "detay/": {
+    "dizin": true
+   },
+   "ist/": {
+    "dizin": true
+   },
+   "rapor/": {
+    "dizin": true
+   },
+   "rapor/5721885/": {
+    "dizin": true
+   },
+   "rapor/5721885/ay-2026-09.json": {
+    "json": {
+     "bicim": 2,
+     "tur": "ay",
+     "donem": "2026-09",
+     "baslangic": "2026-09-01",
+     "bitis": "2026-09-30",
+     "uretim": "2026-09-21T12:31:07+03:00",
+     "kesin": false,
+     "imza": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+     "misafir": {
+      "farkli": 41,
+      "yeni": 30,
+      "donen": 11,
+      "giris": 77,
+      "giris_sms": 70,
+      "giris_kod": 7,
+      "izinli_cihaz": 2,
+      "gunluk_ortalama": 4.5,
+      "en_yogun_gun": {
+       "gun": "2026-09-12",
+       "farkli": 9
+      }
+     },
+     "saat": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      5,
+      9,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1
+     ],
+     "hafta_gunu": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+     ],
+     "gunler": [
+      {
+       "gun": "2026-09-01",
+       "durum": "tam",
+       "neden": "",
+       "farkli": 2
+      },
+      {
+       "gun": "2026-09-02",
+       "durum": "tam",
+       "neden": "",
+       "farkli": 2
+      },
+      {
+       "gun": "2026-09-03",
+       "durum": "tam",
+       "neden": "",
+       "farkli": 2
+      },
+      {
+       "gun": "2026-09-04",
+       "durum": "dogrulanamadi",
+       "neden": "zincir_yok",
+       "farkli": 2
+      },
+      {
+       "gun": "2026-09-05",
+       "durum": "kayit_yok",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-06",
+       "durum": "eksik",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-07",
+       "durum": "tam",
+       "neden": "",
+       "farkli": 2
+      },
+      {
+       "gun": "2026-09-08",
+       "durum": "tam",
+       "neden": "",
+       "farkli": 2
+      },
+      {
+       "gun": "2026-09-09",
+       "durum": "tam",
+       "neden": "",
+       "farkli": 2
+      },
+      {
+       "gun": "2026-09-10",
+       "durum": "tam",
+       "neden": "",
+       "farkli": 2
+      },
+      {
+       "gun": "2026-09-11",
+       "durum": "tam",
+       "neden": "",
+       "farkli": 2
+      },
+      {
+       "gun": "2026-09-12",
+       "durum": "tam",
+       "neden": "",
+       "farkli": 2
+      },
+      {
+       "gun": "2026-09-13",
+       "durum": "tam",
+       "neden": "",
+       "farkli": 2
+      },
+      {
+       "gun": "2026-09-14",
+       "durum": "tam",
+       "neden": "",
+       "farkli": 2
+      },
+      {
+       "gun": "2026-09-15",
+       "durum": "tam",
+       "neden": "",
+       "farkli": 2
+      },
+      {
+       "gun": "2026-09-16",
+       "durum": "tam",
+       "neden": "",
+       "farkli": 2
+      },
+      {
+       "gun": "2026-09-17",
+       "durum": "tam",
+       "neden": "",
+       "farkli": 2
+      },
+      {
+       "gun": "2026-09-18",
+       "durum": "tam",
+       "neden": "",
+       "farkli": 2
+      },
+      {
+       "gun": "2026-09-19",
+       "durum": "tam",
+       "neden": "",
+       "farkli": 2
+      },
+      {
+       "gun": "2026-09-20",
+       "durum": "bekleniyor",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-21",
+       "durum": "bugun",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-22",
+       "durum": "gelecek",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-23",
+       "durum": "gelecek",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-24",
+       "durum": "gelecek",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-25",
+       "durum": "gelecek",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-26",
+       "durum": "gelecek",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-27",
+       "durum": "gelecek",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-28",
+       "durum": "gelecek",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-29",
+       "durum": "gelecek",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-30",
+       "durum": "gelecek",
+       "neden": "",
+       "farkli": null
+      }
+     ],
+     "kayit": {
+      "gun": 20,
+      "tam": 16
+     },
+     "kullanim": {
+      "gonderilen": 1073741824,
+      "alinan": 3221225472,
+      "sms": 70,
+      "alanlar": [
+       {
+        "alan": "instagram.com",
+        "misafir": 12
+       },
+       {
+        "alan": "<script>alert(1)</script>.com",
+        "misafir": 3
+       }
+      ]
+     },
+     "surum": "0.4.9",
+     "surum_sonra_degisti": false
+    }
+   },
+   "rapor/5721885/hafta-2026-W38.json": {
+    "json": {
+     "bicim": 2,
+     "tur": "hafta",
+     "donem": "2026-W38",
+     "baslangic": "2026-09-14",
+     "bitis": "2026-09-20",
+     "uretim": "2026-09-21T02:31:07+03:00",
+     "kesin": false,
+     "imza": "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy",
+     "misafir": {
+      "farkli": 6,
+      "yeni": 1,
+      "donen": 5,
+      "giris": 9,
+      "giris_sms": 9,
+      "giris_kod": 0,
+      "izinli_cihaz": 1,
+      "gunluk_ortalama": 2.0,
+      "en_yogun_gun": null
+     },
+     "saat": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "hafta_gunu": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "gunler": [
+      {
+       "gun": "2026-09-14",
+       "durum": "tam",
+       "neden": "",
+       "farkli": 2
+      },
+      {
+       "gun": "2026-09-15",
+       "durum": "tam",
+       "neden": "",
+       "farkli": 2
+      },
+      {
+       "gun": "2026-09-16",
+       "durum": "tam",
+       "neden": "",
+       "farkli": 2
+      },
+      {
+       "gun": "2026-09-17",
+       "durum": "tam",
+       "neden": "",
+       "farkli": 2
+      },
+      {
+       "gun": "2026-09-18",
+       "durum": "tam",
+       "neden": "",
+       "farkli": 2
+      },
+      {
+       "gun": "2026-09-19",
+       "durum": "tam",
+       "neden": "",
+       "farkli": 2
+      },
+      {
+       "gun": "2026-09-20",
+       "durum": "bekleniyor",
+       "neden": "",
+       "farkli": null
+      }
+     ],
+     "kayit": {
+      "gun": 7,
+      "tam": 6
+     },
+     "kullanim": {
+      "gonderilen": 0,
+      "alinan": 0,
+      "sms": 9
+     },
+     "surum": null,
+     "surum_sonra_degisti": false
+    }
    }
   }
  ],

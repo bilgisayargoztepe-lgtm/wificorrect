@@ -1,7 +1,8 @@
 {
- "bicim": 1,
+ "bicim": 2,
  "dosya": "test_api",
  "test": "test_hemen_bayragi_hedef_surume_bagli",
+ "platform_farki": [],
  "cevaplar": [
   {
    "istek": "POST /api/giris",
@@ -18,7 +19,7 @@
    ],
    "govde": {
     "json": {
-     "tuz": "<T2>",
+     "tuz": "<T2:32>",
      "ozet": "fcd77d2f1464acefd0bf9649c59c9103b30bf9b4aa14a1930fdbc86ae817e02c",
      "yineleme": 120000,
      "lisans": "aktif",
@@ -27,7 +28,7 @@
      "sms": {
       "etkin_mock": true
      },
-     "cihaz_anahtari": "<T1>",
+     "cihaz_anahtari": "<T1:43>",
      "tunel_ip": "10.99.0.10",
      "sunucu_pub": "SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS=",
      "uc_nokta": "vpn.wificorrect.com:51820",
@@ -234,7 +235,7 @@
       "ozet": "fcd77d2f1464acefd0bf9649c59c9103b30bf9b4aa14a1930fdbc86ae817e02c",
       "parola_acik": "6bnuKUG4dyZ7",
       "son_giris": "",
-      "tuz": "<T2>",
+      "tuz": "<T2:32>",
       "uyelik": "aktif",
       "yineleme": 120000
      }
@@ -282,6 +283,28 @@
       "zaman": "2026-09-21T17:13:20+03:00"
      }
     ]
+   }
+  }
+ ],
+ "dosyalar": [
+  {
+   "detay/": {
+    "dizin": true
+   },
+   "ist/": {
+    "dizin": true
+   },
+   "sur/": {
+    "dizin": true
+   },
+   "sur/0.3.9.deb": {
+    "metin": "deb-0.3.9"
+   },
+   "sur/0.4.0.deb": {
+    "metin": "deb-0.4.0"
+   },
+   "sur/0.4.1.deb": {
+    "metin": "deb-0.4.1"
    }
   }
  ],

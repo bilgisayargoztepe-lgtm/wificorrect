@@ -1,7 +1,8 @@
 {
- "bicim": 1,
+ "bicim": 2,
  "dosya": "test_listeler",
  "test": "test_api_liste_200_400_403_404",
+ "platform_farki": [],
  "cevaplar": [
   {
    "istek": "POST /api/giris",
@@ -18,7 +19,7 @@
    ],
    "govde": {
     "json": {
-     "tuz": "<T2>",
+     "tuz": "<T2:32>",
      "ozet": "fcd77d2f1464acefd0bf9649c59c9103b30bf9b4aa14a1930fdbc86ae817e02c",
      "yineleme": 120000,
      "lisans": "aktif",
@@ -27,7 +28,7 @@
      "sms": {
       "etkin_mock": true
      },
-     "cihaz_anahtari": "<T1>",
+     "cihaz_anahtari": "<T1:43>",
      "tunel_ip": "10.99.0.10",
      "sunucu_pub": "SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS=",
      "uc_nokta": "vpn.wificorrect.com:51820",
@@ -69,10 +70,8 @@
     ]
    ],
    "govde": {
-    "ikili": {
-     "sha256": "d358bfdf65db1e3c58db0083b5a4cf70afc52c9ad66f0f9f5384951aaca8268f",
-     "uzunluk": 28
-    }
+    "metin": "a.com\nc.com\n",
+    "gz": true
    }
   },
   {
@@ -229,10 +228,8 @@
     ]
    ],
    "govde": {
-    "ikili": {
-     "sha256": "d358bfdf65db1e3c58db0083b5a4cf70afc52c9ad66f0f9f5384951aaca8268f",
-     "uzunluk": 28
-    }
+    "metin": "a.com\nc.com\n",
+    "gz": true
    }
   },
   {
@@ -313,7 +310,7 @@
       "ozet": "fcd77d2f1464acefd0bf9649c59c9103b30bf9b4aa14a1930fdbc86ae817e02c",
       "parola_acik": "6bnuKUG4dyZ7",
       "son_giris": "",
-      "tuz": "<T2>",
+      "tuz": "<T2:32>",
       "uyelik": "aktif",
       "yineleme": 120000
      }
@@ -333,6 +330,49 @@
      }
     ],
     "surum": []
+   }
+  }
+ ],
+ "dosyalar": [
+  {
+   "detay/": {
+    "dizin": true
+   },
+   "ist/": {
+    "dizin": true
+   },
+   "listeler/": {
+    "dizin": true
+   },
+   "listeler/kaynak/": {
+    "dizin": true
+   },
+   "listeler/kaynak/kumar-1cee97163277.txt.gz": {
+    "metin": "c.com\n",
+    "gz": true
+   },
+   "listeler/kaynak/kumar-1e76245f6f33.txt.gz": {
+    "metin": "a.com\n",
+    "gz": true
+   },
+   "listeler/kumar.json": {
+    "json": {
+     "kategori": "kumar",
+     "sha256": "19e82478803b136d919c5ce36ecb545e4d90b8ef1082a6c3669860f79b8edb18",
+     "sayi": 2,
+     "zaman": "2026-09-21T17:13:20+03:00",
+     "kesildi": false,
+     "kaynaklar": [
+      {
+       "ad": "A",
+       "sayi": 1
+      },
+      {
+       "ad": "B",
+       "sayi": 1
+      }
+     ]
+    }
    }
   }
  ],

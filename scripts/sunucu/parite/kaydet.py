@@ -1,26 +1,39 @@
 """Geçici (Task 16'da silinir): altın kayıt üreticisi. Python merkez testlerini tek tek, belirlenimli rastgelelikle çalıştırır;
-her testin istek cevaplarını ve veritabanlarının son hâlini merkez/tests/altin/<dosya>/<test>.json'a yazar. Rust'taki aynı
-test (`altin::Kayit::bas`) aynı kaydı üretmelidir. Kullanım:
+her testin istek cevaplarını, veritabanlarının son hâlini ve geçici dizinlerindeki dosyaları
+merkez/tests/altin/<dosya>/<test>.json'a yazar. Rust'taki aynı test (`altin::Kayit::bas`) aynı kaydı üretmelidir. Kullanım:
     py -3 -I scripts/sunucu/parite/kaydet.py [test_dosyasi ...] [--is N] [--cikti DIZIN] [--tohum N]
 test_dosyasi: `test_yonetim` ya da yolu; verilmezse hepsi. Her test ayrı süreçte çalışır (testler arası modül durumu
-taşınmaz); süreç PYTHONHASHSEED=0 (--tohum), UTF-8 kipi ve Linux gibi "\\n" satır sonuyla başlar.
+taşınmaz); süreç PYTHONHASHSEED=0 (--tohum), UTF-8 kipi ve Linux gibi "\\n" satır sonuyla başlar. Ayrıca
+merkez/tests/altin/_krom.json: Python'un ortak CSS, logo ve sekme simgesinin sha256'sı (Rust'takilerle aynı olmalı).
 
-Kayıt biçimi (Rust altin.rs aynısını üretir):
+Kayıt biçimi 2 (Rust altin.rs aynısını üretir):
 - cevaplar: testin her üst düzey `istek` çağrısı (iç içe çağrıda yalnız en dıştaki; yalnız ana iş parçacığı), sırayla:
-  istek ("YÖNTEM /yol[?sorgu]", belirteçler <T?>), durum, basliklar (SECILI_BASLIKLAR; [ad, değer], sırayla), govde:
-  {"metin": ...} | {"json": ...} | {"ikili": {"sha256", "uzunluk"}}. İstisna 500 "Bir sorun oluştu" olarak yazılır (HTTP
-  işleyicisi gibi), "istisna" alanında türüyle.
+  istek ("YÖNTEM /yol[?sorgu]", belirteçler <T?:UZUNLUK>), durum, basliklar (SECILI_BASLIKLAR; [ad, değer], sırayla; seçili
+  olmayan başlık hatadır), govde: {"metin": ...} | {"json": ...} | {"ikili": {"sha256", "uzunluk"}}
+  (metin ya da JSON olmayan gzip gövde açılır: "gz": true, metin ya da ikili). İstisna 500
+  "Bir sorun oluştu" olarak yazılır (HTTP işleyicisi gibi), "istisna" alanında türüyle.
 - veritabanlari: testte açılan her veri.Veri dosyası (ilk açılış sırasıyla, yol başına bir kez): tablo adına göre sıralı
   tablolar, satırlar rowid sırasıyla, satır = {sütun: değer}.
+- dosyalar: testin açtığı her geçici dizin (tempfile.mkdtemp / TemporaryDirectory, açılış sırasıyla), silinmeden hemen önce
+  ya da test sonunda: {göreli yol (/ ile): içerik}; dizinler "yol/": {"dizin": true}; dosya: .gz açılmış hâliyle ("gz": true),
+  .json(.gz) JSON değeri, UTF-8 metin, değilse sha256 + uzunluk. SQLite veritabanları ve günlükleri, sembolik bağlar ve
+  özel dosyalar (FIFO) alınmaz.
+- platform_farki: testin Windows'ta atladığı Linux adımları (sembolik bağ kurulamadı, testin baktığı os.X yok). Doluysa Rust
+  `dosyalar`'ı karşılaştırmaz (Rust testi Linux'ta o adımları da yapar).
+- Kararsız değerler: her test iki kez koşar; ikincisinde gzip başlık zamanı ve sıkıştırma düzeyi değişir, dosya zamanları
+  zaten farklıdır. İki koşuda farklı çıkan her yaprak değer (ör. gz baytlarının ya da dosya zamanının özeti: MANIFEST,
+  zincir.txt, rapor `imza`/`manifest_sha`) "<KARARSIZ>" olur; Rust onu karşılaştırmaz (Rust'ın gzip'i ve dosya zamanları
+  zaten farklıdır). Yanıt, veritabanı, dizin ya da dosya sayısı iki koşuda farklıysa kayıt hata verir.
 - Metin gövdede ortak CSS, logolar ve sekme simgesi {CSS}, {LOGO_ACIK}, {LOGO_KOYU}, {FAVICON} olur.
 - Belirteç: testte secrets.token_urlsafe / token_hex'in döndürdüğü, en az 8 karakterlik her değer. Her metinde (başlık
-  değeri, metin gövde, JSON metinleri ve anahtarları, tablo metinleri) en soldaki-en uzun eşleşmeyle <Tn> olur; n ilk
-  görünüş sırası: cevaplar sırayla (başlıklar, gövde; JSON nesnelerinde anahtar sırasıyla), sonra veritabanları (tablo adı,
-  rowid, sütun adı sırasıyla).
+  değeri, metin gövde, JSON metinleri ve anahtarları, tablo metinleri, dosya yolları ve içerikleri) en soldaki-en uzun
+  eşleşmeyle <Tn:UZUNLUK> olur; n ilk görünüş sırası: cevaplar sırayla (başlıklar, gövde; JSON nesnelerinde anahtar
+  sırasıyla), sonra veritabanları (tablo adı, rowid, sütun adı sırasıyla), sonra dosyalar (dizin sırası, yol sırası).
 - yollar: kapsam için (yollar.py) her `istek` çağrısı, iç içe olanlar da: [uygulama, yöntem, yol, host, durum, yer].
 """
 import ast
 import base64
+import builtins
 import concurrent.futures
 import gzip
 import hashlib
@@ -30,6 +43,7 @@ import json
 import os
 import shutil
 import sqlite3
+import stat
 import subprocess
 import sys
 import tempfile
@@ -37,12 +51,14 @@ import threading
 import time
 import traceback
 import weakref
+import zlib
 
 AYR = os.path.dirname(os.path.abspath(__file__))
 KOK = os.path.normpath(os.path.join(AYR, "..", "..", ".."))
 MERKEZ = os.path.join(KOK, "scripts", "sunucu", "merkez")
 TESTLER = os.path.join(MERKEZ, "tests")
 CIKTI = os.path.join(KOK, "merkez", "tests", "altin")
+BICIM = 2
 GZ_SINIRI = 15 * 1024 * 1024  # kayıtlar (açık hâliyle) bundan büyükse her dosya .json.gz
 BELIRTEC_EN_AZ = 8
 SECILI_BASLIKLAR = ("location", "set-cookie", "content-type", "cache-control", "clear-site-data", "content-disposition",
@@ -50,6 +66,8 @@ SECILI_BASLIKLAR = ("location", "set-cookie", "content-type", "cache-control", "
                     "strict-transport-security")
 UYGULAMALAR = ("Merkez", "Yonetim", "Musteri", "Api", "Cihaz", "Ap")
 HATA_GOVDE = "Bir sorun oluştu"
+SQLITE_IMZA = b"SQLite format 3\x00"
+GUNLUK_EKLERI = ("-journal", "-wal", "-shm")
 
 
 def secili(ad):
@@ -76,7 +94,68 @@ def govde_bicimi(basliklar, govde, krom):
             return {"metin": krom(govde.decode("utf-8"))}
         except UnicodeDecodeError:
             pass
-    return {"ikili": {"sha256": hashlib.sha256(govde).hexdigest(), "uzunluk": len(govde)}}
+    if govde[:2] == b"\x1f\x8b":  # gzip (ör. /api/liste): sıkıştırılmış baytlar uygulamaya göre değişir, içerik değişmez
+        try:
+            acik = gzip.decompress(govde)
+        except (OSError, EOFError, zlib.error):
+            return ikili(govde)
+        try:
+            return {"metin": acik.decode("utf-8"), "gz": True}
+        except UnicodeDecodeError:
+            return dict(ikili(acik), gz=True)
+    return ikili(govde)
+
+
+def ikili(b):
+    return {"ikili": {"sha256": hashlib.sha256(b).hexdigest(), "uzunluk": len(b)}}
+
+
+def dosya_bicimi(ad, bayt):
+    """Dosya içeriği: .gz açılır ("gz": true); .json → JSON değeri; UTF-8 → metin; değilse sha256 + uzunluk."""
+    gz = False
+    if ad.endswith(".gz") and bayt:
+        try:
+            bayt, gz, ad = gzip.decompress(bayt), True, ad[:-3]
+        except (OSError, EOFError, zlib.error):
+            return ikili(bayt)
+    out = None
+    if ad.endswith(".json"):
+        try:
+            out = {"json": json.loads(bayt.decode("utf-8"))}
+        except ValueError:
+            pass
+    if out is None:
+        try:
+            out = {"metin": bayt.decode("utf-8")}
+        except UnicodeDecodeError:
+            out = ikili(bayt)
+    if gz:
+        out["gz"] = True
+    return out
+
+
+def dizin_dok(kok):
+    """{göreli yol: içerik}, yola göre sıralı. Dizinler "yol/". Veritabanları, günlükleri, bağlar ve özel dosyalar alınmaz."""
+    out = {}
+    for ust, dizinler, dosyalar in os.walk(kok):
+        dizinler.sort()
+        for ad in sorted(dizinler + dosyalar):
+            yol = os.path.join(ust, ad)
+            goreli = os.path.relpath(yol, kok).replace(os.sep, "/")
+            st = os.lstat(yol)
+            if stat.S_ISLNK(st.st_mode):
+                continue
+            if stat.S_ISDIR(st.st_mode):
+                out[goreli + "/"] = {"dizin": True}
+                continue
+            if not stat.S_ISREG(st.st_mode) or ad.endswith(GUNLUK_EKLERI):
+                continue
+            with io.open(yol, "rb") as f:
+                bayt = f.read()
+            if bayt.startswith(SQLITE_IMZA):
+                continue
+            out[goreli] = dosya_bicimi(ad, bayt)
+    return dict(sorted(out.items()))
 
 
 class Belirtecler:
@@ -108,11 +187,11 @@ class Belirtecler:
         def yer(t):
             if t not in self.no:
                 self.no[t] = len(self.no) + 1
-            return f"<T{self.no[t]}>"
+            return f"<T{self.no[t]}:{len(t)}>"
         return self._degistir(s, yer)
 
     def numarasiz(self, s):
-        return self._degistir(s, lambda t: "<T?>")
+        return self._degistir(s, lambda t: f"<T?:{len(t)}>")
 
     def json(self, v):
         if isinstance(v, str):
@@ -126,24 +205,73 @@ class Belirtecler:
             return dict(yeni[k] for k in v)
         return v
 
+    def icerik(self, d):
+        """Dosya ya da gövde içeriği ({"metin"} / {"json"} / diğerleri olduğu gibi)."""
+        if "metin" in d:
+            d["metin"] = self.numarali(d["metin"])
+        elif "json" in d:
+            d["json"] = self.json(d["json"])
 
-def normallestir(cevaplar, veritabanlari, uretilen):
+
+def normallestir(cevaplar, veritabanlari, dizinler, uretilen):
     b = Belirtecler(uretilen)
     for c in cevaplar:
         c["istek"] = b.numarasiz(c["istek"])
     for c in cevaplar:
         c["basliklar"] = [[k, b.numarali(v)] for k, v in c["basliklar"]]
-        g = c["govde"]
-        if "metin" in g:
-            g["metin"] = b.numarali(g["metin"])
-        elif "json" in g:
-            g["json"] = b.json(g["json"])
+        b.icerik(c["govde"])
     for vt in veritabanlari:
         for t in sorted(vt["tablolar"]):
             for satir in vt["tablolar"][t]:
                 for s in sorted(satir):
                     if isinstance(satir[s], str):
                         satir[s] = b.numarali(satir[s])
+    for i, dz in enumerate(dizinler):
+        yeni = {}
+        for yol in sorted(dz):
+            icerik = dz[yol]
+            yeni[b.numarali(yol)] = icerik
+            b.icerik(icerik)
+        dizinler[i] = yeni
+
+
+KARARSIZ = "<KARARSIZ>"
+
+
+def _birlestir(a, b):
+    """İki koşunun aynı içeriği: farklı yapraklar (ya da uzunluğu/anahtarları farklı dizi/nesne) KARARSIZ."""
+    if type(a) is not type(b):
+        return KARARSIZ
+    if isinstance(a, dict):
+        if a.keys() != b.keys():
+            return KARARSIZ
+        return {k: _birlestir(a[k], b[k]) for k in a}
+    if isinstance(a, list):
+        if len(a) != len(b):
+            return KARARSIZ
+        return [_birlestir(x, y) for x, y in zip(a, b)]
+    return a if a == b else KARARSIZ
+
+
+def kayit_birlestir(a, b):
+    """İki koşunun kaydı → kararsız yaprakları işaretli tek kayıt. Yapı (yanıt, veritabanı, dizin ve dosya sayısı, istekler,
+    tablolar) iki koşuda aynı olmalı."""
+    for alan in ("bicim", "dosya", "test", "platform_farki", "yollar"):
+        if a[alan] != b[alan]:
+            raise RuntimeError(f"iki koşuda `{alan}` farklı")
+    if [c["istek"] for c in a["cevaplar"]] != [c["istek"] for c in b["cevaplar"]]:
+        raise RuntimeError("iki koşuda istekler farklı")
+    if [(v["ad"], sorted(v["tablolar"])) for v in a["veritabanlari"]] != \
+            [(v["ad"], sorted(v["tablolar"])) for v in b["veritabanlari"]]:
+        raise RuntimeError("iki koşuda veritabanları farklı")
+    if [sorted(d) for d in a["dosyalar"]] != [sorted(d) for d in b["dosyalar"]]:
+        raise RuntimeError("iki koşuda geçici dizinler ya da dosya adları farklı")
+    out = dict(a)
+    out["cevaplar"] = [_birlestir(x, y) for x, y in zip(a["cevaplar"], b["cevaplar"])]
+    out["veritabanlari"] = [{"ad": x["ad"], "tablolar": _birlestir(x["tablolar"], y["tablolar"])}
+                            for x, y in zip(a["veritabanlari"], b["veritabanlari"])]
+    out["dosyalar"] = [{k: _birlestir(x[k], y[k]) for k in x} for x, y in zip(a["dosyalar"], b["dosyalar"])]
+    return out
 
 
 def tablolar(db):
@@ -175,7 +303,10 @@ class Durum:
         self.derinlik = 0
         self.veriler = {}  # gerçek yol → [Veri örneklerine zayıf başvuru] (çöpe gidişleri değişmesin)
         self.dokum = {}  # gerçek yol → tablolar (geçici dizin silinmeden önce alınan)
-        self.sira = []  # ilk açılış sırası
+        self.sira = []  # veritabanlarının ilk açılış sırası
+        self.dizinler = []  # [gerçek yol, döküm ya da None], açılış sırasıyla
+        self.platform = []  # Windows'ta atlanan Linux adımları
+        self.hatalar = []  # kaydı geçersiz kılan durumlar
         self.ana = threading.get_ident()
 
 
@@ -239,6 +370,24 @@ def _yol_dok(yol):
         db.close()
 
 
+def _altinda(kok, yol):
+    try:
+        return not yol.startswith(":memory:") and os.path.commonpath([kok, yol]) == kok
+    except ValueError:  # başka sürücü
+        return False
+
+
+def _dizin_kapat(ad):
+    """Geçici dizin silinmeden hemen önce: dosyaları ve içindeki veritabanlarının tabloları."""
+    kok = os.path.realpath(ad)
+    for d in D.dizinler:
+        if d[0] == kok and d[1] is None:
+            for g in list(D.veriler):
+                if _altinda(kok, g):
+                    D.dokum[g] = _yol_dok(g)
+            d[1] = dizin_dok(kok)
+
+
 def kancalari_kur():
     import secrets
     secrets.token_bytes, secrets.token_urlsafe, secrets.token_hex = token_bytes, token_urlsafe, token_hex
@@ -252,7 +401,6 @@ def kancalari_kur():
             newline = "\n"
         return asil_open(file, mode, buffering, encoding, errors, newline, closefd, opener)
     io.open = _open
-    import builtins
     builtins.open = _open
     asil_gzip = gzip.open
 
@@ -261,6 +409,47 @@ def kancalari_kur():
             newline = "\n"
         return asil_gzip(filename, mode, compresslevel, encoding, errors, newline)
     gzip.open = _gzip_open
+
+    if os.environ.get("WC_KAYIT_KOSU") == "2":
+        _gzip_oynat()
+
+    # platform farkı: davranış aynı, yalnızca not düşülür
+    asil_symlink = os.symlink
+
+    def _symlink(*a, **k):
+        try:
+            return asil_symlink(*a, **k)
+        except OSError:
+            if "os.symlink kurulamadı" not in D.platform:
+                D.platform.append("os.symlink kurulamadı")
+            raise
+    os.symlink = _symlink
+    asil_hasattr = builtins.hasattr
+
+    def _hasattr(nesne, ad):
+        sonuc = asil_hasattr(nesne, ad)
+        if not sonuc and nesne is os and sys._getframe(1).f_code.co_filename.startswith(TESTLER):
+            if f"os.{ad} yok" not in D.platform:
+                D.platform.append(f"os.{ad} yok")
+        return sonuc
+    builtins.hasattr = _hasattr
+
+    # geçici dizinler: açılış sırasıyla; TemporaryDirectory silmeden hemen önce dökülür
+    asil_mkdtemp = tempfile.mkdtemp
+
+    def _mkdtemp(*a, **k):
+        ad = asil_mkdtemp(*a, **k)
+        if threading.get_ident() == D.ana:
+            D.dizinler.append([os.path.realpath(ad), None])
+        return ad
+    tempfile.mkdtemp = _mkdtemp
+    asil_rmtree = tempfile.TemporaryDirectory._rmtree.__func__
+
+    def _rmtree(cls, name, ignore_errors=False, repeated=False):
+        if not repeated:
+            _dizin_kapat(name)
+        return asil_rmtree(cls, name, ignore_errors=ignore_errors, repeated=repeated)
+    tempfile.TemporaryDirectory._rmtree = classmethod(_rmtree)
 
     import veri
     asil_init = veri.Veri.__init__
@@ -274,20 +463,6 @@ def kancalari_kur():
         D.veriler[g].append(weakref.ref(self))
     veri.Veri.__init__ = init
 
-    asil_temizle = tempfile.TemporaryDirectory.cleanup
-
-    def temizle(self):
-        kok = os.path.realpath(self.name)
-        for g in list(D.veriler):
-            try:
-                altinda = not g.startswith(":memory:") and os.path.commonpath([kok, g]) == kok
-            except ValueError:  # başka sürücü
-                altinda = False
-            if altinda:
-                D.dokum[g] = _yol_dok(g)
-        return asil_temizle(self)
-    tempfile.TemporaryDirectory.cleanup = temizle
-
     import ap
     import api
     import cihaz
@@ -295,6 +470,25 @@ def kancalari_kur():
     import web
     for sinif in (web.Taban, api.Api, cihaz.Cihaz, ap.Ap, merkez.Merkez):
         sinif.istek = _sar(sinif.istek)
+
+
+def _gzip_oynat():
+    """İkinci koşu: yazılan gzip'lerin başlık zamanı (verilmemişse) ve sıkıştırma düzeyi değişir; içerik aynı kalır.
+    Böylece sıkıştırılmış bayta ya da boyuta bağlı değerler iki koşuda farklı çıkar ve kararsız işaretlenir."""
+    asil_init = gzip.GzipFile.__init__
+
+    def init(self, filename=None, mode=None, compresslevel=9, fileobj=None, mtime=None):
+        yazma = any(c in (mode or getattr(fileobj, "mode", "") or "") for c in "wax")
+        if yazma:
+            compresslevel = 1 if compresslevel != 1 else 9
+            mtime = 12345 if mtime is None else mtime
+        asil_init(self, filename, mode, compresslevel, fileobj, mtime)
+    gzip.GzipFile.__init__ = init
+    asil_compress = gzip.compress
+
+    def compress(data, compresslevel=9, *, mtime=None):
+        return asil_compress(data, 1 if compresslevel != 1 else 9, mtime=12345 if mtime is None else mtime)
+    gzip.compress = compress
 
 
 def _uygulama(nesne):
@@ -332,6 +526,10 @@ def _sar(asil):
     return istek
 
 
+class SeciliOlmayanBaslik(Exception):
+    pass
+
+
 def _cevap_ekle(yontem, yol, sorgu, sonuc, istisna):
     durum, basliklar, govde = sonuc
     satirlar = []
@@ -340,22 +538,35 @@ def _cevap_ekle(yontem, yol, sorgu, sonuc, istisna):
             satirlar.append((str(k), str(d)))
     if isinstance(govde, str):
         govde = govde.encode("utf-8")
-    for k, _ in satirlar:
-        if not secili(k):
-            print(f"UYARI: seçili olmayan başlık kaydedilmedi: {k}", file=sys.stderr)
+    disarda = [k for k, _ in satirlar if not secili(k)]
+    if disarda:  # Rust da reddeder: başlık SECILI_BASLIKLAR'a (iki tarafta) eklenmeli
+        D.hatalar.append(f"{yontem} {yol}: seçili olmayan başlık {disarda}")  # test istisnayı yutsa da kayıt düşer
+        raise SeciliOlmayanBaslik(D.hatalar[-1])
     c = {"istek": f"{yontem} {yol}" + (f"?{sorgu}" if sorgu else ""), "durum": int(durum),
-         "basliklar": [(k, v) for k, v in satirlar if secili(k)], "govde": govde_bicimi(satirlar, bytes(govde), _krom)}
+         "basliklar": satirlar, "govde": govde_bicimi(satirlar, bytes(govde), _krom)}
     if istisna:
         c["istisna"] = istisna
     D.cevaplar.append(c)
 
 
-def _krom(s):
+def _kromlar():
     import web
-    for ad, deger in (("CSS", web.CSS), ("LOGO_ACIK", web.LOGO_ACIK), ("LOGO_KOYU", web.LOGO_KOYU), ("FAVICON", web.FAVICON)):
+    return (("CSS", web.CSS), ("LOGO_ACIK", web.LOGO_ACIK), ("LOGO_KOYU", web.LOGO_KOYU), ("FAVICON", web.FAVICON))
+
+
+def _krom(s):
+    for ad, deger in _kromlar():
         if deger:
             s = s.replace(deger, "{" + ad + "}")
     return s
+
+
+def krom_yaz(cikti):
+    """_krom.json: Python'un ortak parçalarının sha256'sı (Rust testi kendi web::CSS/LOGO_*/FAVICON'uyla karşılaştırır)."""
+    sys.path[:0] = [MERKEZ]
+    d = {ad: hashlib.sha256(deger.encode("utf-8")).hexdigest() for ad, deger in _kromlar()}
+    with io.open(os.path.join(cikti, "_krom.json"), "w", encoding="utf-8", newline="\n") as f:
+        f.write(json.dumps(d, indent=1) + "\n")
 
 
 def tek(dosya, test, cikti):
@@ -373,16 +584,31 @@ def tek(dosya, test, cikti):
     D.uretilen.clear()
     D.cevaplar.clear()
     D.yollar.clear()
+    D.platform.clear()
+    D.dizinler.clear()
     getattr(mod, test)()
+    if D.hatalar:
+        raise RuntimeError("; ".join(D.hatalar))
+    for d in D.dizinler:  # silinmemiş geçici dizinler (mkdtemp, kapanmamış TemporaryDirectory)
+        if d[1] is None:
+            if not os.path.isdir(d[0]):
+                raise RuntimeError(f"geçici dizin dökülmeden silindi: {d[0]}")
+            _dizin_kapat(d[0])
     vts = []
     for g, temel in D.sira:
         t = D.dokum[g] if g in D.dokum else _yol_dok(g)
         vts.append({"ad": temel, "tablolar": t if t is not None else {}})
-    normallestir(D.cevaplar, vts, D.uretilen)
-    kayit = {"bicim": 1, "dosya": ad, "test": test, "cevaplar": D.cevaplar, "veritabanlari": vts, "yollar": D.yollar}
+    dizinler = [d[1] for d in D.dizinler]
+    normallestir(D.cevaplar, vts, dizinler, D.uretilen)
+    kayit = {"bicim": BICIM, "dosya": ad, "test": test, "platform_farki": D.platform, "cevaplar": D.cevaplar,
+             "veritabanlari": vts, "dosyalar": dizinler, "yollar": D.yollar}
+    metin = json.dumps(kayit, ensure_ascii=False, indent=1) + "\n"
+    for d in D.dizinler:  # kayda geçici dizin yolu girmemeli (Windows ve Linux'ta farklıdır)
+        if os.path.basename(d[0]) in metin:
+            raise RuntimeError(f"kayıtta geçici dizin adı var: {os.path.basename(d[0])}")
     os.makedirs(os.path.join(cikti, ad), exist_ok=True)
     with io.open(os.path.join(cikti, ad, test + ".json"), "w", encoding="utf-8", newline="\n") as f:
-        f.write(json.dumps(kayit, ensure_ascii=False, indent=1) + "\n")
+        f.write(metin)
 
 
 # ======================================================================================================================
@@ -412,17 +638,42 @@ def alt_ortam(tohum):
     return o
 
 
+def _alt_komut(*arg):
+    return [sys.executable, "-X", "utf8", "-s", "-P", "-B", os.path.abspath(__file__), *arg]
+
+
 def calistir(dosya, test, cikti, tohum):
-    komut = [sys.executable, "-X", "utf8", "-s", "-P", "-B", os.path.abspath(__file__), "--tek", dosya, test, "--cikti", cikti]
+    """Test iki kez (ikincisi gzip oynatılarak) koşar; kayıtlar birleştirilip cikti'ye yazılır."""
     t0 = time.time()
-    r = subprocess.run(komut, cwd=KOK, env=alt_ortam(tohum), capture_output=True, text=True, encoding="utf-8", errors="replace")
-    return dosya, test, r.returncode, r.stdout + r.stderr, time.time() - t0
+    ad = os.path.splitext(os.path.basename(dosya))[0]
+    with tempfile.TemporaryDirectory() as gecici:
+        kayitlar, cikis = [], ""
+        for kosu in ("1", "2"):
+            hedef = os.path.join(gecici, kosu)
+            r = subprocess.run(_alt_komut("--tek", dosya, test, "--cikti", hedef), cwd=KOK,
+                               env=dict(alt_ortam(tohum), WC_KAYIT_KOSU=kosu), capture_output=True, text=True,
+                               encoding="utf-8", errors="replace")
+            cikis += r.stdout + r.stderr
+            if r.returncode:
+                return dosya, test, r.returncode, cikis, time.time() - t0
+            with io.open(os.path.join(hedef, ad, test + ".json"), encoding="utf-8") as f:
+                kayitlar.append(json.load(f))
+        try:
+            kayit = kayit_birlestir(*kayitlar)
+        except RuntimeError as h:
+            return dosya, test, 1, f"{cikis}kararsız kayıt: {h}", time.time() - t0
+    os.makedirs(os.path.join(cikti, ad), exist_ok=True)
+    with io.open(os.path.join(cikti, ad, test + ".json"), "w", encoding="utf-8", newline="\n") as f:
+        f.write(json.dumps(kayit, ensure_ascii=False, indent=1) + "\n")
+    return dosya, test, 0, cikis, time.time() - t0
 
 
 def boyut_duzenle(cikti):
-    """Kayıtlar (açık hâliyle) GZ_SINIRI'ndan büyükse hepsi .json.gz, değilse hepsi .json."""
+    """Kayıtlar (alt dizinlerdeki; açık hâliyle) GZ_SINIRI'ndan büyükse hepsi .json.gz, değilse hepsi .json."""
     dosyalar, toplam = [], 0
     for kok, _, adlar in os.walk(cikti):
+        if os.path.samefile(kok, cikti):
+            continue  # _krom.json
         for a in adlar:
             yol = os.path.join(kok, a)
             if a.endswith(".json"):
@@ -466,6 +717,10 @@ def ana(arg):
     for d in dosyalar:
         shutil.rmtree(os.path.join(cikti, os.path.splitext(os.path.basename(d))[0]), ignore_errors=True)
     os.makedirs(cikti, exist_ok=True)
+    r = subprocess.run(_alt_komut("--krom", cikti), cwd=KOK, env=alt_ortam(tohum), capture_output=True, text=True,
+                       encoding="utf-8", errors="replace")
+    if r.returncode:
+        sys.exit(f"_krom.json yazılamadı:\n{r.stdout}{r.stderr}")
     t0, hatalar, n = time.time(), [], 0
     with concurrent.futures.ThreadPoolExecutor(is_sayisi) as ex:
         for dosya, test, kod, cikis, sure in ex.map(lambda x: calistir(*x, cikti, tohum), isler):
@@ -474,8 +729,6 @@ def ana(arg):
             if kod != 0:
                 hatalar.append(f"{ad}.{test}")
                 print(f"HATA {ad}.{test} ({sure:.1f} sn)\n{cikis}", file=sys.stderr)
-            elif "UYARI" in cikis:
-                print(f"{ad}.{test}: {cikis.strip()}", file=sys.stderr)
     toplam, gz, adet = boyut_duzenle(cikti)
     print(f"{n} test, {len(hatalar)} hata, {time.time() - t0:.0f} sn; kayıtlar {adet} dosya, {toplam / 1e6:.1f} MB"
           f"{' (gzip)' if gz else ''}")
@@ -485,9 +738,12 @@ def ana(arg):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) > 1 and sys.argv[1] == "--tek":
+    if len(sys.argv) > 1 and sys.argv[1] in ("--tek", "--krom"):
         try:
-            tek(sys.argv[2], sys.argv[3], sys.argv[5] if len(sys.argv) > 5 else CIKTI)
+            if sys.argv[1] == "--krom":
+                krom_yaz(sys.argv[2])
+            else:
+                tek(sys.argv[2], sys.argv[3], sys.argv[5] if len(sys.argv) > 5 else CIKTI)
         except SystemExit:
             raise
         except BaseException:

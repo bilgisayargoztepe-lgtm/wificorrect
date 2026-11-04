@@ -1,7 +1,8 @@
 {
- "bicim": 1,
+ "bicim": 2,
  "dosya": "test_listeler",
  "test": "test_yonetim_listeler_sayfasi_ve_simdi_guncelle",
+ "platform_farki": [],
  "cevaplar": [
   {
    "istek": "POST /giris",
@@ -17,7 +18,7 @@
     ],
     [
      "Set-Cookie",
-     "wc_yonetim=<T1>; HttpOnly; Secure; SameSite=Strict; Path=/"
+     "wc_yonetim=<T1:43>; HttpOnly; Secure; SameSite=Strict; Path=/"
     ]
    ],
    "govde": {
@@ -55,7 +56,7 @@
     ]
    ],
    "govde": {
-    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Engel listeleri · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><input type=\"checkbox\" id=\"menu-ac\" class=\"gizli\"><div class=\"ust-mobil\"><label for=\"menu-ac\" class=\"menu-dugme\" title=\"Menü\"><span class=\"gizli\">Menüyü aç/kapat</span><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M3 6h18M3 12h18M3 18h18\"/></svg></label><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a></div><div class=\"yerlesim\"><nav class=\"yan\"><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a><details class=\"grup\"><summary>Müşteriler</summary><a href=\"/\">Müşteri listesi</a><a href=\"/yeni\">Yeni müşteri</a><a href=\"/bekleyen\">Bekleyen cihazlar</a></details><details class=\"grup\"><summary>Kayıtlar</summary><a href=\"/hareketler\">Hareketler</a><a href=\"/eski-arsivler\">Eski arşivler</a></details><details class=\"grup\" open><summary>Ayarlar</summary><a href=\"/listeler\" class=\"secili\" aria-current=\"page\">Engel listeleri</a><a href=\"/sms\">SMS ayarları</a><a href=\"/uyari\">Uyarı ayarları</a><a href=\"/surumler\">Sürümler</a><a href=\"/hesabim\">Hesabım</a></details><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button class=\"ikincil\">Çıkış</button></form></nav><main class=\"genis\"><div class=\"kart\"><h1>Engel listeleri</h1><form method=\"post\" action=\"/listeler/guncelle\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button>Şimdi güncelle</button></form><div class=\"kaydir\"><table class=\"detay\"><tr><th>Kategori</th><th>Alan adı</th><th>Son güncelleme</th><th>Sürüm</th><th>Kaynaklar</th><th>Durum</th></tr><tr><td>Kumar ve bahis</td><td>—</td><td>henüz üretilmedi</td><td>—</td><td>—</td><td>tamam</td></tr><tr><td>Yetişkin içerik</td><td>—</td><td>henüz üretilmedi</td><td>—</td><td>—</td><td>tamam</td></tr><tr><td>Zararlı ve dolandırıcı siteler</td><td>—</td><td>henüz üretilmedi</td><td>—</td><td>—</td><td>tamam</td></tr></table></div><p class=\"alt\">Listeler her gün 04:30'da kaynaklardan yeniden üretilir; cihazlar değişen listeyi bir sonraki sağlık raporunda (5 dk) alır. Bir kaynak indirilemezse onun son başarılı kopyası, hiçbiri indirilemezse önceki liste kullanılır.</p></div></main></div></body></html>"
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Engel listeleri · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><input type=\"checkbox\" id=\"menu-ac\" class=\"gizli\"><div class=\"ust-mobil\"><label for=\"menu-ac\" class=\"menu-dugme\" title=\"Menü\"><span class=\"gizli\">Menüyü aç/kapat</span><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M3 6h18M3 12h18M3 18h18\"/></svg></label><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a></div><div class=\"yerlesim\"><nav class=\"yan\"><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a><details class=\"grup\"><summary>Müşteriler</summary><a href=\"/\">Müşteri listesi</a><a href=\"/yeni\">Yeni müşteri</a><a href=\"/bekleyen\">Bekleyen cihazlar</a></details><details class=\"grup\"><summary>Kayıtlar</summary><a href=\"/hareketler\">Hareketler</a><a href=\"/eski-arsivler\">Eski arşivler</a></details><details class=\"grup\" open><summary>Ayarlar</summary><a href=\"/listeler\" class=\"secili\" aria-current=\"page\">Engel listeleri</a><a href=\"/sms\">SMS ayarları</a><a href=\"/uyari\">Uyarı ayarları</a><a href=\"/surumler\">Sürümler</a><a href=\"/hesabim\">Hesabım</a></details><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2:32>\"><button class=\"ikincil\">Çıkış</button></form></nav><main class=\"genis\"><div class=\"kart\"><h1>Engel listeleri</h1><form method=\"post\" action=\"/listeler/guncelle\"><input type=\"hidden\" name=\"csrf\" value=\"<T2:32>\"><button>Şimdi güncelle</button></form><div class=\"kaydir\"><table class=\"detay\"><tr><th>Kategori</th><th>Alan adı</th><th>Son güncelleme</th><th>Sürüm</th><th>Kaynaklar</th><th>Durum</th></tr><tr><td>Kumar ve bahis</td><td>—</td><td>henüz üretilmedi</td><td>—</td><td>—</td><td>tamam</td></tr><tr><td>Yetişkin içerik</td><td>—</td><td>henüz üretilmedi</td><td>—</td><td>—</td><td>tamam</td></tr><tr><td>Zararlı ve dolandırıcı siteler</td><td>—</td><td>henüz üretilmedi</td><td>—</td><td>—</td><td>tamam</td></tr></table></div><p class=\"alt\">Listeler her gün 04:30'da kaynaklardan yeniden üretilir; cihazlar değişen listeyi bir sonraki sağlık raporunda (5 dk) alır. Bir kaynak indirilemezse onun son başarılı kopyası, hiçbiri indirilemezse önceki liste kullanılır.</p></div></main></div></body></html>"
    }
   },
   {
@@ -72,7 +73,7 @@
     ]
    ],
    "govde": {
-    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Engel listeleri · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><input type=\"checkbox\" id=\"menu-ac\" class=\"gizli\"><div class=\"ust-mobil\"><label for=\"menu-ac\" class=\"menu-dugme\" title=\"Menü\"><span class=\"gizli\">Menüyü aç/kapat</span><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M3 6h18M3 12h18M3 18h18\"/></svg></label><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a></div><div class=\"yerlesim\"><nav class=\"yan\"><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a><details class=\"grup\"><summary>Müşteriler</summary><a href=\"/\">Müşteri listesi</a><a href=\"/yeni\">Yeni müşteri</a><a href=\"/bekleyen\">Bekleyen cihazlar</a></details><details class=\"grup\"><summary>Kayıtlar</summary><a href=\"/hareketler\">Hareketler</a><a href=\"/eski-arsivler\">Eski arşivler</a></details><details class=\"grup\" open><summary>Ayarlar</summary><a href=\"/listeler\" class=\"secili\" aria-current=\"page\">Engel listeleri</a><a href=\"/sms\">SMS ayarları</a><a href=\"/uyari\">Uyarı ayarları</a><a href=\"/surumler\">Sürümler</a><a href=\"/hesabim\">Hesabım</a></details><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button class=\"ikincil\">Çıkış</button></form></nav><main class=\"genis\"><div class=\"kart\"><h1>Engel listeleri</h1><form method=\"post\" action=\"/listeler/guncelle\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button>Şimdi güncelle</button></form><div class=\"kaydir\"><table class=\"detay\"><tr><th>Kategori</th><th>Alan adı</th><th>Son güncelleme</th><th>Sürüm</th><th>Kaynaklar</th><th>Durum</th></tr><tr><td>Kumar ve bahis</td><td>—</td><td>henüz üretilmedi</td><td>—</td><td>—</td><td>tamam</td></tr><tr><td>Yetişkin içerik</td><td>—</td><td>henüz üretilmedi</td><td>—</td><td>—</td><td>tamam</td></tr><tr><td>Zararlı ve dolandırıcı siteler</td><td>—</td><td>henüz üretilmedi</td><td>—</td><td>—</td><td>tamam</td></tr></table></div><p class=\"alt\">Listeler her gün 04:30'da kaynaklardan yeniden üretilir; cihazlar değişen listeyi bir sonraki sağlık raporunda (5 dk) alır. Bir kaynak indirilemezse onun son başarılı kopyası, hiçbiri indirilemezse önceki liste kullanılır.</p></div></main></div></body></html>"
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Engel listeleri · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><input type=\"checkbox\" id=\"menu-ac\" class=\"gizli\"><div class=\"ust-mobil\"><label for=\"menu-ac\" class=\"menu-dugme\" title=\"Menü\"><span class=\"gizli\">Menüyü aç/kapat</span><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M3 6h18M3 12h18M3 18h18\"/></svg></label><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a></div><div class=\"yerlesim\"><nav class=\"yan\"><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a><details class=\"grup\"><summary>Müşteriler</summary><a href=\"/\">Müşteri listesi</a><a href=\"/yeni\">Yeni müşteri</a><a href=\"/bekleyen\">Bekleyen cihazlar</a></details><details class=\"grup\"><summary>Kayıtlar</summary><a href=\"/hareketler\">Hareketler</a><a href=\"/eski-arsivler\">Eski arşivler</a></details><details class=\"grup\" open><summary>Ayarlar</summary><a href=\"/listeler\" class=\"secili\" aria-current=\"page\">Engel listeleri</a><a href=\"/sms\">SMS ayarları</a><a href=\"/uyari\">Uyarı ayarları</a><a href=\"/surumler\">Sürümler</a><a href=\"/hesabim\">Hesabım</a></details><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2:32>\"><button class=\"ikincil\">Çıkış</button></form></nav><main class=\"genis\"><div class=\"kart\"><h1>Engel listeleri</h1><form method=\"post\" action=\"/listeler/guncelle\"><input type=\"hidden\" name=\"csrf\" value=\"<T2:32>\"><button>Şimdi güncelle</button></form><div class=\"kaydir\"><table class=\"detay\"><tr><th>Kategori</th><th>Alan adı</th><th>Son güncelleme</th><th>Sürüm</th><th>Kaynaklar</th><th>Durum</th></tr><tr><td>Kumar ve bahis</td><td>—</td><td>henüz üretilmedi</td><td>—</td><td>—</td><td>tamam</td></tr><tr><td>Yetişkin içerik</td><td>—</td><td>henüz üretilmedi</td><td>—</td><td>—</td><td>tamam</td></tr><tr><td>Zararlı ve dolandırıcı siteler</td><td>—</td><td>henüz üretilmedi</td><td>—</td><td>—</td><td>tamam</td></tr></table></div><p class=\"alt\">Listeler her gün 04:30'da kaynaklardan yeniden üretilir; cihazlar değişen listeyi bir sonraki sağlık raporunda (5 dk) alır. Bir kaynak indirilemezse onun son başarılı kopyası, hiçbiri indirilemezse önceki liste kullanılır.</p></div></main></div></body></html>"
    }
   },
   {
@@ -89,7 +90,7 @@
     ]
    ],
    "govde": {
-    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Geçersiz istek · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><input type=\"checkbox\" id=\"menu-ac\" class=\"gizli\"><div class=\"ust-mobil\"><label for=\"menu-ac\" class=\"menu-dugme\" title=\"Menü\"><span class=\"gizli\">Menüyü aç/kapat</span><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M3 6h18M3 12h18M3 18h18\"/></svg></label><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a></div><div class=\"yerlesim\"><nav class=\"yan\"><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a><details class=\"grup\"><summary>Müşteriler</summary><a href=\"/\">Müşteri listesi</a><a href=\"/yeni\">Yeni müşteri</a><a href=\"/bekleyen\">Bekleyen cihazlar</a></details><details class=\"grup\"><summary>Kayıtlar</summary><a href=\"/hareketler\">Hareketler</a><a href=\"/eski-arsivler\">Eski arşivler</a></details><details class=\"grup\" open><summary>Ayarlar</summary><a href=\"/listeler\" class=\"secili\" aria-current=\"page\">Engel listeleri</a><a href=\"/sms\">SMS ayarları</a><a href=\"/uyari\">Uyarı ayarları</a><a href=\"/surumler\">Sürümler</a><a href=\"/hesabim\">Hesabım</a></details><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button class=\"ikincil\">Çıkış</button></form></nav><main><div class=\"kart\"><h1>Geçersiz istek</h1><p>Sayfayı yenileyip tekrar deneyin.</p><p><a href=\"/\">Ana sayfa</a></p></div></main></div></body></html>"
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Geçersiz istek · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><input type=\"checkbox\" id=\"menu-ac\" class=\"gizli\"><div class=\"ust-mobil\"><label for=\"menu-ac\" class=\"menu-dugme\" title=\"Menü\"><span class=\"gizli\">Menüyü aç/kapat</span><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M3 6h18M3 12h18M3 18h18\"/></svg></label><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a></div><div class=\"yerlesim\"><nav class=\"yan\"><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a><details class=\"grup\"><summary>Müşteriler</summary><a href=\"/\">Müşteri listesi</a><a href=\"/yeni\">Yeni müşteri</a><a href=\"/bekleyen\">Bekleyen cihazlar</a></details><details class=\"grup\"><summary>Kayıtlar</summary><a href=\"/hareketler\">Hareketler</a><a href=\"/eski-arsivler\">Eski arşivler</a></details><details class=\"grup\" open><summary>Ayarlar</summary><a href=\"/listeler\" class=\"secili\" aria-current=\"page\">Engel listeleri</a><a href=\"/sms\">SMS ayarları</a><a href=\"/uyari\">Uyarı ayarları</a><a href=\"/surumler\">Sürümler</a><a href=\"/hesabim\">Hesabım</a></details><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2:32>\"><button class=\"ikincil\">Çıkış</button></form></nav><main><div class=\"kart\"><h1>Geçersiz istek</h1><p>Sayfayı yenileyip tekrar deneyin.</p><p><a href=\"/\">Ana sayfa</a></p></div></main></div></body></html>"
    }
   },
   {
@@ -123,7 +124,7 @@
     ]
    ],
    "govde": {
-    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Engel listeleri · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><input type=\"checkbox\" id=\"menu-ac\" class=\"gizli\"><div class=\"ust-mobil\"><label for=\"menu-ac\" class=\"menu-dugme\" title=\"Menü\"><span class=\"gizli\">Menüyü aç/kapat</span><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M3 6h18M3 12h18M3 18h18\"/></svg></label><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a></div><div class=\"yerlesim\"><nav class=\"yan\"><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a><details class=\"grup\"><summary>Müşteriler</summary><a href=\"/\">Müşteri listesi</a><a href=\"/yeni\">Yeni müşteri</a><a href=\"/bekleyen\">Bekleyen cihazlar</a></details><details class=\"grup\"><summary>Kayıtlar</summary><a href=\"/hareketler\">Hareketler</a><a href=\"/eski-arsivler\">Eski arşivler</a></details><details class=\"grup\" open><summary>Ayarlar</summary><a href=\"/listeler\" class=\"secili\" aria-current=\"page\">Engel listeleri</a><a href=\"/sms\">SMS ayarları</a><a href=\"/uyari\">Uyarı ayarları</a><a href=\"/surumler\">Sürümler</a><a href=\"/hesabim\">Hesabım</a></details><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button class=\"ikincil\">Çıkış</button></form></nav><main class=\"genis\"><div class=\"kart\"><h1>Engel listeleri</h1><form method=\"post\" action=\"/listeler/guncelle\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button>Şimdi güncelle</button></form><div class=\"kaydir\"><table class=\"detay\"><tr><th>Kategori</th><th>Alan adı</th><th>Son güncelleme</th><th>Sürüm</th><th>Kaynaklar</th><th>Durum</th></tr><tr><td>Kumar ve bahis</td><td>2</td><td>21.09.2026 17:13</td><td>18352c82</td><td>HaGeZi kumar: 2</td><td>tamam</td></tr><tr><td>Yetişkin içerik</td><td>—</td><td>henüz üretilmedi</td><td>—</td><td>B: <b class=\"kotu\">hata</b> (liste boş)</td><td><b class=\"kotu\">Hiçbir kaynak indirilemedi; önceki liste kullanılıyor.</b> (21.09.2026 17:13)</td></tr><tr><td>Zararlı ve dolandırıcı siteler</td><td>—</td><td>henüz üretilmedi</td><td>—</td><td>USOM: <b class=\"kotu\">hata</b> (ag yok)</td><td><b class=\"kotu\">Hiçbir kaynak indirilemedi; önceki liste kullanılıyor.</b> (21.09.2026 17:13)</td></tr></table></div><p class=\"alt\">Listeler her gün 04:30'da kaynaklardan yeniden üretilir; cihazlar değişen listeyi bir sonraki sağlık raporunda (5 dk) alır. Bir kaynak indirilemezse onun son başarılı kopyası, hiçbiri indirilemezse önceki liste kullanılır.</p></div></main></div></body></html>"
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Engel listeleri · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><input type=\"checkbox\" id=\"menu-ac\" class=\"gizli\"><div class=\"ust-mobil\"><label for=\"menu-ac\" class=\"menu-dugme\" title=\"Menü\"><span class=\"gizli\">Menüyü aç/kapat</span><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M3 6h18M3 12h18M3 18h18\"/></svg></label><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a></div><div class=\"yerlesim\"><nav class=\"yan\"><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a><details class=\"grup\"><summary>Müşteriler</summary><a href=\"/\">Müşteri listesi</a><a href=\"/yeni\">Yeni müşteri</a><a href=\"/bekleyen\">Bekleyen cihazlar</a></details><details class=\"grup\"><summary>Kayıtlar</summary><a href=\"/hareketler\">Hareketler</a><a href=\"/eski-arsivler\">Eski arşivler</a></details><details class=\"grup\" open><summary>Ayarlar</summary><a href=\"/listeler\" class=\"secili\" aria-current=\"page\">Engel listeleri</a><a href=\"/sms\">SMS ayarları</a><a href=\"/uyari\">Uyarı ayarları</a><a href=\"/surumler\">Sürümler</a><a href=\"/hesabim\">Hesabım</a></details><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2:32>\"><button class=\"ikincil\">Çıkış</button></form></nav><main class=\"genis\"><div class=\"kart\"><h1>Engel listeleri</h1><form method=\"post\" action=\"/listeler/guncelle\"><input type=\"hidden\" name=\"csrf\" value=\"<T2:32>\"><button>Şimdi güncelle</button></form><div class=\"kaydir\"><table class=\"detay\"><tr><th>Kategori</th><th>Alan adı</th><th>Son güncelleme</th><th>Sürüm</th><th>Kaynaklar</th><th>Durum</th></tr><tr><td>Kumar ve bahis</td><td>2</td><td>21.09.2026 17:13</td><td>18352c82</td><td>HaGeZi kumar: 2</td><td>tamam</td></tr><tr><td>Yetişkin içerik</td><td>—</td><td>henüz üretilmedi</td><td>—</td><td>B: <b class=\"kotu\">hata</b> (liste boş)</td><td><b class=\"kotu\">Hiçbir kaynak indirilemedi; önceki liste kullanılıyor.</b> (21.09.2026 17:13)</td></tr><tr><td>Zararlı ve dolandırıcı siteler</td><td>—</td><td>henüz üretilmedi</td><td>—</td><td>USOM: <b class=\"kotu\">hata</b> (ag yok)</td><td><b class=\"kotu\">Hiçbir kaynak indirilemedi; önceki liste kullanılıyor.</b> (21.09.2026 17:13)</td></tr></table></div><p class=\"alt\">Listeler her gün 04:30'da kaynaklardan yeniden üretilir; cihazlar değişen listeyi bir sonraki sağlık raporunda (5 dk) alır. Bir kaynak indirilemezse onun son başarılı kopyası, hiçbiri indirilemezse önceki liste kullanılır.</p></div></main></div></body></html>"
    }
   }
  ],
@@ -185,6 +186,90 @@
      }
     ],
     "surum": []
+   }
+  }
+ ],
+ "dosyalar": [
+  {
+   "detay/": {
+    "dizin": true
+   },
+   "durum.json": {
+    "json": {
+     "zaman": "",
+     "arsivler": {}
+    }
+   },
+   "ist/": {
+    "dizin": true
+   },
+   "listeler/": {
+    "dizin": true
+   },
+   "listeler/.kilit": {
+    "metin": ""
+   },
+   "listeler/kaynak/": {
+    "dizin": true
+   },
+   "listeler/kaynak/kumar-44f833239a38.txt.gz": {
+    "metin": "a.com\nb.com\n",
+    "gz": true
+   },
+   "listeler/kumar.json": {
+    "json": {
+     "kategori": "kumar",
+     "sha256": "18352c8245cbba65ec25cb456df9b53edec15d7d25560e34a80944be44abea75",
+     "sayi": 2,
+     "zaman": "2026-09-21T17:13:20+03:00",
+     "kesildi": false,
+     "kaynaklar": [
+      {
+       "ad": "HaGeZi kumar",
+       "sayi": 2
+      }
+     ]
+    }
+   },
+   "listeler/kumar.txt.gz": {
+    "metin": "a.com\nb.com\n",
+    "gz": true
+   },
+   "listeler/yetiskin.json": {
+    "json": {
+     "kategori": "yetiskin",
+     "hata": "Hiçbir kaynak indirilemedi; önceki liste kullanılıyor.",
+     "hata_zaman": "2026-09-21T17:13:20+03:00",
+     "kaynaklar": [
+      {
+       "ad": "B",
+       "sayi": 0,
+       "hata": "liste boş"
+      }
+     ]
+    }
+   },
+   "listeler/zararli.json": {
+    "json": {
+     "kategori": "zararli",
+     "hata": "Hiçbir kaynak indirilemedi; önceki liste kullanılıyor.",
+     "hata_zaman": "2026-09-21T17:13:20+03:00",
+     "kaynaklar": [
+      {
+       "ad": "USOM",
+       "sayi": 0,
+       "hata": "ag yok"
+      }
+     ]
+    }
+   },
+   "yonetici.json": {
+    "json": {
+     "kullanici": "serkan",
+     "tuz": "<T3:32>",
+     "ozet": "83f17415f405a2ca5be826ece859e984a861fa87c5fa8a5bb6bb9d87c09bdcbc",
+     "yineleme": 120000
+    }
    }
   }
  ],

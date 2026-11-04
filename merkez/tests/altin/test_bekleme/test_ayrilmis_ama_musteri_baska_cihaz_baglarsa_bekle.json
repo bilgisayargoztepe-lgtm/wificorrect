@@ -1,7 +1,8 @@
 {
- "bicim": 1,
+ "bicim": 2,
  "dosya": "test_bekleme",
  "test": "test_ayrilmis_ama_musteri_baska_cihaz_baglarsa_bekle",
+ "platform_farki": [],
  "cevaplar": [
   {
    "istek": "POST /api/bekliyor",
@@ -36,7 +37,7 @@
     ],
     [
      "Set-Cookie",
-     "wc_musteri=<T1>; HttpOnly; Secure; SameSite=Strict; Path=/"
+     "wc_musteri=<T1:43>; HttpOnly; Secure; SameSite=Strict; Path=/"
     ]
    ],
    "govde": {
@@ -57,7 +58,7 @@
     ]
    ],
    "govde": {
-    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><meta http-equiv=\"refresh\" content=\"5\"><title>Cihazınız bağlanıyor · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><header><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_ACIK}</a><nav><a href=\"/cihaz\">Cihaz paneli</a><a href=\"/\">Yedek arşiv</a><a href=\"/raporlar\">Raporlar</a><a href=\"/parola\">Parola</a><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button class=\"ikincil\">Çıkış</button></form></nav></header><main><div class=\"kart\"><h1>Cihazınız bağlanıyor</h1><p>Cihazınız bulundu ve hesabınıza bağlanıyor. Bu birkaç dakika sürebilir; bu sayfa kendini yeniler.</p></div></main></body></html>"
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><meta http-equiv=\"refresh\" content=\"5\"><title>Cihazınız bağlanıyor · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><header><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_ACIK}</a><nav><a href=\"/cihaz\">Cihaz paneli</a><a href=\"/\">Yedek arşiv</a><a href=\"/raporlar\">Raporlar</a><a href=\"/parola\">Parola</a><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2:32>\"><button class=\"ikincil\">Çıkış</button></form></nav></header><main><div class=\"kart\"><h1>Cihazınız bağlanıyor</h1><p>Cihazınız bulundu ve hesabınıza bağlanıyor. Bu birkaç dakika sürebilir; bu sayfa kendini yeniler.</p></div></main></body></html>"
    }
   },
   {
@@ -76,7 +77,7 @@
    "govde": {
     "json": {
      "durum": "baglan",
-     "belirtec": "<T3>"
+     "belirtec": "<T3:43>"
     }
    }
   },
@@ -222,7 +223,7 @@
       "ozet": "e4b42aba6380c081c1e40ea833fbd8d6c017c31428ff9779ed2c6c68422dbf14",
       "parola_acik": "musteri-parola-1",
       "son_giris": "2026-09-21T17:13:20+03:00",
-      "tuz": "<T4>",
+      "tuz": "<T4:32>",
       "uyelik": "aktif",
       "yineleme": 120000
      }
@@ -242,6 +243,16 @@
      }
     ],
     "surum": []
+   }
+  }
+ ],
+ "dosyalar": [
+  {
+   "detay/": {
+    "dizin": true
+   },
+   "ist/": {
+    "dizin": true
    }
   }
  ],

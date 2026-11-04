@@ -1,7 +1,8 @@
 {
- "bicim": 1,
+ "bicim": 2,
  "dosya": "test_saglik",
  "test": "test_gunluk_sinir",
+ "platform_farki": [],
  "cevaplar": [],
  "veritabanlari": [
   {
@@ -222,7 +223,7 @@
       "ozet": "08013d71d4d76371d716f0abc77de85747f7ea2071f54cdea2f631ed8f81e3eb",
       "parola_acik": "JRsuavQcsdW2",
       "son_giris": "",
-      "tuz": "<T1>",
+      "tuz": "<T1:32>",
       "uyelik": "aktif",
       "yineleme": 120000
      },
@@ -240,7 +241,7 @@
       "ozet": "c9d163ae8d59ee27d469a1f5633044ea4da225e935765182561e26da9c902976",
       "parola_acik": "6GqdeD2UZbJz",
       "son_giris": "",
-      "tuz": "<T2>",
+      "tuz": "<T2:32>",
       "uyelik": "aktif",
       "yineleme": 120000
      },
@@ -258,7 +259,7 @@
       "ozet": "fcd77d2f1464acefd0bf9649c59c9103b30bf9b4aa14a1930fdbc86ae817e02c",
       "parola_acik": "6bnuKUG4dyZ7",
       "son_giris": "",
-      "tuz": "<T3>",
+      "tuz": "<T3:32>",
       "uyelik": "aktif",
       "yineleme": 120000
      },
@@ -276,7 +277,7 @@
       "ozet": "c3fc1ccb1adb05cfe5a71c3f3c0f152e294a6607687eee0886b8776d479e5bdd",
       "parola_acik": "bdwd3ndjXf4d",
       "son_giris": "",
-      "tuz": "<T4>",
+      "tuz": "<T4:32>",
       "uyelik": "aktif",
       "yineleme": 120000
      },
@@ -294,7 +295,7 @@
       "ozet": "2699afc514475a0f0b09a91b38801e6642f4571a405c74c9573c89f6a09058e6",
       "parola_acik": "HrMvjRVphQyd",
       "son_giris": "",
-      "tuz": "<T5>",
+      "tuz": "<T5:32>",
       "uyelik": "aktif",
       "yineleme": 120000
      },
@@ -312,7 +313,7 @@
       "ozet": "f9ef346fb7e1e1de5fd718437df852a410c354a8e4bda3048c50de04d58d0b35",
       "parola_acik": "hWMnxQtVTpyF",
       "son_giris": "",
-      "tuz": "<T6>",
+      "tuz": "<T6:32>",
       "uyelik": "aktif",
       "yineleme": 120000
      }
@@ -436,6 +437,9 @@
     "surum": []
    }
   }
+ ],
+ "dosyalar": [
+  {}
  ],
  "yollar": []
 }

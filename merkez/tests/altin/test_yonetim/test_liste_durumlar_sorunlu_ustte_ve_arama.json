@@ -1,7 +1,8 @@
 {
- "bicim": 1,
+ "bicim": 2,
  "dosya": "test_yonetim",
  "test": "test_liste_durumlar_sorunlu_ustte_ve_arama",
+ "platform_farki": [],
  "cevaplar": [
   {
    "istek": "POST /giris",
@@ -17,7 +18,7 @@
     ],
     [
      "Set-Cookie",
-     "wc_yonetim=<T1>; HttpOnly; Secure; SameSite=Strict; Path=/"
+     "wc_yonetim=<T1:43>; HttpOnly; Secure; SameSite=Strict; Path=/"
     ]
    ],
    "govde": {
@@ -38,7 +39,7 @@
     ]
    ],
    "govde": {
-    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Müşteriler · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><input type=\"checkbox\" id=\"menu-ac\" class=\"gizli\"><div class=\"ust-mobil\"><label for=\"menu-ac\" class=\"menu-dugme\" title=\"Menü\"><span class=\"gizli\">Menüyü aç/kapat</span><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M3 6h18M3 12h18M3 18h18\"/></svg></label><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a></div><div class=\"yerlesim\"><nav class=\"yan\"><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a><details class=\"grup\" open><summary>Müşteriler</summary><a href=\"/\" class=\"secili\" aria-current=\"page\">Müşteri listesi</a><a href=\"/yeni\">Yeni müşteri</a><a href=\"/bekleyen\">Bekleyen cihazlar</a></details><details class=\"grup\"><summary>Kayıtlar</summary><a href=\"/hareketler\">Hareketler</a><a href=\"/eski-arsivler\">Eski arşivler</a></details><details class=\"grup\"><summary>Ayarlar</summary><a href=\"/listeler\">Engel listeleri</a><a href=\"/sms\">SMS ayarları</a><a href=\"/uyari\">Uyarı ayarları</a><a href=\"/surumler\">Sürümler</a><a href=\"/hesabim\">Hesabım</a></details><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button class=\"ikincil\">Çıkış</button></form></nav><main class=\"genis\"><div class=\"kart\"><h1>Müşteriler</h1><p><b class=\"kotu\">Sağlık izleme: hiç tur yok — izleme çalışmıyor olabilir</b></p><form class=\"ara\" method=\"get\" action=\"/\"><input name=\"q\" value=\"\" placeholder=\"Numara, işletme adı ya da not\"><button>Ara</button></form></div><div class=\"kart\"><div class=\"kaydir\"><table class=\"detay\"><tr><th>No</th><th>İşletme / not</th><th>Tür</th><th>Cihaz</th><th>Sürüm</th><th>Son gelen gün</th><th>Son 7 gün</th><th>Lisans</th><th>Üyelik</th></tr><tr><td><a href=\"/m/8592499\">8592499</a></td><td>Kafe &lt;B&gt;<br><span class=\"alt\">Gecikmiş kafe</span></td><td>—</td><td>çevrimiçi</td><td>—</td><td>01.09.2026 <b class=\"kotu\">GECİKTİ</b></td><td>— — — — — — —</td><td>21.09.2027</td><td>Aktif</td></tr><tr><td><a href=\"/m/5721885\">5721885</a></td><td>—<br><span class=\"alt\">Sağlam kafe</span></td><td>—</td><td>cihaz yok</td><td>—</td><td>—</td><td>— — — — — — —</td><td>21.09.2027</td><td>Aktif</td></tr></table></div></div></main></div></body></html>"
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Müşteriler · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><input type=\"checkbox\" id=\"menu-ac\" class=\"gizli\"><div class=\"ust-mobil\"><label for=\"menu-ac\" class=\"menu-dugme\" title=\"Menü\"><span class=\"gizli\">Menüyü aç/kapat</span><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M3 6h18M3 12h18M3 18h18\"/></svg></label><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a></div><div class=\"yerlesim\"><nav class=\"yan\"><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a><details class=\"grup\" open><summary>Müşteriler</summary><a href=\"/\" class=\"secili\" aria-current=\"page\">Müşteri listesi</a><a href=\"/yeni\">Yeni müşteri</a><a href=\"/bekleyen\">Bekleyen cihazlar</a></details><details class=\"grup\"><summary>Kayıtlar</summary><a href=\"/hareketler\">Hareketler</a><a href=\"/eski-arsivler\">Eski arşivler</a></details><details class=\"grup\"><summary>Ayarlar</summary><a href=\"/listeler\">Engel listeleri</a><a href=\"/sms\">SMS ayarları</a><a href=\"/uyari\">Uyarı ayarları</a><a href=\"/surumler\">Sürümler</a><a href=\"/hesabim\">Hesabım</a></details><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2:32>\"><button class=\"ikincil\">Çıkış</button></form></nav><main class=\"genis\"><div class=\"kart\"><h1>Müşteriler</h1><p><b class=\"kotu\">Sağlık izleme: hiç tur yok — izleme çalışmıyor olabilir</b></p><form class=\"ara\" method=\"get\" action=\"/\"><input name=\"q\" value=\"\" placeholder=\"Numara, işletme adı ya da not\"><button>Ara</button></form></div><div class=\"kart\"><div class=\"kaydir\"><table class=\"detay\"><tr><th>No</th><th>İşletme / not</th><th>Tür</th><th>Cihaz</th><th>Sürüm</th><th>Son gelen gün</th><th>Son 7 gün</th><th>Lisans</th><th>Üyelik</th></tr><tr><td><a href=\"/m/8592499\">8592499</a></td><td>Kafe &lt;B&gt;<br><span class=\"alt\">Gecikmiş kafe</span></td><td>—</td><td>çevrimiçi</td><td>—</td><td>01.09.2026 <b class=\"kotu\">GECİKTİ</b></td><td>— — — — — — —</td><td>21.09.2027</td><td>Aktif</td></tr><tr><td><a href=\"/m/5721885\">5721885</a></td><td>—<br><span class=\"alt\">Sağlam kafe</span></td><td>—</td><td>cihaz yok</td><td>—</td><td>—</td><td>— — — — — — —</td><td>21.09.2027</td><td>Aktif</td></tr></table></div></div></main></div></body></html>"
    }
   },
   {
@@ -55,7 +56,7 @@
     ]
    ],
    "govde": {
-    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Müşteriler · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><input type=\"checkbox\" id=\"menu-ac\" class=\"gizli\"><div class=\"ust-mobil\"><label for=\"menu-ac\" class=\"menu-dugme\" title=\"Menü\"><span class=\"gizli\">Menüyü aç/kapat</span><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M3 6h18M3 12h18M3 18h18\"/></svg></label><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a></div><div class=\"yerlesim\"><nav class=\"yan\"><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a><details class=\"grup\" open><summary>Müşteriler</summary><a href=\"/\" class=\"secili\" aria-current=\"page\">Müşteri listesi</a><a href=\"/yeni\">Yeni müşteri</a><a href=\"/bekleyen\">Bekleyen cihazlar</a></details><details class=\"grup\"><summary>Kayıtlar</summary><a href=\"/hareketler\">Hareketler</a><a href=\"/eski-arsivler\">Eski arşivler</a></details><details class=\"grup\"><summary>Ayarlar</summary><a href=\"/listeler\">Engel listeleri</a><a href=\"/sms\">SMS ayarları</a><a href=\"/uyari\">Uyarı ayarları</a><a href=\"/surumler\">Sürümler</a><a href=\"/hesabim\">Hesabım</a></details><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2>\"><button class=\"ikincil\">Çıkış</button></form></nav><main class=\"genis\"><div class=\"kart\"><h1>Müşteriler</h1><p><b class=\"kotu\">Sağlık izleme: hiç tur yok — izleme çalışmıyor olabilir</b></p><form class=\"ara\" method=\"get\" action=\"/\"><input name=\"q\" value=\"sağlam\" placeholder=\"Numara, işletme adı ya da not\"><button>Ara</button></form></div><div class=\"kart\"><div class=\"kaydir\"><table class=\"detay\"><tr><th>No</th><th>İşletme / not</th><th>Tür</th><th>Cihaz</th><th>Sürüm</th><th>Son gelen gün</th><th>Son 7 gün</th><th>Lisans</th><th>Üyelik</th></tr><tr><td><a href=\"/m/5721885\">5721885</a></td><td>—<br><span class=\"alt\">Sağlam kafe</span></td><td>—</td><td>cihaz yok</td><td>—</td><td>—</td><td>— — — — — — —</td><td>21.09.2027</td><td>Aktif</td></tr></table></div></div></main></div></body></html>"
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Müşteriler · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><input type=\"checkbox\" id=\"menu-ac\" class=\"gizli\"><div class=\"ust-mobil\"><label for=\"menu-ac\" class=\"menu-dugme\" title=\"Menü\"><span class=\"gizli\">Menüyü aç/kapat</span><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M3 6h18M3 12h18M3 18h18\"/></svg></label><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a></div><div class=\"yerlesim\"><nav class=\"yan\"><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_KOYU}</a><details class=\"grup\" open><summary>Müşteriler</summary><a href=\"/\" class=\"secili\" aria-current=\"page\">Müşteri listesi</a><a href=\"/yeni\">Yeni müşteri</a><a href=\"/bekleyen\">Bekleyen cihazlar</a></details><details class=\"grup\"><summary>Kayıtlar</summary><a href=\"/hareketler\">Hareketler</a><a href=\"/eski-arsivler\">Eski arşivler</a></details><details class=\"grup\"><summary>Ayarlar</summary><a href=\"/listeler\">Engel listeleri</a><a href=\"/sms\">SMS ayarları</a><a href=\"/uyari\">Uyarı ayarları</a><a href=\"/surumler\">Sürümler</a><a href=\"/hesabim\">Hesabım</a></details><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2:32>\"><button class=\"ikincil\">Çıkış</button></form></nav><main class=\"genis\"><div class=\"kart\"><h1>Müşteriler</h1><p><b class=\"kotu\">Sağlık izleme: hiç tur yok — izleme çalışmıyor olabilir</b></p><form class=\"ara\" method=\"get\" action=\"/\"><input name=\"q\" value=\"sağlam\" placeholder=\"Numara, işletme adı ya da not\"><button>Ara</button></form></div><div class=\"kart\"><div class=\"kaydir\"><table class=\"detay\"><tr><th>No</th><th>İşletme / not</th><th>Tür</th><th>Cihaz</th><th>Sürüm</th><th>Son gelen gün</th><th>Son 7 gün</th><th>Lisans</th><th>Üyelik</th></tr><tr><td><a href=\"/m/5721885\">5721885</a></td><td>—<br><span class=\"alt\">Sağlam kafe</span></td><td>—</td><td>cihaz yok</td><td>—</td><td>—</td><td>— — — — — — —</td><td>21.09.2027</td><td>Aktif</td></tr></table></div></div></main></div></body></html>"
    }
   }
  ],
@@ -116,7 +117,7 @@
       "ozet": "d90c15dec0075f237d3059fa700a720fed4ee39bb37176aca150648da3189d62",
       "parola_acik": "6bnuKUG4dyZ7",
       "son_giris": "",
-      "tuz": "<T3>",
+      "tuz": "<T3:32>",
       "uyelik": "aktif",
       "yineleme": 120000
      },
@@ -134,7 +135,7 @@
       "ozet": "9144a12b2f6bf1cbf454b02825805acedbaf2a8301322c69e1f4ffaaaa3ebfb3",
       "parola_acik": "HrMvjRVphQyd",
       "son_giris": "",
-      "tuz": "<T4>",
+      "tuz": "<T4:32>",
       "uyelik": "aktif",
       "yineleme": 120000
      }
@@ -154,6 +155,37 @@
      }
     ],
     "surum": []
+   }
+  }
+ ],
+ "dosyalar": [
+  {
+   "detay/": {
+    "dizin": true
+   },
+   "durum.json": {
+    "json": {
+     "zaman": "",
+     "arsivler": {
+      "8592499": {
+       "tur": "cihaz",
+       "son_gun": "2026-09-01",
+       "boyut": 2048,
+       "el_sikisma": 1789999940
+      }
+     }
+    }
+   },
+   "ist/": {
+    "dizin": true
+   },
+   "yonetici.json": {
+    "json": {
+     "kullanici": "serkan",
+     "tuz": "<T5:32>",
+     "ozet": "83f17415f405a2ca5be826ece859e984a861fa87c5fa8a5bb6bb9d87c09bdcbc",
+     "yineleme": 120000
+    }
    }
   }
  ],

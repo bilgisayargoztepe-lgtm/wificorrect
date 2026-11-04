@@ -1,7 +1,8 @@
 {
- "bicim": 1,
+ "bicim": 2,
  "dosya": "test_ap",
  "test": "test_belirtec_suresi_ve_cihaz_oturumu",
+ "platform_farki": [],
  "cevaplar": [
   {
    "istek": "GET /_ap-gecis",
@@ -9,7 +10,7 @@
    "basliklar": [
     [
      "Location",
-     "https://ap.wificorrect.com/_ap-giris?t=<T1>"
+     "https://ap.wificorrect.com/_ap-giris?t=<T1:43>"
     ],
     [
      "Cache-Control",
@@ -21,7 +22,7 @@
    }
   },
   {
-   "istek": "GET /_ap-giris?t=<T?>",
+   "istek": "GET /_ap-giris?t=<T?:43>",
    "durum": 403,
    "basliklar": [
     [
@@ -51,7 +52,7 @@
    "basliklar": [
     [
      "Location",
-     "https://ap.wificorrect.com/_ap-giris?t=<T2>"
+     "https://ap.wificorrect.com/_ap-giris?t=<T2:43>"
     ],
     [
      "Cache-Control",
@@ -84,7 +85,7 @@
    }
   },
   {
-   "istek": "GET /_ap-giris?t=<T?>",
+   "istek": "GET /_ap-giris?t=<T?:43>",
    "durum": 403,
    "basliklar": [
     [
@@ -114,7 +115,7 @@
    "basliklar": [
     [
      "Location",
-     "https://ap.wificorrect.com/_ap-giris?t=<T3>"
+     "https://ap.wificorrect.com/_ap-giris?t=<T3:43>"
     ],
     [
      "Cache-Control",
@@ -126,7 +127,7 @@
    }
   },
   {
-   "istek": "GET /_ap-giris?t=<T?>",
+   "istek": "GET /_ap-giris?t=<T?:43>",
    "durum": 403,
    "basliklar": [
     [
@@ -226,7 +227,7 @@
       "ozet": "a91c51e46c84af26de4a899c7e82868501626408be1fa7e56a26a1dbd535d652",
       "parola_acik": "yeni-parola-12",
       "son_giris": "",
-      "tuz": "<T4>",
+      "tuz": "<T4:32>",
       "uyelik": "aktif",
       "yineleme": 120000
      }
@@ -246,6 +247,16 @@
      }
     ],
     "surum": []
+   }
+  }
+ ],
+ "dosyalar": [
+  {
+   "detay/": {
+    "dizin": true
+   },
+   "ist/": {
+    "dizin": true
    }
   }
  ],

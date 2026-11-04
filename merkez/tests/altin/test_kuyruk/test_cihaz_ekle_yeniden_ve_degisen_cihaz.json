@@ -1,8 +1,25 @@
 {
- "bicim": 1,
+ "bicim": 2,
  "dosya": "test_kuyruk",
  "test": "test_cihaz_ekle_yeniden_ve_degisen_cihaz",
+ "platform_farki": [],
  "cevaplar": [],
  "veritabanlari": [],
+ "dosyalar": [
+  {
+   "kayit.csv": {
+    "metin": "bitti;1234567;10.99.0.10;AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=;wfc-1234567;2026-10-04\nbitti;1234567;10.99.0.11;BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=;wfc-1234567;2026-10-04\n"
+   },
+   "wg/": {
+    "dizin": true
+   },
+   "wg/sunucu.pub": {
+    "metin": "SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS=\n"
+   },
+   "wg/uc-nokta": {
+    "metin": "vpn.wificorrect.com:51820\n"
+   }
+  }
+ ],
  "yollar": []
 }

@@ -1,7 +1,8 @@
 {
- "bicim": 1,
+ "bicim": 2,
  "dosya": "test_ap",
  "test": "test_wca_cihaz_oturumu_dusunce_gecersiz",
+ "platform_farki": [],
  "cevaplar": [
   {
    "istek": "GET /_ap-gecis",
@@ -9,7 +10,7 @@
    "basliklar": [
     [
      "Location",
-     "https://ap.wificorrect.com/_ap-giris?t=<T1>"
+     "https://ap.wificorrect.com/_ap-giris?t=<T1:43>"
     ],
     [
      "Cache-Control",
@@ -21,7 +22,7 @@
    }
   },
   {
-   "istek": "GET /_ap-giris?t=<T?>",
+   "istek": "GET /_ap-giris?t=<T?:43>",
    "durum": 303,
    "basliklar": [
     [
@@ -30,7 +31,7 @@
     ],
     [
      "Set-Cookie",
-     "wca=<T2>; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=1800"
+     "wca=<T2:43>; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=1800"
     ],
     [
      "Clear-Site-Data",
@@ -126,7 +127,7 @@
    "basliklar": [
     [
      "Location",
-     "https://ap.wificorrect.com/_ap-giris?t=<T3>"
+     "https://ap.wificorrect.com/_ap-giris?t=<T3:43>"
     ],
     [
      "Cache-Control",
@@ -138,7 +139,7 @@
    }
   },
   {
-   "istek": "GET /_ap-giris?t=<T?>",
+   "istek": "GET /_ap-giris?t=<T?:43>",
    "durum": 303,
    "basliklar": [
     [
@@ -147,7 +148,7 @@
     ],
     [
      "Set-Cookie",
-     "wca=<T4>; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=1800"
+     "wca=<T4:43>; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=1800"
     ],
     [
      "Clear-Site-Data",
@@ -222,7 +223,7 @@
    "basliklar": [
     [
      "Location",
-     "https://ap.wificorrect.com/_ap-giris?t=<T5>"
+     "https://ap.wificorrect.com/_ap-giris?t=<T5:43>"
     ],
     [
      "Cache-Control",
@@ -234,7 +235,7 @@
    }
   },
   {
-   "istek": "GET /_ap-giris?t=<T?>",
+   "istek": "GET /_ap-giris?t=<T?:43>",
    "durum": 303,
    "basliklar": [
     [
@@ -243,7 +244,7 @@
     ],
     [
      "Set-Cookie",
-     "wca=<T6>; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=1800"
+     "wca=<T6:43>; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=1800"
     ],
     [
      "Clear-Site-Data",
@@ -318,7 +319,7 @@
    "basliklar": [
     [
      "Location",
-     "https://ap.wificorrect.com/_ap-giris?t=<T7>"
+     "https://ap.wificorrect.com/_ap-giris?t=<T7:43>"
     ],
     [
      "Cache-Control",
@@ -330,7 +331,7 @@
    }
   },
   {
-   "istek": "GET /_ap-giris?t=<T?>",
+   "istek": "GET /_ap-giris?t=<T?:43>",
    "durum": 303,
    "basliklar": [
     [
@@ -339,7 +340,7 @@
     ],
     [
      "Set-Cookie",
-     "wca=<T8>; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=1800"
+     "wca=<T8:43>; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=1800"
     ],
     [
      "Clear-Site-Data",
@@ -414,7 +415,7 @@
    "basliklar": [
     [
      "Location",
-     "https://ap.wificorrect.com/_ap-giris?t=<T9>"
+     "https://ap.wificorrect.com/_ap-giris?t=<T9:43>"
     ],
     [
      "Cache-Control",
@@ -426,7 +427,7 @@
    }
   },
   {
-   "istek": "GET /_ap-giris?t=<T?>",
+   "istek": "GET /_ap-giris?t=<T?:43>",
    "durum": 303,
    "basliklar": [
     [
@@ -435,7 +436,7 @@
     ],
     [
      "Set-Cookie",
-     "wca=<T10>; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=1800"
+     "wca=<T10:43>; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=1800"
     ],
     [
      "Clear-Site-Data",
@@ -510,7 +511,7 @@
    "basliklar": [
     [
      "Location",
-     "https://ap.wificorrect.com/_ap-giris?t=<T11>"
+     "https://ap.wificorrect.com/_ap-giris?t=<T11:43>"
     ],
     [
      "Cache-Control",
@@ -522,7 +523,7 @@
    }
   },
   {
-   "istek": "GET /_ap-giris?t=<T?>",
+   "istek": "GET /_ap-giris?t=<T?:43>",
    "durum": 303,
    "basliklar": [
     [
@@ -531,7 +532,7 @@
     ],
     [
      "Set-Cookie",
-     "wca=<T12>; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=1800"
+     "wca=<T12:43>; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=1800"
     ],
     [
      "Clear-Site-Data",
@@ -658,7 +659,7 @@
       "ozet": "e4b42aba6380c081c1e40ea833fbd8d6c017c31428ff9779ed2c6c68422dbf14",
       "parola_acik": "musteri-parola-1",
       "son_giris": "",
-      "tuz": "<T13>",
+      "tuz": "<T13:32>",
       "uyelik": "aktif",
       "yineleme": 120000
      }
@@ -736,7 +737,7 @@
       "ozet": "1b81df287528835468ed2ae51c3af6b22f983cb58215e0e565ec6a43965a0e31",
       "parola_acik": "yeni-parola-12",
       "son_giris": "",
-      "tuz": "<T14>",
+      "tuz": "<T14:32>",
       "uyelik": "aktif",
       "yineleme": 120000
      }
@@ -814,7 +815,7 @@
       "ozet": "7767587a35d52a61271c933f96aaa7873f2e26de14fc946eee10c191c0dac586",
       "parola_acik": "musteri-parola-1",
       "son_giris": "",
-      "tuz": "<T15>",
+      "tuz": "<T15:32>",
       "uyelik": "aktif",
       "yineleme": 120000
      }
@@ -892,7 +893,7 @@
       "ozet": "9c87066755c13e6b6c98ab476d9db562268bfb8a3a953fdf9c4404e5ac7cde98",
       "parola_acik": "musteri-parola-1",
       "son_giris": "",
-      "tuz": "<T16>",
+      "tuz": "<T16:32>",
       "uyelik": "bitti",
       "yineleme": 120000
      }
@@ -970,7 +971,7 @@
       "ozet": "3eb81bf4fac10dcb964ce3c7e81bd235d0278ddc3e43377649ccf5ea1d3e97ae",
       "parola_acik": "musteri-parola-1",
       "son_giris": "",
-      "tuz": "<T17>",
+      "tuz": "<T17:32>",
       "uyelik": "aktif",
       "yineleme": 120000
      }
@@ -1048,7 +1049,7 @@
       "ozet": "f48c95853e47b311f316f4fc077265d0ed1260ee62210f45fc626ef6f482ba00",
       "parola_acik": "musteri-parola-1",
       "son_giris": "",
-      "tuz": "<T18>",
+      "tuz": "<T18:32>",
       "uyelik": "aktif",
       "yineleme": 120000
      }
@@ -1068,6 +1069,56 @@
      }
     ],
     "surum": []
+   }
+  }
+ ],
+ "dosyalar": [
+  {
+   "detay/": {
+    "dizin": true
+   },
+   "ist/": {
+    "dizin": true
+   }
+  },
+  {
+   "detay/": {
+    "dizin": true
+   },
+   "ist/": {
+    "dizin": true
+   }
+  },
+  {
+   "detay/": {
+    "dizin": true
+   },
+   "ist/": {
+    "dizin": true
+   }
+  },
+  {
+   "detay/": {
+    "dizin": true
+   },
+   "ist/": {
+    "dizin": true
+   }
+  },
+  {
+   "detay/": {
+    "dizin": true
+   },
+   "ist/": {
+    "dizin": true
+   }
+  },
+  {
+   "detay/": {
+    "dizin": true
+   },
+   "ist/": {
+    "dizin": true
    }
   }
  ],

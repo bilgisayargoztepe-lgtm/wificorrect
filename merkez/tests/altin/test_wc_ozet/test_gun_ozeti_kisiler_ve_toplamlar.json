@@ -1,8 +1,44 @@
 {
- "bicim": 1,
+ "bicim": 2,
  "dosya": "test_wc_ozet",
  "test": "test_gun_ozeti_kisiler_ve_toplamlar",
+ "platform_farki": [],
  "cevaplar": [],
  "veritabanlari": [],
+ "dosyalar": [
+  {
+   "gunluk/": {
+    "dizin": true
+   },
+   "gunluk/2026-09-27/": {
+    "dizin": true
+   },
+   "gunluk/2026-09-27/MANIFEST.sha256": {
+    "metin": "# gun\nabc  oturum.csv.gz\nabc  dns.csv.gz\nabc  trafik.csv.gz\nabc  kullanicilar/5330000002.csv.gz\n"
+   },
+   "gunluk/2026-09-27/dns.csv.gz": {
+    "metin": "﻿zaman;olay;telefon;ad;soyad;mac;ic_ip;protokol;ic_port;hedef_ip;hedef_port;nat_ip;nat_port;alan_adi;gonderilen_bayt;alinan_bayt;sure_sn;oturum_id;ek\n2026-09-27T09:05:00+03:00;DNS;5330000001;;;aa:aa:aa:aa:aa:01;;;;;;;;Instagram.com.;;;;;\n2026-09-27T09:10:00+03:00;DNS;5330000001;;;;;;;;;;;instagram.com;;;;;\n2026-09-27T09:07:00+03:00;DNS;5330000001;;;;;;;;;;;google.com;;;;;\n2026-09-27T10:00:00+03:00;DNS;5330000002;;;bb:bb:bb:bb:bb:02;;;;;;;;<script>x</script>.com;;;;;\n2026-09-27T11:00:00+03:00;DNS;5330000003;;;;;;;;;;;a.com;;;;;\n2026-09-27T11:30:00+03:00;DNS;;;;;;;;;;;;izinli.com;;;;;\n",
+    "gz": true
+   },
+   "gunluk/2026-09-27/kullanicilar/": {
+    "dizin": true
+   },
+   "gunluk/2026-09-27/kullanicilar/5330000002.csv.gz": {
+    "metin": "﻿zaman;olay;telefon;ad;soyad;mac;ic_ip;protokol;ic_port;hedef_ip;hedef_port;nat_ip;nat_port;alan_adi;gonderilen_bayt;alinan_bayt;sure_sn;oturum_id;ek\n2026-09-27T10:00:00+03:00;KAYIT;5330000002;Bora;Kaya;bb:bb:bb:bb:bb:02;;;;;;;;;;;;;\n",
+    "gz": true
+   },
+   "gunluk/2026-09-27/oturum.csv.gz": {
+    "metin": "﻿zaman;olay;telefon;ad;soyad;mac;ic_ip;protokol;ic_port;hedef_ip;hedef_port;nat_ip;nat_port;alan_adi;gonderilen_bayt;alinan_bayt;sure_sn;oturum_id;ek\n2026-09-27T09:00:00+03:00;OTURUM_BASLA;5330000001;Ayşe;Yılmaz;aa:aa:aa:aa:aa:01;10.50.0.21;;;;;;;;;;;;\n2026-09-27T17:00:00+03:00;OTURUM_BITIS;5330000001;Ayşe;Yılmaz;aa:aa:aa:aa:aa:01;10.50.0.21;;;;;;;;;;;;neden=cikis\n",
+    "gz": true
+   },
+   "gunluk/2026-09-27/trafik.csv.gz": {
+    "metin": "﻿zaman;olay;telefon;ad;soyad;mac;ic_ip;protokol;ic_port;hedef_ip;hedef_port;nat_ip;nat_port;alan_adi;gonderilen_bayt;alinan_bayt;sure_sn;oturum_id;ek\n2026-09-27T09:06:00+03:00;BAGLANTI_BITIS;5330000001;;;;;tcp;;1.1.1.1;443;;;;100;900;60;;\n2026-09-27T09:08:00+03:00;BAGLANTI_BITIS;5330000001;;;;;udp;;8.8.8.8;53;;;;10;10;1;;\n2026-09-27T09:05:30+03:00;BAGLANTI_BASLA;5330000001;;;;;;;1.1.1.1;;;;;;;;;\n2026-09-27T10:01:00+03:00;BAGLANTI_BITIS;5330000002;;;;;;;;;;;;;abc;;;\n2026-09-27T11:01:00+03:00;BAGLANTI_BITIS;5330000003;;;;;;;;;;;;5;5;;;\n2026-09-27T11:31:00+03:00;BAGLANTI_BITIS;;;;;;;;;;;;;9;9;;;\n",
+    "gz": true
+   },
+   "index.csv": {
+    "metin": "﻿telefon;ad;soyad;ilk_kayit;son_oturum\n5330000003;Cem;Er;;\n"
+   }
+  }
+ ],
  "yollar": []
 }

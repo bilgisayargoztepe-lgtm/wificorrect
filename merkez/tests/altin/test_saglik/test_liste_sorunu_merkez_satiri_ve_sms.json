@@ -1,7 +1,8 @@
 {
- "bicim": 1,
+ "bicim": 2,
  "dosya": "test_saglik",
  "test": "test_liste_sorunu_merkez_satiri_ve_sms",
+ "platform_farki": [],
  "cevaplar": [],
  "veritabanlari": [
   {
@@ -90,7 +91,7 @@
       "ozet": "fcd77d2f1464acefd0bf9649c59c9103b30bf9b4aa14a1930fdbc86ae817e02c",
       "parola_acik": "6bnuKUG4dyZ7",
       "son_giris": "",
-      "tuz": "<T1>",
+      "tuz": "<T1:32>",
       "uyelik": "aktif",
       "yineleme": 120000
      }
@@ -132,6 +133,21 @@
      }
     ],
     "surum": []
+   }
+  }
+ ],
+ "dosyalar": [
+  {
+   "listeler/": {
+    "dizin": true
+   },
+   "listeler/kumar.json": {
+    "json": {
+     "kategori": "kumar",
+     "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "sayi": 5,
+     "zaman": "2026-10-12T01:25:00+03:00"
+    }
    }
   }
  ],

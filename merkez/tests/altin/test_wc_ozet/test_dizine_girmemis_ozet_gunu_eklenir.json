@@ -1,8 +1,382 @@
 {
- "bicim": 1,
+ "bicim": 2,
  "dosya": "test_wc_ozet",
  "test": "test_dizine_girmemis_ozet_gunu_eklenir",
+ "platform_farki": [],
  "cevaplar": [],
  "veritabanlari": [],
+ "dosyalar": [
+  {
+   "arsiv/": {
+    "dizin": true
+   },
+   "arsiv/bocafe/": {
+    "dizin": true
+   },
+   "arsiv/bocafe/gunluk/": {
+    "dizin": true
+   },
+   "arsiv/bocafe/gunluk/2026-09-26/": {
+    "dizin": true
+   },
+   "arsiv/bocafe/gunluk/2026-09-26/MANIFEST.sha256": {
+    "metin": "# gun\nabc  oturum.csv.gz\nabc  dns.csv.gz\nabc  trafik.csv.gz\nabc  kullanicilar/5330000002.csv.gz\n"
+   },
+   "arsiv/bocafe/gunluk/2026-09-26/dns.csv.gz": {
+    "metin": "﻿zaman;olay;telefon;ad;soyad;mac;ic_ip;protokol;ic_port;hedef_ip;hedef_port;nat_ip;nat_port;alan_adi;gonderilen_bayt;alinan_bayt;sure_sn;oturum_id;ek\n2026-09-26T09:05:00+03:00;DNS;5330000001;;;aa:aa:aa:aa:aa:01;;;;;;;;Instagram.com.;;;;;\n2026-09-26T09:10:00+03:00;DNS;5330000001;;;;;;;;;;;instagram.com;;;;;\n2026-09-26T09:07:00+03:00;DNS;5330000001;;;;;;;;;;;google.com;;;;;\n2026-09-26T10:00:00+03:00;DNS;5330000002;;;bb:bb:bb:bb:bb:02;;;;;;;;<script>x</script>.com;;;;;\n2026-09-26T11:00:00+03:00;DNS;5330000003;;;;;;;;;;;a.com;;;;;\n2026-09-26T11:30:00+03:00;DNS;;;;;;;;;;;;izinli.com;;;;;\n",
+    "gz": true
+   },
+   "arsiv/bocafe/gunluk/2026-09-26/kullanicilar/": {
+    "dizin": true
+   },
+   "arsiv/bocafe/gunluk/2026-09-26/kullanicilar/5330000002.csv.gz": {
+    "metin": "﻿zaman;olay;telefon;ad;soyad;mac;ic_ip;protokol;ic_port;hedef_ip;hedef_port;nat_ip;nat_port;alan_adi;gonderilen_bayt;alinan_bayt;sure_sn;oturum_id;ek\n2026-09-26T10:00:00+03:00;KAYIT;5330000002;Bora;Kaya;bb:bb:bb:bb:bb:02;;;;;;;;;;;;;\n",
+    "gz": true
+   },
+   "arsiv/bocafe/gunluk/2026-09-26/oturum.csv.gz": {
+    "metin": "﻿zaman;olay;telefon;ad;soyad;mac;ic_ip;protokol;ic_port;hedef_ip;hedef_port;nat_ip;nat_port;alan_adi;gonderilen_bayt;alinan_bayt;sure_sn;oturum_id;ek\n2026-09-26T09:00:00+03:00;OTURUM_BASLA;5330000001;Ayşe;Yılmaz;aa:aa:aa:aa:aa:01;10.50.0.21;;;;;;;;;;;;\n2026-09-26T17:00:00+03:00;OTURUM_BITIS;5330000001;Ayşe;Yılmaz;aa:aa:aa:aa:aa:01;10.50.0.21;;;;;;;;;;;;neden=cikis\n",
+    "gz": true
+   },
+   "arsiv/bocafe/gunluk/2026-09-26/trafik.csv.gz": {
+    "metin": "﻿zaman;olay;telefon;ad;soyad;mac;ic_ip;protokol;ic_port;hedef_ip;hedef_port;nat_ip;nat_port;alan_adi;gonderilen_bayt;alinan_bayt;sure_sn;oturum_id;ek\n2026-09-26T09:06:00+03:00;BAGLANTI_BITIS;5330000001;;;;;tcp;;1.1.1.1;443;;;;100;900;60;;\n2026-09-26T09:08:00+03:00;BAGLANTI_BITIS;5330000001;;;;;udp;;8.8.8.8;53;;;;10;10;1;;\n2026-09-26T09:05:30+03:00;BAGLANTI_BASLA;5330000001;;;;;;;1.1.1.1;;;;;;;;;\n2026-09-26T10:01:00+03:00;BAGLANTI_BITIS;5330000002;;;;;;;;;;;;;abc;;;\n2026-09-26T11:01:00+03:00;BAGLANTI_BITIS;5330000003;;;;;;;;;;;;5;5;;;\n2026-09-26T11:31:00+03:00;BAGLANTI_BITIS;;;;;;;;;;;;;9;9;;;\n",
+    "gz": true
+   },
+   "arsiv/bocafe/gunluk/2026-09-27/": {
+    "dizin": true
+   },
+   "arsiv/bocafe/gunluk/2026-09-27/MANIFEST.sha256": {
+    "metin": "# gun\nabc  oturum.csv.gz\nabc  dns.csv.gz\nabc  trafik.csv.gz\nabc  kullanicilar/5330000002.csv.gz\n"
+   },
+   "arsiv/bocafe/gunluk/2026-09-27/dns.csv.gz": {
+    "metin": "﻿zaman;olay;telefon;ad;soyad;mac;ic_ip;protokol;ic_port;hedef_ip;hedef_port;nat_ip;nat_port;alan_adi;gonderilen_bayt;alinan_bayt;sure_sn;oturum_id;ek\n2026-09-27T09:05:00+03:00;DNS;5330000001;;;aa:aa:aa:aa:aa:01;;;;;;;;Instagram.com.;;;;;\n2026-09-27T09:10:00+03:00;DNS;5330000001;;;;;;;;;;;instagram.com;;;;;\n2026-09-27T09:07:00+03:00;DNS;5330000001;;;;;;;;;;;google.com;;;;;\n2026-09-27T10:00:00+03:00;DNS;5330000002;;;bb:bb:bb:bb:bb:02;;;;;;;;<script>x</script>.com;;;;;\n2026-09-27T11:00:00+03:00;DNS;5330000003;;;;;;;;;;;a.com;;;;;\n2026-09-27T11:30:00+03:00;DNS;;;;;;;;;;;;izinli.com;;;;;\n",
+    "gz": true
+   },
+   "arsiv/bocafe/gunluk/2026-09-27/kullanicilar/": {
+    "dizin": true
+   },
+   "arsiv/bocafe/gunluk/2026-09-27/kullanicilar/5330000002.csv.gz": {
+    "metin": "﻿zaman;olay;telefon;ad;soyad;mac;ic_ip;protokol;ic_port;hedef_ip;hedef_port;nat_ip;nat_port;alan_adi;gonderilen_bayt;alinan_bayt;sure_sn;oturum_id;ek\n2026-09-27T10:00:00+03:00;KAYIT;5330000002;Bora;Kaya;bb:bb:bb:bb:bb:02;;;;;;;;;;;;;\n",
+    "gz": true
+   },
+   "arsiv/bocafe/gunluk/2026-09-27/oturum.csv.gz": {
+    "metin": "﻿zaman;olay;telefon;ad;soyad;mac;ic_ip;protokol;ic_port;hedef_ip;hedef_port;nat_ip;nat_port;alan_adi;gonderilen_bayt;alinan_bayt;sure_sn;oturum_id;ek\n2026-09-27T09:00:00+03:00;OTURUM_BASLA;5330000001;Ayşe;Yılmaz;aa:aa:aa:aa:aa:01;10.50.0.21;;;;;;;;;;;;\n2026-09-27T17:00:00+03:00;OTURUM_BITIS;5330000001;Ayşe;Yılmaz;aa:aa:aa:aa:aa:01;10.50.0.21;;;;;;;;;;;;neden=cikis\n",
+    "gz": true
+   },
+   "arsiv/bocafe/gunluk/2026-09-27/trafik.csv.gz": {
+    "metin": "﻿zaman;olay;telefon;ad;soyad;mac;ic_ip;protokol;ic_port;hedef_ip;hedef_port;nat_ip;nat_port;alan_adi;gonderilen_bayt;alinan_bayt;sure_sn;oturum_id;ek\n2026-09-27T09:06:00+03:00;BAGLANTI_BITIS;5330000001;;;;;tcp;;1.1.1.1;443;;;;100;900;60;;\n2026-09-27T09:08:00+03:00;BAGLANTI_BITIS;5330000001;;;;;udp;;8.8.8.8;53;;;;10;10;1;;\n2026-09-27T09:05:30+03:00;BAGLANTI_BASLA;5330000001;;;;;;;1.1.1.1;;;;;;;;;\n2026-09-27T10:01:00+03:00;BAGLANTI_BITIS;5330000002;;;;;;;;;;;;;abc;;;\n2026-09-27T11:01:00+03:00;BAGLANTI_BITIS;5330000003;;;;;;;;;;;;5;5;;;\n2026-09-27T11:31:00+03:00;BAGLANTI_BITIS;;;;;;;;;;;;;9;9;;;\n",
+    "gz": true
+   },
+   "arsiv/bocafe/index.csv": {
+    "metin": "﻿telefon;ad;soyad;ilk_kayit;son_oturum\n5330000003;Cem;Er;;\n"
+   },
+   "detay/": {
+    "dizin": true
+   },
+   "detay/bocafe/": {
+    "dizin": true
+   },
+   "detay/bocafe/2026-09-26.json": {
+    "json": {
+     "gun": "2026-09-26",
+     "kisiler": [
+      {
+       "telefon": "5330000001",
+       "ad": "Ayşe",
+       "soyad": "Yılmaz",
+       "mac": [
+        "aa:aa:aa:aa:aa:01"
+       ],
+       "oturumlar": [
+        {
+         "olay": "OTURUM_BASLA",
+         "zaman": "2026-09-26T09:00:00+03:00",
+         "ic_ip": "10.50.0.21",
+         "ek": ""
+        },
+        {
+         "olay": "OTURUM_BITIS",
+         "zaman": "2026-09-26T17:00:00+03:00",
+         "ic_ip": "10.50.0.21",
+         "ek": "neden=cikis"
+        }
+       ],
+       "gonderilen": 110,
+       "alinan": 910,
+       "baglanti_sayisi": 2,
+       "ilk": "2026-09-26T09:00:00+03:00",
+       "son": "2026-09-26T17:00:00+03:00",
+       "siteler": [
+        {
+         "alan": "instagram.com",
+         "sayi": 2,
+         "ilk": "2026-09-26T09:05:00+03:00",
+         "son": "2026-09-26T09:10:00+03:00"
+        },
+        {
+         "alan": "google.com",
+         "sayi": 1,
+         "ilk": "2026-09-26T09:07:00+03:00",
+         "son": "2026-09-26T09:07:00+03:00"
+        }
+       ],
+       "baglantilar": [
+        {
+         "zaman": "2026-09-26T09:06:00+03:00",
+         "protokol": "tcp",
+         "hedef_ip": "1.1.1.1",
+         "hedef_port": "443",
+         "gonderilen": 100,
+         "alinan": 900,
+         "sure_sn": 60
+        },
+        {
+         "zaman": "2026-09-26T09:08:00+03:00",
+         "protokol": "udp",
+         "hedef_ip": "8.8.8.8",
+         "hedef_port": "53",
+         "gonderilen": 10,
+         "alinan": 10,
+         "sure_sn": 1
+        }
+       ],
+       "diger_site_sayisi": 0
+      },
+      {
+       "telefon": "5330000002",
+       "ad": "Bora",
+       "soyad": "Kaya",
+       "mac": [
+        "bb:bb:bb:bb:bb:02"
+       ],
+       "oturumlar": [],
+       "gonderilen": 0,
+       "alinan": 0,
+       "baglanti_sayisi": 1,
+       "ilk": "2026-09-26T10:00:00+03:00",
+       "son": "2026-09-26T10:01:00+03:00",
+       "siteler": [
+        {
+         "alan": "<script>x</script>.com",
+         "sayi": 1,
+         "ilk": "2026-09-26T10:00:00+03:00",
+         "son": "2026-09-26T10:00:00+03:00"
+        }
+       ],
+       "baglantilar": [
+        {
+         "zaman": "2026-09-26T10:01:00+03:00",
+         "protokol": "",
+         "hedef_ip": "",
+         "hedef_port": "",
+         "gonderilen": 0,
+         "alinan": 0,
+         "sure_sn": 0
+        }
+       ],
+       "diger_site_sayisi": 0
+      },
+      {
+       "telefon": "5330000003",
+       "ad": "Cem",
+       "soyad": "Er",
+       "mac": [],
+       "oturumlar": [],
+       "gonderilen": 5,
+       "alinan": 5,
+       "baglanti_sayisi": 1,
+       "ilk": "2026-09-26T11:00:00+03:00",
+       "son": "2026-09-26T11:01:00+03:00",
+       "siteler": [
+        {
+         "alan": "a.com",
+         "sayi": 1,
+         "ilk": "2026-09-26T11:00:00+03:00",
+         "son": "2026-09-26T11:00:00+03:00"
+        }
+       ],
+       "baglantilar": [
+        {
+         "zaman": "2026-09-26T11:01:00+03:00",
+         "protokol": "",
+         "hedef_ip": "",
+         "hedef_port": "",
+         "gonderilen": 5,
+         "alinan": 5,
+         "sure_sn": 0
+        }
+       ],
+       "diger_site_sayisi": 0
+      }
+     ]
+    }
+   },
+   "detay/bocafe/2026-09-27.json": {
+    "json": {
+     "gun": "2026-09-27",
+     "kisiler": [
+      {
+       "telefon": "5330000001",
+       "ad": "Ayşe",
+       "soyad": "Yılmaz",
+       "mac": [
+        "aa:aa:aa:aa:aa:01"
+       ],
+       "oturumlar": [
+        {
+         "olay": "OTURUM_BASLA",
+         "zaman": "2026-09-27T09:00:00+03:00",
+         "ic_ip": "10.50.0.21",
+         "ek": ""
+        },
+        {
+         "olay": "OTURUM_BITIS",
+         "zaman": "2026-09-27T17:00:00+03:00",
+         "ic_ip": "10.50.0.21",
+         "ek": "neden=cikis"
+        }
+       ],
+       "gonderilen": 110,
+       "alinan": 910,
+       "baglanti_sayisi": 2,
+       "ilk": "2026-09-27T09:00:00+03:00",
+       "son": "2026-09-27T17:00:00+03:00",
+       "siteler": [
+        {
+         "alan": "instagram.com",
+         "sayi": 2,
+         "ilk": "2026-09-27T09:05:00+03:00",
+         "son": "2026-09-27T09:10:00+03:00"
+        },
+        {
+         "alan": "google.com",
+         "sayi": 1,
+         "ilk": "2026-09-27T09:07:00+03:00",
+         "son": "2026-09-27T09:07:00+03:00"
+        }
+       ],
+       "baglantilar": [
+        {
+         "zaman": "2026-09-27T09:06:00+03:00",
+         "protokol": "tcp",
+         "hedef_ip": "1.1.1.1",
+         "hedef_port": "443",
+         "gonderilen": 100,
+         "alinan": 900,
+         "sure_sn": 60
+        },
+        {
+         "zaman": "2026-09-27T09:08:00+03:00",
+         "protokol": "udp",
+         "hedef_ip": "8.8.8.8",
+         "hedef_port": "53",
+         "gonderilen": 10,
+         "alinan": 10,
+         "sure_sn": 1
+        }
+       ],
+       "diger_site_sayisi": 0
+      },
+      {
+       "telefon": "5330000002",
+       "ad": "Bora",
+       "soyad": "Kaya",
+       "mac": [
+        "bb:bb:bb:bb:bb:02"
+       ],
+       "oturumlar": [],
+       "gonderilen": 0,
+       "alinan": 0,
+       "baglanti_sayisi": 1,
+       "ilk": "2026-09-27T10:00:00+03:00",
+       "son": "2026-09-27T10:01:00+03:00",
+       "siteler": [
+        {
+         "alan": "<script>x</script>.com",
+         "sayi": 1,
+         "ilk": "2026-09-27T10:00:00+03:00",
+         "son": "2026-09-27T10:00:00+03:00"
+        }
+       ],
+       "baglantilar": [
+        {
+         "zaman": "2026-09-27T10:01:00+03:00",
+         "protokol": "",
+         "hedef_ip": "",
+         "hedef_port": "",
+         "gonderilen": 0,
+         "alinan": 0,
+         "sure_sn": 0
+        }
+       ],
+       "diger_site_sayisi": 0
+      },
+      {
+       "telefon": "5330000003",
+       "ad": "",
+       "soyad": "",
+       "mac": [],
+       "oturumlar": [],
+       "gonderilen": 5,
+       "alinan": 5,
+       "baglanti_sayisi": 1,
+       "ilk": "2026-09-27T11:00:00+03:00",
+       "son": "2026-09-27T11:01:00+03:00",
+       "siteler": [
+        {
+         "alan": "a.com",
+         "sayi": 1,
+         "ilk": "2026-09-27T11:00:00+03:00",
+         "son": "2026-09-27T11:00:00+03:00"
+        }
+       ],
+       "baglantilar": [
+        {
+         "zaman": "2026-09-27T11:01:00+03:00",
+         "protokol": "",
+         "hedef_ip": "",
+         "hedef_port": "",
+         "gonderilen": 5,
+         "alinan": 5,
+         "sure_sn": 0
+        }
+       ],
+       "diger_site_sayisi": 0
+      }
+     ]
+    }
+   },
+   "detay/bocafe/kisiler.json": {
+    "json": {
+     "5330000001": {
+      "ad": "Ayşe",
+      "soyad": "Yılmaz",
+      "gunler": [
+       "2026-09-27",
+       "2026-09-26"
+      ],
+      "odalar": {}
+     },
+     "5330000002": {
+      "ad": "Bora",
+      "soyad": "Kaya",
+      "gunler": [
+       "2026-09-27",
+       "2026-09-26"
+      ],
+      "odalar": {}
+     },
+     "5330000003": {
+      "ad": "Cem",
+      "soyad": "Er",
+      "gunler": [
+       "2026-09-27",
+       "2026-09-26"
+      ],
+      "odalar": {}
+     }
+    }
+   }
+  }
+ ],
  "yollar": []
 }

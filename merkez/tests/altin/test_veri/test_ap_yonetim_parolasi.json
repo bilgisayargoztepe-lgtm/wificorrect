@@ -1,7 +1,8 @@
 {
- "bicim": 1,
+ "bicim": 2,
  "dosya": "test_veri",
  "test": "test_ap_yonetim_parolasi",
+ "platform_farki": [],
  "cevaplar": [],
  "veritabanlari": [
   {
@@ -27,7 +28,7 @@
       "ozet": "2f0c6ae427e794ff157e8b1bb8a66746d57da95fe80c279226c874237d232ba4",
       "parola_acik": "baska-parola-12",
       "son_giris": "",
-      "tuz": "<T1>",
+      "tuz": "<T1:32>",
       "uyelik": "aktif",
       "yineleme": 120000
      },
@@ -45,7 +46,7 @@
       "ozet": "e3774b6d018985dae8974ef1ceae2b0fffddaca80a745bbe6015adacab37964f",
       "parola_acik": "6vwWeTxWbXDf",
       "son_giris": "",
-      "tuz": "<T2>",
+      "tuz": "<T2:32>",
       "uyelik": "aktif",
       "yineleme": 120000
      }
@@ -58,6 +59,9 @@
     "surum": []
    }
   }
+ ],
+ "dosyalar": [
+  {}
  ],
  "yollar": []
 }

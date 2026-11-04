@@ -1,7 +1,8 @@
 {
- "bicim": 1,
+ "bicim": 2,
  "dosya": "test_ap",
  "test": "test_belirtec_veren_tarayicinin_agina_bagli",
+ "platform_farki": [],
  "cevaplar": [
   {
    "istek": "GET /_ap-gecis",
@@ -9,7 +10,7 @@
    "basliklar": [
     [
      "Location",
-     "https://ap.wificorrect.com/_ap-giris?t=<T1>"
+     "https://ap.wificorrect.com/_ap-giris?t=<T1:43>"
     ],
     [
      "Cache-Control",
@@ -21,7 +22,7 @@
    }
   },
   {
-   "istek": "GET /_ap-giris?t=<T?>",
+   "istek": "GET /_ap-giris?t=<T?:43>",
    "durum": 303,
    "basliklar": [
     [
@@ -30,7 +31,7 @@
     ],
     [
      "Set-Cookie",
-     "wca=<T2>; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=1800"
+     "wca=<T2:43>; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=1800"
     ],
     [
      "Clear-Site-Data",
@@ -51,7 +52,7 @@
    "basliklar": [
     [
      "Location",
-     "https://ap.wificorrect.com/_ap-giris?t=<T3>"
+     "https://ap.wificorrect.com/_ap-giris?t=<T3:43>"
     ],
     [
      "Cache-Control",
@@ -63,7 +64,7 @@
    }
   },
   {
-   "istek": "GET /_ap-giris?t=<T?>",
+   "istek": "GET /_ap-giris?t=<T?:43>",
    "durum": 303,
    "basliklar": [
     [
@@ -72,7 +73,7 @@
     ],
     [
      "Set-Cookie",
-     "wca=<T4>; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=1800"
+     "wca=<T4:43>; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=1800"
     ],
     [
      "Clear-Site-Data",
@@ -93,7 +94,7 @@
    "basliklar": [
     [
      "Location",
-     "https://ap.wificorrect.com/_ap-giris?t=<T5>"
+     "https://ap.wificorrect.com/_ap-giris?t=<T5:43>"
     ],
     [
      "Cache-Control",
@@ -105,7 +106,7 @@
    }
   },
   {
-   "istek": "GET /_ap-giris?t=<T?>",
+   "istek": "GET /_ap-giris?t=<T?:43>",
    "durum": 303,
    "basliklar": [
     [
@@ -114,7 +115,7 @@
     ],
     [
      "Set-Cookie",
-     "wca=<T6>; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=1800"
+     "wca=<T6:43>; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=1800"
     ],
     [
      "Clear-Site-Data",
@@ -135,7 +136,7 @@
    "basliklar": [
     [
      "Location",
-     "https://ap.wificorrect.com/_ap-giris?t=<T7>"
+     "https://ap.wificorrect.com/_ap-giris?t=<T7:43>"
     ],
     [
      "Cache-Control",
@@ -147,7 +148,7 @@
    }
   },
   {
-   "istek": "GET /_ap-giris?t=<T?>",
+   "istek": "GET /_ap-giris?t=<T?:43>",
    "durum": 403,
    "basliklar": [
     [
@@ -172,7 +173,7 @@
    }
   },
   {
-   "istek": "GET /_ap-giris?t=<T?>",
+   "istek": "GET /_ap-giris?t=<T?:43>",
    "durum": 403,
    "basliklar": [
     [
@@ -202,7 +203,7 @@
    "basliklar": [
     [
      "Location",
-     "https://ap.wificorrect.com/_ap-giris?t=<T8>"
+     "https://ap.wificorrect.com/_ap-giris?t=<T8:43>"
     ],
     [
      "Cache-Control",
@@ -214,7 +215,7 @@
    }
   },
   {
-   "istek": "GET /_ap-giris?t=<T?>",
+   "istek": "GET /_ap-giris?t=<T?:43>",
    "durum": 403,
    "basliklar": [
     [
@@ -239,7 +240,7 @@
    }
   },
   {
-   "istek": "GET /_ap-giris?t=<T?>",
+   "istek": "GET /_ap-giris?t=<T?:43>",
    "durum": 403,
    "basliklar": [
     [
@@ -269,7 +270,7 @@
    "basliklar": [
     [
      "Location",
-     "https://ap.wificorrect.com/_ap-giris?t=<T9>"
+     "https://ap.wificorrect.com/_ap-giris?t=<T9:43>"
     ],
     [
      "Cache-Control",
@@ -281,7 +282,7 @@
    }
   },
   {
-   "istek": "GET /_ap-giris?t=<T?>",
+   "istek": "GET /_ap-giris?t=<T?:43>",
    "durum": 403,
    "basliklar": [
     [
@@ -306,7 +307,7 @@
    }
   },
   {
-   "istek": "GET /_ap-giris?t=<T?>",
+   "istek": "GET /_ap-giris?t=<T?:43>",
    "durum": 403,
    "basliklar": [
     [
@@ -336,7 +337,7 @@
    "basliklar": [
     [
      "Location",
-     "https://ap.wificorrect.com/_ap-giris?t=<T10>"
+     "https://ap.wificorrect.com/_ap-giris?t=<T10:43>"
     ],
     [
      "Cache-Control",
@@ -348,7 +349,7 @@
    }
   },
   {
-   "istek": "GET /_ap-giris?t=<T?>",
+   "istek": "GET /_ap-giris?t=<T?:43>",
    "durum": 403,
    "basliklar": [
     [
@@ -373,7 +374,7 @@
    }
   },
   {
-   "istek": "GET /_ap-giris?t=<T?>",
+   "istek": "GET /_ap-giris?t=<T?:43>",
    "durum": 403,
    "basliklar": [
     [
@@ -403,7 +404,7 @@
    "basliklar": [
     [
      "Location",
-     "https://ap.wificorrect.com/_ap-giris?t=<T11>"
+     "https://ap.wificorrect.com/_ap-giris?t=<T11:43>"
     ],
     [
      "Cache-Control",
@@ -415,7 +416,7 @@
    }
   },
   {
-   "istek": "GET /_ap-giris?t=<T?>",
+   "istek": "GET /_ap-giris?t=<T?:43>",
    "durum": 403,
    "basliklar": [
     [
@@ -440,7 +441,7 @@
    }
   },
   {
-   "istek": "GET /_ap-giris?t=<T?>",
+   "istek": "GET /_ap-giris?t=<T?:43>",
    "durum": 403,
    "basliklar": [
     [
@@ -470,7 +471,7 @@
    "basliklar": [
     [
      "Location",
-     "https://ap.wificorrect.com/_ap-giris?t=<T12>"
+     "https://ap.wificorrect.com/_ap-giris?t=<T12:43>"
     ],
     [
      "Cache-Control",
@@ -482,7 +483,7 @@
    }
   },
   {
-   "istek": "GET /_ap-giris?t=<T?>",
+   "istek": "GET /_ap-giris?t=<T?:43>",
    "durum": 303,
    "basliklar": [
     [
@@ -491,7 +492,7 @@
     ],
     [
      "Set-Cookie",
-     "wca=<T13>; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=1800"
+     "wca=<T13:43>; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=1800"
     ],
     [
      "Clear-Site-Data",
@@ -636,7 +637,7 @@
       "ozet": "e4b42aba6380c081c1e40ea833fbd8d6c017c31428ff9779ed2c6c68422dbf14",
       "parola_acik": "musteri-parola-1",
       "son_giris": "",
-      "tuz": "<T14>",
+      "tuz": "<T14:32>",
       "uyelik": "aktif",
       "yineleme": 120000
      }
@@ -656,6 +657,16 @@
      }
     ],
     "surum": []
+   }
+  }
+ ],
+ "dosyalar": [
+  {
+   "detay/": {
+    "dizin": true
+   },
+   "ist/": {
+    "dizin": true
    }
   }
  ],

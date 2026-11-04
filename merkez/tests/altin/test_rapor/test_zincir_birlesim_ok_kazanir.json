@@ -1,8 +1,22 @@
 {
- "bicim": 1,
+ "bicim": 2,
  "dosya": "test_rapor",
  "test": "test_zincir_birlesim_ok_kazanir",
+ "platform_farki": [],
  "cevaplar": [],
  "veritabanlari": [],
+ "dosyalar": [
+  {
+   "eski/": {
+    "dizin": true
+   },
+   "eski/zincir.txt.1": {
+    "metin": "2026-10-01;aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa;6b0440c1ce48fe6bbbdc6b7b1499bf9aa8b74171dcdb3eeff952e1e7cf527813\n"
+   },
+   "zincir.txt": {
+    "metin": "2026-10-01;bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb;1111111111111111111111111111111111111111111111111111111111111111\n"
+   }
+  }
+ ],
  "yollar": []
 }

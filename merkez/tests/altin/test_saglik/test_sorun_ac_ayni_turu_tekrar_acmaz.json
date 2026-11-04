@@ -1,7 +1,8 @@
 {
- "bicim": 1,
+ "bicim": 2,
  "dosya": "test_saglik",
  "test": "test_sorun_ac_ayni_turu_tekrar_acmaz",
+ "platform_farki": [],
  "cevaplar": [],
  "veritabanlari": [
   {
@@ -60,6 +61,9 @@
     "surum": []
    }
   }
+ ],
+ "dosyalar": [
+  {}
  ],
  "yollar": []
 }

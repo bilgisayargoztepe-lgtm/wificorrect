@@ -1,8 +1,21 @@
 {
- "bicim": 1,
+ "bicim": 2,
  "dosya": "test_yonetim",
  "test": "test_parola_yetki_birakilmadan_once_sorulur",
+ "platform_farki": [],
  "cevaplar": [],
  "veritabanlari": [],
+ "dosyalar": [
+  {
+   "y.json": {
+    "json": {
+     "kullanici": "serkan",
+     "tuz": "<T1:32>",
+     "ozet": "83f17415f405a2ca5be826ece859e984a861fa87c5fa8a5bb6bb9d87c09bdcbc",
+     "yineleme": 120000
+    }
+   }
+  }
+ ],
  "yollar": []
 }

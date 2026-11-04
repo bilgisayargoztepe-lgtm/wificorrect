@@ -64,9 +64,17 @@ pub struct Ortam {
     pub kisi_sir: PathBuf,
 }
 
+/// Yeni, boş geçici dizin (Python `tempfile.TemporaryDirectory()` / `mkdtemp()`); açık altın kayda bildirilir: testin
+/// sonunda içindeki dosyalar Python'unkilerle karşılaştırılır. Python testi kaç geçici dizin açtıysa o kadar, aynı sırayla.
+pub fn gecici_dizin() -> PathBuf {
+    let d = crate::ortak::tests::gecici_dizin();
+    crate::altin::dizin_acildi(&d);
+    d
+}
+
 /// Yeni geçici dizinde ortam (Python `with tempfile.TemporaryDirectory() as tmp: ... Y.ortam(tmp)`).
 pub fn ortam() -> Ortam {
-    ortam_dizinde(&crate::ortak::tests::gecici_dizin())
+    ortam_dizinde(&gecici_dizin())
 }
 
 /// Python `ortam(tmp)`: tmp/m.db, tmp/ist, tmp/detay.

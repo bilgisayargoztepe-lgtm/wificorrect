@@ -1,7 +1,8 @@
 {
- "bicim": 1,
+ "bicim": 2,
  "dosya": "test_cihaz",
  "test": "test_cihaz_oturumu_parola_lisans",
+ "platform_farki": [],
  "cevaplar": [
   {
    "istek": "GET /cihaz-yetki",
@@ -123,7 +124,7 @@
       "ozet": "a91c51e46c84af26de4a899c7e82868501626408be1fa7e56a26a1dbd535d652",
       "parola_acik": "yeni-parola-12",
       "son_giris": "",
-      "tuz": "<T1>",
+      "tuz": "<T1:32>",
       "uyelik": "aktif",
       "yineleme": 120000
      }
@@ -139,6 +140,16 @@
      }
     ],
     "surum": []
+   }
+  }
+ ],
+ "dosyalar": [
+  {
+   "detay/": {
+    "dizin": true
+   },
+   "ist/": {
+    "dizin": true
    }
   }
  ],

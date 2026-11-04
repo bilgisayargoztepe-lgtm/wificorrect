@@ -1,7 +1,8 @@
 {
- "bicim": 1,
+ "bicim": 2,
  "dosya": "test_listeler",
  "test": "test_main_uretir_ve_hareket",
+ "platform_farki": [],
  "cevaplar": [],
  "veritabanlari": [
   {
@@ -61,6 +62,94 @@
      }
     ],
     "surum": []
+   }
+  }
+ ],
+ "dosyalar": [
+  {
+   "detay/": {
+    "dizin": true
+   },
+   "ist/": {
+    "dizin": true
+   },
+   "l/": {
+    "dizin": true
+   },
+   "l/.kilit": {
+    "metin": ""
+   },
+   "l/kaynak/": {
+    "dizin": true
+   },
+   "l/kaynak/kumar-44f833239a38.txt.gz": {
+    "metin": "a.com\n",
+    "gz": true
+   },
+   "l/kaynak/yetiskin-4d50e35b22de.txt.gz": {
+    "metin": "b.com\n",
+    "gz": true
+   },
+   "l/kaynak/zararli-f399dc860cca.txt.gz": {
+    "metin": "c.com\n",
+    "gz": true
+   },
+   "l/kumar.json": {
+    "json": {
+     "kategori": "kumar",
+     "sha256": "9d91b1739830114a547f6d9474a26aea5da18addc6ecc5c23c87c613b1d11aed",
+     "sayi": 1,
+     "zaman": "2026-09-21T17:13:30+03:00",
+     "kesildi": false,
+     "kaynaklar": [
+      {
+       "ad": "A",
+       "sayi": 1
+      }
+     ]
+    }
+   },
+   "l/kumar.txt.gz": {
+    "metin": "a.com\n",
+    "gz": true
+   },
+   "l/yetiskin.json": {
+    "json": {
+     "kategori": "yetiskin",
+     "sha256": "0b0424de36ef3cb760f0cf898a9bc2f4f662118500d9d18b200d8240864cdce7",
+     "sayi": 1,
+     "zaman": "2026-09-21T17:13:30+03:00",
+     "kesildi": false,
+     "kaynaklar": [
+      {
+       "ad": "B",
+       "sayi": 1
+      }
+     ]
+    }
+   },
+   "l/yetiskin.txt.gz": {
+    "metin": "b.com\n",
+    "gz": true
+   },
+   "l/zararli.json": {
+    "json": {
+     "kategori": "zararli",
+     "sha256": "f49d3a28cf9749dffe9ee87637c61ad743d319eea215a96f8c0d60ec8b31cf33",
+     "sayi": 1,
+     "zaman": "2026-09-21T17:13:30+03:00",
+     "kesildi": false,
+     "kaynaklar": [
+      {
+       "ad": "C",
+       "sayi": 1
+      }
+     ]
+    }
+   },
+   "l/zararli.txt.gz": {
+    "metin": "c.com\n",
+    "gz": true
    }
   }
  ],

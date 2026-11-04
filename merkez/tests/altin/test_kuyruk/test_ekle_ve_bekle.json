@@ -1,8 +1,30 @@
 {
- "bicim": 1,
+ "bicim": 2,
  "dosya": "test_kuyruk",
  "test": "test_ekle_ve_bekle",
+ "platform_farki": [],
  "cevaplar": [],
  "veritabanlari": [],
+ "dosyalar": [
+  {
+   "kuyruk/": {
+    "dizin": true
+   },
+   "kuyruk/<T1:16>.json": {
+    "json": {
+     "numara": "1234567",
+     "islem": "cihaz-ekle"
+    }
+   },
+   "sonuc/": {
+    "dizin": true
+   },
+   "sonuc/<T1:16>.json": {
+    "json": {
+     "durum": "tamam"
+    }
+   }
+  }
+ ],
  "yollar": []
 }

@@ -1,7 +1,8 @@
 {
- "bicim": 1,
+ "bicim": 2,
  "dosya": "test_saglik",
  "test": "test_main_beklenmeyen_hatada_sms",
+ "platform_farki": [],
  "cevaplar": [],
  "veritabanlari": [
   {
@@ -70,6 +71,9 @@
     "surum": []
    }
   }
+ ],
+ "dosyalar": [
+  {}
  ],
  "yollar": []
 }

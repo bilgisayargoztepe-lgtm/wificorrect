@@ -1,7 +1,8 @@
 {
- "bicim": 1,
+ "bicim": 2,
  "dosya": "test_bekleme",
  "test": "test_eski_kayit_7_gunde_silinir",
+ "platform_farki": [],
  "cevaplar": [
   {
    "istek": "POST /api/bekliyor",
@@ -145,6 +146,16 @@
      }
     ],
     "surum": []
+   }
+  }
+ ],
+ "dosyalar": [
+  {
+   "detay/": {
+    "dizin": true
+   },
+   "ist/": {
+    "dizin": true
    }
   }
  ],

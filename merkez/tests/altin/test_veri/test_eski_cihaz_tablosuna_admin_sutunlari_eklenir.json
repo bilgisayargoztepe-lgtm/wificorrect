@@ -1,7 +1,8 @@
 {
- "bicim": 1,
+ "bicim": 2,
  "dosya": "test_veri",
  "test": "test_eski_cihaz_tablosuna_admin_sutunlari_eklenir",
+ "platform_farki": [],
  "cevaplar": [],
  "veritabanlari": [
   {
@@ -90,6 +91,9 @@
     "surum": []
    }
   }
+ ],
+ "dosyalar": [
+  {}
  ],
  "yollar": []
 }

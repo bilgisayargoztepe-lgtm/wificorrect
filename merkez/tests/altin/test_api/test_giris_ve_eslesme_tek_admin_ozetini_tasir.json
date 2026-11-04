@@ -1,7 +1,8 @@
 {
- "bicim": 1,
+ "bicim": 2,
  "dosya": "test_api",
  "test": "test_giris_ve_eslesme_tek_admin_ozetini_tasir",
+ "platform_farki": [],
  "cevaplar": [
   {
    "istek": "POST /api/giris",
@@ -18,7 +19,7 @@
    ],
    "govde": {
     "json": {
-     "tuz": "<T2>",
+     "tuz": "<T2:32>",
      "ozet": "fcd77d2f1464acefd0bf9649c59c9103b30bf9b4aa14a1930fdbc86ae817e02c",
      "yineleme": 120000,
      "lisans": "aktif",
@@ -27,7 +28,7 @@
      "sms": {
       "etkin_mock": true
      },
-     "cihaz_anahtari": "<T1>",
+     "cihaz_anahtari": "<T1:43>",
      "tunel_ip": "10.99.0.10",
      "sunucu_pub": "SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS=",
      "uc_nokta": "vpn.wificorrect.com:51820",
@@ -50,14 +51,14 @@
    ],
    "govde": {
     "json": {
-     "tuz": "<T2>",
+     "tuz": "<T2:32>",
      "ozet": "fcd77d2f1464acefd0bf9649c59c9103b30bf9b4aa14a1930fdbc86ae817e02c",
      "yineleme": 120000,
      "lisans": "aktif",
      "lisans_bitis": "2027-09-21",
      "ap_parola": "6vwWeTxWbXDf",
      "admin": {
-      "tuz": "<T3>",
+      "tuz": "<T3:32>",
       "ozet": "cb9e0d95b5c5395dd61fc6e2629793055a4678070c59f316ecd69203367b2aef",
       "yineleme": 120000
      },
@@ -84,14 +85,14 @@
    ],
    "govde": {
     "json": {
-     "tuz": "<T2>",
+     "tuz": "<T2:32>",
      "ozet": "fcd77d2f1464acefd0bf9649c59c9103b30bf9b4aa14a1930fdbc86ae817e02c",
      "yineleme": 120000,
      "lisans": "aktif",
      "lisans_bitis": "2027-09-21",
      "ap_parola": "6vwWeTxWbXDf",
      "admin": {
-      "tuz": "<T3>",
+      "tuz": "<T3:32>",
       "ozet": "cb9e0d95b5c5395dd61fc6e2629793055a4678070c59f316ecd69203367b2aef",
       "yineleme": 120000
      },
@@ -111,7 +112,7 @@
     "ayar": [
      {
       "anahtar": "admin",
-      "deger": "{\"tuz\": \"<T3>\", \"ozet\": \"cb9e0d95b5c5395dd61fc6e2629793055a4678070c59f316ecd69203367b2aef\", \"yineleme\": 120000}"
+      "deger": "{\"tuz\": \"<T3:32>\", \"ozet\": \"cb9e0d95b5c5395dd61fc6e2629793055a4678070c59f316ecd69203367b2aef\", \"yineleme\": 120000}"
      }
     ],
     "bekleyen": [],
@@ -166,7 +167,7 @@
       "ozet": "fcd77d2f1464acefd0bf9649c59c9103b30bf9b4aa14a1930fdbc86ae817e02c",
       "parola_acik": "6bnuKUG4dyZ7",
       "son_giris": "",
-      "tuz": "<T2>",
+      "tuz": "<T2:32>",
       "uyelik": "aktif",
       "yineleme": 120000
      }
@@ -186,6 +187,16 @@
      }
     ],
     "surum": []
+   }
+  }
+ ],
+ "dosyalar": [
+  {
+   "detay/": {
+    "dizin": true
+   },
+   "ist/": {
+    "dizin": true
    }
   }
  ],

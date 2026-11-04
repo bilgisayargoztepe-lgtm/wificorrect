@@ -1,7 +1,8 @@
 {
- "bicim": 1,
+ "bicim": 2,
  "dosya": "test_ap",
  "test": "test_yeni_ap_oturumu_eski_ap_cerezlerini_siler",
+ "platform_farki": [],
  "cevaplar": [
   {
    "istek": "GET /_ap-gecis",
@@ -9,7 +10,7 @@
    "basliklar": [
     [
      "Location",
-     "https://ap.wificorrect.com/_ap-giris?t=<T1>"
+     "https://ap.wificorrect.com/_ap-giris?t=<T1:43>"
     ],
     [
      "Cache-Control",
@@ -21,7 +22,7 @@
    }
   },
   {
-   "istek": "GET /_ap-giris?t=<T?>",
+   "istek": "GET /_ap-giris?t=<T?:43>",
    "durum": 303,
    "basliklar": [
     [
@@ -30,7 +31,7 @@
     ],
     [
      "Set-Cookie",
-     "wca=<T2>; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=1800"
+     "wca=<T2:43>; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=1800"
     ],
     [
      "Set-Cookie",
@@ -59,7 +60,7 @@
    "basliklar": [
     [
      "Location",
-     "https://ap.wificorrect.com/_ap-giris?t=<T3>"
+     "https://ap.wificorrect.com/_ap-giris?t=<T3:43>"
     ],
     [
      "Cache-Control",
@@ -71,7 +72,7 @@
    }
   },
   {
-   "istek": "GET /_ap-giris?t=<T?>",
+   "istek": "GET /_ap-giris?t=<T?:43>",
    "durum": 303,
    "basliklar": [
     [
@@ -80,7 +81,7 @@
     ],
     [
      "Set-Cookie",
-     "wca=<T4>; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=1800"
+     "wca=<T4:43>; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=1800"
     ],
     [
      "Set-Cookie",
@@ -282,7 +283,7 @@
       "ozet": "e4b42aba6380c081c1e40ea833fbd8d6c017c31428ff9779ed2c6c68422dbf14",
       "parola_acik": "musteri-parola-1",
       "son_giris": "",
-      "tuz": "<T5>",
+      "tuz": "<T5:32>",
       "uyelik": "aktif",
       "yineleme": 120000
      }
@@ -302,6 +303,16 @@
      }
     ],
     "surum": []
+   }
+  }
+ ],
+ "dosyalar": [
+  {
+   "detay/": {
+    "dizin": true
+   },
+   "ist/": {
+    "dizin": true
    }
   }
  ],

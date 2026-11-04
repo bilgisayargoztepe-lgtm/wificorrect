@@ -1,7 +1,8 @@
 {
- "bicim": 1,
+ "bicim": 2,
  "dosya": "test_saglik",
  "test": "test_sorun_kapat_ve_gecmis",
+ "platform_farki": [],
  "cevaplar": [],
  "veritabanlari": [
   {
@@ -49,6 +50,9 @@
     "surum": []
    }
   }
+ ],
+ "dosyalar": [
+  {}
  ],
  "yollar": []
 }

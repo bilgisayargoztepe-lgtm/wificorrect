@@ -1,8 +1,30 @@
 {
- "bicim": 1,
+ "bicim": 2,
  "dosya": "test_wc_ozet",
  "test": "test_kimlikli_kisi_dosyasindan_ad",
+ "platform_farki": [],
  "cevaplar": [],
  "veritabanlari": [],
+ "dosyalar": [
+  {
+   "gunluk/": {
+    "dizin": true
+   },
+   "gunluk/2026-09-27/": {
+    "dizin": true
+   },
+   "gunluk/2026-09-27/dns.csv.gz": {
+    "metin": "﻿zaman;olay;telefon;ad;soyad;mac;ic_ip;protokol;ic_port;hedef_ip;hedef_port;nat_ip;nat_port;alan_adi;gonderilen_bayt;alinan_bayt;sure_sn;oturum_id;ek\nx;DNS;PASAPORT:DE:X1234567;;;;;;;;;;;a.com;;;;;\n",
+    "gz": true
+   },
+   "gunluk/2026-09-27/kullanicilar/": {
+    "dizin": true
+   },
+   "gunluk/2026-09-27/kullanicilar/PASAPORT_DE_X1234567.csv.gz": {
+    "metin": "﻿zaman;olay;telefon;ad;soyad;mac;ic_ip;protokol;ic_port;hedef_ip;hedef_port;nat_ip;nat_port;alan_adi;gonderilen_bayt;alinan_bayt;sure_sn;oturum_id;ek\nx;KAYIT;PASAPORT:DE:X1234567;Hans;Muller;;;;;;;;;;;;;;\n",
+    "gz": true
+   }
+  }
+ ],
  "yollar": []
 }

@@ -1,8 +1,12 @@
 {
- "bicim": 1,
+ "bicim": 2,
  "dosya": "test_rapor",
  "test": "test_tamam_mi_fifo_beklemez",
+ "platform_farki": [
+  "os.mkfifo yok"
+ ],
  "cevaplar": [],
  "veritabanlari": [],
+ "dosyalar": [],
  "yollar": []
 }

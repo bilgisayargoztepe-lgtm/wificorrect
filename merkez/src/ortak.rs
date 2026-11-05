@@ -35,7 +35,7 @@ fn rakam(b: &[u8]) -> bool {
 /// Ekranda gösterilen tarih (gün.ay.yıl): "2026-10-12" → "12.10.2026"; "2026-10-12T17:38:05+03:00" ya da
 /// "2026-10-12 17:38" → "12.10.2026 17:38" (saniye=true: "12.10.2026 17:38:05"). Çözülemeyen değer aynen.
 pub fn tarih_goster(iso: &str, saniye: bool) -> String {
-    let s = iso.trim();
+    let s = py_strip(iso);
     let b = s.as_bytes();
     if b.len() < 10 || !(rakam(&b[0..4]) && b[4] == b'-' && rakam(&b[5..7]) && b[7] == b'-' && rakam(&b[8..10])) {
         return iso.to_string();
@@ -64,7 +64,7 @@ pub fn tarih_saat_goster(iso: &str) -> String {
 /// Kişinin yazdığı tarih: "12.10.2026", "1.9.2026", "12.10.2026 17:38" → ISO "2026-10-12[ 17:38]".
 /// Başka her şey kırpılıp aynen döner; geçerliliği çağıran denetler.
 pub fn tarih_girdi(s: &str) -> String {
-    let s = s.trim();
+    let s = py_strip(s);
     let b = s.as_bytes();
     // 1-2 rakam . 1-2 rakam . 4 rakam
     let say = |bas: usize| b[bas..].iter().take_while(|c| c.is_ascii_digit()).count();
@@ -415,9 +415,11 @@ pub struct DisIstek {
     /// İzlenecek en çok yönlendirme sayısı (0: izlenmez, 3xx cevap olduğu gibi döner). Yalnızca GET için ve yalnızca
     /// kimliksiz indirmeler (sürüm/liste dosyaları) için kullanılır; SMS çağrıları 0 verir.
     pub yonlendirme: u32,
-    /// İndirmeler için (bağlanma süresi, boşta kalma süresi): bağlanma ve veri akışı Python `urlopen(timeout=60)` gibi
-    /// işlem başınadır (akış `boşta` boyunca saniyede 1 baytın altına düşerse kesilir); `zaman_asimi` yalnızca toplam
-    /// güvenlik sınırıdır. None: `zaman_asimi` hem bağlanma hem toplam süre (SMS çağrıları).
+    /// Aşama süreleri (bağlanma süresi, boşta kalma süresi). Bağlanma süresi DNS + TCP + TLS'i kapsar; boşta kalma, akış
+    /// bu kadar saniye boyunca saniyede 1 baytın altına düşerse keser. `zaman_asimi` bu durumda yalnızca TOPLAM güvenlik
+    /// sınırıdır (`--max-time`). İndirmeler (Python `urlopen(timeout=60)` gibi işlem başına) ve SMS çağrıları (Python'da
+    /// soket işlemi başına 5 sn; toplam yavaş yanıtta SMS gitmiş ama kod atılmış olmasın diye geniş tutulur) kullanır.
+    /// None: `zaman_asimi` hem bağlanma hem toplam süre (aşama ayrımı yok).
     pub indirme_sureleri: Option<(Duration, Duration)>,
 }
 
@@ -464,6 +466,7 @@ impl Curl {
         }
         let sn = i.zaman_asimi.as_secs().max(1);
         let mut c = String::new();
+        c.push_str("globoff\n"); // URL'de {} [] genişletmesi yok
         c.push_str(&format!("url = {}\n", tek_satir(&i.url)?));
         c.push_str("proto = \"=http,https\"\n");
         c.push_str(&format!("request = \"{}\"\n", i.yontem));
@@ -525,6 +528,7 @@ impl Curl {
         let mut bas: Vec<u8> = Vec::new();
         let mut son: Vec<u8> = Vec::new();
         let mut toplam: usize = 0;
+        let mut asildi = false;
         let mut tmp = [0u8; 8192];
         loop {
             let n = cikti.read(&mut tmp).map_err(|e| format!("curl: {e}"))?;
@@ -535,6 +539,14 @@ impl Curl {
                 let al = n.min(i.okuma_siniri - bas.len());
                 bas.extend_from_slice(&tmp[..al]);
             }
+            // İndirmede sınır aşıldıysa (okuma_siniri = izin verilen + 1) kalanı beklemeye gerek yok: çocuk hemen
+            // öldürülür (Python `surumler.py` sınır+1'de bırakır). Durum kodu akışın sonunda olduğundan bu yolda
+            // bilinmez; çağıran gövde sınırı aşılmış olduğundan zaten hata verir. SMS çağrılarında kesilmez.
+            if i.indirme_sureleri.is_some() && bas.len() >= i.okuma_siniri {
+                asildi = true;
+                let _ = cocuk.kill();
+                break;
+            }
             son.extend_from_slice(&tmp[..n]);
             if son.len() > 3 {
                 son.drain(..son.len() - 3);
@@ -544,6 +556,9 @@ impl Curl {
         let durum = cocuk.wait().map_err(|e| format!("curl: {e}"))?;
         let _ = yazici.join();
         let hata = hata_okuyucu.join().unwrap_or_default();
+        if asildi {
+            return Ok((200, bas));
+        }
         if !durum.success() {
             let m = String::from_utf8_lossy(&hata);
             let m: String = m.trim().chars().take(200).collect();
@@ -605,6 +620,16 @@ pub fn py_veya_bos(v: Option<&serde_json::Value>) -> String {
         Some(x) if py_dogru(x) => py_str(x),
         _ => String::new(),
     }
+}
+
+/// stderr'e (journal) tek satır yazar; yazılamazsa (akış koptu) sessizce vazgeçer. `eprintln!` stderr hatasında panik eder
+/// (bozuk journal akışı bir isteğin iş parçacığını öldürürdü); üretimdeki bütün stderr yazımları bunu kullanır.
+pub fn stderr_yaz(msg: &str) {
+    yaz_sessiz(&mut std::io::stderr(), msg);
+}
+
+fn yaz_sessiz(w: &mut dyn Write, msg: &str) {
+    let _ = writeln!(w, "{msg}");
 }
 
 /// Zehirlenmeye dayanıklı kilit: bir istekteki panik, sonraki isteklerin kilidi almasını engellemesin (panik → 500 yakalanır).
@@ -816,6 +841,24 @@ pub(crate) mod tests {
             yonlendirme: 0,
             indirme_sureleri: None,
         }
+    }
+
+    /// Bozuk stderr akışı (journal koptu) panik etmez; `eprintln!` ederdi.
+    #[test]
+    fn stderr_yazimi_hata_verince_panik_etmez() {
+        struct Bozuk;
+        impl Write for Bozuk {
+            fn write(&mut self, _: &[u8]) -> std::io::Result<usize> {
+                Err(std::io::Error::from(std::io::ErrorKind::BrokenPipe))
+            }
+            fn flush(&mut self) -> std::io::Result<()> {
+                Err(std::io::Error::from(std::io::ErrorKind::BrokenPipe))
+            }
+        }
+        yaz_sessiz(&mut Bozuk, "HATA deneme");
+        let mut iyi: Vec<u8> = Vec::new();
+        yaz_sessiz(&mut iyi, "satır");
+        assert_eq!(iyi, "satır\n".as_bytes());
     }
 
     #[test]

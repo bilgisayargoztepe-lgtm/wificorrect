@@ -145,7 +145,7 @@ fn netgsm_xml_ve_yanit() {
     let ag = SahteAg::yeni(vec![AgCevap::Govde("00 987654")]);
     assert_eq!(gonder(&ayar, "merhaba", &numara, ag.as_ref()), "gonderildi");
     ag.son(|r| {
-        assert!(r.url == "https://api.netgsm.com.tr/sms/send/xml" && r.yontem == "POST" && r.zaman_asimi == Duration::from_secs(10));
+        assert!(r.url == "https://api.netgsm.com.tr/sms/send/xml" && r.yontem == "POST" && r.zaman_asimi == Duration::from_secs(25));
         assert_eq!(r.basliklar, vec![("Content-Type".to_string(), "application/xml; charset=UTF-8".to_string())]);
         assert!(r.govde.contains("<no>5334553132</no>") && r.govde.contains("merhaba"));
     });

@@ -10,8 +10,11 @@ use serde_json::Value;
 use crate::ortak::{py_dogru, py_str, DisIstek, Tasiyici};
 
 pub const BASE: &str = "https://verify.twilio.com/v2/Services";
-/// İşlem başına zaman aşımı; çağrı bitmeden dönülmez, cihaz 15 sn bekler.
-pub const ISLEM_SURE: Duration = Duration::from_secs(5);
+/// Süreler (Python 5 sn soket işlemi başına): bağlanma (DNS + TCP + TLS) 7 sn, boşta 5 sn, toplam 12 sn; cihaz merkezi 15 sn
+/// bekler (`src/sms.rs` `MERKEZ_SURE`). Çağrı bitmeden dönülmez (SMS gitmiş ama kod atılmış olmasın).
+pub const BAGLANMA_SURE: Duration = Duration::from_secs(7);
+pub const BOSTA_SURE: Duration = Duration::from_secs(5);
+pub const ISLEM_SURE: Duration = Duration::from_secs(12);
 const OKUMA_SINIRI: usize = 16384;
 
 /// Alan adı → SID öneki (Python `SID_RE`, bu sırayla): önek + 32 onaltılık hane, tam eşleşme.
@@ -83,7 +86,7 @@ fn istek(ayar: &Value, yol: &str, alanlar: &[(&str, &str)], t: &dyn Tasiyici) ->
         zaman_asimi: ISLEM_SURE,
         okuma_siniri: OKUMA_SINIRI,
         yonlendirme: 0, // SMS: yönlendirme izlenmez
-        indirme_sureleri: None,
+        indirme_sureleri: Some((BAGLANMA_SURE, BOSTA_SURE)),
     };
     let Ok((durum, govde)) = t.gonder(&i) else { return Istek::Ag };
     let j = match serde_json::from_slice::<Value>(&govde) {

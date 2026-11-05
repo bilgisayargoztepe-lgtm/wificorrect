@@ -27,7 +27,8 @@ fn gonder_ve_dogrula() {
     assert_eq!(gonder(&tw(), TEL, ag.as_ref()), g("gonderildi", "0"));
     ag.son(|r| {
         assert_eq!(r.url, format!("https://verify.twilio.com/v2/Services/VA{}/Verifications", "b".repeat(32)));
-        assert!(r.yontem == "POST" && r.zaman_asimi == Duration::from_secs(5));
+        assert!(r.yontem == "POST" && r.zaman_asimi == Duration::from_secs(12));
+        assert_eq!(r.asama_sureleri, Some((Duration::from_secs(7), Duration::from_secs(5))));
         assert_eq!(r.govde, "To=%2B905334553132&Channel=sms&Locale=tr");
         // Basic kimlik curl'e `user =` olarak (stdin) gider; başlıkta ve komut satırında değil
         assert_eq!(r.kullanici, Some((format!("AC{}", "a".repeat(32)), "tw-token-gizli".to_string())));
@@ -95,11 +96,12 @@ fn dogrula_durum_eslemesi() {
 #[test]
 fn saglayici_cagrisi_twilio_bitmeden_donulmez() {
     let _k = Kayit::bas("test_sms_merkez", "test_saglayici_cagrisi_bitmeden_donulmez");
-    assert_eq!(ISLEM_SURE, Duration::from_secs(5));
+    assert_eq!((BAGLANMA_SURE, BOSTA_SURE, ISLEM_SURE), (Duration::from_secs(7), Duration::from_secs(5), Duration::from_secs(12)));
     let ag = SahteAg::yeni(vec![AgCevap::Govde(r#"{"status": "pending"}"#), AgCevap::Govde(r#"{"status": "approved"}"#)]);
     assert_eq!(gonder(&tw(), TEL, ag.as_ref()), g("gonderildi", "0"));
     assert_eq!(dogrula(&tw(), TEL, KOD, ag.as_ref()), (Some(true), "0".to_string()));
-    assert!(ag.istekler.lock().unwrap().iter().all(|r| r.zaman_asimi == Duration::from_secs(5)));
+    assert!(ag.istekler.lock().unwrap().iter().all(|r| r.zaman_asimi == Duration::from_secs(12)
+        && r.asama_sureleri == Some((Duration::from_secs(7), Duration::from_secs(5)))));
 }
 
 #[test]

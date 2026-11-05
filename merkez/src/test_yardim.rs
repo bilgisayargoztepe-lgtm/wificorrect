@@ -216,6 +216,7 @@ pub struct GidenIstek {
     pub govde: String,
     pub kullanici: Option<(String, String)>,
     pub zaman_asimi: Duration,
+    pub asama_sureleri: Option<(Duration, Duration)>,
 }
 
 /// Python testlerindeki sahte `urlopen`: her isteği kaydeder, sıradaki cevabı verir; sıra boşsa NetGSM başarısı.
@@ -258,6 +259,7 @@ impl crate::ortak::Tasiyici for SahteAg {
             govde: i.govde.as_ref().map(|g| String::from_utf8_lossy(g).into_owned()).unwrap_or_default(),
             kullanici: i.kullanici.clone(),
             zaman_asimi: i.zaman_asimi,
+            asama_sureleri: i.indirme_sureleri,
         });
         match self.cevaplar.lock().unwrap().pop_front() {
             None => Ok((200, b"<xml><main><code>0</code><jobID>111</jobID></main></xml>".to_vec())),

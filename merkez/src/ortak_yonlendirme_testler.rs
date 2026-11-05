@@ -117,3 +117,52 @@ fn yonlendirme_izlenir_sinirlanir_ve_http_disina_gitmez() {
     let yollar = sunucu.join().unwrap();
     assert_eq!(yollar, ["/a", "/b", "/son", "/a", "/f", "/dongu", "/dongu", "/dongu"]);
 }
+
+#[test]
+fn yapilandirma_sms_asama_sureleri_ve_globoff() {
+    // SMS biçimi: bağlanma 7, boşta 5 (hız sınırı), toplam 12 (--max-time `calistir`de, zaman_asimi'ndan). Anlam: aşama
+    // süreleri verilince `zaman_asimi` TOPLAM sınırdır, bağlanma süresi olarak kullanılmaz.
+    let mut i = istek("https://x/", 0);
+    i.yontem = "POST".into();
+    i.govde = Some(b"x".to_vec());
+    i.zaman_asimi = Duration::from_secs(12);
+    i.indirme_sureleri = Some((Duration::from_secs(7), Duration::from_secs(5)));
+    let y = Curl::yapilandirma(&i).unwrap();
+    assert!(y.contains("connect-timeout = 7\n"), "{y}");
+    assert!(y.contains("speed-limit = 1\n") && y.contains("speed-time = 5\n"), "{y}");
+    assert!(!y.contains("connect-timeout = 12") && !y.contains("max-time"), "{y}");
+    assert!(y.starts_with("globoff\n"), "{y}");
+}
+
+/// Sınırı aşan indirme erken biter: sunucu sınırdan fazlasını gönderip bağlantıyı açık tutar; çocuk süreç hemen öldürülür.
+#[test]
+fn indirme_siniri_asilinca_curl_hemen_oldurulur() {
+    if !curl_var() {
+        return;
+    }
+    let l = TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = l.local_addr().unwrap().port();
+    let sunucu = std::thread::spawn(move || {
+        let (mut s, _) = l.accept().unwrap();
+        let mut tmp = [0u8; 2048];
+        let mut ham = Vec::new();
+        while !ham.windows(4).any(|w| w == b"\r\n\r\n") {
+            let n = s.read(&mut tmp).unwrap();
+            assert!(n > 0);
+            ham.extend_from_slice(&tmp[..n]);
+        }
+        let _ = s.write_all(b"HTTP/1.0 200 OK\r\n\r\n");
+        let _ = s.write_all(&vec![b'a'; 64 * 1024]);
+        // bağlantı açık kalır: curl kendiliğinden bitmez, ancak öldürülürse istemci kapanır
+        std::thread::sleep(Duration::from_secs(8));
+    });
+    let mut i = istek(&format!("http://127.0.0.1:{port}/b"), 5);
+    i.okuma_siniri = 1001;
+    i.zaman_asimi = Duration::from_secs(30);
+    i.indirme_sureleri = Some((Duration::from_secs(5), Duration::from_secs(20)));
+    let basla = std::time::Instant::now();
+    let (_, g) = Curl.calistir(&i).unwrap();
+    assert_eq!(g.len(), 1001, "sınır+1 bayt okunmuş olmalı");
+    assert!(basla.elapsed() < Duration::from_secs(4), "sınır aşımı beklemeden bitmeli: {:?}", basla.elapsed());
+    drop(sunucu); // uyuyan iş parçacığı beklenmez
+}

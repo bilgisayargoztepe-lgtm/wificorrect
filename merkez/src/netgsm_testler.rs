@@ -26,7 +26,8 @@ fn otp_xml_ve_cevap() {
     ayar["appkey"] = json!("k1");
     assert_eq!(otp_gonder(&ayar, "5334553132", metin, ag.as_ref()), s("gonderildi", "0", "17283946"));
     ag.son(|r| {
-        assert!(r.url == "https://api.netgsm.com.tr/sms/send/otp" && r.yontem == "POST" && r.zaman_asimi == Duration::from_secs(5));
+        assert!(r.url == "https://api.netgsm.com.tr/sms/send/otp" && r.yontem == "POST" && r.zaman_asimi == Duration::from_secs(12));
+        assert_eq!(r.asama_sureleri, Some((Duration::from_secs(7), Duration::from_secs(5))));
         assert_eq!(r.basliklar, vec![("Content-Type".to_string(), "application/xml; charset=UTF-8".to_string())]);
         assert!(r.kullanici.is_none());
         assert_eq!(
@@ -56,11 +57,12 @@ fn otp_xml_ve_cevap() {
 #[test]
 fn saglayici_cagrisi_netgsm_bitmeden_donulmez() {
     let _k = Kayit::bas("test_sms_merkez", "test_saglayici_cagrisi_bitmeden_donulmez");
-    assert_eq!(ISLEM_SURE, Duration::from_secs(5));
+    // Python soket işlemi başına 5 sn; Rust: bağlanma 7, boşta 5, toplam 12 (< cihazın 15 sn beklemesi)
+    assert_eq!((OTP_BAGLANMA, OTP_BOSTA, ISLEM_SURE), (Duration::from_secs(7), Duration::from_secs(5), Duration::from_secs(12)));
     let metin = "WiFi dogrulama kodunuz: 123456. Kod 3 dakika gecerlidir.";
     let ag = SahteAg::yeni(vec![AgCevap::Govde("<xml><main><code>0</code><jobID>77</jobID></main></xml>")]);
     assert_eq!(otp_gonder(&netgsm(), "5334553132", metin, ag.as_ref()), s("gonderildi", "0", "77"));
-    ag.son(|r| assert_eq!(r.zaman_asimi, Duration::from_secs(5)));
+    ag.son(|r| assert_eq!((r.zaman_asimi, r.asama_sureleri), (Duration::from_secs(12), Some((Duration::from_secs(7), Duration::from_secs(5))))));
     assert_eq!(otp_gonder(&netgsm(), "5334553132", metin, SahteAg::yeni(vec![AgCevap::Hata]).as_ref()), s("hata", "AG", ""));
 }
 
@@ -79,6 +81,8 @@ fn genel_sms_gonder() {
     assert_eq!(gonder(&netgsm(), "Uyarı <test>", &["+90 533 455 31 32", "05334553132", "kötü"], ag.as_ref()), "gonderildi");
     ag.son(|r| {
         assert!(r.url == URL && r.zaman_asimi == GENEL_SURE && r.kullanici.is_none());
+        assert_eq!(GENEL_SURE, Duration::from_secs(25));
+        assert_eq!(r.asama_sureleri, Some((Duration::from_secs(10), Duration::from_secs(10))));
         assert_eq!(
             r.govde,
             "<?xml version=\"1.0\" encoding=\"UTF-8\"?><mainbody><header><company dil=\"TR\">Netgsm</company>\

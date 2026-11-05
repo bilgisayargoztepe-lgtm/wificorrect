@@ -10,11 +10,17 @@ use crate::ortak::{normalize_phone, py_bol, py_dogru, py_str, py_strip, DisIstek
 pub const URL: &str = "https://api.netgsm.com.tr/sms/send/xml";
 pub const OTP_URL: &str = "https://api.netgsm.com.tr/sms/send/otp";
 pub const BASARI: [&str; 2] = ["00", "0"];
-/// Genel (uyarı) SMS için işlem zaman aşımı.
-pub const GENEL_SURE: Duration = Duration::from_secs(10);
-/// OTP için işlem başına zaman aşımı: bağlan + oku (TLS dahil) en kötü ~10-11 sn, cihaz merkezi 15 sn bekler. Çağrı bitmeden
-/// cevap dönülmez (SMS gitmiş ama kod atılmış olmasın).
-pub const ISLEM_SURE: Duration = Duration::from_secs(5);
+/// Genel (uyarı) SMS süreleri (Python 10 sn soket işlemi başına): bağlanma (DNS + TCP + TLS) 10 sn, boşta 10 sn
+/// (akış 10 sn boyunca saniyede 1 baytın altına düşerse kesilir), toplam 25 sn.
+pub const GENEL_BAGLANMA: Duration = Duration::from_secs(10);
+pub const GENEL_BOSTA: Duration = Duration::from_secs(10);
+pub const GENEL_SURE: Duration = Duration::from_secs(25);
+/// OTP süreleri (Python 5 sn soket işlemi başına): bağlanma (DNS + TCP + TLS) 7 sn, boşta 5 sn, toplam 12 sn. Toplam, cihazın
+/// merkezi bekleme süresinin (`src/sms.rs` `MERKEZ_SURE`, 15 sn) altında kalır. Çağrı bitmeden cevap dönülmez (SMS gitmiş
+/// ama kod atılmış olmasın): yavaş ama ilerleyen yanıt toplam süreye kadar beklenir.
+pub const OTP_BAGLANMA: Duration = Duration::from_secs(7);
+pub const OTP_BOSTA: Duration = Duration::from_secs(5);
+pub const ISLEM_SURE: Duration = Duration::from_secs(12);
 const OKUMA_SINIRI: usize = 4096;
 
 /// 90XXXXXXXXXX / 0XXXXXXXXXX / 5XXXXXXXXX → 5XXXXXXXXX; geçersizler ve tekrarlar atlanır.
@@ -119,7 +125,7 @@ pub fn gonder<S: AsRef<str>>(ayar: &Value, metin: &str, numaralar: &[S], t: &dyn
         zaman_asimi: GENEL_SURE,
         okuma_siniri: OKUMA_SINIRI,
         yonlendirme: 0, // SMS: yönlendirme izlenmez
-        indirme_sureleri: None,
+        indirme_sureleri: Some((GENEL_BAGLANMA, GENEL_BOSTA)),
     };
     let yanit = match t.gonder(&istek) {
         Ok((durum, g)) if durum < 400 => String::from_utf8_lossy(&g).into_owned(),
@@ -204,7 +210,7 @@ pub fn otp_gonder(ayar: &Value, telefon_10: &str, metin: &str, t: &dyn Tasiyici)
         zaman_asimi: ISLEM_SURE,
         okuma_siniri: OKUMA_SINIRI,
         yonlendirme: 0, // SMS: yönlendirme izlenmez
-        indirme_sureleri: None,
+        indirme_sureleri: Some((OTP_BAGLANMA, OTP_BOSTA)),
     };
     let yanit = match t.gonder(&istek) {
         Ok((durum, g)) if durum < 400 => String::from_utf8_lossy(&g).into_owned(),

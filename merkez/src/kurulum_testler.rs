@@ -381,8 +381,10 @@ fn kur_sh_python_donemi_dizinleri_ayirt_edilir() {
 }
 
 /// kur.sh'deki `kurtar` işlevi (kopya değil, dosyadan çıkarılır) gerçek bash ile: sahte `geri_don_uygula`, geçici dizin.
-/// `senaryo` kur.sh'nin tuzak kurulumundan sonra çalışan betik gövdesidir. Döner: (geri_don_uygula kaç kez çağrıldı, son-geri-donus.txt var mı).
-fn kurtar_dene(senaryo: &str, boruyu_oldur: bool) -> (usize, Option<String>) {
+/// `senaryo` kur.sh'nin tuzak kurulumundan sonra çalışan betik gövdesidir (`YAVAS=n` sahte geri dönüşü n sn uzatır).
+/// `boru`: çıktı `2>&1 | true` ile ölü boruya gider (gerçek kullanımdaki `2>&1 | tee` ölmüş gibi).
+/// Döner: (geri_don_uygula kaç kez çağrıldı, son-geri-donus.txt içeriği, geçici dizin).
+fn kurtar_dene(senaryo: &str, boru: bool) -> (usize, Option<String>, PathBuf) {
     let kur = kur_sh();
     let basla = kur.find("kurtar() {").expect("kurtar işlevi");
     let bitis = basla + kur[basla..].find("\n}\n").expect("kurtar sonu") + 3;
@@ -391,16 +393,17 @@ fn kurtar_dene(senaryo: &str, boruyu_oldur: bool) -> (usize, Option<String>) {
     let betik = d.join("dene.sh");
     let cagri = d.join("cagri");
     let govde = format!(
-        "set -euo pipefail\nGERI='{d}'\nSON_GERI=\"$GERI/son-geri-donus.txt\"\nGD='{d}/gd'\nYEDEK_TMP=\nyedek=\nGERI_TUZAK=0\n\
-         geri_don_uygula() {{ echo cagrildi >>'{c}'; echo 'geri dönüş çıktısı'; return 0; }}\n{islev}\ntrap kurtar EXIT\n{senaryo}\n",
+        "set -euo pipefail\nGERI='{d}'\nSON_GERI=\"$GERI/son-geri-donus.txt\"\nGD='{d}/gd'\nYEDEK_TMP=\nyedek=\nGERI_TUZAK=0\nYAVAS=0\n\
+         geri_don_uygula() {{ echo cagrildi >>'{c}'; sleep \"$YAVAS\"; echo 'geri dönüş çıktısı'; return 0; }}\n{islev}\ntrap kurtar EXIT\n{senaryo}\n",
         d = d.display(),
         c = cagri.display(),
     );
     std::fs::write(&betik, govde).unwrap();
-    let komut = if boruyu_oldur { format!("bash '{}' | true", betik.display()) } else { format!("bash '{}'", betik.display()) };
+    let komut = if boru { format!("bash '{}' 2>&1 | true", betik.display()) } else { format!("bash '{}'", betik.display()) };
     let _ = Command::new("bash").arg("-c").arg(&komut).output().unwrap();
     let say = std::fs::read_to_string(&cagri).map(|m| m.lines().count()).unwrap_or(0);
-    (say, std::fs::read_to_string(d.join("son-geri-donus.txt")).ok())
+    let dosya = std::fs::read_to_string(d.join("son-geri-donus.txt")).ok();
+    (say, dosya, d)
 }
 
 #[test]
@@ -408,21 +411,71 @@ fn kurtar_sinyal_ve_olu_boru_davranisi() {
     if Command::new("bash").arg("--version").output().is_err() {
         return;
     }
-    // (a) tuzak etkinken SIGTERM: geri dönüş bir kez; sonuç dosyaya da yazılır
-    let (say, dosya) = kurtar_dene("GERI_TUZAK=1\nkill -TERM $$\nsleep 5\n", false);
+    // (a) tuzak etkinken SIGTERM: geri dönüş bir kez; sonuç dosyaya da yazılır; çıkış kodu sonuca yazılmaz (sinyalde $? yanıltıcı)
+    let (say, dosya, _) = kurtar_dene("GERI_TUZAK=1\nkill -TERM $$\nsleep 5\n", false);
     assert_eq!(say, 1, "SIGTERM'de geri dönüş bir kez çağrılmalı");
-    assert!(dosya.unwrap().contains("GERİ DÖNÜLDÜ"));
-    // (b) çıktı ölü boruya giderken (tee ölmüş) exit 1: geri dönüş yine tamamlanır
-    let (say, dosya) = kurtar_dene("GERI_TUZAK=1\nsleep 1\nexit 1\n", true);
+    let dosya = dosya.unwrap();
+    assert!(dosya.contains("GERİ DÖNÜLDÜ"));
+    assert!(!dosya.contains("çıkış"), "sonuç dosyası yanıltıcı çıkış kodu yazmamalı: {dosya}");
+    // (a2) geri dönüş SÜRERKEN SIGTERM/HUP/INT: yok sayılır, geri dönüş yine tamamlanır (trap '' silinirse bu düşer)
+    for sinyal in ["TERM", "HUP", "INT"] {
+        let (say, dosya, _) = kurtar_dene(&format!("GERI_TUZAK=1\nYAVAS=3\n( sleep 1; kill -{sinyal} $$ ) &\nexit 1\n"), false);
+        assert_eq!(say, 1, "{sinyal}: geri dönüş bir kez çağrılmalı");
+        assert!(dosya.expect("sonuç dosyası").contains("GERİ DÖNÜLDÜ"), "{sinyal}: geri dönüş sinyalle yarıda kesilmemeli");
+    }
+    // (b) çıktı ölü boruya giderken (gerçek kullanımdaki `2>&1 | tee` ölmüş): geri dönüş yine tamamlanır
+    let (say, dosya, _) = kurtar_dene("GERI_TUZAK=1\nsleep 1\nexit 1\n", true);
     assert_eq!(say, 1, "ölü boruda geri dönüş çağrılmalı");
     assert!(dosya.unwrap().contains("GERİ DÖNÜLDÜ"));
-    // (b2) SIGHUP (SSH kopması) ve çıkış 0 görünen set -e dışı durum: tuzak etkinken her çıkış geri döner
-    let (say, _) = kurtar_dene("GERI_TUZAK=1\nkill -HUP $$\nsleep 5\n", false);
+    // (b2) SIGHUP (SSH kopması): tuzak etkinken her çıkış geri döner
+    let (say, _, _) = kurtar_dene("GERI_TUZAK=1\nkill -HUP $$\nsleep 5\n", false);
     assert_eq!(say, 1);
     // (c) başarı yolu (tuzak önce kapatılır): çağrılmaz
-    let (say, dosya) = kurtar_dene("GERI_TUZAK=1\nGERI_TUZAK=0\nexit 0\n", false);
+    let (say, dosya, _) = kurtar_dene("GERI_TUZAK=1\nGERI_TUZAK=0\nexit 0\n", false);
     assert_eq!((say, dosya), (0, None));
     // (d) tuzak kapalıyken sinyal: çağrılmaz
-    let (say, dosya) = kurtar_dene("GERI_TUZAK=0\nkill -TERM $$\nsleep 5\n", false);
+    let (say, dosya, _) = kurtar_dene("GERI_TUZAK=0\nkill -TERM $$\nsleep 5\n", false);
     assert_eq!((say, dosya), (0, None));
+    // (e) sonuç dosyası açılamıyorsa (dizin olarak engellenmiş) geri dönüş yine çalışır
+    let (say, _, _) = kurtar_dene("GERI_TUZAK=1\nmkdir \"$SON_GERI\"\nexit 1\n", false);
+    assert_eq!(say, 1, "sonuç dosyası yazılamazken de geri dönüş çalışmalı");
+}
+
+#[test]
+fn kurtar_yedek_gecici_dizinini_temizler() {
+    if Command::new("bash").arg("--version").output().is_err() {
+        return;
+    }
+    let ayar = "mkdir -p \"$GERI/ytmp\"\nYEDEK_TMP=\"$GERI/ytmp\"\ntouch \"$YEDEK_TMP/yedek.db\"\n";
+    // başarısız çıkışta, geri dönüş tuzağı kapalıyken (ADIM 1-2 hatası) ve başarıda da temizlenir
+    for (ad, son) in [("tuzaksiz hata", "GERI_TUZAK=0\nexit 1\n"), ("tuzaklı hata", "GERI_TUZAK=1\nexit 1\n"), ("başarı", "exit 0\n")] {
+        let (_, _, d) = kurtar_dene(&format!("{ayar}{son}"), false);
+        assert!(!d.join("ytmp").exists(), "{ad}: YEDEK_TMP silinmeli");
+    }
+}
+
+#[test]
+fn kur_sh_geri_donus_tuzagi_dogru_yerde_etkin() {
+    // geri dönüş dizini oluşturulunca açılır, yeni sürümün 200'ünden hemen sonra (ikincil işlerden önce) kapanır
+    let k = komutlar(&kur_sh());
+    let acilis = k.find("GERI_TUZAK=1").expect("tuzak açılışı");
+    let dizin = k.find("install -d -m 700 \"$GERI\" \"$GD\"").expect("geri dönüş dizini oluşturma");
+    let ilk_kur = k.find("dosya_koy 755 \"$PAKET_IKILI\"").expect("ikili kurulumu");
+    let saglik = k.find("if ! saglik_denetle; then").expect("adım 6 sağlık denetimi");
+    let kapanis = k[saglik..].find("GERI_TUZAK=0").map(|i| i + saglik).expect("başarıda tuzak kapanışı");
+    let saklama = k.find("install -m 700 \"$BU_BETIK\"").expect("kur.sh saklama");
+    assert!(dizin < acilis && acilis < ilk_kur, "tuzak dizin oluşturulunca, ikili kurulmadan önce açılmalı");
+    assert!(saglik < kapanis && kapanis < saklama, "tuzak 200 denetiminden sonra, ikincil işlerden önce kapanmalı");
+    // trap kurtar EXIT, geri dönüş dizininden önce kurulu (GERI_TUZAK=0 iken zararsız)
+    let trap = k.find("trap kurtar EXIT").expect("trap");
+    assert!(trap < dizin);
+}
+
+#[test]
+fn merkez_kur_basarisizlikta_sonuc_dosyasini_okutur() {
+    let m = oku(&sunucu_dizini().join("merkez-kur.sh"));
+    assert!(m.contains("sudo cat /var/lib/wificorrect/geri-donus/son-geri-donus.txt"));
+    assert!(m.contains("exit \"$k\""), "ssh çıkış kodu korunmalı");
+    let kur = kur_sh();
+    assert!(kur.contains("SON_GERI=/dev/null"), "sonuç dosyası açılamazsa geri dönüş yine çalışmalı");
 }

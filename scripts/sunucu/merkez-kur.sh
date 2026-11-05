@@ -106,4 +106,10 @@ fi
 echo "paket $host sunucusuna gönderiliyor..."
 tar -C "$gecici/paket" -cf - . | "${uzak_ssh[@]}" 'rm -rf /tmp/wfc-sunucu && mkdir /tmp/wfc-sunucu && tar -C /tmp/wfc-sunucu -xf -'
 echo "kur.sh çalıştırılıyor (sudo parolası istenecek)..."
-ssh -t -i "$anahtar" "$host" "$uzak_kur"
+k=0
+ssh -t -i "$anahtar" "$host" "$uzak_kur" || k=$?
+if [ "$k" -ne 0 ]; then
+  echo "HATA: kurulum başarısız (ssh çıkış $k). Geri dönüş sonucu (kur.sh geri döndüyse):" >&2
+  echo "  ssh -t -i $anahtar $host 'sudo cat /var/lib/wificorrect/geri-donus/son-geri-donus.txt'" >&2
+fi
+exit "$k"

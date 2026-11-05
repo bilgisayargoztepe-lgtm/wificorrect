@@ -98,7 +98,10 @@ kurtar() {
   set +e
   [ -z "$YEDEK_TMP" ] || rm -rf "$YEDEK_TMP"
   if [ "$GERI_TUZAK" = 1 ] && [ -n "$GD" ]; then
-    ( umask 077; echo "kurulum başarısız (çıkış $k); önceki kuruluma geri dönülüyor: $GD" >"$SON_GERI" ) 2>/dev/null
+    # son savunma hattı: sonuç dosyası açılamazsa (salt okunur dosya sistemi, inode tükenmesi) geri dönüş yine çalışır
+    ( umask 077; : >>"$SON_GERI" ) 2>/dev/null || SON_GERI=/dev/null
+    echo "kurulum kesildi/başarısız; geri dönülüyor (~30 sn sürebilir); sonuç: $SON_GERI" >&2
+    ( umask 077; echo "kurulum başarısız ya da kesildi; önceki kuruluma geri dönülüyor: $GD" >"$SON_GERI" ) 2>/dev/null
     geri_don_uygula "$GD" >>"$SON_GERI" 2>&1
     rc=$?
     if [ "$rc" -eq 0 ]; then echo "GERİ DÖNÜLDÜ: önceki kurulum çalışıyor; yeni sürüm kurulmadı (veritabanı yedeği: ${yedek:-yok})." >>"$SON_GERI"

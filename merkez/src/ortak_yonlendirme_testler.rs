@@ -166,3 +166,50 @@ fn indirme_siniri_asilinca_curl_hemen_oldurulur() {
     assert!(basla.elapsed() < Duration::from_secs(4), "sınır aşımı beklemeden bitmeli: {:?}", basla.elapsed());
     drop(sunucu); // uyuyan iş parçacığı beklenmez
 }
+
+/// Python `surumler.getir`: `read(sinir + 1)`, ancak `len > sinir` ise "çok büyük". Tam sınırdaki gövde kabul edilir: akışın
+/// sonundaki 3 haneli durum kodu gövde sayılmaz.
+#[test]
+fn indirme_tam_sinirdaki_govdeyi_kesmez() {
+    if !curl_var() {
+        return;
+    }
+    let l = TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = l.local_addr().unwrap().port();
+    let boylar = [998usize, 999, 1000, 1001];
+    let sunucu = std::thread::spawn(move || {
+        for b in boylar {
+            sun(&l, &|_| format!("HTTP/1.0 200 OK\r\nContent-Length: {b}\r\n\r\n{}", "a".repeat(b)));
+        }
+    });
+    for b in boylar {
+        let mut i = istek(&format!("http://127.0.0.1:{port}/b"), 5);
+        i.okuma_siniri = 1001; // izin verilen 1000 + 1
+        i.indirme_sureleri = Some((Duration::from_secs(5), Duration::from_secs(5)));
+        let (kod, g) = Curl.calistir(&i).unwrap();
+        assert_eq!((kod, g.len()), (200, b), "gövde {b} bayt");
+    }
+    sunucu.join().unwrap();
+}
+
+/// SMS çağrısı (yönlendirmesiz, gövdeli) aşama süreleri alsa da indirme sınırına girmez: sağlayıcının büyük hata sayfasında
+/// gerçek durum kodu korunur (kesilip 200 sanılsaydı Twilio doğrulaması misafire "yanlış kod" derdi).
+#[test]
+fn sms_buyuk_hata_govdesinde_durum_kodu_korunur() {
+    if !curl_var() {
+        return;
+    }
+    let l = TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = l.local_addr().unwrap().port();
+    let sunucu = std::thread::spawn(move || {
+        sun(&l, &|_| format!("HTTP/1.0 503 Service Unavailable\r\nContent-Length: 65536\r\n\r\n{}", "a".repeat(65536)));
+    });
+    let mut i = istek(&format!("http://127.0.0.1:{port}/sms"), 0);
+    i.yontem = "POST".into();
+    i.govde = Some(b"x=1".to_vec());
+    i.okuma_siniri = 4096;
+    i.indirme_sureleri = Some((Duration::from_secs(5), Duration::from_secs(5)));
+    let (kod, g) = Curl.calistir(&i).unwrap();
+    assert_eq!((kod, g.len()), (503, 4096));
+    sunucu.join().unwrap();
+}

@@ -539,10 +539,11 @@ impl Curl {
                 let al = n.min(i.okuma_siniri - bas.len());
                 bas.extend_from_slice(&tmp[..al]);
             }
-            // İndirmede sınır aşıldıysa (okuma_siniri = izin verilen + 1) kalanı beklemeye gerek yok: çocuk hemen
-            // öldürülür (Python `surumler.py` sınır+1'de bırakır). Durum kodu akışın sonunda olduğundan bu yolda
-            // bilinmez; çağıran gövde sınırı aşılmış olduğundan zaten hata verir. SMS çağrılarında kesilmez.
-            if i.indirme_sureleri.is_some() && bas.len() >= i.okuma_siniri {
+            // İndirmede (yönlendirme izleyen GET) sınır aşıldıysa (okuma_siniri = izin verilen + 1) kalanı beklemeye gerek
+            // yok: çocuk hemen öldürülür (Python `surumler.py` sınır+1'de bırakır). Akışın son 3 baytı durum kodu olduğundan
+            // gövdenin sınırı aştığı ancak `okuma_siniri + 3` baytta kesindir; durum kodu bu yolda bilinmez, çağıran gövde
+            // sınırı aşılmış olduğundan zaten hata verir. SMS çağrıları kesilmez: sağlayıcının gerçek durum kodu gerekir.
+            if i.yonlendirme > 0 && toplam + n >= i.okuma_siniri + 3 {
                 asildi = true;
                 let _ = cocuk.kill();
                 break;

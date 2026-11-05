@@ -186,8 +186,8 @@ pub fn otp_yaniti(metin: &str) -> (String, String) {
     (kod, is_no)
 }
 
-/// Dönen (sonuc, kod, is): sonuc `gonderildi` | `mock` | `hata`; kod NetGSM kodu ya da AYAR | AG | PARSE. Zaman aşımı
-/// işlem başına (aşılırsa AG).
+/// Dönen (sonuc, kod, is): sonuc `gonderildi` | `mock` | `hata`; kod NetGSM kodu ya da AYAR | AG | PARSE. Süreler `OTP_BAGLANMA`,
+/// `OTP_BOSTA`, `ISLEM_SURE` (aşılırsa AG).
 pub fn otp_gonder(ayar: &Value, telefon_10: &str, metin: &str, t: &dyn Tasiyici) -> (String, String, String) {
     let s = |a: &str, b: &str, c: &str| (a.to_string(), b.to_string(), c.to_string());
     if !py_dogru(ayar) {

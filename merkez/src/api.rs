@@ -373,7 +373,7 @@ impl Api {
         };
         if let Some(k) = otomatik {
             // kuyruktan ÖNCE: kayıt başarısız olsa da bekleme kaydı bu bağa işaret eder, cihaz sonraki bildiriminde (aynı wg
-            // anahtarıyla) yeni belirteç alıp yeniden dener; işaret eşitlemeyi yalnızca etkin_mock'a indirir (NetGSM bilgisi gitmez)
+            // anahtarıyla) yeni belirteç alıp yeniden dener. `otomatik` işaretini Rust okumaz; Python'a dönüşte eşleşme buna bakar.
             self.veri.cihaz_otomatik_isaretle(cid)?;
             self.veri.bekleyen_baglandi(k, cid)?;
         }

@@ -1,5 +1,6 @@
 # Merkez kurulum provası: kur.sh'nin Python -> Rust geçişi ve bütün geri dönüş yolları GERÇEK systemd'li atılabilir bir makinede
-# (her koşuda sıfırdan). Canlı sunucuya dokunmaz; dış yan etki yok (WC_TEST=1, sahte caddy).
+# (her koşuda sıfırdan). Canlı sunucuya dokunmaz; dış yan etki yok (WC_TEST=1; sistemin caddy.service'i sahte, gerçek Caddy
+# yalnızca 127.0.0.1:18080'de http:// adresleriyle, ACME'siz çalışır).
 # İkili ubuntu-24.04'te derlenir (test.yml ile aynı ortam, glibc 2.39); prova canlı sunucuyla aynı işletim sisteminde
 # (ubuntu-26.04: uutils coreutils, sudo-rs, systemd 259, Python 3.14) koşar: glibc 2.39 -> 2.43 uyumu da böylece sınanır.
 name: merkez-kurulum
@@ -39,7 +40,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0   # eski kurulum = origin/main
+          fetch-depth: 0   # eski Python kurulumu = sabit commit (kurulum-provasi.sh ESKI_PYTHON_COMMIT)
       - uses: actions/download-artifact@v4
         with:
           name: merkez-ikili-${{ github.sha }}

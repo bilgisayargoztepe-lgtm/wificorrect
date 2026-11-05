@@ -1,10 +1,12 @@
 #!/bin/bash
-# Merkez kurulum/geçiş/geri dönüş provası: GERÇEK systemd'li atılabilir bir Ubuntu makinesinde (GitHub Actions ubuntu-24.04)
+# Merkez kurulum/geçiş/geri dönüş provası: GERÇEK systemd'li atılabilir bir Ubuntu makinesinde (GitHub Actions ubuntu-26.04)
 # scripts/sunucu/merkez/kur.sh'nin canlı geçişte yapacaklarını uçtan uca sınar (Task 13c). root olarak çalışır:
 #   sudo IKILI=merkez/target/release/wificorrect-merkez bash scripts/sunucu/kurulum-provasi.sh
 # Her adım "PROVA ADIM <n> <ad>: TAMAM|HATA <neden>" yazar; ilk HATA'da çıkış 1.
-# CANLI SUNUCUYA/CİHAZA BAĞLANMAZ. Dış yan etki yok: bütün wc-* hizmetlerinde WC_TEST=1 (gerçek SMS/istek gitmez), caddy
-# hizmeti sahte (ACME'ye çıkmaz). Atılabilir makine dışında ÇALIŞTIRMAYIN (sistem birimlerini ve /var/lib/wificorrect'i değiştirir).
+# CANLI SUNUCUYA/CİHAZA BAĞLANMAZ. Dış yan etki yok: bütün wc-* hizmetlerinde WC_TEST=1 (gerçek SMS/istek gitmez); sistemin
+# caddy.service'i sahte (sleep). Gerçek Caddy ayrı bir süreç olarak depodaki Caddyfile'dan türetilmiş yapılandırmayla yalnızca
+# 127.0.0.1:18080'de, `http://` adresleri ve `auto_https off` + `admin off` ile çalışır (ACME'ye ya da dışarıya çıkmaz).
+# Atılabilir makine dışında ÇALIŞTIRMAYIN (sistem birimlerini ve /var/lib/wificorrect'i değiştirir).
 set -uo pipefail
 [ "$(id -u)" = 0 ] || { echo "HATA: root olmalı" >&2; exit 2; }
 [ "${PROVA_ATILABILIR:-}" = 1 ] || { echo "HATA: bu betik makineyi değiştirir; yalnız atılabilir makinede PROVA_ATILABILIR=1 ile çalışır" >&2; exit 2; }
@@ -48,6 +50,7 @@ son_dok() { # tanı: çıkışta birim durumu ve günlükler
   set +e
   { systemctl status 'wc-*' caddy fail2ban --no-pager -l; systemctl list-units 'wc-*' --all --no-pager; } >"$LOG/systemctl-status.txt" 2>&1
   journalctl -u 'wc-*' --no-pager -o short-iso >"$LOG/journal-wc.txt" 2>&1
+  [ -z "${CADDY_PID:-}" ] || kill "$CADDY_PID" 2>/dev/null   # gerçek Caddy süreci
   ls -laR "$GERI" >"$LOG/geri-donus-agaci.txt" 2>&1
   chmod -R a+rX "$LOG" 2>/dev/null
 }
@@ -69,6 +72,101 @@ rust_servis() { exec_start | grep -q '/usr/local/bin/wificorrect-merkez sunucu' 
 geri_sayisi() { find "$GERI" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l; }
 python_dizini() { grep -qsE 'python3|/usr/local/sbin/wc-' "$GERI/$1"/wc-*.service; }
 denetle_tamam() { "$GERCEK_IKILI" veritabani-denetle "$1" --dosyalar "$VERI" 2>&1 | tail -n 1 | grep -qx TAMAM; }
+
+# ---- gerçek Caddy ---------------------------------------------------------------------------------------------------
+# Depodaki gerçek Caddyfile'dan türetilir: yalnızca sütun 0'daki site adresi satırlarında her ad `http://<ad>:18080` olur,
+# başa `{ admin off, auto_https off, default_bind 127.0.0.1 }` eklenir; gövde (forward_auth, reverse_proxy, başlıklar,
+# handle_errors) AYNEN kalır. `http://` öneki + `auto_https off`: sertifika/ACME yok; `default_bind`: yalnız yerel adres.
+CADDY_PORT=18080
+CADDY_PID=
+caddy_yapilandirma() { # caddy_yapilandirma KAYNAK HEDEF
+  {
+    printf '{\n\tadmin off\n\tauto_https off\n\tdefault_bind 127.0.0.1\n}\n\n'
+    awk -v port="$CADDY_PORT" '
+      /^[^[:space:]#}].*\{[[:space:]]*$/ {
+        s = $0; sub(/[[:space:]]*\{[[:space:]]*$/, "", s)
+        n = split(s, a, /[[:space:]]*,[[:space:]]*/); o = ""
+        for (i = 1; i <= n; i++) o = o (i > 1 ? ", " : "") "http://" a[i] ":" port
+        print o " {"; next
+      }
+      { print }' "$1"
+  } >"$2"
+}
+caddy_baslat() {
+  local kaynak=$CALISMA/kaynak/scripts/sunucu/merkez/Caddyfile hedef=$CALISMA/Caddyfile.prova
+  caddy_yapilandirma "$kaynak" "$hedef" || return 1
+  cp "$hedef" "$LOG/Caddyfile.prova"
+  # türetme sağlam mı: tam 3 site satırı, hepsi http://; başka sütun-0 `{` satırı kalmadı
+  [ "$(grep -c '^http://' "$hedef")" = 3 ] || { echo "türetilmiş Caddyfile'da 3 http:// site satırı yok"; return 1; }
+  [ "$(grep -E '^[^[:space:]#}].*\{[[:space:]]*$' "$hedef" | grep -vc '^http://')" = 0 ] || { echo "http:// öneksiz site satırı kaldı"; return 1; }
+  # gövde AYNEN: türetilmiş dosyada 6 satırlık genel blok ve site satırları çıkarılınca kaynağın site satırsız hâliyle aynı
+  diff <(tail -n +7 "$hedef" | grep -v '^http://') <(grep -vE '^[^[:space:]#}].*\{[[:space:]]*$' "$kaynak") >"$LOG/caddyfile-govde-fark.txt" \
+    || { head -n 20 "$LOG/caddyfile-govde-fark.txt"; echo "türetilmiş Caddyfile gövdesi kaynaktan farklı"; return 1; }
+  mkdir -p "$CALISMA/caddy-xdg"
+  XDG_DATA_HOME=$CALISMA/caddy-xdg XDG_CONFIG_HOME=$CALISMA/caddy-xdg caddy validate --config "$hedef" --adapter caddyfile >"$LOG/caddy-validate.log" 2>&1 \
+    || { tail -n 20 "$LOG/caddy-validate.log"; return 1; }
+  XDG_DATA_HOME=$CALISMA/caddy-xdg XDG_CONFIG_HOME=$CALISMA/caddy-xdg caddy run --config "$hedef" --adapter caddyfile >"$LOG/caddy-gercek.log" 2>&1 &
+  CADDY_PID=$!
+  local bitis=$((SECONDS + 20)) k
+  while :; do
+    k=$(curl -s -m 2 -o /dev/null -w '%{http_code}' -H 'Host: yonetim.wificorrect.com' "http://127.0.0.1:$CADDY_PORT/giris" 2>/dev/null)
+    [ "$k" != 000 ] && return 0
+    kill -0 "$CADDY_PID" 2>/dev/null || { tail -n 20 "$LOG/caddy-gercek.log"; return 1; }
+    [ "$SECONDS" -lt "$bitis" ] || { tail -n 20 "$LOG/caddy-gercek.log"; return 1; }
+    sleep 0.5
+  done
+}
+# ist AD HOST YONTEM YOL [curl argümanları]: Caddy'ye istek atar; kararlı alanları ($CD_CIKTI) dosyasına ekler:
+# durum kodu ve sıralı Content-Type, Location, X-Frame-Options, Content-Security-Policy, Strict-Transport-Security,
+# Set-Cookie (yalnız ad + öznitelikler, değer atılır). Server/Date alınmaz.
+ist() {
+  local ad=$1 host=$2 yontem=$3 yol=$4; shift 4
+  local h=$CALISMA/duman-baslik.tmp
+  curl -s -m 10 -X "$yontem" -D "$h" -o "$CALISMA/duman-govde.tmp" -H "Host: $host" "$@" "http://127.0.0.1:$CADDY_PORT$yol" >/dev/null 2>&1 || echo "curl hatası ($ad)" >&2
+  {
+    echo "## $ad"
+    tr -d '\r' <"$h" | awk '
+      /^HTTP\// { durum = $2; n = 0; delete s; next }
+      /^[A-Za-z-]+:/ {
+        ad = tolower(substr($0, 1, index($0, ":") - 1)); deger = substr($0, index($0, ":") + 1); sub(/^[ \t]+/, "", deger)
+        if (ad == "set-cookie") { c = deger; sub(/=[^;]*/, "=<deger>", c); s[++n] = "set-cookie=" c }
+        else if (ad ~ /^(content-type|location|x-frame-options|content-security-policy|strict-transport-security)$/) s[++n] = ad "=" deger
+      }
+      END { print "durum=" durum; for (i = 1; i <= n; i++) print s[i] }' | { IFS= read -r ilk; echo "$ilk"; sort; }
+  } >>"$CD_CIKTI"
+}
+# caddy_duman ÇIKTI AŞAMA: gerçek Caddy üzerinden 10 istek; sonra yönetim girişinin yanlış parola satırı journal'da
+# `ip=127.0.0.1` ile bitmeli (Caddy'nin X-Forwarded-For son öğesi: fail2ban'ın gördüğü satır).
+caddy_duman() {
+  local asama=$2 jar=$CALISMA/duman-jar.tmp csrf kul="prova-$2" bitis
+  CD_CIKTI=$1; : >"$CD_CIKTI"
+  ist yonetim_giris_get yonetim.wificorrect.com GET /giris
+  ist panel_giris_get panel.wificorrect.com GET /giris
+  ist api_eslesme_bilinmeyen_anahtar api.wificorrect.com POST /api/eslesme -H 'Content-Type: application/json' --data-binary '{"cihaz_anahtari":"x"}'
+  ist api_eslesme_bos_govde api.wificorrect.com POST /api/eslesme -H 'Content-Type: application/json' --data-binary ''
+  head -c 12000 /dev/zero | tr '\0' 'a' >"$CALISMA/duman-12000.tmp"
+  ist api_sms_12000_bayt api.wificorrect.com POST /api/sms -H 'Content-Type: application/json' --data-binary "@$CALISMA/duman-12000.tmp"
+  ist cihaz_kok cihaz.wificorrect.com GET /
+  ist cihaz_giris_gecersiz_belirtec cihaz.wificorrect.com GET '/_giris?t=x'
+  ist ap_kok ap.wificorrect.com GET /
+  ist ap_service_worker ap.wificorrect.com GET /sw.js -H 'Service-Worker: script'
+  # yönetim girişi: önce /giris'ten çerez ve (varsa) CSRF, sonra yanlış parolayla POST
+  rm -f "$jar"
+  curl -s -m 10 -c "$jar" -o "$CALISMA/duman-giris.tmp" -H 'Host: yonetim.wificorrect.com' "http://127.0.0.1:$CADDY_PORT/giris" >/dev/null 2>&1
+  csrf=$(grep -o 'name="csrf" value="[^"]*"' "$CALISMA/duman-giris.tmp" | head -n1 | sed 's/.*value="//; s/"$//')
+  local ek=()
+  [ -z "$csrf" ] || ek=(--data-urlencode "csrf=$csrf")
+  ist yonetim_giris_yanlis_parola yonetim.wificorrect.com POST /giris -b "$jar" -c "$jar" \
+    --data-urlencode "kullanici=$kul" --data-urlencode "sifre=prova-yanlis" "${ek[@]}"
+  # beklenen kodlar: bir istek 000 (Caddy'ye ulaşılamadı) ise duman anlamsız
+  if grep -qx 'durum=' "$CD_CIKTI" || grep -qx 'durum=000' "$CD_CIKTI"; then cat "$CD_CIKTI"; echo "bir istek cevap almadı"; return 1; fi
+  bitis=$((SECONDS + 10))
+  until journalctl -u wc-merkez --no-pager -o cat --since "-3min" 2>/dev/null | grep -qE "^GIRIS_HATALI alan=yonetim kullanici='$kul' ip=127\.0\.0\.1$"; do
+    [ "$SECONDS" -lt "$bitis" ] || { journalctl -u wc-merkez --no-pager -o cat --since "-3min" | grep GIRIS_ | tail -n 5; echo "GIRIS_HATALI satırı ip=127.0.0.1 ile bitmiyor ya da yok ($asama)"; return 1; }
+    sleep 0.5
+  done
+  return 0
+}
 
 # paket hazırla: HEAD'deki scripts/sunucu (merkez-kur.sh gibi: *.py, tests, parite, logo, __pycache__ hariç) + ikili.
 # paket_yap AD [sarmalayici]  -> $CALISMA/AD/merkez/kur.sh
@@ -150,6 +248,8 @@ install -d -o wcpanel -g wcpanel -m 700 $VERI/merkez
 install -o wcpanel -g wcpanel -m 600 "$DEPO/merkez/tests/veri/python-gocmus.db" "$DB"
 # wc-durum/istatistik arşiv ve WireGuard kaydı arar (canlıda var)
 mkdir -p /srv/wificorrect-arsiv /etc/wireguard/wificorrect
+caddy_baslat || hata "gerçek Caddy başlatılamadı (bkz. caddy-validate.log, caddy-gercek.log, Caddyfile.prova)"
+echo "gerçek Caddy: pid $CADDY_PID, 127.0.0.1:$CADDY_PORT, $(caddy version | head -n1)"
 set +e
 echo "hazırlık tamam"
 
@@ -160,6 +260,7 @@ tail -n 25 "$LOG/kur-eski-python.log" | sed 's/^/    | /'
 [ "$k" = 0 ] || hata "eski kur.sh çıkış kodu $k (bkz. kur-eski-python.log)"
 install -m 755 "$CALISMA/eski/scripts/sunucu/wificorrect-sunucu" /usr/local/sbin/wificorrect-sunucu
 python_servis || { journalctl -u wc-merkez --no-pager -n 30; hata "Python wc-merkez 200 vermiyor (python3 $(/usr/bin/python3 --version))"; }
+caddy_duman "$LOG/caddy-duman-python.txt" python || hata "gerçek Caddy duman (Python) başarısız (bkz. caddy-duman-python.txt)"
 tamam "python3: $(/usr/bin/python3 --version), sistem yorumlayıcısı değiştirilmedi, drop-in gerekmedi"
 [ -f /usr/local/lib/wificorrect/merkez.py ] && [ -L /usr/local/sbin/wc-durum ] || hata "Python dosyaları/bağları yok"
 
@@ -233,6 +334,19 @@ GD4=$(grep -o "$GERI/[0-9]\{8\}-[0-9]\{6\}" "$LOG/kur-gecis.log" | head -n1)
 [ -d "$GD4" ] && python_dizini "$(basename "$GD4")" || hata "geçişin geri dönüş dizini Python dönemi değil: $GD4"
 [ ! -e "$GD4/wificorrect-merkez" ] || hata "adım 4'ün geri dönüş dizininde ikili var (adım 3'ün bozuk ikilisi kopyalanmış): $GD4"
 tamam "Rust sunucu, 7 hizmet/6 zamanlayıcı, wc-durum bitti, yedek $(basename "$yedek")"
+
+# ---- 4c. gerçek Caddy ↔ Rust ------------------------------------------------------------------------------------------
+adim 4c gercek_caddy
+caddy_duman "$LOG/caddy-duman-rust.txt" rust || hata "gerçek Caddy duman (Rust) başarısız (bkz. caddy-duman-rust.txt)"
+if ! diff -u "$LOG/caddy-duman-python.txt" "$LOG/caddy-duman-rust.txt" >"$LOG/caddy-duman-fark.txt"; then
+  cat "$LOG/caddy-duman-fark.txt"; hata "gerçek Caddy üzerinden Python ve Rust cevapları farklı (bkz. caddy-duman-fark.txt)"
+fi
+# ACME/dış ağ yok: Caddy yalnızca yerel adreste dinler, 80/443 tutmaz, dışarıya bağlantısı yok
+ss -H -ltnp 2>/dev/null | grep '"caddy"' | grep -qE ':(80|443) ' && hata "Caddy 80/443 dinliyor"
+ss -H -ltnp 2>/dev/null | grep '"caddy"' | grep -vq "127.0.0.1:$CADDY_PORT" && hata "Caddy yerel adres dışında dinliyor: $(ss -H -ltnp | grep '"caddy"')"
+ss -H -tnp state established state syn-sent 2>/dev/null | grep '"caddy"' | grep -vE '127\.0\.0\.1|\[::1\]' && hata "Caddy dışarıya bağlantı açtı"
+grep -qiE 'acme|obtaining|tls\.obtain' "$LOG/caddy-gercek.log" && { grep -iE 'acme|obtaining|tls\.obtain' "$LOG/caddy-gercek.log" | head -n 5; hata "Caddy günlüğünde ACME/sertifika izi var"; }
+tamam "10 istek Python'la birebir aynı ($(wc -l <"$LOG/caddy-duman-rust.txt") satır), GIRIS_HATALI ip=127.0.0.1, ACME/dış bağlantı yok"
 
 # Rust çalışırken veritabanına yaz (kolay bağlama bildirimi); adım 5'te Python bunu okumalı
 bildir() {

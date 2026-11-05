@@ -479,3 +479,61 @@ fn merkez_kur_basarisizlikta_sonuc_dosyasini_okutur() {
     let kur = kur_sh();
     assert!(kur.contains("SON_GERI=/dev/null"), "sonuç dosyası açılamazsa geri dönüş yine çalışmalı");
 }
+
+/// kur.sh'deki `dosya_koy` ve `geri_don_uygula` (dosyadan çıkarılır) gerçek bash ile; systemctl/saglik_denetle sahte, yollar geçici.
+/// Döner: (kurulu ikili, kurulu sunucu betiği içerikleri; yoksa None).
+fn geri_don_dene(dizinde_ikili: bool, dizinde_sunucu: bool, kurulu_ikili: bool) -> (Option<String>, Option<String>, bool) {
+    let kur = kur_sh();
+    let dilim = |ad: &str| {
+        let b = kur.find(&format!("{ad}() {{")).unwrap_or_else(|| panic!("{ad} işlevi"));
+        let e = b + kur[b..].find("\n}\n").expect("işlev sonu") + 3;
+        kur[b..e].to_string()
+    };
+    let d = crate::ortak::tests::gecici_dizin();
+    let gd = d.join("gd");
+    std::fs::create_dir_all(&gd).unwrap();
+    std::fs::create_dir_all(d.join("birimler")).unwrap();
+    std::fs::write(gd.join("wc-merkez.service"), "[Service]\nExecStart=/usr/bin/python3 x\n").unwrap();
+    if dizinde_ikili {
+        std::fs::write(gd.join("wificorrect-merkez"), "ESKI-IKILI").unwrap();
+    }
+    if dizinde_sunucu {
+        std::fs::write(gd.join("wificorrect-sunucu"), "ESKI-SUNUCU").unwrap();
+    }
+    std::fs::write(d.join("sunucu"), "KURULU-SUNUCU").unwrap();
+    if kurulu_ikili {
+        std::fs::write(d.join("ikili"), "YENI-IKILI").unwrap();
+    }
+    let betik = format!(
+        "set -u\nBIRIMLER='{d}/birimler'\nSUNUCU='{d}/sunucu'\nIKILI='{d}/ikili'\nZAMANLAYICILAR=\n\
+         systemctl() {{ return 0; }}\nsaglik_denetle() {{ return 0; }}\n{a}\n{b}\ngeri_don_uygula '{gd}'\n",
+        d = d.display(),
+        gd = gd.display(),
+        a = dilim("dosya_koy"),
+        b = dilim("geri_don_uygula"),
+    );
+    let o = Command::new("bash").arg("-c").arg(betik).output().unwrap();
+    assert!(o.status.success(), "{}{}", String::from_utf8_lossy(&o.stdout), String::from_utf8_lossy(&o.stderr));
+    let oku_ops = |a: &str| std::fs::read_to_string(d.join(a)).ok();
+    (oku_ops("ikili"), oku_ops("sunucu"), d.join("birimler").join("wc-merkez.service").exists())
+}
+
+#[test]
+fn geri_donus_dizininde_ikili_yoksa_kurulu_ikili_kaldirilir() {
+    if Command::new("bash").arg("--version").output().is_err() {
+        return;
+    }
+    // Python dönemi dizini (ikili yok): başarısız kurulumun ikilisi silinir; sunucu betiği dizinde yoksa dokunulmaz
+    let (ikili, sunucu, birim) = geri_don_dene(false, false, true);
+    assert_eq!(ikili, None, "dizinde ikili yokken kurulu ikili kaldırılmalı");
+    assert_eq!(sunucu.as_deref(), Some("KURULU-SUNUCU"), "wificorrect-sunucu dizinde yoksa dokunulmamalı");
+    assert!(birim, "birimler geri konmalı");
+    // kurulu ikili zaten yoksa sorun değil
+    assert_eq!(geri_don_dene(false, false, false).0, None);
+    // Rust dönemi dizini (ikili var): eski ikili geri gelir, sunucu da dizindekiyle değişir
+    let (ikili, sunucu, _) = geri_don_dene(true, true, true);
+    assert_eq!(ikili.as_deref(), Some("ESKI-IKILI"));
+    assert_eq!(sunucu.as_deref(), Some("ESKI-SUNUCU"));
+    // ikili hiç yokken (boş kurulu) dizindeki ikili konur
+    assert_eq!(geri_don_dene(true, false, false).0.as_deref(), Some("ESKI-IKILI"));
+}

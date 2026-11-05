@@ -114,6 +114,28 @@ echo "man-db man-db/auto-update boolean false" | debconf-set-selections   # apt 
 apt-get update -q >/dev/null
 apt-get install -y -q caddy fail2ban wireguard-tools curl >/dev/null
 command -v caddy fail2ban-client wg >/dev/null || { echo "HATA: caddy/fail2ban/wg kurulamadı"; exit 1; }
+arac_surumleri() {
+  local a
+  for a in install chown chmod sort cp mv; do printf '%s: %s\n' "$a" "$("$a" --version 2>&1 | head -n1)"; done
+  printf 'sudo: %s\n' "$(sudo --version 2>&1 | head -n1)"
+  printf 'systemctl: %s\n' "$(systemctl --version | head -n1)"
+  printf 'python3: %s\n' "$(/usr/bin/python3 --version 2>&1)"
+  printf 'caddy: %s\n' "$(caddy version | head -n1)"
+  printf 'işletim sistemi: %s\n' "$(. /etc/os-release; echo "$PRETTY_NAME")"
+  printf 'glibc: %s\n' "$(ldd --version | head -n1)"
+}
+# canlı sunucu (Ubuntu 26.04.1): install/chown/chmod/sort/stat uutils, cp/mv GNU (gnucp, gnumv). Çalıştırıcıyı buna eşitle; eşitlenemezse GEÇME.
+if ! chown --version 2>&1 | head -n1 | grep -qi uutils; then
+  apt-get install -y -q coreutils-from-uutils >/dev/null 2>&1 || true
+  hash -r
+fi
+for a in cp mv; do
+  if "$a" --version 2>&1 | head -n1 | grep -qi uutils; then apt-get install -y -q gnucp gnumv >/dev/null 2>&1 || true; hash -r; fi
+done
+echo "--- araç sürümleri (canlı: uutils 0.10 install/chown/chmod/sort, cp/mv GNU, sudo-rs, systemd 259, python 3.14, caddy 2.6.2)"
+arac_surumleri
+for a in install chown chmod sort; do "$a" --version 2>&1 | head -n1 | grep -qi uutils || { echo "HATA: $a uutils değil; canlıyla eşitlenemedi"; exit 1; }; done
+for a in cp mv; do "$a" --version 2>&1 | head -n1 | grep -qi 'GNU coreutils' || { echo "HATA: $a GNU değil"; exit 1; }; done
 echo "caddy: $(caddy version | head -n1)"
 systemctl is-active caddy >/dev/null && echo "caddy (sahte) etkin"
 # 4) gerçekçi veritabanı eski kurulumdan ÖNCE; sahibi wcpanel, izin 600
@@ -161,6 +183,7 @@ sure=$((SECONDS - t0))
 [ "$sure" -le 120 ] || hata "kur.sh $sure sn sürdü (≈60 sn beklenirdi)"
 grep -q 'GERİ DÖNÜLDÜ' "$LOG/kur-saglik-reddi.log" || hata "'GERİ DÖNÜLDÜ' iletisi yok"
 python_servis || hata "geri dönüşten sonra Python 200 vermiyor: $(exec_start)"
+[ ! -e /usr/local/bin/wificorrect-merkez ] || hata "başarısız kurulumun ikilisi /usr/local/bin'de kaldı (önceki kurulum Python: ikili olmamalı)"
 [ "$(geri_sayisi)" -ge 1 ] || hata "geri dönüş dizini yok"
 [ -s "$GERI/son-geri-donus.txt" ] || hata "son-geri-donus.txt yok"
 bash "$CALISMA/p3/merkez/kur.sh" --geri-don >"$LOG/geri-don-liste.log" 2>&1  # en yeni (Python) dizine yeniden döner: zararsız; liste çıktısı denetlenir
@@ -202,6 +225,7 @@ py_yerinde || hata "Python dosyaları/bağları silinmiş"
 denetle_tamam "$DB" || hata "Rust, Python'un bıraktığı canlı veritabanını okuyamadı/TAMAM değil"
 GD4=$(grep -o "$GERI/[0-9]\{8\}-[0-9]\{6\}" "$LOG/kur-gecis.log" | head -n1)
 [ -d "$GD4" ] && python_dizini "$(basename "$GD4")" || hata "geçişin geri dönüş dizini Python dönemi değil: $GD4"
+[ ! -e "$GD4/wificorrect-merkez" ] || hata "adım 4'ün geri dönüş dizininde ikili var (adım 3'ün bozuk ikilisi kopyalanmış): $GD4"
 tamam "Rust sunucu, 7 hizmet/6 zamanlayıcı, wc-durum bitti, yedek $(basename "$yedek")"
 
 # Rust çalışırken veritabanına yaz (kolay bağlama bildirimi); adım 5'te Python bunu okumalı
@@ -223,6 +247,7 @@ bash "$GERI/kur.sh" --geri-don "$(basename "$GD4")" >"$LOG/geri-don-elle.log" 2>
 sed 's/^/    | /' "$LOG/geri-don-elle.log" | tail -n 25
 [ "$k" = 0 ] || hata "--geri-don çıkış $k"
 python_servis || hata "elle geri dönüşten sonra Python 200 vermiyor: $(exec_start)"
+[ ! -e /usr/local/bin/wificorrect-merkez ] || hata "Python'a dönünce Rust ikilisi /usr/local/bin'de kaldı"
 [ "$(satir_say)" = "$sonra" ] || hata "veritabanı satırı değişti"
 if journalctl -u wc-merkez --no-pager --since "-2min" 2>/dev/null | grep -qE 'Traceback|OperationalError|DatabaseError'; then
   journalctl -u wc-merkez --no-pager --since "-2min" | tail -n 30; hata "Python, Rust'ın yazdığı veritabanında hata verdi"

@@ -77,6 +77,12 @@ geri_don_uygula() {
     esac
     echo "  geri konan: $ad"
   done
+  # dizin "önceki kurulumun tamamı" demektir: Rust ikilisi yoksa (Python dönemi) başarısız kurulumun ikilisi yerinde kalmasın
+  # (sonraki kurulum onu "önceki kurulum" sanıp geri dönüş dizinine kopyalardı). wificorrect-sunucu'ya dokunulmaz.
+  if [ ! -e "$dizin/wificorrect-merkez" ] && [ -e "$IKILI" ]; then
+    rm -f "$IKILI" || { echo "HATA: $IKILI silinemedi" >&2; hata=$((hata + 1)); }
+    echo "  kaldırılan: wificorrect-merkez (dizinde yok)"
+  fi
   systemctl daemon-reload || { echo "HATA: daemon-reload" >&2; hata=$((hata + 1)); }
   # shellcheck disable=SC2086
   systemctl enable -q --now $ZAMANLAYICILAR || { echo "HATA: zamanlayıcılar etkinleştirilemedi" >&2; hata=$((hata + 1)); }

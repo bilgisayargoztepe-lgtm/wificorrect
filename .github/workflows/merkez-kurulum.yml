@@ -1,5 +1,7 @@
 # Merkez kurulum provası: kur.sh'nin Python -> Rust geçişi ve bütün geri dönüş yolları GERÇEK systemd'li atılabilir bir makinede
-# (her koşuda sıfırdan ubuntu-24.04). Canlı sunucuya dokunmaz; dış yan etki yok (WC_TEST=1, sahte caddy).
+# (her koşuda sıfırdan). Canlı sunucuya dokunmaz; dış yan etki yok (WC_TEST=1, sahte caddy).
+# İkili ubuntu-24.04'te derlenir (test.yml ile aynı ortam, glibc 2.39); prova canlı sunucuyla aynı işletim sisteminde
+# (ubuntu-26.04: uutils coreutils, sudo-rs, systemd 259, Python 3.14) koşar: glibc 2.39 -> 2.43 uyumu da böylece sınanır.
 name: merkez-kurulum
 on:
   push:
@@ -10,22 +12,40 @@ on:
   workflow_dispatch:
 
 jobs:
-  prova:
+  derle:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0   # eski kurulum = origin/main
       - uses: dtolnay/rust-toolchain@1.85
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: merkez
       - run: cd merkez && cargo build --release --locked
+      - uses: actions/upload-artifact@v4
+        with:
+          name: merkez-ikili-${{ github.sha }}
+          path: merkez/target/release/wificorrect-merkez
+          retention-days: 3
+          if-no-files-found: error
+
+  prova:
+    needs: derle
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # eski kurulum = origin/main
+      - uses: actions/download-artifact@v4
+        with:
+          name: merkez-ikili-${{ github.sha }}
+          path: ikili
+      - run: chmod 755 ikili/wificorrect-merkez
       - name: Prova
         run: |
           set -o pipefail
-          sudo PROVA_ATILABILIR=1 PROVA_LOG="$PWD/prova-log" IKILI="$PWD/merkez/target/release/wificorrect-merkez" \
+          sudo PROVA_ATILABILIR=1 PROVA_LOG="$PWD/prova-log" IKILI="$PWD/ikili/wificorrect-merkez" \
             bash scripts/sunucu/kurulum-provasi.sh
       - name: Özet
         if: always()

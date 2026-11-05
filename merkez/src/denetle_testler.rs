@@ -313,7 +313,7 @@ fn sabit_zaman(dizin: &Path) {
         if yol.is_dir() {
             sabit_zaman(&yol);
         } else {
-            let f = fs::OpenOptions::new().write(true).open(&yol).unwrap();
+            let f = fs::File::open(&yol).unwrap(); // salt okunur dosyada da zaman damgası ayarlanır (sahibi)
             f.set_times(fs::FileTimes::new().set_accessed(t).set_modified(t)).unwrap();
         }
     }

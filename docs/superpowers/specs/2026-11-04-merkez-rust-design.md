@@ -67,7 +67,9 @@ seçilmedi**: üçü de olduğu gibi taşınır. Yürütme: **görev başına aj
 - **Ayrı crate:** `merkez/` dizini, paket ve ikili `wificorrect-merkez`, kendi `Cargo.lock`'u. Kök `.cargo/config.toml`
   geçerli: Rust 1.85 ile uyumlu en yeni kütüphane sürümleri seçilir. Cihaz crate'i, betikleri ve CI işleri dokunulmadan çalışır.
 - **Kütüphaneler:**
-  - Cihazdakilerin aynısı: tiny_http, serde/serde_json, sha2, pbkdf2 (hmac), flate2, getrandom, libc.
+  - Cihazdakilerin aynısı: serde/serde_json, sha2, pbkdf2 (hmac), flate2, getrandom, libc. HTTP sunucusu elle yazılmıştır
+    (`sunucu.rs`, bağlantı başına iş parçacığı, HTTP/1.0 tek istek/tek cevap); `tiny_http` kullanılmadı: zaman aşımı kabul
+    edilen bağlantılara geçmiyor ve kabul döngüsü ilk hatada kapanıyordu (cihazda görüldü).
   - Ek olarak: rusqlite (`bundled` SQLite), hmac (rapor takma kimliği), chrono (sabit +03:00 takvim hesabı: gün ekleme, ISO
     hafta, ay).
 - **Dış istekler** curl alt süreciyle yapılır (cihazdaki gibi). Sırlar (NetGSM parolası, Twilio anahtarı) ve istek gövdesi
@@ -149,6 +151,13 @@ seçilmedi**: üçü de olduğu gibi taşınır. Yürütme: **görev başına aj
    (2026-11-04) bu biçimde dosya yok. Biçim değişince önbelleğin yeniden hesaplanması genel kural olarak kalır.
 7. SMS sağlayıcı çağrıları (NetGSM, Twilio) HTTP yönlendirmesi izlemez; Python `urlopen` 301/302/303'te POST'u gövdesiz GET'e
    çevirip Authorization'ı yeni sunucuya taşırdı; iki tarafta da sonuç gönderilemeyen SMS.
+8. Eşzamanlı bağlantı sınırı 256 ve isteği (başlıklar + gövde) okumaya toplam 30 sn son tarih (Python: sınırsız iş parçacığı,
+   okuma başına 20 sn; 20 sn'de bir bayt gönderen istemci bir yuvayı süresiz tutabilirdi). Son tarih dolunca bağlantı Python'daki
+   okuma zaman aşımı gibi cevapsız kapanır. Sınıra gelindiğinde dakikada en çok bir `BAGLANTI_SINIRI sinir=256 kapatilan=<n>`
+   satırı yazılır (fail2ban filtresine girmez).
+9. SMS sağlayıcı süreleri curl aşamalarıyla verilir: doğrulama SMS'i (NetGSM OTP, Twilio) bağlanma 7 sn, boşta 5 sn, toplam
+   12 sn (cihazın 15 sn beklemesinin altında); genel SMS (sağlık uyarısı, deneme) bağlanma 10, boşta 10, toplam 25 sn. DNS
+   bağlanma süresine dahildir (Python'da soket işlemi başına 5 / 10 sn, DNS hariç).
 
 Başka her çıktı aynıdır.
 

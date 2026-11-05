@@ -529,7 +529,7 @@ pub fn sir_al(yol: &Path) -> io::Result<Vec<u8>> {
 }
 
 // ======================================================================================================================
-// Görev 2: gruplar, gün durumu, dönem raporları (rapor/<numara>/, root:wcpanel 750/640, KİŞİSEL VERİ YOK)
+// Gruplar, gün durumu, dönem raporları (rapor/<numara>/, root:wcpanel 750/640, KİŞİSEL VERİ YOK)
 // ======================================================================================================================
 
 /// `[1-9][0-9]{6}`.

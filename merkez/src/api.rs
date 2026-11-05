@@ -295,7 +295,7 @@ impl Api {
         if i.yontem != "POST" || !UCLAR.contains(&i.yol.as_str()) {
             return Ok(hata(404, "yok", "Bulunamadı."));
         }
-        if i.govde.len() > GOVDE_SINIRI {
+        if i.govde.chars().count() > GOVDE_SINIRI {
             return Ok(hata(413, "gecersiz", "İstek çok büyük."));
         }
         if !self.hiz.izin(&i.ip, self.simdi()) {
@@ -373,7 +373,7 @@ impl Api {
         };
         if let Some(k) = otomatik {
             // kuyruktan ÖNCE: kayıt başarısız olsa da bekleme kaydı bu bağa işaret eder, cihaz sonraki bildiriminde (aynı wg
-            // anahtarıyla) yeni belirteç alıp yeniden dener; işaret eşitlemede ortak SMS sırrını keser
+            // anahtarıyla) yeni belirteç alıp yeniden dener; işaret eşitlemeyi yalnızca etkin_mock'a indirir (NetGSM bilgisi gitmez)
             self.veri.cihaz_otomatik_isaretle(cid)?;
             self.veri.bekleyen_baglandi(k, cid)?;
         }

@@ -343,11 +343,33 @@ fn durum_satiri(ad: &str, sayi: usize, hata: Option<&str>, eski: bool) -> Value 
     Value::Object(d)
 }
 
+/// `UnicodeDecodeError` ile başlayan hata metni öneki (`calistir` bu önekli hatayı `OSError:` ile sarmaz).
+const UTF8_HATA: &str = "UnicodeDecodeError: ";
+
+/// Python'daki `UnicodeDecodeError` iletisi: `'utf-8' codec can't decode byte 0xff in position 10: invalid start byte`.
+fn utf8_hata_metni(e: &std::string::FromUtf8Error) -> String {
+    let konum = e.utf8_error().valid_up_to();
+    let bayt = e.as_bytes()[konum];
+    let neden = if e.utf8_error().error_len().is_none() {
+        let son = e.as_bytes().len() - 1;
+        return if son == konum {
+            format!("{UTF8_HATA}'utf-8' codec can't decode byte 0x{bayt:02x} in position {konum}: unexpected end of data")
+        } else {
+            format!("{UTF8_HATA}'utf-8' codec can't decode bytes in position {konum}-{son}: unexpected end of data")
+        };
+    } else if matches!(bayt, 0x80..=0xC1 | 0xF5..=0xFF) {
+        "invalid start byte"
+    } else {
+        "invalid continuation byte"
+    };
+    format!("{UTF8_HATA}'utf-8' codec can't decode byte 0x{bayt:02x} in position {konum}: {neden}")
+}
+
 /// Dosya yoksa (ya da okunamıyorsa) ek yok; ama UTF-8 olmayan dosya hatadır (Python yalnızca `OSError`'ı yutar,
 /// `UnicodeDecodeError` `uret`ten çıkar): operatörün elle eklemeleri sessizce düşmesin, mevcut liste değişmesin.
 fn elle_ek(dizin: &Path, kategori: &str) -> Result<Option<BTreeSet<String>>, String> {
     let Ok(ham) = std::fs::read(dizin.join(format!("{kategori}.ek.txt"))) else { return Ok(None) };
-    let metin = String::from_utf8(ham).map_err(|e| format!("'utf-8' codec can't decode: {e} ({kategori}.ek.txt)"))?;
+    let metin = String::from_utf8(ham).map_err(|e| utf8_hata_metni(&e))?;
     Ok(Some(temizle(crate::kuyruk::satirlar(&metin), Bicim::Duz)))
 }
 
@@ -364,14 +386,14 @@ impl Kilit {
         use std::os::fd::AsRawFd;
         let _ = std::fs::create_dir_all(dizin);
         let f = std::fs::OpenOptions::new().create(true).append(true).open(dizin.join(".kilit")).map_err(|e| {
-            eprintln!("kilit dosyası açılamadı: {e}");
+            crate::ortak::stderr_yaz(&format!("kilit dosyası açılamadı: {e}"));
             Mesgul
         })?;
         // SAFETY: fd geçerli ve bize ait
         let k = unsafe { libc::flock(f.as_raw_fd(), libc::LOCK_EX | if bekle { 0 } else { libc::LOCK_NB }) };
         if k != 0 {
             if bekle {
-                eprintln!("kilit alınamadı (flock): {}", std::io::Error::last_os_error());
+                crate::ortak::stderr_yaz(&format!("kilit alınamadı (flock): {}", std::io::Error::last_os_error()));
             }
             return Err(Mesgul);
         }
@@ -514,7 +536,7 @@ impl Uretici {
         let mut sonuc = 0;
         let yaz = |olay: &str, ayrinti: String, sonuc: &mut i32| {
             if let Err(h) = veri.hareket(kim, ip, olay, None, &ayrinti) {
-                eprintln!("hareket yazılamadı ({olay}): {h}");
+                crate::ortak::stderr_yaz(&format!("hareket yazılamadı ({olay}): {h}"));
                 *sonuc = 1;
             }
         };
@@ -524,7 +546,9 @@ impl Uretici {
                 Ok(m) => m,
                 Err(h) => {
                     // bir kategorinin hatası diğerlerini durdurmaz
-                    yaz("LISTE_HATA", format!("kategori={k} neden=OSError: {h}"), &mut sonuc);
+                    // Python yalnızca OSError'ı yutar; UTF-8 hatası (`UnicodeDecodeError`) kendi adıyla yazılır
+                    let neden = if h.starts_with(UTF8_HATA) { h } else { format!("OSError: {h}") };
+                    yaz("LISTE_HATA", format!("kategori={k} neden={neden}"), &mut sonuc);
                     sonuc = 1;
                     continue;
                 }
@@ -571,7 +595,7 @@ pub fn main_uretim() -> i32 {
     let v = match Veri::ac(Path::new(crate::merkez::DB), std::sync::Arc::new(crate::ortak::simdi)) {
         Ok(v) => v,
         Err(h) => {
-            eprintln!("{h}");
+            crate::ortak::stderr_yaz(&format!("{h}"));
             return 1;
         }
     };
@@ -579,7 +603,7 @@ pub fn main_uretim() -> i32 {
         Ok(k) => k,
         Err(Mesgul) => {
             // bekle=true iken kilit "meşgul" olamaz: kilit dosyası açılamadı ya da flock başarısız (nedeni Kilit::al yazar)
-            eprintln!("liste güncellemesi başlatılamadı: kilit alınamadı ({DIZIN}/.kilit)");
+            crate::ortak::stderr_yaz(&format!("liste güncellemesi başlatılamadı: kilit alınamadı ({DIZIN}/.kilit)"));
             1
         }
     }

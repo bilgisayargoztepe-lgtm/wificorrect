@@ -10,7 +10,7 @@ use crate::guvenlik;
 
 pub const YONETICI: &str = "/var/lib/wificorrect/merkez/yonetici.json";
 const EN_AZ: usize = 12;
-const KULLANIM: &str = "Kullanım: wc-yonetici parola <kullanıcı-adı>";
+const KULLANIM: &str = "Kullanım: wificorrect-merkez yonetici parola <kullanıcı-adı>";
 
 /// Dosyadaki yönetici hesabı.
 #[derive(Clone, Debug, PartialEq)]
@@ -125,22 +125,22 @@ pub fn birak(sahip: &str) -> Result<(), String> {
 /// Parola önce sorulur: `wcpanel`'e indikten sonra terminale (/dev/tty) erişilemez, parola ekranda görünürdü.
 pub fn main(argv: &[String], yol: &Path, sor: &dyn Fn() -> Option<String>, sahip: Option<&str>, birak: &dyn Fn(&str) -> Result<(), String>) -> i32 {
     if argv.len() != 2 || argv[0] != "parola" || !kullanici_gecerli(&argv[1]) {
-        eprintln!("{KULLANIM}");
+        crate::ortak::stderr_yaz(KULLANIM);
         return 2;
     }
     let pw = sor();
     if let Some(s) = sahip {
         if let Err(h) = birak(s) {
-            eprintln!("{h}");
+            crate::ortak::stderr_yaz(&format!("{h}"));
             return 1;
         }
     }
     let Some(pw) = pw else {
-        eprintln!("Parolalar aynı değil.");
+        crate::ortak::stderr_yaz("Parolalar aynı değil.");
         return 1;
     };
     if let Err(h) = yaz(yol, &argv[1], &pw) {
-        eprintln!("{h}");
+        crate::ortak::stderr_yaz(&format!("{h}"));
         return 1;
     }
     println!("tamam");

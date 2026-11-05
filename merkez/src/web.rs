@@ -132,7 +132,7 @@ pub fn log(msg: &str) {
             return;
         }
     }
-    eprintln!("{msg}");
+    crate::ortak::stderr_yaz(msg);
 }
 
 #[cfg(test)]
@@ -444,7 +444,8 @@ impl Deref for Ot {
 /// Alt sınıfların paylaştığı durum (Python `Taban.__init__`).
 pub struct Taban {
     pub veri: Arc<Veri>,
-    pub kayitlar: Kayitlar,
+    /// Müşteri ve yönetim panelleri tek örneği paylaşır (Python `merkez.py` tek `Kayitlar`): `kisi_sir` ilk üretimde yarışmaz.
+    pub kayitlar: Arc<Kayitlar>,
     pub saat: Saat,
     /// haftalık/aylık rapor JSON dosyalarını okuyan nesne (Python `raporlar.Raporlar`; varsayılan /var/lib/wificorrect/rapor).
     pub raporlar: crate::raporlar::Raporlar,
@@ -453,8 +454,8 @@ pub struct Taban {
 }
 
 impl Taban {
-    pub fn new(veri: Arc<Veri>, kayitlar: Kayitlar, saat: Saat) -> Taban {
-        Taban { veri, kayitlar, saat, raporlar: crate::raporlar::Raporlar::default(), oturumlar: Oturumlar::default(), kilit: GirisKilidi::default() }
+    pub fn new(veri: Arc<Veri>, kayitlar: impl Into<Arc<Kayitlar>>, saat: Saat) -> Taban {
+        Taban { veri, kayitlar: kayitlar.into(), saat, raporlar: crate::raporlar::Raporlar::default(), oturumlar: Oturumlar::default(), kilit: GirisKilidi::default() }
     }
 
     /// Rapor dosyalarının klasörü (Python `Taban(..., raporlar=Raporlar(dizin))`).

@@ -380,13 +380,13 @@ pub fn main_uretim(args: &[String]) -> i32 {
                 i += 1;
             }
             _ => {
-                eprintln!("{KULLANIM}");
+                crate::ortak::stderr_yaz(KULLANIM);
                 return 2;
             }
         }
     }
     let Some(vt) = vt else {
-        eprintln!("{KULLANIM}");
+        crate::ortak::stderr_yaz(KULLANIM);
         return 2;
     };
     let mut cikti = std::io::stdout().lock();
@@ -412,7 +412,7 @@ pub fn yedekle(kaynak: &Path, hedef: &Path) -> Result<(), String> {
 
 pub fn yedekle_main(args: &[String]) -> i32 {
     let [kaynak, hedef] = args else {
-        eprintln!("Kullanım: wificorrect-merkez veritabani-yedekle KAYNAK HEDEF");
+        crate::ortak::stderr_yaz("Kullanım: wificorrect-merkez veritabani-yedekle KAYNAK HEDEF");
         return 2;
     };
     match yedekle(Path::new(kaynak), Path::new(hedef)) {
@@ -421,7 +421,7 @@ pub fn yedekle_main(args: &[String]) -> i32 {
             0
         }
         Err(h) => {
-            eprintln!("HATA {h}");
+            crate::ortak::stderr_yaz(&format!("HATA {h}"));
             1
         }
     }

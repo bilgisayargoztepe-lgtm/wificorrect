@@ -1245,3 +1245,24 @@ fn takma_python_ile_ayni_bayt_dizisi() {
     assert_ne!(takma(&SIR, TEL1), takma(&SIR, TEL2));
     assert_eq!(sir_izi(&SIR).len(), 8);
 }
+
+/// `imza` mtime'ı nanosaniye çözünürlüğüyle katar (Python `st_mtime_ns`): `saniye * 10^9 + ns`.
+#[test]
+fn imza_mtime_nanosaniye_kullanir() {
+    let d = gecici_dizin();
+    fs::write(d.join("a.json"), b"xyz").unwrap();
+    let t = std::time::UNIX_EPOCH + std::time::Duration::new(1_700_000_000, 123_456_789);
+    let f = File::open(d.join("a.json")).unwrap();
+    f.set_times(fs::FileTimes::new().set_modified(t)).unwrap();
+    let mut h = Sha256::new();
+    h.update(b"\0yok"); // MANIFEST yok
+    h.update(b"\na.json\x003\x001700000000123456789");
+    assert_eq!(imza(&d), hex(&h.finalize()));
+    // 1 ns fark imzayı değiştirir
+    let t2 = std::time::UNIX_EPOCH + std::time::Duration::new(1_700_000_000, 123_456_790);
+    f.set_times(fs::FileTimes::new().set_modified(t2)).unwrap();
+    let mut h2 = Sha256::new();
+    h2.update(b"\0yok");
+    h2.update(b"\na.json\x003\x001700000000123456790");
+    assert_eq!(imza(&d), hex(&h2.finalize()));
+}

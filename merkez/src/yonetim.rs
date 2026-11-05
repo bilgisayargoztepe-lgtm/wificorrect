@@ -259,7 +259,7 @@ pub struct Yonetim {
 
 impl Yonetim {
     /// Python `Yonetim(veri, kayitlar, saat, yonetici_yolu, durum_yolu, kuyruk_ekle)`; öteki parametreler `*_ile` yöntemleriyle.
-    pub fn new(veri: Arc<Veri>, kayitlar: Kayitlar, saat: Saat, yonetici_yolu: PathBuf, durum_yolu: PathBuf, kuyruk_ekle: KuyrukEkle) -> Yonetim {
+    pub fn new(veri: Arc<Veri>, kayitlar: impl Into<Arc<Kayitlar>>, saat: Saat, yonetici_yolu: PathBuf, durum_yolu: PathBuf, kuyruk_ekle: KuyrukEkle) -> Yonetim {
         // testte varsayılan: dış istek gitmemeli (gerçek SMS/GitHub asla); sahte taşıyıcı açıkça verilir
         #[cfg(test)]
         let (sms_tasiyici, indirme_tasiyici): (Arc<dyn Tasiyici>, Arc<dyn Tasiyici>) = (Arc::new(crate::test_yardim::AgYok), Arc::new(crate::test_yardim::AgYok));
@@ -283,10 +283,10 @@ impl Yonetim {
     }
 
     /// Üretim: varsayılan yollar, gerçek kuyruk, paylaşılan geçiş belirteçleri ve müşteri paneli (cihaz adresi), rapor grupları.
-    pub fn uretim(veri: Arc<Veri>, saat: Saat, gecis: Arc<GecisBelirtecleri>, musteri: Arc<Musteri>) -> Yonetim {
+    pub fn uretim(veri: Arc<Veri>, saat: Saat, gecis: Arc<GecisBelirtecleri>, musteri: Arc<Musteri>, kayitlar: Arc<Kayitlar>) -> Yonetim {
         Yonetim::new(
             veri,
-            Kayitlar::default(),
+            kayitlar,
             saat,
             PathBuf::from(yonetici::YONETICI),
             PathBuf::from(crate::durum::DURUM),

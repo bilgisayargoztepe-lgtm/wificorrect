@@ -137,7 +137,7 @@ fn boyut_dizin(dizin: &Path, toplam: &mut u64) {
             continue;
         }
         if let Ok(m) = std::fs::symlink_metadata(&yol) {
-            *toplam += std::os::unix::fs::MetadataExt::size(&m);
+            *toplam = toplam.saturating_add(std::os::unix::fs::MetadataExt::size(&m));
         }
     }
 }
@@ -234,7 +234,7 @@ pub fn calistir(y: &Yollar, wg: &dyn Fn() -> Option<String>, simdi: f64) -> i32 
     match yaz(y, wg, simdi) {
         Ok(()) => 0,
         Err(h) => {
-            eprintln!("wc-durum: {h}");
+            crate::ortak::stderr_yaz(&format!("wc-durum: {h}"));
             1
         }
     }

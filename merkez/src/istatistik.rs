@@ -235,12 +235,12 @@ pub fn calistir(y: &Yollar, simdi: Option<f64>) -> i32 {
     let arsivler: Vec<(String, Vec<PathBuf>)> = match crate::durum::arsivler(&y.kayit, &y.yeni, &y.eski) {
         Ok(a) => a.into_iter().map(|a| (a.ad, a.kaynaklar)).collect(),
         Err(h) => {
-            eprintln!("{h}");
+            crate::ortak::stderr_yaz(&format!("{h}"));
             return 1;
         }
     };
     for (ad, hata) in arsiv_hatalari(y, &arsivler) {
-        eprintln!("{ad}: {hata}");
+        crate::ortak::stderr_yaz(&format!("{ad}: {hata}"));
         kod = 1;
     }
     // haftalık/aylık raporlar (ham özet önbelleği + müşteri başına dönem raporları); hatası yukarıdakileri etkilemez
@@ -248,12 +248,12 @@ pub fn calistir(y: &Yollar, simdi: Option<f64>) -> i32 {
     match crate::rapor::calistir(&harita, &y.rapor_gruplari, &y.rapor_ham, &y.rapor_cikti, y.grup.as_deref(), simdi, None) {
         Ok(hatalar) => {
             for hata in hatalar {
-                eprintln!("rapor: {hata}");
+                crate::ortak::stderr_yaz(&format!("rapor: {hata}"));
                 kod = 1;
             }
         }
         Err(tur) => {
-            eprintln!("rapor: {tur}");
+            crate::ortak::stderr_yaz(&format!("rapor: {tur}"));
             kod = 1;
         }
     }

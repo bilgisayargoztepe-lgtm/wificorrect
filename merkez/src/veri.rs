@@ -677,7 +677,7 @@ impl Veri {
         }
         let pw = parola.map(String::from).unwrap_or_else(|| guvenlik::parola_uret(12));
         let (tuz, oz, y) = guvenlik::yeni_kayit(&pw);
-        let not = kes(not_.trim(), 200);
+        let not = kes(ortak::py_strip(not_), 200);
         let olusturma = self.simdi();
         let lisans = yil_sonra(self.bugun());
         let numara = self.islem(|tx| {
@@ -1269,7 +1269,7 @@ impl Veri {
         let mut a = Map::new();
         a.insert("mock".into(), Value::Bool(d.get("mock").is_some_and(py_dogru)));
         for k in SMS_ALANLARI {
-            a.insert(k.into(), Value::String(py_veya_bos(d.get(k)).trim().to_string()));
+            a.insert(k.into(), Value::String(ortak::py_strip(&py_veya_bos(d.get(k))).to_string()));
         }
         let sag = d.get("tr_saglayici").filter(|v| py_dogru(v)).map(py_str).unwrap_or_else(|| "netgsm".into());
         if !TR_SAGLAYICILAR.contains(&sag.as_str()) {
@@ -1280,7 +1280,7 @@ impl Veri {
         let mut t = Map::new();
         t.insert("acik".into(), Value::Bool(tw.get("acik").is_some_and(py_dogru)));
         for k in TWILIO_ALANLARI {
-            t.insert(k.into(), Value::String(py_veya_bos(tw.get(k)).trim().to_string()));
+            t.insert(k.into(), Value::String(ortak::py_strip(&py_veya_bos(tw.get(k))).to_string()));
         }
         for (k, _) in twilio::SID_ALANLARI {
             let v = t[k].as_str().unwrap_or("");

@@ -231,7 +231,7 @@ pub fn otomatik_al(veri: &Veri, dizin: &Path, t: &dyn Tasiyici, gunluk: &mut dyn
 /// `wificorrect-merkez surumler al | ekle DOSYA SURUM` (Python `main`; `args` alt komuttan sonrasıdır).
 pub fn main_uretim(args: &[String]) -> i32 {
     let kullanim = || {
-        eprintln!("Kullanım: surumler.py ekle DOSYA SURUM | surumler.py al");
+        crate::ortak::stderr_yaz("Kullanım: wificorrect-merkez surumler ekle DOSYA SURUM | wificorrect-merkez surumler al");
         2
     };
     let al = match args {
@@ -242,7 +242,7 @@ pub fn main_uretim(args: &[String]) -> i32 {
     let v = match Veri::ac(Path::new(crate::merkez::DB), std::sync::Arc::new(crate::ortak::simdi)) {
         Ok(v) => v,
         Err(h) => {
-            eprintln!("{h}");
+            crate::ortak::stderr_yaz(&format!("{h}"));
             return 1;
         }
     };
@@ -255,7 +255,7 @@ pub fn main_uretim(args: &[String]) -> i32 {
             0
         }
         Err(h) => {
-            eprintln!("{h}");
+            crate::ortak::stderr_yaz(&format!("{h}"));
             1
         }
     }

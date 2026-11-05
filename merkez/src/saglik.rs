@@ -335,7 +335,7 @@ impl<'a> Uyari<'a> {
     /// İzleme çalışamadı: neden türü (kod) başına günde bir SMS; biri ötekini yutmaz. Aynı gönderici; açık/kapalı ve
     /// günlük sınır geçerli.
     pub fn izleme_bozuk(&self, kod: &str, neden: &str) -> Sonuc<()> {
-        eprintln!("wc-saglik: izleme çalışmıyor: {neden}");
+        crate::ortak::stderr_yaz(&format!("wc-saglik: izleme çalışmıyor: {neden}"));
         if self.acik && self.veri.gunluk_bayrak(&format!("izleme_sms:{kod}"), &self.gun)? {
             let r = self.gonder(&izleme_metni(neden))?;
             self.veri.hareket("saglik", "-", "UYARI_SMS", None, &format!("izleme çalışmıyor ({neden}): {r}"))?;
@@ -536,7 +536,7 @@ pub fn calistir(veri: &Veri, durum: &Value, t: &dyn Tasiyici, simdi: f64, liste_
         if let Err(h) = musteri_turu(veri, &u, m, cihazlar.get(&n).copied(), d.as_ref(), simdi) {
             // bir müşterinin bozuk verisi ötekileri durdurmasın
             hatalar += 1;
-            eprintln!("wc-saglik: {n}: {}: {}", h.tur, h.ileti);
+            crate::ortak::stderr_yaz(&format!("wc-saglik: {n}: {}: {}", h.tur, h.ileti));
         }
     }
     u.bilgi_toplu(&musteriler, &cihazlar)?;
@@ -560,17 +560,17 @@ pub fn main_ile(db: &Path, durum_yolu: &Path, t: &dyn Tasiyici, saat: Saat, tur:
     let veri = match Veri::ac(db, saat.clone()) {
         Ok(v) => v,
         Err(h) => {
-            eprintln!("{h}");
+            crate::ortak::stderr_yaz(&format!("{h}"));
             return 1;
         }
     };
     match tur(&veri, &d, t, saat()) {
         Ok(()) => 0,
         Err(h) => {
-            eprintln!("{}: {}", h.tur, h.ileti);
+            crate::ortak::stderr_yaz(&format!("{}: {}", h.tur, h.ileti));
             // en iyi çaba: haber ver, burada da düşme
             let _ = Uyari::yeni(&veri, t, saat()).and_then(|u| u.izleme_bozuk("hata", &format!("hata: {}", h.tur))).map_err(|h2| {
-                eprintln!("{}: {}", h2.tur, h2.ileti);
+                crate::ortak::stderr_yaz(&format!("{}: {}", h2.tur, h2.ileti));
             });
             1
         }

@@ -536,7 +536,7 @@ fn gecersiz_utf8_ek_dosyasi_hata_verir_liste_degismez() {
     assert_eq!(std::fs::read(d.join("kumar.txt.gz")).unwrap(), gz1);
     assert_eq!(std::fs::read(d.join("kumar.json")).unwrap(), json1);
     let h = o.veri.hareketler(None, 300, None).unwrap();
-    assert!(h.iter().any(|x| x.olay == "LISTE_HATA" && x.ayrinti.starts_with("kategori=kumar neden=OSError: ") && x.ayrinti.contains("kumar.ek.txt")), "{:?}", h.iter().map(|x| &x.ayrinti).collect::<Vec<_>>());
+    assert!(h.iter().any(|x| x.olay == "LISTE_HATA" && x.ayrinti == "kategori=kumar neden=UnicodeDecodeError: 'utf-8' codec can't decode byte 0xff in position 10: invalid start byte"), "{:?}", h.iter().map(|x| &x.ayrinti).collect::<Vec<_>>());
     // dosya yoksa ek yok
     std::fs::remove_file(d.join("kumar.ek.txt")).unwrap();
     assert!(u.uret("kumar", &t, &d, SIMDI + 20.0).is_ok());

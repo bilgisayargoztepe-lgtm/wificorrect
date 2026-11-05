@@ -285,7 +285,7 @@ pub fn calistir(
     let adlar: Vec<String> = match std::fs::read_dir(kuyruk) {
         Ok(d) => d.filter_map(|e| e.ok()).filter_map(|e| e.file_name().into_string().ok()).collect(),
         Err(h) => {
-            eprintln!("kuyruk okunamadı: {h}");
+            crate::ortak::stderr_yaz(&format!("kuyruk okunamadı: {h}"));
             return 1;
         }
     };
@@ -319,13 +319,13 @@ pub fn calistir(
         })();
         if let Err(h) = yazildi {
             // iş dosyası silinmez: sonraki çalıştırmada yeniden denenir
-            eprintln!("{ad}: sonuç yazılamadı: {h}");
+            crate::ortak::stderr_yaz(&format!("{ad}: sonuç yazılamadı: {h}"));
             return 1;
         }
         let _ = std::fs::remove_file(&yol);
         let islem = is_.as_ref().and_then(|i| i.get("islem")).map(py_str).unwrap_or_else(|| "?".into());
         let hata = s.get("hata").map(py_str).unwrap_or_default();
-        eprintln!("{ad}: {islem} {} {hata}", s.get("durum").map(py_str).unwrap_or_default());
+        crate::ortak::stderr_yaz(&format!("{ad}: {islem} {} {hata}", s.get("durum").map(py_str).unwrap_or_default()));
     }
     // okunmuş/okunmamış ayrılmaz; 1 günden eski sonuçlar silinir
     if let Ok(d) = std::fs::read_dir(sonuc_dizini) {

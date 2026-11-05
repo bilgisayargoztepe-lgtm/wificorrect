@@ -50,13 +50,13 @@ pub struct Musteri {
 }
 
 impl Musteri {
-    pub fn new(veri: Arc<Veri>, kayitlar: Kayitlar, saat: Saat) -> Musteri {
+    pub fn new(veri: Arc<Veri>, kayitlar: impl Into<Arc<Kayitlar>>, saat: Saat) -> Musteri {
         Musteri { taban: Taban::new(veri, kayitlar, saat), gecis: Arc::new(GecisBelirtecleri::new()) }
     }
 
-    /// Üretim: varsayılan klasörler (özetler, kayıtlar, raporlar) ve paylaşılan geçiş belirteçleri.
-    pub fn uretim(veri: Arc<Veri>, saat: Saat, gecis: Arc<GecisBelirtecleri>) -> Musteri {
-        Musteri::new(veri, Kayitlar::default(), saat).gecis_ile(gecis)
+    /// Üretim: varsayılan klasörler (özetler, raporlar), paylaşılan kayıtlar ve geçiş belirteçleri.
+    pub fn uretim(veri: Arc<Veri>, saat: Saat, gecis: Arc<GecisBelirtecleri>, kayitlar: Arc<Kayitlar>) -> Musteri {
+        Musteri::new(veri, kayitlar, saat).gecis_ile(gecis)
     }
 
     /// Python `Musteri(..., gecis=...)`: cihaz geçidiyle ve yönetimle aynı belirteç deposu.

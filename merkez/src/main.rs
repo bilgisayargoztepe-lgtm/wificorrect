@@ -50,14 +50,14 @@ fn main() {
         Some("veritabani-denetle") => std::process::exit(denetle::main_uretim(&args[1..])),
         Some("veritabani-yedekle") => std::process::exit(denetle::yedekle_main(&args[1..])),
         _ => {
-            eprintln!("Kullanım: wificorrect-merkez surum|sunucu|kuyruk|istatistik|listeler|surumler|yonetici|durum|saglik|veritabani-denetle|veritabani-yedekle");
+            crate::ortak::stderr_yaz("Kullanım: wificorrect-merkez surum|sunucu|kuyruk|istatistik|listeler|surumler|yonetici|durum|saglik|veritabani-denetle|veritabani-yedekle");
             std::process::exit(2);
         }
     }
 }
 
 /// Python `merkez.main`: umask 077, veritabanı, rapor grupları, uygulamalar, 127.0.0.1:8081.
-/// Uygulamalar (yönetim, müşteri, api, cihaz, ap) taşındıkça buraya eklenir; kaydı olmayan alan adı 404 verir.
+/// Uygulamalar: api, müşteri, yönetim, cihaz, ap; kaydı olmayan alan adı 404 verir.
 fn sunucu_calistir() {
     use std::sync::Arc;
     // SAFETY: umask çağrısı yan etkisiz bir sistem çağrısıdır
@@ -73,7 +73,7 @@ fn sunucu_calistir() {
     let v = match veri::Veri::ac(std::path::Path::new(merkez::DB), saat) {
         Ok(v) => Arc::new(v),
         Err(h) => {
-            eprintln!("{h}");
+            crate::ortak::stderr_yaz(&format!("{h}"));
             std::process::exit(1);
         }
     };
@@ -82,17 +82,19 @@ fn sunucu_calistir() {
         web::log(&format!("rapor-gruplari yazilamadi: {h:?}"));
     }
     let mut m = merkez::Merkez::new();
-    // cihaz geçidi (Görev 9) ve yönetim aynı geçiş belirteçlerini kullanır
+    // cihaz geçidi ve yönetim aynı geçiş belirteçlerini kullanır
     let gecis = Arc::new(guvenlik::GecisBelirtecleri::new());
     m.ekle("api", Arc::new(api::Api::uretim(v.clone(), saat_uretim)));
-    let musteri = Arc::new(musteri::Musteri::uretim(v.clone(), saat_musteri, gecis.clone()));
+    // iki panel tek Kayitlar paylaşır (Python tek örnek): kişi sırrının ilk üretimi yarışmaz
+    let kayitlar = Arc::new(kayitlar::Kayitlar::default());
+    let musteri = Arc::new(musteri::Musteri::uretim(v.clone(), saat_musteri, gecis.clone(), kayitlar.clone()));
     m.ekle("musteri", musteri.clone());
-    m.ekle("yonetim", Arc::new(yonetim::Yonetim::uretim(v.clone(), saat_yonetim, gecis.clone(), musteri.clone())));
+    m.ekle("yonetim", Arc::new(yonetim::Yonetim::uretim(v.clone(), saat_yonetim, gecis.clone(), musteri.clone(), kayitlar)));
     let cihaz = Arc::new(cihaz::Cihaz::new(v, gecis, musteri, saat_cihaz));
     m.ekle("cihaz", cihaz.clone());
     m.ekle("ap", Arc::new(ap::Ap::new(cihaz, saat_ap)));
     if let Err(h) = sunucu::calistir(Arc::new(m), "127.0.0.1:8081", 256) {
-        eprintln!("{h}");
+        crate::ortak::stderr_yaz(&format!("{h}"));
         std::process::exit(1);
     }
 }

@@ -18,7 +18,7 @@ if [ -n "${WFC_ORNEK_AGAC:-}" ]; then
   mkdir -p "$WFC_ORNEK_AGAC"
 fi
 if [ -n "${WFC_ORNEK_AGAC:-}" ]; then uzak_ortam="rm -rf /root/rza-merkez/ornek-agac; export WFC_ORNEK_AGAC=/root/rza-merkez/ornek-agac"; fi
-dosyalar="merkez/Cargo.toml merkez/src .cargo src/sablon/logo scripts/sunucu/merkez/Caddyfile scripts/sunucu/merkez/fail2ban-wc-merkez.conf scripts/sunucu/merkez/fail2ban-wc-merkez-filtre.conf"
+dosyalar="merkez/Cargo.toml merkez/src .cargo src/sablon/logo scripts/sunucu/merkez/Caddyfile scripts/sunucu/merkez/fail2ban-wc-merkez.conf scripts/sunucu/merkez/fail2ban-wc-merkez-filtre.conf scripts/sunucu/merkez/kur.sh scripts/sunucu/merkez/wc-* scripts/sunucu/merkez-kur.sh scripts/sunucu/merkez-geri-don.sh scripts/sunucu/wificorrect-sunucu"
 for f in merkez/Cargo.lock merkez/tests; do [ -e "$f" ] && dosyalar="$dosyalar $f"; done
 tar -cf - $dosyalar | ssh "$host" "set -e; mkdir -p /root/rza-merkez; cd /root/rza-merkez; rm -rf merkez/src merkez/tests; tar -xf - -C /root/rza-merkez
 cd merkez; set +e

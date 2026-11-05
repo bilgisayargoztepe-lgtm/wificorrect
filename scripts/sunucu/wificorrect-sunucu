@@ -233,7 +233,7 @@ cihaz-kapat)
 	;;
 yonetici-parola)
 	[ $# -eq 2 ] || kullanim
-	exec /usr/local/sbin/wc-yonetici parola "$2"
+	exec /usr/local/bin/wificorrect-merkez yonetici parola "$2"
 	;;
 *) kullanim ;;
 esac

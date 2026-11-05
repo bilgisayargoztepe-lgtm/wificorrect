@@ -11,6 +11,8 @@ mod durum;
 mod guvenlik;
 mod istatistik;
 mod kayitlar;
+#[cfg(test)]
+mod kurulum_testler;
 mod kuyruk;
 mod listeler;
 mod merkez;

@@ -34,6 +34,19 @@ jobs:
         with:
           workspaces: merkez
       - run: cd merkez && cargo test --locked
+      # Sunucuya kurulacak ikili: testlerden sonra release derlemesi; merkez-kur.sh bu yapıtı sha'ya göre indirir
+      - run: cd merkez && cargo build --release --locked
+      - name: Yapıt hazırla
+        run: |
+          mkdir yapit
+          install -m 755 merkez/target/release/wificorrect-merkez yapit/wificorrect-merkez
+          (cd yapit && sha256sum wificorrect-merkez > wificorrect-merkez.sha256)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wificorrect-merkez-${{ github.sha }}
+          path: yapit/
+          retention-days: 30
+          if-no-files-found: error
 
   paket:
     runs-on: ubuntu-24.04

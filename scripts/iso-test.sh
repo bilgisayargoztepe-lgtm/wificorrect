@@ -37,27 +37,31 @@ vm() {
     -monitor unix:"$d/mon",server,nowait -serial file:"$d/$log" "$@" &
   q=$!
 }
-# HMP: komutu gönder, yanıtı (sonraki "(qemu)" istemine kadar) mon.log'a ekle
-mon() { python3 -c 'import socket,sys,time
-s=socket.socket(socket.AF_UNIX); s.connect(sys.argv[1]); s.settimeout(15); s.sendall(sys.argv[2].encode()+b"\n")
-b=b""; t=time.time()
-while b.count(b"(qemu)") < 2 and time.time()-t < 15:
-    try: b+=s.recv(4096) or b"(qemu)(qemu)"
-    except socket.timeout: break
-sys.stdout.write(b.decode(errors="replace"))' "$d/mon" "$1" >>"$d/mon.log" 2>&1 || true; }
-ekran() { mon "screendump $d/ekran.ppm"; }
-# P6 PPM → PNG (yalnızca stdlib; çalıştırıcıda ImageMagick olmayabilir)
-png() { python3 -c 'import sys,zlib,struct
-b=open(sys.argv[1],"rb").read(); m,wh,mx,r=b.split(b"\n",3); w,h=map(int,wh.split())
-c=lambda t,x: struct.pack(">I",len(x))+t+x+struct.pack(">I",zlib.crc32(t+x))
-raw=b"".join(b"\0"+r[y*w*3:(y+1)*w*3] for y in range(h))
-open(sys.argv[2],"wb").write(b"\x89PNG\r\n\x1a\n"+c(b"IHDR",struct.pack(">IIBBBBB",w,h,8,2,0,0,0))+c(b"IDAT",zlib.compress(raw))+c(b"IEND",b""))' "$1" "$2" || cp "$1" "$g/"; }
+# HMP: komutu gönder, yanıtı (en çok 15 sn) mon.log'a ekle; betiği asla düşürmez. nc -U (netcat-openbsd), yoksa socat.
+# Komuttan sonra 2 sn bekleyip girişi kapatırız (-N/-t2): QEMU komutu okuyup yürütür, bağlantı kapanınca nc/socat çıkar.
+mon() {
+  { printf '%s
+' "$1"; sleep 2; } | {
+    if command -v nc >/dev/null 2>&1; then timeout 15 nc -N -U "$d/mon"; else timeout 15 socat -t2 - "UNIX-CONNECT:$d/mon"; fi
+  } >>"$d/mon.log" 2>&1 || true
+}
+# Ekran görüntüsü: QEMU'nun kendi PNG'si; QEMU "-f png" bilmiyorsa PPM kalır (dönüştürme yok). Son görüntünün uzantısı ekran_uzanti.
+ekran_uzanti=
+ekran() {
+  rm -f "$d/ekran.png" "$d/ekran.ppm"
+  mon "screendump $d/ekran.png -f png"
+  [ -s "$d/ekran.png" ] || { rm -f "$d/ekran.png"; mon "screendump $d/ekran.ppm"; }
+  ekran_uzanti=
+  if [ -s "$d/ekran.png" ]; then ekran_uzanti=png; elif [ -s "$d/ekran.ppm" ]; then ekran_uzanti=ppm; fi
+}
+# sakla <ad>: son ekran görüntüsünü iso-test-gunluk/<ad>.<png|ppm> olarak yapıta koyar
+sakla() { if [ -n "$ekran_uzanti" ]; then cp "$d/ekran.$ekran_uzanti" "$g/$1.$ekran_uzanti" || true; fi; }
 gunluk() { cp "$d"/*.log "$g/" 2>/dev/null || true; }
 son=
 hata() {
   ekran; kill "$q" 2>/dev/null || true
   [ -n "$son" ] && [ -e "$d/$son" ] && { echo "--- $son (son 60 satır)"; tail -60 "$d/$son" | tr -d '\033'; }
-  gunluk; [ -e "$d/ekran.ppm" ] && png "$d/ekran.ppm" "$g/ekran.png"
+  gunluk; sakla ekran
   echo "ISO DUMAN TESTI BASARISIZ: $1"; exit 1
 }
 usb_ayni() {
@@ -85,15 +89,15 @@ kur() {
   while kill -0 "$q" 2>/dev/null; do
     sleep 2; n=$((n + 2))
     if [ -z "$bitti" ] && grep -aq "KURULUM BITTI" "$d/$log"; then
-      bitti=1; sleep 3; ekran; png "$d/ekran.ppm" "$g/ekran-bitti-${log%.log}.png"
+      bitti=1; sleep 3; ekran; sakla "ekran-bitti-${log%.log}"
     fi
     [ $((n % 30)) = 0 ] || continue
     ekran
-    simdi=$(cksum <"$d/ekran.ppm" 2>/dev/null || true)
+    simdi=$(cksum <"$d/ekran.$ekran_uzanti" 2>/dev/null || true)
     if [ -n "$simdi" ] && [ "$simdi" = "$once" ]; then ayni=$((ayni + 1)); else ayni=0; fi
     once=$simdi
-    [ $ayni -lt 20 ] || hata "kurucu ekranı 10 dk değişmedi (takıldı; son ekran: iso-test-gunluk/ekran.png)"
-    [ $n -lt 2400 ] || hata "kurulum 40 dk içinde bitmedi (son ekran: iso-test-gunluk/ekran.png)"
+    [ $ayni -lt 20 ] || hata "kurucu ekranı 10 dk değişmedi (takıldı; son ekran: iso-test-gunluk/ekran.png ya da .ppm)"
+    [ $n -lt 2400 ] || hata "kurulum 40 dk içinde bitmedi (son ekran: iso-test-gunluk/ekran.png ya da .ppm)"
   done
   grep -a "WIFICORRECT: KURULUM" "$d/$log" | tr -d '\r'
   grep -aq "WIFICORRECT: KURULUM ORTAMI ADAYI: /dev/sd" "$d/$log" || hata "kurulum belleği kimlikle seçilmedi"
@@ -162,7 +166,7 @@ until grep -aq "WIFICORRECT: KURULACAK DISK YOK" "$d/kurulum0.log"; do
   [ $n -lt 900 ] || hata "yalnız kurulum belleği varken 'disk yok' hatası 15 dk içinde gelmedi"
 done
 sleep 60   # durduğunu gör: partman başlamış olsaydı bu sürede diske yazardı
-ekran; png "$d/ekran.ppm" "$g/ekran-disk-yok.png"
+ekran; sakla ekran-disk-yok
 kill -0 "$q" 2>/dev/null || hata "'disk yok'tan sonra kurucu kapandı"
 kill "$q"; wait "$q" 2>/dev/null || true
 usb_ayni "yalnız kurulum belleği varken"

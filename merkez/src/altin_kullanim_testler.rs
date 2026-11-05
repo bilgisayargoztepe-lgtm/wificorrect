@@ -29,15 +29,6 @@ const IZIN_LISTESI: [(&str, &str, &str); 13] = [
     ("test_logo", "test_dosya_yoksa_yaziya_duser", "logo tek kopya: Rust logoyu derleme anında gömer, çalışırken dosya okunmaz; \"dosya yoksa yazıya düş\" durumu oluşamaz"),
 ];
 
-/// Kayıtları boştur (cevap, veritabanı, dosya yok: kullanım denetimi bunları zaten istemez) ve 13b'de taşınacak kur.sh/birim testleri; taşınınca `Kayit::bas` ile kullanılır
-/// ve bu liste (ile test) düşer.
-const DEVREDILEN_13B: [(&str, &str); 4] = [
-    ("test_rapor", "test_kur_sh_ve_merkez_birimi"),
-    ("test_surumler", "test_kur_sh_ve_saatlik_zamanlayici"),
-    ("test_surumler", "test_kur_sh_yerel_modulleri_kuruyor"),
-    ("test_listeler", "test_kur_sh_ve_birimler"),
-];
-
 /// `merkez/src/*.rs` içindeki `Kayit::bas("<dosya>", "<test>")` çağrıları (yorum satırları sayılmaz; bu denetimin kendi
 /// dosyası ve `altin.rs` — kendi düzenek testleri — taranmaz).
 fn kullanilanlar() -> BTreeSet<(String, String)> {
@@ -122,7 +113,7 @@ fn bos_olmayan_her_altin_kayit_kullanilir() {
 fn izin_listesi_guncel() {
     let kullanilan = kullanilanlar();
     let kayit: BTreeSet<(String, String)> = kayitlar().into_iter().map(|(d, t, _)| (d, t)).collect();
-    let girdiler = IZIN_LISTESI.iter().map(|(d, t, _)| (*d, *t)).chain(DEVREDILEN_13B);
+    let girdiler = IZIN_LISTESI.iter().map(|(d, t, _)| (*d, *t));
     for (d, t) in girdiler {
         let anahtar = (d.to_string(), t.to_string());
         assert!(kayit.contains(&anahtar), "izin listesinde ama altın kaydı yok: {d}/{t}");

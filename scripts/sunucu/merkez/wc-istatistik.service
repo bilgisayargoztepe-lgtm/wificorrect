@@ -3,7 +3,6 @@ Description=WifiCorrect yönetim merkezi: arşivlerden günlük sayılar ve gün
 
 [Service]
 Type=oneshot
-Environment=PYTHONDONTWRITEBYTECODE=1
-ExecStart=/usr/local/sbin/wc-istatistik
+ExecStart=/usr/local/bin/wificorrect-merkez istatistik
 # Kafeden gelen bozuk bir dosya görevi sonsuza dek bekletmesin (timer bir daha tetiklenemezdi)
 TimeoutStartSec=2h

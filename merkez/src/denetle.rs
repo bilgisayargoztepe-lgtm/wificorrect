@@ -131,16 +131,24 @@ const TABLOLAR: [(&str, &str, Okuyucu); 11] = [
 struct Rapor<'a> {
     cikti: &'a mut dyn Write,
     hata: usize,
+    /// Çıktı yazılamadı (stdout kapalı, disk dolu …): `TAMAM` okunamıyorsa başarı sayılmaz.
+    yazma_hatasi: bool,
 }
 
 impl Rapor<'_> {
+    fn yaz(&mut self, satir: std::fmt::Arguments) {
+        if writeln!(self.cikti, "{satir}").is_err() {
+            self.yazma_hatasi = true;
+        }
+    }
+
     fn bilgi(&mut self, satir: &str) {
-        let _ = writeln!(self.cikti, "{satir}");
+        self.yaz(format_args!("{satir}"));
     }
 
     fn hata(&mut self, yer: &str, kimlik: &str, neden: &str) {
         self.hata += 1;
-        let _ = writeln!(self.cikti, "HATA {yer} {} {neden}", temiz(kimlik));
+        self.yaz(format_args!("HATA {yer} {} {neden}", temiz(kimlik)));
     }
 }
 
@@ -186,20 +194,24 @@ fn tablo_denetle(c: &Connection, r: &mut Rapor, tablo: &str, kimlik: &str, oku: 
         }
     }
     if sorunlu > HATA_SINIRI {
-        let _ = writeln!(r.cikti, "HATA {tablo} - {} hata daha (listelenmedi)", sorunlu - HATA_SINIRI);
+        r.yaz(format_args!("HATA {tablo} - {} hata daha (listelenmedi)", sorunlu - HATA_SINIRI));
     }
     r.bilgi(&format!("TABLO {tablo} {sayi}"));
 }
 
+/// Denetimin veritabanı bağlantısı: yalnızca okuma (yazma SQLITE_READONLY ile reddedilir), dosya ve günlük oluşturmaz.
+pub(crate) fn ac(vt: &Path) -> rusqlite::Result<Connection> {
+    let c = Connection::open_with_flags(vt, OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX)?;
+    c.busy_timeout(std::time::Duration::from_secs(5))?;
+    Ok(c)
+}
+
 /// Veritabanını salt okunur açıp şema ve her tablonun her satırını denetler.
 fn veritabani_denetle(vt: &Path, r: &mut Rapor) {
-    let c = match Connection::open_with_flags(vt, OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX) {
+    let c = match ac(vt) {
         Ok(c) => c,
         Err(e) => return r.hata("veritabani", "-", &format!("acilamadi: {}", rusqlite_hata(e))),
     };
-    if let Err(e) = c.busy_timeout(std::time::Duration::from_secs(5)) {
-        return r.hata("veritabani", "-", &rusqlite_hata(e));
-    }
     // dosya bozuksa satır okumaları anlamsız olur
     match c.prepare("PRAGMA integrity_check").and_then(|mut s| s.query_map([], |x| x.get::<_, String>(0))?.collect::<rusqlite::Result<Vec<_>>>()) {
         Ok(l) if l.len() == 1 && l[0] == "ok" => {}
@@ -292,6 +304,8 @@ fn dosya_denetle(bilesenler: &[String], yol: &Path, v: &Value, kok: &Path) -> (&
             };
             ("rapor", sonuc)
         }
+        // Biçim 1 ham özet (alan adı listeli) Rust'ta okunmaz (spec bilinçli fark 6; canlı envanterde yok): bulunursa HATA verilir,
+        // geçiş durur ve o an karar verilir (Python'a dönüşle ya da dosyayı elle yeniden üretmekle).
         ["rapor-ham", _, _] => ("rapor-ham", crate::rapor::ham_gecerli(v, None).then_some(()).ok_or_else(|| "ham ozet gecersiz (bicim)".to_string())),
         ["kuyruk-sonuc", _] => ("kuyruk-sonuc", nesne(v)),
         ["kuyruk", _] => ("kuyruk", crate::kuyruk::is_oku(yol).map(|_| ()).ok_or_else(|| "is dosyasi okunamadi".to_string())),
@@ -335,7 +349,7 @@ fn dosyalari_denetle(kok: &Path, r: &mut Rapor) {
 
 /// Denetimi çalıştırır; `true`: hata yok (çıktının son satırı `TAMAM`).
 pub fn denetle(vt: &Path, dosyalar: Option<&Path>, cikti: &mut dyn Write) -> bool {
-    let mut r = Rapor { cikti, hata: 0 };
+    let mut r = Rapor { cikti, hata: 0, yazma_hatasi: false };
     veritabani_denetle(vt, &mut r);
     if let Some(kok) = dosyalar {
         dosyalari_denetle(kok, &mut r);
@@ -343,7 +357,10 @@ pub fn denetle(vt: &Path, dosyalar: Option<&Path>, cikti: &mut dyn Write) -> boo
     if r.hata == 0 {
         r.bilgi("TAMAM");
     }
-    r.hata == 0
+    if r.cikti.flush().is_err() {
+        r.yazma_hatasi = true;
+    }
+    r.hata == 0 && !r.yazma_hatasi
 }
 
 const KULLANIM: &str = "Kullanım: wificorrect-merkez veritabani-denetle <veritabani> [--dosyalar /var/lib/wificorrect]";

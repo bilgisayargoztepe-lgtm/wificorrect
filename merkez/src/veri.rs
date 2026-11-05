@@ -231,29 +231,35 @@ impl fmt::Debug for Musteri {
 }
 
 /// Satır türü sütunları aynen taşır: `ssh_pub`, `anahtar_ozet`, `admin_tuz` uygulama kodunda okunmaz ama `veritabani-denetle`
-/// (denetle.rs) her sütunu bu türle okuyarak depolama sınıfını sınar.
+/// (denetle.rs) her sütunu bu türle okuyarak depolama sınıfını sınar (alan düzeyinde allow).
 #[derive(Clone)]
-#[allow(dead_code)]
 pub struct Cihaz {
     pub id: i64,
     pub musteri: i64,
     pub durum: String,
     pub tunel_ip: String,
     pub wg_pub: String,
+    #[allow(dead_code)] // yalnızca denetle okur
     pub ssh_pub: String,
+    #[allow(dead_code)] // yalnızca denetle okur
     pub anahtar_ozet: String,
     pub isletme_adi: String,
     pub unvan: String,
     pub surum: String,
     pub son_eslesme: String,
     pub baglanma: String,
+    #[allow(dead_code)] // yalnızca denetle okur (uygulama kodu bu sütunu SQL'de kullanır)
     pub admin_parola: String,
+    #[allow(dead_code)] // yalnızca denetle okur
     pub admin_tuz: String,
+    #[allow(dead_code)] // yalnızca denetle okur (uygulama kodu bu sütunu SQL'de kullanır)
     pub admin_ozet: String,
+    #[allow(dead_code)] // yalnızca denetle okur (uygulama kodu bu sütunu SQL'de kullanır)
     pub admin_yineleme: i64,
     pub ayrilma: String,
     pub isletme_turu: String,
     pub adres: String,
+    #[allow(dead_code)] // yalnızca denetle okur (uygulama kodu bu sütunu SQL'de kullanır)
     pub otomatik: i64,
 }
 

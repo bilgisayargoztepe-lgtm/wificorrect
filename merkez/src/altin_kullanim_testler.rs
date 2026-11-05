@@ -26,7 +26,7 @@ const IZIN_LISTESI: [(&str, &str, &str); 13] = [
     ("test_veri", "test_eski_cihaz_tablosuna_admin_sutunlari_eklenir", "ALTER göçü taşınmadı (Task 2 kararı)"),
     ("test_misafir_kodu", "test_eski_veritabanina_tur_sutunu_eklenir", "ALTER göçü taşınmadı (Task 2 kararı)"),
     // logonun tek kopyaya inmesiyle gereksizleşen 5 logo testinden (spec "Kayıp olmaması için güvenceler" 1)
-    ("test_logo", "test_dosya_yoksa_yaziya_duser", "logo tek kopya: cihaz/merkez kopya testleri gereksiz"),
+    ("test_logo", "test_dosya_yoksa_yaziya_duser", "logo tek kopya: Rust logoyu derleme anında gömer, çalışırken dosya okunmaz; \"dosya yoksa yazıya düş\" durumu oluşamaz"),
 ];
 
 /// Kayıtları boştur (cevap, veritabanı, dosya yok: kullanım denetimi bunları zaten istemez) ve 13b'de taşınacak kur.sh/birim testleri; taşınınca `Kayit::bas` ile kullanılır

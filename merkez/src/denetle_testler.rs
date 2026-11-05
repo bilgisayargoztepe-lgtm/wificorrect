@@ -167,17 +167,51 @@ fn bozuk_ya_da_olmayan_dosya() {
 }
 
 #[test]
-fn salt_okunur_acilir_yazilamaz() {
+fn denetimin_acicisi_salt_okunur() {
     let (vt, _c) = kopya();
-    let c = Connection::open_with_flags(&vt, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY).unwrap();
-    assert!(c.execute("DELETE FROM hareket", []).is_err());
-    // denetim yeni dosya (günlük, wal) bırakmaz
+    // izin bitleri root'u durdurmaz: denetim bağlantısının kendisi sınanır
+    let c = ac(&vt).unwrap();
+    assert!(c.is_readonly("main").unwrap());
+    let e = c.execute("DELETE FROM hareket", []).unwrap_err();
+    assert_eq!(e.sqlite_error_code(), Some(rusqlite::ErrorCode::ReadOnly), "{e}");
+    // denetim yeni dosya (günlük, wal) bırakmaz, dosyaya dokunmaz
     let dizin = vt.parent().unwrap().to_path_buf();
     let once: Vec<_> = fs::read_dir(&dizin).unwrap().map(|e| e.unwrap().file_name()).collect();
+    let sha_once = sha(&vt);
     let (tamam, _) = calistir(&vt, None);
     assert!(tamam);
     let sonra: Vec<_> = fs::read_dir(&dizin).unwrap().map(|e| e.unwrap().file_name()).collect();
     assert_eq!(once.len(), sonra.len());
+    assert_eq!(sha(&vt), sha_once);
+}
+
+/// Yazılamayan çıktı: `TAMAM` okunamadıysa başarı sayılmaz.
+struct Bozuk {
+    flush_hatasi: bool,
+}
+
+impl std::io::Write for Bozuk {
+    fn write(&mut self, b: &[u8]) -> std::io::Result<usize> {
+        if self.flush_hatasi {
+            Ok(b.len())
+        } else {
+            Err(std::io::Error::other("yazilamadi"))
+        }
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        if self.flush_hatasi {
+            Err(std::io::Error::other("flush"))
+        } else {
+            Ok(())
+        }
+    }
+}
+
+#[test]
+fn cikti_yazilamazsa_basarisiz() {
+    assert!(!denetle(&gocmus_db(), None, &mut Bozuk { flush_hatasi: false }));
+    assert!(!denetle(&gocmus_db(), None, &mut Bozuk { flush_hatasi: true }));
 }
 
 #[test]
@@ -271,6 +305,20 @@ const MUSTERI_PAROLA: &str = "ornek-musteri-parolasi-1";
 const ADMIN_PAROLA: &str = "ornek-ortak-admin-parola-1";
 const YONETICI_PAROLA: &str = "ornek-yonetici-parolasi-1";
 
+/// `dizin` altındaki bütün dosyaların değişiklik zamanını tam saniyeye (SAAT_BASLANGIC) sabitler.
+fn sabit_zaman(dizin: &Path) {
+    let t = std::time::SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(crate::test_yardim::SAAT_BASLANGIC as u64);
+    for x in fs::read_dir(dizin).unwrap().flatten() {
+        let yol = x.path();
+        if yol.is_dir() {
+            sabit_zaman(&yol);
+        } else {
+            let f = fs::OpenOptions::new().write(true).open(&yol).unwrap();
+            f.set_times(fs::FileTimes::new().set_accessed(t).set_modified(t)).unwrap();
+        }
+    }
+}
+
 /// Dosyaların göreli yolları (örnek ağaçtaki `.json`lar); `ornek-beklenen.json` hariç.
 fn json_adlari(kok: &Path, alt: &str) -> Vec<String> {
     let mut o: Vec<String> = fs::read_dir(kok.join(alt))
@@ -297,7 +345,9 @@ fn ornek_agac() {
     };
     let merkez = kok.join("merkez");
     fs::create_dir_all(&merkez).unwrap();
-    let kaynak = gecici_dizin(); // arşiv kaynakları ve sahte sunucu: ağacın dışında
+    // arşiv kaynakları (kaynak/yeni, kaynak/eski, kaynak/kayit.csv; geri_oku.py rapor.py'yi bunlarla çalıştırır) ve sahte sunucu
+    let kaynak = kok.join("kaynak");
+    fs::create_dir_all(&kaynak).unwrap();
     let saat = SahteSaat::default();
     let simdi = saat.t();
 
@@ -348,6 +398,10 @@ fn ornek_agac() {
     misafir_gun(&veri_dizini, gunler[2], &[TEL3]);
     muhurle(&veri_dizini, &gunler);
     misafir_gun(&eski.join("bocafe"), "2026-09-14", &[TEL2]);
+    // ham özetin `imza`sı dosya değişiklik zamanlarını (ns) içerir; ağaç cihazdan yerele tar ile taşınıp Python'da yeniden
+    // doğrulanacağından zamanlar tam saniyeye sabitlenir (tar saniye hassasiyetinde taşır)
+    sabit_zaman(&kaynak.join("yeni"));
+    sabit_zaman(&kaynak.join("eski"));
     let kayit = kaynak.join("kayit.csv");
     fs::write(&kayit, format!("cihaz;{n};10.99.0.11;{WG};wfc-{n}\n")).unwrap();
     let durum_yollari = crate::durum::Yollar { kayit: kayit.clone(), yeni: yeni.clone(), eski: eski.clone(), cikti: kok.join("durum.json"), grup: None };
@@ -443,7 +497,10 @@ fn ornek_agac() {
         "liste": {"kumar": meta["sayi"].clone()},
         "yonetici": {"kullanici": "ornek-yonetici", "parola": YONETICI_PAROLA},
         "durum_arsivleri": arsivler,
-        "saat": simdi,
+        "saat": simdi, "gun": "2026-09-21", "sms_mock": true, "guncelleme_kanali": "test", "cihazlar": 1, "bitmis_cihaz_gecmisi": 1,
+        "musteri_hareketleri": 1, "rapor_gruplari": {n.to_string(): ["bocafe"]},
+        "isletme_turu": "otel", "cihaz_hedefi": "0.4.28", "saglik_disk": 42, "sms_tr_saglayici": "netgsm",
+        "uyari_telefonlari": ["905321234567"], "saglik_son_tur": "2026-09-21T17:10:00+03:00",
     });
     fs::write(kok.join("ornek-beklenen.json"), serde_json::to_string_pretty(&beklenen).unwrap()).unwrap();
 }

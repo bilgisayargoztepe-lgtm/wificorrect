@@ -2,12 +2,19 @@
 # Merkez kurulum/geçiş/geri dönüş provası: GERÇEK systemd'li atılabilir bir Ubuntu makinesinde (GitHub Actions ubuntu-24.04)
 # scripts/sunucu/merkez/kur.sh'nin canlı geçişte yapacaklarını uçtan uca sınar (Task 13c). root olarak çalışır:
 #   sudo IKILI=merkez/target/release/wificorrect-merkez bash scripts/sunucu/kurulum-provasi.sh
-# Her adım "PROVA ADIM <n> <ad>: TAMAM|HATA <neden>|ATLANDI <neden>" yazar; ilk HATA'da çıkış 1.
+# Her adım "PROVA ADIM <n> <ad>: TAMAM|HATA <neden>" yazar; ilk HATA'da çıkış 1.
 # CANLI SUNUCUYA/CİHAZA BAĞLANMAZ. Dış yan etki yok: bütün wc-* hizmetlerinde WC_TEST=1 (gerçek SMS/istek gitmez), caddy
 # hizmeti sahte (ACME'ye çıkmaz). Atılabilir makine dışında ÇALIŞTIRMAYIN (sistem birimlerini ve /var/lib/wificorrect'i değiştirir).
 set -uo pipefail
 [ "$(id -u)" = 0 ] || { echo "HATA: root olmalı" >&2; exit 2; }
 [ "${PROVA_ATILABILIR:-}" = 1 ] || { echo "HATA: bu betik makineyi değiştirir; yalnız atılabilir makinede PROVA_ATILABILIR=1 ile çalışır" >&2; exit 2; }
+# yıkıcı betik (merkez.db'nin üzerine yazar, sistem birimlerini değiştirir): yalnız boş GitHub Actions makinesinde
+[ "${GITHUB_ACTIONS:-}" = true ] || { echo "HATA: prova yalnız GitHub Actions çalıştırıcısında koşar (GITHUB_ACTIONS=true değil)" >&2; exit 2; }
+if [ -e /etc/systemd/system/wc-merkez.service ] || [ -e /var/lib/wificorrect/merkez/merkez.db ]; then
+  echo "HATA: bu makinede merkez kurulu görünüyor, prova yalnız boş CI makinesinde koşar" >&2; exit 2
+fi
+# canlıya kurulu son Python merkezi (eski kurulum olarak kullanılır); Python silinince (Task 16) Python adımları kalkar
+ESKI_PYTHON_COMMIT=54a780bfdaf7c4e602cff16fe51a36a442e989f9
 
 DEPO=$(cd "$(dirname "$0")/../.." && pwd)
 IKILI_KAYNAK=$(readlink -f "${IKILI:?IKILI=derlenmiş wificorrect-merkez yolu gerekli}")
@@ -35,7 +42,6 @@ exec > >(tee -a "$LOG/prova.log") 2>&1
 ADIM_NO=0 ADIM_AD=
 adim() { ADIM_NO=$1; ADIM_AD=$2; echo "--- adım $1: $2 ($(date +%T))"; }
 tamam() { echo "PROVA ADIM $ADIM_NO $ADIM_AD: TAMAM${1:+ ($1)}"; }
-atlandi() { echo "PROVA ADIM $ADIM_NO $ADIM_AD: ATLANDI $*"; }
 hata() { echo "PROVA ADIM $ADIM_NO $ADIM_AD: HATA $*"; exit 1; }
 
 son_dok() { # tanı: çıkışta birim durumu ve günlükler
@@ -95,10 +101,10 @@ kur() { # kur AD LOGAD [argümanlar]: paketteki kur.sh'yi çalıştırır, çık
 adim 0 hazirlik
 set -e
 echo "sistem python3: $(/usr/bin/python3 --version)  | ikili sürümü: $("$GERCEK_IKILI" surum)"
-# 1) eski paket: main dalındaki Python merkezi
-git -C "$DEPO" rev-parse --verify -q origin/main >/dev/null || { echo "HATA: origin/main yok (checkout fetch-depth: 0 olmalı)"; exit 1; }
+# 1) eski paket: canlıdaki Python merkezi (sabit commit)
+git -C "$DEPO" cat-file -e "$ESKI_PYTHON_COMMIT^{commit}" 2>/dev/null || { echo "HATA: $ESKI_PYTHON_COMMIT yok (checkout fetch-depth: 0 olmalı)"; exit 1; }
 rm -rf "$CALISMA/eski" "$CALISMA/kaynak"; mkdir -p "$CALISMA/eski" "$CALISMA/kaynak"
-git -C "$DEPO" archive origin/main scripts/sunucu | tar -x -C "$CALISMA/eski"
+git -C "$DEPO" archive "$ESKI_PYTHON_COMMIT" scripts/sunucu | tar -x -C "$CALISMA/eski"
 git -C "$DEPO" archive HEAD scripts/sunucu | tar -x -C "$CALISMA/kaynak"
 # 2) dış yan etki yok: caddy sahte, wc-* hizmetlerine WC_TEST=1 (birimler ilk kez başlamadan ÖNCE)
 mkdir -p "$BIRIMLER/caddy.service.d"
@@ -284,45 +290,51 @@ HEDEF=/etc/cron.daily/hotspot-arsiv-saklama
 [ -f "$HEDEF" ] || hata "ön koşul: $HEDEF yok"
 # geri dönüşün gerçekten yapıldığını görmek için: mevcut birime işaret koy (yeni kurulum ezer, geri dönüş işareti geri getirir)
 echo "# prova-isareti" >>"$BIRIMLER/wc-durum.service"; systemctl daemon-reload
-CHATTR_OK=0
-if chattr +i "$HEDEF" 2>/dev/null && ! (echo x >>"$HEDEF") 2>/dev/null; then CHATTR_OK=1; fi
-if [ "$CHATTR_OK" = 0 ]; then
-  chattr -i "$HEDEF" 2>/dev/null
-  sed -i '/prova-isareti/d' "$BIRIMLER/wc-durum.service"; systemctl daemon-reload
-  atlandi "chattr +i bu dosya sisteminde çalışmıyor; ADIM 4 hatası enjekte edilemedi"
-else
-  kur p4 adim-hatasi; k=$?
-  chattr -i "$HEDEF"
-  [ "$k" != 0 ] || hata "kur.sh başarısız adımda 0 döndü"
-  grep -q 'GERİ DÖNÜLDÜ' "$LOG/kur-adim-hatasi.log" || hata "'GERİ DÖNÜLDÜ' iletisi yok"
-  grep -q 'prova-isareti' "$BIRIMLER/wc-durum.service" || hata "birim geri konmadı (işaret yok)"
-  [ -s "$GERI/son-geri-donus.txt" ] || hata "son-geri-donus.txt yok"
-  cmp -s "$GERCEK_IKILI" /usr/local/bin/wificorrect-merkez || hata "ikili geri konan sürüm değil"
-  rust_servis || hata "geri dönüşten sonra Rust 200 vermiyor"
-  sed -i '/prova-isareti/d' "$BIRIMLER/wc-durum.service"; systemctl daemon-reload
-  tamam "kur.sh çıkış $k; ERR/EXIT tuzağı önceki kuruluma döndü"
-fi
+# yeni ikili eskisinden FARKLI olsun (sonuna birkaç bayt; ELF çalışmaya devam eder): cmp geri dönüşü gerçekten ayırt eder
+paket_yap p6 gercek
+printf 'PROVA-FARKI' >>"$CALISMA/p6/merkez/wificorrect-merkez"
+cmp -s "$GERCEK_IKILI" "$CALISMA/p6/merkez/wificorrect-merkez" && hata "ön koşul: yeni ikili eskisinden farklı olmalı"
+chattr +i "$HEDEF" 2>/dev/null && ! (echo x >>"$HEDEF") 2>/dev/null || { chattr -i "$HEDEF" 2>/dev/null; hata "chattr +i çalıştırıcıda çalışmıyor; ADIM 4 hatası enjekte edilemedi (CI'da geçmez)"; }
+kur p6 adim-hatasi; k=$?
+chattr -i "$HEDEF"
+[ "$k" != 0 ] || hata "kur.sh başarısız adımda 0 döndü"
+grep -q 'GERİ DÖNÜLDÜ' "$LOG/kur-adim-hatasi.log" || hata "'GERİ DÖNÜLDÜ' iletisi yok"
+grep -q 'prova-isareti' "$BIRIMLER/wc-durum.service" || hata "birim geri konmadı (işaret yok)"
+[ -s "$GERI/son-geri-donus.txt" ] || hata "son-geri-donus.txt yok"
+cmp -s "$GERCEK_IKILI" /usr/local/bin/wificorrect-merkez || hata "ikili eski sürüm değil (geri konmadı; yeni/farklı ikili yerinde)"
+rust_servis || hata "geri dönüşten sonra Rust 200 vermiyor"
+sed -i '/prova-isareti/d' "$BIRIMLER/wc-durum.service"; systemctl daemon-reload
+tamam "kur.sh çıkış $k; ERR/EXIT tuzağı önceki kuruluma döndü, farklı yeni ikili yerine eski ikili (cmp) geri geldi"
 
 # ---- 7b. sinyalle kesilme ve ölü boru ----------------------------------------------------------------------------------
 adim 7b sinyal_ve_olu_boru
-paket_yap p7 asili
+paket_yap p7 asili   # yeni "ikili" bir betik: gerçek ikiliden zaten farklı
 sinyal_dene() { # sinyal_dene AD KİP: kur.sh arka planda; ADIM 5 çıktısından sonra kesilir; sonra birimler geri dönmeli
-  local ad=$1 kip=$2 l=$LOG/kur-$1.log pid
+  local ad=$1 kip=$2 l=$LOG/kur-$1.log pid rc
   : >"$l"; rm -f "$GERI/son-geri-donus.txt"; echo "# prova-isareti" >>"$BIRIMLER/wc-durum.service"; systemctl daemon-reload
   if [ "$kip" = sigterm ]; then
     bash "$CALISMA/p7/merkez/kur.sh" >"$l" 2>&1 & pid=$!
   else
-    ( bash "$CALISMA/p7/merkez/kur.sh" 2>&1 | tee "$l" >/dev/null ) & pid=$!
+    ( bash "$CALISMA/p7/merkez/kur.sh" 2>&1 | tee "$l" >/dev/null; exit "${PIPESTATUS[0]}" ) & pid=$!
   fi
   local bekle=$((SECONDS + 60))
   until grep -q '^ADIM 5:' "$l"; do [ "$SECONDS" -lt "$bekle" ] || { kill -9 "$pid" 2>/dev/null; hata "$ad: ADIM 5'e gelinmedi"; }; sleep 0.5; done
   sleep 3   # sağlık denetimi (200 beklemesi) sürüyor, tuzak etkin
+  # sinyal GERÇEKTEN işlemi canlıyken kesmeli: kur.sh kendi başarısızlığıyla bitmiş olsaydı aynı çıktılar oluşurdu
+  kill -0 "$pid" 2>/dev/null || hata "$ad: kur.sh kesmeden önce zaten bitmişti (sinyal ulaşmadı)"
   if [ "$kip" = sigterm ]; then
-    kill -TERM "$pid"
+    kill -TERM "$pid" || hata "$ad: kill -TERM başarısız"
   else
-    pkill -9 -f "tee $l" || hata "$ad: tee bulunamadı"
+    pgrep -f "tee $l" >/dev/null || hata "$ad: tee canlı değil (öldürülecek bir şey yok)"
+    pkill -9 -f "tee $l" || hata "$ad: tee öldürülemedi"
   fi
-  wait "$pid" 2>/dev/null
+  wait "$pid" 2>/dev/null; rc=$?
+  echo "PROVA 7b $ad: kur.sh çıkış kodu $rc"
+  if [ "$kip" = sigterm ]; then
+    [ "$rc" = 143 ] || hata "$ad: çıkış kodu $rc, SIGTERM ile kesilen süreç için 143 beklenir (kendi başarısızlığı 1 döner)"
+  else
+    [ "$rc" != 0 ] && [ "$rc" != 1 ] || hata "$ad: çıkış kodu $rc, ölü boruda SIGPIPE (141) beklenir"
+  fi
   # kur.sh geri dönüşü bitirene kadar bekle (sonuç dosyası tamamlanır)
   local b2=$((SECONDS + 100))
   until grep -qE 'GERİ DÖNÜLDÜ|geri dönüş de tam olmadı' "$GERI/son-geri-donus.txt" 2>/dev/null && ! pgrep -f "p7/merkez/kur.sh" >/dev/null; do
@@ -336,7 +348,7 @@ sinyal_dene() { # sinyal_dene AD KİP: kur.sh arka planda; ADIM 5 çıktısında
 }
 sinyal_dene sinyal-sigterm sigterm
 sinyal_dene sinyal-olu-boru borulu
-tamam "SIGTERM ve ölü boru: iki durumda da önceki kuruluma dönüldü"
+tamam "SIGTERM (çıkış 143) ve ölü boru: süreç canlıyken kesildi, iki durumda da önceki kuruluma dönüldü"
 
 # ---- 8. son durum --------------------------------------------------------------------------------------------------
 adim 8 son_durum

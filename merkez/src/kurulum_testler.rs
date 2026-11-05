@@ -537,3 +537,12 @@ fn geri_donus_dizininde_ikili_yoksa_kurulu_ikili_kaldirilir() {
     // ikili hiç yokken (boş kurulu) dizindeki ikili konur
     assert_eq!(geri_don_dene(true, false, false).0.as_deref(), Some("ESKI-IKILI"));
 }
+
+#[test]
+fn kur_sh_tasinabilir_cp_ve_sonuc_dosyasi_yedegi() {
+    let kur = kur_sh();
+    assert!(!kur.contains("cp -n"), "cp -n taşınabilir değil (uutils/GNU uyarısı)");
+    assert!(kur.contains("[ -e /etc/caddy/Caddyfile.eski ] || cp -p /etc/caddy/Caddyfile /etc/caddy/Caddyfile.eski"));
+    assert!(kur.contains("sonuç dosyası açılamadı, çıktı yalnız terminale"));
+    assert!(kur.contains("[ \"$k\" -gt 128 ] && exit \"$k\""), "sinyalle kesilmede sinyal kodu korunmalı");
+}

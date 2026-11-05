@@ -11,6 +11,9 @@ on:
       - ".github/workflows/merkez-kurulum.yml"
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   derle:
     runs-on: ubuntu-24.04
@@ -44,7 +47,6 @@ jobs:
       - run: chmod 755 ikili/wificorrect-merkez
       - name: Prova
         run: |
-          set -o pipefail
           sudo PROVA_ATILABILIR=1 PROVA_LOG="$PWD/prova-log" IKILI="$PWD/ikili/wificorrect-merkez" \
             bash scripts/sunucu/kurulum-provasi.sh
       - name: Özet

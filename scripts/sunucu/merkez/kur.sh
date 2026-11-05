@@ -1,3 +1,5 @@
+    if rm -f "$IKILI"; then echo "  kaldırılan: wificorrect-merkez (dizinde yok)"
+    else echo "HATA: $IKILI silinemedi" >&2; hata=$((hata + 1)); fi
 #!/bin/bash
 # Yönetim merkezi (Rust ikilisi wificorrect-merkez) kurulumu/güncellemesi/geri dönüşü (Ubuntu, root).
 # scripts/sunucu/merkez-kur.sh çağırır; boş sunucuda da, güncellemede de çalışır; tekrar çalıştırmak güvenli.
@@ -80,8 +82,8 @@ geri_don_uygula() {
   # dizin "önceki kurulumun tamamı" demektir: Rust ikilisi yoksa (Python dönemi) başarısız kurulumun ikilisi yerinde kalmasın
   # (sonraki kurulum onu "önceki kurulum" sanıp geri dönüş dizinine kopyalardı). wificorrect-sunucu'ya dokunulmaz.
   if [ ! -e "$dizin/wificorrect-merkez" ] && [ -e "$IKILI" ]; then
-    rm -f "$IKILI" || { echo "HATA: $IKILI silinemedi" >&2; hata=$((hata + 1)); }
-    echo "  kaldırılan: wificorrect-merkez (dizinde yok)"
+    if rm -f "$IKILI"; then echo "  kaldırılan: wificorrect-merkez (dizinde yok)"
+    else echo "HATA: $IKILI silinemedi" >&2; hata=$((hata + 1)); fi
   fi
   systemctl daemon-reload || { echo "HATA: daemon-reload" >&2; hata=$((hata + 1)); }
   # shellcheck disable=SC2086
@@ -105,14 +107,18 @@ kurtar() {
   [ -z "$YEDEK_TMP" ] || rm -rf "$YEDEK_TMP"
   if [ "$GERI_TUZAK" = 1 ] && [ -n "$GD" ]; then
     # son savunma hattı: sonuç dosyası açılamazsa (salt okunur dosya sistemi, inode tükenmesi) geri dönüş yine çalışır
-    ( umask 077; : >>"$SON_GERI" ) 2>/dev/null || SON_GERI=/dev/null
+    DOSYALI=1
+    if ! ( umask 077; : >>"$SON_GERI" ) 2>/dev/null; then DOSYALI=0; SON_GERI=/dev/null; echo "sonuç dosyası açılamadı, çıktı yalnız terminale" >&2; fi
     echo "kurulum kesildi/başarısız; geri dönülüyor (~30 sn sürebilir); sonuç: $SON_GERI" >&2
     ( umask 077; echo "kurulum başarısız ya da kesildi; önceki kuruluma geri dönülüyor: $GD" >"$SON_GERI" ) 2>/dev/null
-    geri_don_uygula "$GD" >>"$SON_GERI" 2>&1
+    if [ "$DOSYALI" = 1 ]; then geri_don_uygula "$GD" >>"$SON_GERI" 2>&1; else geri_don_uygula "$GD" >&2 2>&1; fi
     rc=$?
-    if [ "$rc" -eq 0 ]; then echo "GERİ DÖNÜLDÜ: önceki kurulum çalışıyor; yeni sürüm kurulmadı (veritabanı yedeği: ${yedek:-yok})." >>"$SON_GERI"
-    else echo "HATA: geri dönüş de tam olmadı; elle bakın (kur.sh --geri-don)." >>"$SON_GERI"; fi
-    cat "$SON_GERI" >&2 2>/dev/null || true
+    if [ "$rc" -eq 0 ]; then son="GERİ DÖNÜLDÜ: önceki kurulum çalışıyor; yeni sürüm kurulmadı (veritabanı yedeği: ${yedek:-yok})."
+    else son="HATA: geri dönüş de tam olmadı; elle bakın (kur.sh --geri-don)."; fi
+    echo "$son" >>"$SON_GERI" 2>/dev/null
+    if [ "$DOSYALI" = 1 ]; then cat "$SON_GERI" >&2 2>/dev/null || true; else echo "$son" >&2; fi
+    # sinyalle kesildiyse (k > 128: 143 TERM, 141 PIPE, 129 HUP, 130 INT) geleneksel sinyal kodu korunur, aksi halde 1
+    [ "$k" -gt 128 ] && exit "$k"
     exit 1
   fi
   exit "$k"
@@ -222,8 +228,10 @@ dosya_koy 755 "$SUNUCU_BETIGI" "$SUNUCU"
 install -m 644 wc-merkez.service wc-kuyruk.path wc-kuyruk.service wc-durum.service wc-durum.timer \
   wc-istatistik.service wc-istatistik.timer wc-saglik.service wc-saglik.timer \
   wc-listeler.service wc-listeler.timer wc-surumler.service wc-surumler.timer $BIRIMLER/
-[ -f /etc/caddy/Caddyfile ] && cp -n /etc/caddy/Caddyfile /etc/caddy/Caddyfile.eski
-[ -f /etc/caddy/Caddyfile ] && cp -p /etc/caddy/Caddyfile "/etc/caddy/Caddyfile.yedek-$(date +%Y%m%d-%H%M%S)"
+if [ -f /etc/caddy/Caddyfile ]; then
+  [ -e /etc/caddy/Caddyfile.eski ] || cp -p /etc/caddy/Caddyfile /etc/caddy/Caddyfile.eski
+  cp -p /etc/caddy/Caddyfile "/etc/caddy/Caddyfile.yedek-$(date +%Y%m%d-%H%M%S)"
+fi
 install -m 644 Caddyfile /etc/caddy/Caddyfile
 install -m 755 hotspot-arsiv-saklama /etc/cron.daily/
 install -m 644 fail2ban-wc-merkez-filtre.conf /etc/fail2ban/filter.d/wc-merkez.conf

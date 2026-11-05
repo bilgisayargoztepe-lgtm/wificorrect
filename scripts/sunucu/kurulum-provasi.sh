@@ -102,7 +102,7 @@ git -C "$DEPO" archive origin/main scripts/sunucu | tar -x -C "$CALISMA/eski"
 git -C "$DEPO" archive HEAD scripts/sunucu | tar -x -C "$CALISMA/kaynak"
 # 2) dış yan etki yok: caddy sahte, wc-* hizmetlerine WC_TEST=1 (birimler ilk kez başlamadan ÖNCE)
 mkdir -p "$BIRIMLER/caddy.service.d"
-printf '[Service]\nExecStart=\nExecStart=/bin/sleep infinity\nExecReload=\nExecReload=/bin/true\n' >"$BIRIMLER/caddy.service.d/prova.conf"
+printf '[Service]\nType=simple\nExecStart=\nExecStart=/bin/sleep infinity\nExecReload=\nExecReload=/bin/true\n' >"$BIRIMLER/caddy.service.d/prova.conf"
 while IFS='|' read -r u _ _; do
   mkdir -p "$BIRIMLER/$u.d"
   printf '[Service]\nEnvironment=WC_TEST=1\n' >"$BIRIMLER/$u.d/prova.conf"

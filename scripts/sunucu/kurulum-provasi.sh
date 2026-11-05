@@ -209,7 +209,7 @@ bildir() {
     -d "{\"kimlik\":\"$(printf '1%.0s' $(seq 32))\",\"sir\":\"$(printf 'a%.0s' $(seq 64))\",\"surum\":\"0.4.29\",\"wan_mac\":\"00:0e:c4:ce:a0:9b\",\"wg_pub\":\"$(printf 'A%.0s' $(seq 43))=\",\"ssh_pub\":\"ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI prova\"}" \
     http://127.0.0.1:8081/api/bekliyor
 }
-satir_say() { /usr/bin/python3 -I -c 'import sqlite3,sys;print(sqlite3.connect(sys.argv[1]).execute("select count(*) from bekleyen").fetchone()[0])' "$DB" 2>&1; }
+satir_say() { /usr/bin/python3 -I -c 'import sqlite3,sys;print(sqlite3.connect(sys.argv[1]).execute("select count(*) from bekleyen where kimlik=\"11111111111111111111111111111111\"").fetchone()[0])' "$DB" 2>&1; }
 once=$(satir_say)
 b=$(bildir)
 sonra=$(satir_say)
@@ -217,7 +217,7 @@ echo "Rust'a bekliyor bildirimi: HTTP $b; bekleyen satırı $once -> $sonra"
 
 # ---- 5. elle geri dönüş ---------------------------------------------------------------------------------------------
 adim 5 elle_geri_donus
-[ "$b" = 200 ] && [ "$sonra" -gt "$once" ] || hata "Rust veritabanına yazamadı (HTTP $b, $once -> $sonra); bekleyen satırı Python'a okutulamaz"
+[ "$b" = 200 ] && [ "$once" = 0 ] && [ "$sonra" = 1 ] || hata "Rust veritabanına yazamadı (HTTP $b, sınama kaydı $once -> $sonra)"
 bash "$GERI/kur.sh" --geri-don "$(basename "$GD4")" >"$LOG/geri-don-elle.log" 2>&1; k=$?
 sed 's/^/    | /' "$LOG/geri-don-elle.log" | tail -n 25
 [ "$k" = 0 ] || hata "--geri-don çıkış $k"

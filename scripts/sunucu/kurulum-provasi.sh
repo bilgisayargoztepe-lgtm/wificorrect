@@ -110,6 +110,7 @@ done <<<"$HIZMETLER"
 systemctl daemon-reload
 # 3) paketler (kur.sh'nin kendisi de ister; burada önceden, caddy drop-in'i varken kurulur)
 export DEBIAN_FRONTEND=noninteractive
+echo "man-db man-db/auto-update boolean false" | debconf-set-selections   # apt tetikleyicisi dakikalarca sürmesin
 apt-get update -q >/dev/null
 apt-get install -y -q caddy fail2ban wireguard-tools curl >/dev/null
 command -v caddy fail2ban-client wg >/dev/null || { echo "HATA: caddy/fail2ban/wg kurulamadı"; exit 1; }
@@ -235,6 +236,7 @@ adim 6 yeniden_rust_ve_budama
 # Not: brifte 6 kez; ilk koşu Python dönemi birimlerini yedeklediği için budama sayacına girmez, bu yüzden 7 koşu (budama görülsün)
 BUDANDI=
 for i in 1 2 3 4 5 6 7; do
+  sleep 2   # geri dönüş dizin adları saniye çözünürlüklü: art arda iki koşu aynı adı almasın
   kur p4 "gecis-$i"; k=$?
   [ "$k" = 0 ] || hata "$i. koşu: kur.sh çıkış $k"
   rust_servis || hata "$i. koşu: Rust 200 vermiyor"

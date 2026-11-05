@@ -11,14 +11,21 @@ use std::net::{Shutdown, TcpListener, TcpStream};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::thread::JoinHandle;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use crate::merkez::{self, Merkez};
 use crate::ortak::{py_repr, py_strip};
 use crate::web::{self, Basliklar, Istek, Yanit};
 
-/// Python `Isleyici.timeout`: yavaş istemci iş parçacığını süresiz tutmasın.
+/// Python `Isleyici.timeout`: yavaş istemci iş parçacığını süresiz tutmasın (her okuma için).
 pub const SOKET_ZAMAN_ASIMI: Duration = Duration::from_secs(20);
+/// İsteği (başlıklar + gövde) okumaya TOPLAM son tarih. Okuma başına 20 sn tek başına yetmez: her gelen bayt süreyi yeniden
+/// başlatır, 19 sn'de bir bayt gönderen istemci bir bağlantı yuvasını günlerce tutabilir (256 yuva dolunca yeni misafir
+/// girişi durur). Meşru istekler küçüktür (gövde en çok 10.000 bayt, Caddy'den tek seferde gelir). Cevap yazma bu son
+/// tarihin dışındadır (`/api/paket` 50 MB ilerleme bazlı gider).
+pub const ISTEK_TOPLAM_SURE: Duration = Duration::from_secs(30);
+/// Bağlantı sınırına gelindiğinde günlük satırı en çok bu aralıkla yazılır.
+const SINIR_GUNLUK_ARALIGI: Duration = Duration::from_secs(60);
 /// Python `http.server` satır sınırı (`readline(65537)`) ve en çok başlık sayısı.
 const SATIR_SINIRI: usize = 65_536;
 const BASLIK_SINIRI: usize = 100;
@@ -60,6 +67,7 @@ fn neden(durum: u16) -> &'static str {
         404 => "Not Found",
         405 => "Method Not Allowed",
         408 => "Request Timeout",
+        409 => "Conflict",
         413 => "Request Entity Too Large",
         414 => "Request-URI Too Long",
         429 => "Too Many Requests",
@@ -126,7 +134,27 @@ enum Okunan {
     Kapat,
 }
 
-fn istek_oku(akim: &mut BufReader<&TcpStream>) -> std::io::Result<Okunan> {
+/// Okuma başına zaman aşımını kalan toplam süreyle sınırlayan okuyucu: her okumadan önce `set_read_timeout(min(okuma_basi,
+/// kalan))`; son tarih dolunca `TimedOut` (bağlantı Python'daki okuma zaman aşımı gibi cevapsız kapanır).
+struct SonTarihli<'a> {
+    akim: &'a TcpStream,
+    son: Instant,
+    okuma_basi: Duration,
+}
+
+impl Read for SonTarihli<'_> {
+    fn read(&mut self, tampon: &mut [u8]) -> std::io::Result<usize> {
+        let kalan = self.son.saturating_duration_since(Instant::now());
+        if kalan.is_zero() {
+            return Err(std::io::Error::new(std::io::ErrorKind::TimedOut, "istek okuma son tarihi doldu"));
+        }
+        self.akim.set_read_timeout(Some(kalan.min(self.okuma_basi)))?;
+        let mut akim = self.akim;
+        akim.read(tampon)
+    }
+}
+
+fn istek_oku<R: BufRead>(akim: &mut R) -> std::io::Result<Okunan> {
     let satir = match satir_oku(akim)? {
         None => return Ok(Okunan::Kapat),
         Some(Err(())) => return Ok(Okunan::Hata(hata_yaniti(414, "Request-URI Too Long"))),
@@ -249,8 +277,9 @@ fn yanit_yaz(mut akim: &TcpStream, y: &Yanit) -> std::io::Result<()> {
     akim.flush()
 }
 
-fn baglanti_isle(m: &Merkez, akim: TcpStream) {
-    let okunan = match istek_oku(&mut BufReader::new(&akim)) {
+fn baglanti_isle(m: &Merkez, akim: TcpStream, okuma_basi: Duration, toplam: Duration) {
+    let son = Instant::now() + toplam;
+    let okunan = match istek_oku(&mut BufReader::new(SonTarihli { akim: &akim, son, okuma_basi })) {
         Ok(o) => o,
         Err(_) => return, // zaman aşımı/kopma: Python'da istisna, bağlantı cevapsız kapanır
     };
@@ -271,6 +300,46 @@ fn baglanti_isle(m: &Merkez, akim: TcpStream) {
         let _ = akim.set_read_timeout(Some(Duration::from_secs(2)));
         let a = &akim;
         let _ = std::io::copy(&mut a.take(ATMA_SINIRI), &mut std::io::sink());
+    }
+}
+
+/// Kullanımdaki bağlantı yuvası: iş parçacığı nasıl biterse bitsin (panik dahil) Drop ile geri verilir.
+struct Yuva(Arc<AtomicUsize>);
+
+impl Yuva {
+    fn al(aktif: &Arc<AtomicUsize>) -> Yuva {
+        aktif.fetch_add(1, Ordering::SeqCst);
+        Yuva(aktif.clone())
+    }
+}
+
+impl Drop for Yuva {
+    fn drop(&mut self) {
+        self.0.fetch_sub(1, Ordering::SeqCst);
+    }
+}
+
+/// Bağlantı sınırına gelindiğinde kapatılan bağlantıları sayar; dakikada en çok bir satır üretir. Satır `ip=` ile bitmez:
+/// fail2ban filtresine girmez.
+struct SinirGunlugu {
+    son: Option<Instant>,
+    kapatilan: u64,
+}
+
+impl SinirGunlugu {
+    fn yeni() -> SinirGunlugu {
+        SinirGunlugu { son: None, kapatilan: 0 }
+    }
+
+    /// Bir bağlantı kapatıldı; günlük satırı yazma zamanıysa satırı verir (`kapatilan`: son satırdan beri sayı).
+    fn kaydet(&mut self, simdi: Instant, sinir: usize) -> Option<String> {
+        self.kapatilan += 1;
+        if self.son.is_some_and(|s| simdi.saturating_duration_since(s) < SINIR_GUNLUK_ARALIGI) {
+            return None;
+        }
+        self.son = Some(simdi);
+        let n = std::mem::take(&mut self.kapatilan);
+        Some(format!("BAGLANTI_SINIRI sinir={sinir} kapatilan={n}"))
     }
 }
 
@@ -303,9 +372,10 @@ impl Calisan {
     }
 }
 
-/// `adres`'te dinler; kabul edilen her sokete `zaman_asimi` (okuma ve yazma) konur. `en_cok`: eşzamanlı bağlantı sınırı
-/// (Python sınırsız iş parçacığı açardı; dolunca yeni bağlantı hemen kapatılır).
-pub fn baslat(merkez: Arc<Merkez>, adres: &str, en_cok: usize, zaman_asimi: Duration) -> Result<Calisan, String> {
+/// `adres`'te dinler; kabul edilen her sokete `zaman_asimi` (okuma ve yazma başına) konur, isteğin okunması ise `toplam`
+/// içinde bitmelidir. `en_cok`: eşzamanlı bağlantı sınırı (Python sınırsız iş parçacığı açardı; dolunca yeni bağlantı
+/// hemen kapatılır ve dakikada bir `BAGLANTI_SINIRI` satırı yazılır).
+pub fn baslat(merkez: Arc<Merkez>, adres: &str, en_cok: usize, zaman_asimi: Duration, toplam: Duration) -> Result<Calisan, String> {
     let dinleyici = TcpListener::bind(adres).map_err(|e| format!("{adres} dinlenemiyor: {e}"))?;
     #[cfg(test)]
     let yerel = dinleyici.local_addr().map_err(|e| e.to_string())?;
@@ -315,6 +385,7 @@ pub fn baslat(merkez: Arc<Merkez>, adres: &str, en_cok: usize, zaman_asimi: Dura
     let kabul = std::thread::Builder::new()
         .name("kabul".into())
         .spawn(move || {
+            let mut sinir_gunlugu = SinirGunlugu::yeni();
             for akim in dinleyici.incoming() {
                 if dur2.load(Ordering::SeqCst) {
                     break;
@@ -329,20 +400,20 @@ pub fn baslat(merkez: Arc<Merkez>, adres: &str, en_cok: usize, zaman_asimi: Dura
                     }
                 };
                 if aktif.load(Ordering::SeqCst) >= en_cok {
+                    if let Some(satir) = sinir_gunlugu.kaydet(Instant::now(), en_cok) {
+                        web::log(&satir);
+                    }
                     continue; // akim düşer, bağlantı kapanır
                 }
                 if akim.set_read_timeout(Some(zaman_asimi)).is_err() || akim.set_write_timeout(Some(zaman_asimi)).is_err() {
                     continue;
                 }
-                aktif.fetch_add(1, Ordering::SeqCst);
-                let (m, a) = (merkez.clone(), aktif.clone());
-                let basla = std::thread::Builder::new().spawn(move || {
-                    baglanti_isle(&m, akim);
-                    a.fetch_sub(1, Ordering::SeqCst);
+                // yuva Drop ile geri verilir: iş parçacığı panikle bitse ya da hiç başlamasa (closure düşer) de sızmaz
+                let (m, yuva) = (merkez.clone(), Yuva::al(&aktif));
+                let _ = std::thread::Builder::new().spawn(move || {
+                    let _yuva = yuva;
+                    baglanti_isle(&m, akim, zaman_asimi, toplam);
                 });
-                if basla.is_err() {
-                    aktif.fetch_sub(1, Ordering::SeqCst);
-                }
             }
         })
         .map_err(|e| format!("kabul iş parçacığı başlatılamadı: {e}"))?;
@@ -355,14 +426,16 @@ pub fn baslat(merkez: Arc<Merkez>, adres: &str, en_cok: usize, zaman_asimi: Dura
     })
 }
 
-/// Üretim: umask 077 (Python `main`), 20 sn soket zaman aşımı; sonsuza dek çalışır. `en_cok`: eşzamanlı bağlantı sınırı.
+/// Üretim: umask 077 (Python `main`), okuma başına 20 sn, istek başına toplam 30 sn; sonsuza dek çalışır. `en_cok`:
+/// eşzamanlı bağlantı sınırı. Kabul iş parçacığı biterse (panik dahil) `Err` döner: süreç sıfırdan farklı çıkar ve
+/// `Restart=on-failure` yeniden başlatır (sessizce 0 ile çıkıp hizmeti durdurmaz).
 pub fn calistir(merkez: Arc<Merkez>, adres: &str, en_cok: usize) -> Result<(), String> {
     // SAFETY: umask çağrısı yan etkisiz bir sistem çağrısıdır
     unsafe {
         libc::umask(0o077);
     }
-    baslat(merkez, adres, en_cok, SOKET_ZAMAN_ASIMI)?.bekle();
-    Ok(())
+    baslat(merkez, adres, en_cok, SOKET_ZAMAN_ASIMI, ISTEK_TOPLAM_SURE)?.bekle();
+    Err("kabul iş parçacığı beklenmedik biçimde bitti".into())
 }
 
 #[cfg(test)]
@@ -386,9 +459,13 @@ mod testler {
     }
 
     fn baslat_deneme(zaman_asimi: Duration) -> Calisan {
+        baslat_toplamli(zaman_asimi, ISTEK_TOPLAM_SURE)
+    }
+
+    fn baslat_toplamli(zaman_asimi: Duration, toplam: Duration) -> Calisan {
         let mut m = Merkez::new();
         m.ekle("api", Arc::new(Yansit));
-        baslat(Arc::new(m), "127.0.0.1:0", 64, zaman_asimi).unwrap()
+        baslat(Arc::new(m), "127.0.0.1:0", 64, zaman_asimi, toplam).unwrap()
     }
 
     /// Ham istek gönderir, bağlantı kapanana kadar okur.
@@ -576,7 +653,7 @@ mod testler {
     fn eszamanli_baglanti_siniri() {
         let mut m = Merkez::new();
         m.ekle("api", Arc::new(Yansit));
-        let c = baslat(Arc::new(m), "127.0.0.1:0", 2, Duration::from_secs(1)).unwrap();
+        let c = baslat(Arc::new(m), "127.0.0.1:0", 2, Duration::from_secs(1), ISTEK_TOPLAM_SURE).unwrap();
         // iki yavaş bağlantı sınırı doldurur: üçüncü hemen kapanır (cevapsız)
         let _a = TcpStream::connect(c.adres()).unwrap();
         let _b = TcpStream::connect(c.adres()).unwrap();
@@ -586,5 +663,68 @@ mod testler {
         std::thread::sleep(Duration::from_millis(1300));
         assert!(metin(&al(c.adres(), "GET / HTTP/1.1\r\nHost: api.wificorrect.com\r\n\r\n")).starts_with("HTTP/1.0 200 "));
         c.durdur();
+    }
+
+    /// Yavaş gövde: her okuma okuma başı sınırın (burada 5 sn) altında kalsa da toplam son tarihle kapanır, cevap
+    /// yazılmaz. (Eski davranış: her bayt süreyi yeniden başlatır, yuva günlerce tutulurdu.)
+    #[test]
+    fn yavas_govde_toplam_sureyle_kapanir() {
+        let c = baslat_toplamli(Duration::from_secs(5), Duration::from_millis(1500));
+        let mut s = TcpStream::connect(c.adres()).unwrap();
+        s.set_read_timeout(Some(Duration::from_secs(10))).unwrap();
+        s.write_all(b"POST /x HTTP/1.1\r\nHost: api.wificorrect.com\r\nContent-Length: 100\r\n\r\n").unwrap();
+        let basla = Instant::now();
+        let mut kapandi = false;
+        for _ in 0..20 {
+            std::thread::sleep(Duration::from_millis(400)); // her aralık okuma başı sınırın çok altında
+            if s.write_all(b"a").is_err() {
+                kapandi = true;
+                break;
+            }
+        }
+        let mut o = Vec::new();
+        match s.read_to_end(&mut o) {
+            Ok(_) => assert!(o.is_empty(), "cevap yazılmamalı: {}", metin(&o)),
+            Err(e) if e.kind() == std::io::ErrorKind::ConnectionReset => {}
+            Err(e) => panic!("bağlantı kapanmadı: {e}"),
+        }
+        let gecen = basla.elapsed();
+        assert!(gecen >= Duration::from_millis(1400) && gecen < Duration::from_secs(6), "{gecen:?} (yazma hatası görüldü: {kapandi})");
+        // sunucu yaşıyor; hızlı istek normal cevaplanır
+        assert!(metin(&al(c.adres(), "GET /s HTTP/1.1\r\nHost: api.wificorrect.com\r\n\r\n")).starts_with("HTTP/1.0 200 "));
+        c.durdur();
+    }
+
+    #[test]
+    fn sinir_gunlugu_dakikada_bir_satir() {
+        let t0 = Instant::now();
+        let mut g = SinirGunlugu::yeni();
+        // ilk kapatma hemen satır yazar
+        assert_eq!(g.kaydet(t0, 256).as_deref(), Some("BAGLANTI_SINIRI sinir=256 kapatilan=1"));
+        // dakika dolmadan satır yok, sayaç birikir
+        assert_eq!(g.kaydet(t0 + Duration::from_secs(1), 256), None);
+        assert_eq!(g.kaydet(t0 + Duration::from_secs(59), 256), None);
+        // dakika dolunca tek satır, son satırdan beri sayı (2 + bu kapatma)
+        assert_eq!(g.kaydet(t0 + Duration::from_secs(60), 256).as_deref(), Some("BAGLANTI_SINIRI sinir=256 kapatilan=3"));
+        assert_eq!(g.kaydet(t0 + Duration::from_secs(61), 256), None);
+        // fail2ban filtresine girmez: ip= ile bitmez
+        assert!(!"BAGLANTI_SINIRI sinir=256 kapatilan=3".ends_with("ip="));
+    }
+
+    /// Yuva, iş parçacığı panikle bitse de geri gelir.
+    #[test]
+    fn yuva_panikte_geri_verilir() {
+        let aktif = Arc::new(AtomicUsize::new(0));
+        let yuva = Yuva::al(&aktif);
+        assert_eq!(aktif.load(Ordering::SeqCst), 1);
+        let t = std::thread::spawn(move || {
+            let _yuva = yuva;
+            panic!("deneme paniği");
+        });
+        assert!(t.join().is_err());
+        assert_eq!(aktif.load(Ordering::SeqCst), 0);
+        // normal bitiş de geri verir
+        drop(Yuva::al(&aktif));
+        assert_eq!(aktif.load(Ordering::SeqCst), 0);
     }
 }

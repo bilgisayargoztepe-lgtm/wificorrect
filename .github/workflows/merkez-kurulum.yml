@@ -47,7 +47,7 @@ jobs:
       - run: chmod 755 ikili/wificorrect-merkez
       - name: Prova
         run: |
-          sudo PROVA_ATILABILIR=1 PROVA_LOG="$PWD/prova-log" IKILI="$PWD/ikili/wificorrect-merkez" \
+          sudo GITHUB_ACTIONS="$GITHUB_ACTIONS" PROVA_ATILABILIR=1 PROVA_LOG="$PWD/prova-log" IKILI="$PWD/ikili/wificorrect-merkez" \
             bash scripts/sunucu/kurulum-provasi.sh
       - name: Özet
         if: always()

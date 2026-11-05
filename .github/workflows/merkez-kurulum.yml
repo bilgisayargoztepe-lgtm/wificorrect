@@ -1,0 +1,42 @@
+# Merkez kurulum provası: kur.sh'nin Python -> Rust geçişi ve bütün geri dönüş yolları GERÇEK systemd'li atılabilir bir makinede
+# (her koşuda sıfırdan ubuntu-24.04). Canlı sunucuya dokunmaz; dış yan etki yok (WC_TEST=1, sahte caddy).
+name: merkez-kurulum
+on:
+  push:
+    paths:
+      - "scripts/sunucu/**"
+      - "merkez/**"
+      - ".github/workflows/merkez-kurulum.yml"
+  workflow_dispatch:
+
+jobs:
+  prova:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # eski kurulum = origin/main
+      - uses: dtolnay/rust-toolchain@1.85
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: merkez
+      - run: cd merkez && cargo build --release --locked
+      - name: Prova
+        run: |
+          set -o pipefail
+          sudo PROVA_ATILABILIR=1 PROVA_LOG="$PWD/prova-log" IKILI="$PWD/merkez/target/release/wificorrect-merkez" \
+            bash scripts/sunucu/kurulum-provasi.sh
+      - name: Özet
+        if: always()
+        run: grep -h '^PROVA' prova-log/prova.log || true
+      - name: Yapıt
+        if: always()
+        run: sudo chmod -R a+rX prova-log || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: merkez-kurulum-prova-${{ github.sha }}
+          path: prova-log/
+          retention-days: 14
+          if-no-files-found: warn

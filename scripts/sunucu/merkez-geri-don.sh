@@ -7,7 +7,7 @@
 #
 #   hedef   ssh hedefi (varsayılan gbserver@192.168.1.109); anahtar ~/.ssh/gbserver (WFC_SSH_KEY ile değişir)
 #   ZAMAN   geri dönüş dizininin adı (YYYYmmdd-HHMMSS); verilmezse en yenisi. Rust iki kez kurulduysa en yeni dizin önceki
-#           Rust'ın birimleridir; Python'a dönmek için ilk (en eski) dizinin adı verilmelidir (komut dizinleri listeler).
+#           Rust'ın birimleridir; Python'a dönmek için '(Python)' işaretli dizinin adı verilmelidir (komut dizinleri listeler).
 #   --kuru  sunucuya bağlanmaz, yalnız çalışacak komutları yazar
 set -euo pipefail
 host=gbserver@192.168.1.109

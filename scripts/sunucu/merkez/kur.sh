@@ -32,7 +32,8 @@ VERI=/var/lib/wificorrect
 DB=$VERI/merkez/merkez.db
 GERI=$VERI/geri-donus
 GERI_KUR=$GERI/kur.sh
-GD= GERI_TUZAK=0
+GD= GERI_TUZAK=0 YEDEK_TMP=
+SON_GERI=$GERI/son-geri-donus.txt
 ZAMANLAYICILAR="wc-kuyruk.path wc-durum.timer wc-istatistik.timer wc-saglik.timer wc-listeler.timer wc-surumler.timer"
 
 # --- yardımcılar -----------------------------------------------------------------------------------------------------
@@ -87,15 +88,22 @@ geri_don_uygula() {
   [ "$hata" -eq 0 ]
 }
 
-# EXIT tuzağı: geri dönüş dizini oluştuktan sonra 200 denetimine kadar herhangi bir hata (set -e dahil) önceki kuruluma döner
+# EXIT tuzağı: geri dönüş dizini oluştuktan sonra 200 denetimine kadar her çıkış (hata, set -e, Ctrl-C, SSH kopması, SIGTERM)
+# önceki kuruluma döner. Başarı yolu önce GERI_TUZAK=0 yapar, bu yüzden GERI_TUZAK=1 iken "başarılı çıkış" yoktur ($? sinyalde 0 olabilir).
+# SIGPIPE/HUP/INT/TERM yok sayılır (tee ölse de geri dönüş yarım kalmaz); çıktı kalıcı olarak $SON_GERI dosyasına da yazılır.
 kurtar() {
-  local k=$?
+  local k=$? rc
   trap - EXIT
+  trap '' PIPE HUP INT TERM
   set +e
-  if [ "$GERI_TUZAK" = 1 ] && [ "$k" -ne 0 ] && [ -n "$GD" ]; then
-    echo "HATA: kurulum başarısız (çıkış $k). Önceki kuruluma geri dönülüyor..." >&2
-    if geri_don_uygula "$GD"; then echo "GERİ DÖNÜLDÜ: önceki kurulum çalışıyor; yeni sürüm kurulmadı (veritabanı yedeği: ${yedek:-yok})." >&2
-    else echo "HATA: geri dönüş de tam olmadı; elle bakın (kur.sh --geri-don)." >&2; fi
+  [ -z "$YEDEK_TMP" ] || rm -rf "$YEDEK_TMP"
+  if [ "$GERI_TUZAK" = 1 ] && [ -n "$GD" ]; then
+    ( umask 077; echo "kurulum başarısız (çıkış $k); önceki kuruluma geri dönülüyor: $GD" >"$SON_GERI" ) 2>/dev/null
+    geri_don_uygula "$GD" >>"$SON_GERI" 2>&1
+    rc=$?
+    if [ "$rc" -eq 0 ]; then echo "GERİ DÖNÜLDÜ: önceki kurulum çalışıyor; yeni sürüm kurulmadı (veritabanı yedeği: ${yedek:-yok})." >>"$SON_GERI"
+    else echo "HATA: geri dönüş de tam olmadı; elle bakın (kur.sh --geri-don)." >>"$SON_GERI"; fi
+    cat "$SON_GERI" >&2 2>/dev/null || true
     exit 1
   fi
   exit "$k"
@@ -128,32 +136,37 @@ fi
 [ -x "$PAKET_IKILI" ] || { echo "HATA: paketteki wificorrect-merkez ikilisi yok ya da çalıştırılamıyor: $PAKET_IKILI" >&2; exit 1; }
 echo "yeni ikili sürümü: $("$PAKET_IKILI" surum)"
 
-# ADIM 1: veritabanı yedeği
+# ADIM 1: veritabanı yedeği. Önce root'a ait gizli geçici dizinde üretilir (wcpanel'in yazabildiği $VERI/merkez'de sahip/izin
+# verilmez: yol üzerinden chown, bağlantı yarışına açık olurdu), sahip/izin orada verilir, sonra rename ile son adına taşınır.
 yedek=
 if [ -f "$DB" ]; then
   yedek=$DB.yedek-$(date +%Y%m%d-%H%M%S)
+  YEDEK_TMP=$(mktemp -d "$VERI/.yedek.XXXXXX")
+  yedek_gecici=$YEDEK_TMP/yedek.db
   # tutarlı anlık görüntü (çalışan merkez yazarken de): paketteki ikili çalışmazsa kurulum durur, canlıya dokunulmaz
-  if ! "$PAKET_IKILI" veritabani-yedekle "$DB" "$yedek"; then
-    rm -f "$yedek"
+  if ! "$PAKET_IKILI" veritabani-yedekle "$DB" "$yedek_gecici"; then
     echo "HATA: veritabanı yedeği alınamadı (ya da ikili çalıştırılamadı). Canlıya dokunulmadı." >&2
     exit 1
   fi
-  chown --reference="$DB" "$yedek"
-  chmod --reference="$DB" "$yedek"
-  echo "ADIM 1: veritabanı yedeği: $yedek"
+  chown --reference="$DB" "$yedek_gecici"
+  chmod --reference="$DB" "$yedek_gecici"
+  echo "ADIM 1: veritabanı yedeği alındı (root'a ait geçici dizinde): $yedek"
 else
   echo "ADIM 1: veritabanı yok (boş sunucu), yedek atlandı"
 fi
 
-# ADIM 2: yeni ikili yedek kopyada canlı veriyi denetler (hata -> canlıya dokunulmaz)
+# ADIM 2: yeni ikili, taşımadan ÖNCEKİ root'a ait geçici kopyada canlı veriyi denetler (hata -> canlıya dokunulmaz; yedek yine de
+# son adına taşınır, incelenebilsin)
 if [ -n "$yedek" ]; then
   cikti=$(mktemp)
-  if "$PAKET_IKILI" veritabani-denetle "$yedek" --dosyalar "$VERI" >"$cikti" 2>&1; then
+  if "$PAKET_IKILI" veritabani-denetle "$yedek_gecici" --dosyalar "$VERI" >"$cikti" 2>&1; then
     tail -n 1 "$cikti"
-    echo "ADIM 2: veritabanı denetimi TAMAM"
+    mv -f -T "$yedek_gecici" "$yedek"
+    echo "ADIM 2: veritabanı denetimi TAMAM; yedek: $yedek"
     rm -f "$cikti"
   else
     cat "$cikti" >&2; rm -f "$cikti"
+    mv -f -T "$yedek_gecici" "$yedek"
     echo "HATA: veritabanı denetimi başarısız (ya da ikili çalıştırılamadı). Canlıya dokunulmadı; yedek: $yedek" >&2
     exit 1
   fi

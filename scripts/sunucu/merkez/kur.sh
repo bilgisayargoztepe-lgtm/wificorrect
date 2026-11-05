@@ -1,5 +1,3 @@
-    if rm -f "$IKILI"; then echo "  kaldırılan: wificorrect-merkez (dizinde yok)"
-    else echo "HATA: $IKILI silinemedi" >&2; hata=$((hata + 1)); fi
 #!/bin/bash
 # Yönetim merkezi (Rust ikilisi wificorrect-merkez) kurulumu/güncellemesi/geri dönüşü (Ubuntu, root).
 # scripts/sunucu/merkez-kur.sh çağırır; boş sunucuda da, güncellemede de çalışır; tekrar çalıştırmak güvenli.

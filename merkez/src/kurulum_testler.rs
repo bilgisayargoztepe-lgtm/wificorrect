@@ -331,6 +331,14 @@ fn betikler_bash_soz_dizimi_ve_surumsuz_dosyalar() {
 }
 
 #[test]
+fn betikler_kabuk_satiriyla_baslar() {
+    // kabuk satırından önce kalan komut root olarak, ortamdan gelen değişkenlerle çalışır; bash -n bunu yakalamaz
+    for yol in [merkez_dizini().join("kur.sh"), sunucu_dizini().join("merkez-kur.sh"), sunucu_dizini().join("merkez-geri-don.sh"), sunucu_dizini().join("wificorrect-sunucu")] {
+        assert!(oku(&yol).starts_with("#!"), "{}: ilk satır kabuk satırı değil", yol.display());
+    }
+}
+
+#[test]
 fn kur_sh_geri_donus_guvenceleri() {
     let kur = kur_sh();
     let kmt = komutlar(&kur);

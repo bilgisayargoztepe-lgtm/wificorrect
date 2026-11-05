@@ -41,8 +41,7 @@ fn tek(metin: &str, anahtar: &str) -> String {
 
 /// Yorum satırları çıkarılmış betik (başlıktaki açıklamalar yasak sözcükleri anabilir).
 fn komutlar(betik: &str) -> String {
-    betik.lines().filter(|l| !l.trim_start().starts_with('#')).collect::<Vec<_>>().join("
-")
+    betik.lines().filter(|l| !l.trim_start().starts_with('#')).collect::<Vec<_>>().join("\n")
 }
 
 const IKILI: &str = "/usr/local/bin/wificorrect-merkez";
@@ -123,7 +122,9 @@ fn kur_sh_yerel_modulleri_kuruyor() {
     // kur.sh yalnızca ikiliyi ve wificorrect-sunucu'yu kurar; Python dosyası, wc-* bağı, logo kurmaz (ikiliye gömülü)
     let kmt = komutlar(&kur);
     assert!(!kmt.contains(".py"), "kur.sh .py dosyasına dokunmamalı");
-    assert!(!kmt.contains("ln -s") && !kmt.contains("/usr/local/sbin/wc-") && !kmt.contains("/usr/local/lib/wificorrect"));
+    // python_donemi satırı Python dönemi dizinlerini tanımak için bu yolu desen olarak anar; kurulum komutu değildir
+    let kmt_kurulum: String = kmt.lines().filter(|l| !l.starts_with("python_donemi()")).collect::<Vec<_>>().join("\n");
+    assert!(!kmt_kurulum.contains("ln -s") && !kmt_kurulum.contains("/usr/local/sbin/wc-") && !kmt_kurulum.contains("/usr/local/lib/wificorrect"));
     assert!(!kmt.contains("logo/") && !kmt.contains("/logo"));
     assert!(!kmt.contains("PYTHONDONTWRITEBYTECODE"));
     // kur.sh'nin kopyaladığı ikili paketteki ikilidir
@@ -269,7 +270,7 @@ fn kur_sh_adim_sirasi() {
     let konum = |s: &str| ana.find(s).unwrap_or_else(|| panic!("ana akışta {s:?} yok"));
     let sira = [
         konum("# ADIM 1: veritabanı yedeği"),
-        konum("cp -p \"$DB\" \"$yedek\""),
+        konum("veritabani-yedekle \"$DB\" \"$yedek\""),
         konum("# ADIM 2:"),
         konum("veritabani-denetle \"$yedek\" --dosyalar \"$VERI\""),
         konum("if [ \"$YALNIZ_DENETLE\" = 1 ]"),
@@ -287,13 +288,13 @@ fn kur_sh_adim_sirasi() {
     let denetim = &ana[konum("# ADIM 2:")..konum("# ADIM 3:")];
     assert!(denetim.contains("Canlıya dokunulmadı") && denetim.contains("exit 1") && denetim.contains("exit 0"));
     // 200 denetimi
-    assert!(kur.contains("curl -s -o /dev/null -w '%{http_code}' -H 'Host: yonetim.wificorrect.com' http://127.0.0.1:8081/giris"));
+    assert!(kur.contains("curl -s -m 5 --connect-timeout 2 -o /dev/null -w '%{http_code}' -H 'Host: yonetim.wificorrect.com' http://127.0.0.1:8081/giris"));
     assert!(kur.contains("[ \"$k\" = 200 ]"));
     // sağlık geçmezse geri dönüş dizininden kendiliğinden geri dönülür ve çıkış 1
     let son = &ana[konum("# ADIM 6:")..];
-    assert!(son.contains("geri_don_uygula \"$GD\"") && son.contains("exit 1") && son.contains("GERİ DÖNÜLDÜ"));
+    assert!(son.contains("exit 1") && kur.contains("geri_don_uygula \"$GD\"") && kur.contains("GERİ DÖNÜLDÜ"));
     // en yeni 5 geri dönüş dizini tutulur; yalnız /etc/systemd birimleri, wificorrect-sunucu ve ikili kopyalanır
-    assert!(ana.contains("head -n -5"));
+    assert!(ana.contains("python_donemi \"$d\" || diger+=") && ana.contains("${#diger[@]}\" -gt 5") && ana.contains("budandı"));
     assert!(ana.contains("GERI=$VERI/geri-donus") || kur.contains("GERI=$VERI/geri-donus"));
     // --geri-don: dizini yerine koyar, yeniden başlatır, 200 denetler
     let gd = &kur[kur.find("geri_don_uygula() {").unwrap()..];
@@ -327,4 +328,64 @@ fn betikler_bash_soz_dizimi_ve_surumsuz_dosyalar() {
         let o = Command::new("bash").arg("-n").arg(&yol).output().unwrap();
         assert!(o.status.success(), "{}: {}", yol.display(), String::from_utf8_lossy(&o.stderr));
     }
+}
+
+#[test]
+fn kur_sh_geri_donus_guvenceleri() {
+    let kur = kur_sh();
+    let kmt = komutlar(&kur);
+    // sağlık curl'ünde zaman aşımı, toplam ~20 sn
+    assert!(kmt.contains("curl -s -m 5 --connect-timeout 2 -o /dev/null -w '%{http_code}'") && kmt.contains("bitis=$((SECONDS + 20))"));
+    // hata olursa EXIT tuzağı geri döner: yalnız geri dönüş dizini oluşunca açılır, 200'den sonra kapanır
+    assert!(kmt.contains("trap kurtar EXIT") && kmt.contains("GERI_TUZAK=1; fi") && kmt.contains("GERI_TUZAK=0
+"));
+    assert!(kur.find("GERI_TUZAK=1").unwrap() < kur.find("# ADIM 4:").unwrap());
+    assert!(kur.find("if ! saglik_denetle; then").unwrap() < kur.rfind("GERI_TUZAK=0").unwrap());
+    assert!(kmt.contains("set +e") && kmt.contains("GERİ DÖNÜLDÜ"));
+    // dosya/komut başına hata sayımı
+    assert!(kmt.matches("hata=$((hata + 1))").count() >= 7 && kmt.contains("geri dönüşte $hata hata oldu"));
+    // ZAMAN doğrulaması merkez-geri-don.sh ile aynı regex
+    let re = "^[0-9]{8}-[0-9]{6}$";
+    assert!(kmt.contains(re));
+    assert!(oku(&sunucu_dizini().join("merkez-geri-don.sh")).contains(re));
+    // tutarlı yedek: pakettaki ikiliyle, sahip/izin kaynağınkiyle aynı
+    assert!(kmt.contains("\"$PAKET_IKILI\" veritabani-yedekle \"$DB\" \"$yedek\""));
+    assert!(kmt.contains("chown --reference=\"$DB\" \"$yedek\"") && kmt.contains("chmod --reference=\"$DB\" \"$yedek\""));
+    assert!(!kmt.contains("cp -p \"$DB\""));
+    // kur.sh kalıcı saklanır, acil dönüş komutu yazılır; Python işareti ve öğüt
+    assert!(kmt.contains("install -m 700 \"$BU_BETIK\" \"$GERI_KUR\"") && kmt.contains("GERI_KUR=$GERI/kur.sh"));
+    assert!(kmt.contains("sudo bash $GERI_KUR --geri-don"));
+    assert!(kur.contains("(Python)") && kur.contains("'(Python)' işaretli") && !kur.contains("en ESKİ dizinin"));
+    assert!(!kmt.contains("ls -1 \"$GERI\""));
+}
+
+#[test]
+fn kur_sh_python_donemi_dizinleri_ayirt_edilir() {
+    if Command::new("bash").arg("--version").output().is_err() {
+        return;
+    }
+    let kur = kur_sh();
+    let islev = |ad: &str| kur.lines().find(|l| l.starts_with(ad)).unwrap_or_else(|| panic!("{ad}")).to_string();
+    let d = crate::ortak::tests::gecici_dizin();
+    for (dizin, birim) in [
+        ("20261001-000000", "ExecStart=/usr/bin/python3 /usr/local/lib/wificorrect/merkez.py"),
+        ("20261002-000000", "ExecStart=/usr/local/sbin/wc-saglik"),
+        ("20261003-000000", "ExecStart=/usr/local/bin/wificorrect-merkez sunucu"),
+    ] {
+        std::fs::create_dir_all(d.join(dizin)).unwrap();
+        std::fs::write(d.join(dizin).join("wc-merkez.service"), format!("[Service]
+{birim}
+")).unwrap();
+    }
+    std::fs::write(d.join("kur.sh"), "x").unwrap();
+    let betik = format!("GERI='{}'
+{}
+{}
+for x in $(geri_dizinleri); do if python_donemi \"$x\"; then echo \"$x P\"; else echo \"$x R\"; fi; done
+", d.display(), islev("geri_dizinleri()"), islev("python_donemi()"));
+    let o = Command::new("bash").arg("-c").arg(&betik).output().unwrap();
+    assert_eq!(String::from_utf8_lossy(&o.stdout), "20261001-000000 P
+20261002-000000 P
+20261003-000000 R
+", "{}", String::from_utf8_lossy(&o.stderr));
 }

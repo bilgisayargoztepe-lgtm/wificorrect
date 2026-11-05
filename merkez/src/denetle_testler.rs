@@ -504,3 +504,47 @@ fn ornek_agac() {
     });
     fs::write(kok.join("ornek-beklenen.json"), serde_json::to_string_pretty(&beklenen).unwrap()).unwrap();
 }
+
+#[test]
+fn yedek_ayni_icerik_kaynak_degismez() {
+    let d = gecici_dizin();
+    let hedef = d.join("yedek.db");
+    let kaynak = gocmus_db();
+    let once = sha(&kaynak);
+    yedekle(&kaynak, &hedef).unwrap();
+    assert_eq!(sha(&kaynak), once, "kaynak değişmemeli");
+    let satirlar = |p: &Path| -> Vec<(String, i64)> {
+        let c = Connection::open_with_flags(p, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY).unwrap();
+        let tablolar: Vec<String> = c
+            .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name")
+            .unwrap()
+            .query_map([], |r| r.get(0))
+            .unwrap()
+            .map(|x| x.unwrap())
+            .collect();
+        tablolar.into_iter().map(|t| { let n: i64 = c.query_row(&format!("SELECT count(*) FROM \"{t}\""), [], |r| r.get(0)).unwrap(); (t, n) }).collect()
+    };
+    assert_eq!(satirlar(&hedef), satirlar(&kaynak));
+    assert!(!satirlar(&hedef).is_empty());
+    // yedek de denetimden geçer
+    assert!(calistir(&hedef, None).0);
+}
+
+#[test]
+fn yedek_var_olan_hedefe_hata_verir() {
+    let d = gecici_dizin();
+    let hedef = d.join("yedek.db");
+    fs::write(&hedef, b"onemli").unwrap();
+    assert!(yedekle(&gocmus_db(), &hedef).unwrap_err().contains("zaten var"));
+    assert_eq!(fs::read(&hedef).unwrap(), b"onemli");
+    assert_eq!(yedekle_main(&["a".into()]), 2);
+    assert_eq!(yedekle_main(&[gocmus_db().to_string_lossy().into_owned(), hedef.to_string_lossy().into_owned()]), 1);
+}
+
+#[test]
+fn yedek_olmayan_kaynak_hata_ve_dosya_olusturmaz() {
+    let d = gecici_dizin();
+    let hedef = d.join("yedek.db");
+    assert!(yedekle(&d.join("yok.db"), &hedef).is_err());
+    assert!(!hedef.exists() && !d.join("yok.db").exists());
+}

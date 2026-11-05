@@ -397,6 +397,36 @@ pub fn main_uretim(args: &[String]) -> i32 {
     }
 }
 
+
+/// Tutarlı veritabanı yedeği: kaynak salt okunur açılır (yazılmaz), SQLite'ın `VACUUM INTO`'su okuma işlemi içinde tutarlı bir
+/// anlık görüntü yazar (çalışan merkez yazarken de yırtık kopya olmaz). Hedef varsa hata verir, üzerine yazmaz.
+pub fn yedekle(kaynak: &Path, hedef: &Path) -> Result<(), String> {
+    if hedef.symlink_metadata().is_ok() {
+        return Err(format!("hedef zaten var: {}", hedef.display()));
+    }
+    let c = ac(kaynak).map_err(|e| format!("kaynak açılamadı: {e}"))?;
+    let h = hedef.to_str().ok_or("hedef yolu geçerli metin değil")?;
+    c.execute("VACUUM INTO ?1", [h]).map_err(|e| format!("yedek alınamadı: {e}"))?;
+    Ok(())
+}
+
+pub fn yedekle_main(args: &[String]) -> i32 {
+    let [kaynak, hedef] = args else {
+        eprintln!("Kullanım: wificorrect-merkez veritabani-yedekle KAYNAK HEDEF");
+        return 2;
+    };
+    match yedekle(Path::new(kaynak), Path::new(hedef)) {
+        Ok(()) => {
+            println!("YEDEK {hedef}");
+            0
+        }
+        Err(h) => {
+            eprintln!("HATA {h}");
+            1
+        }
+    }
+}
+
 #[cfg(test)]
 #[path = "denetle_testler.rs"]
 mod testler;

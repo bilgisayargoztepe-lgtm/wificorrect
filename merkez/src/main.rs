@@ -48,8 +48,9 @@ fn main() {
         Some("durum") => std::process::exit(durum::main_uretim()),
         Some("saglik") => std::process::exit(saglik::main_uretim()),
         Some("veritabani-denetle") => std::process::exit(denetle::main_uretim(&args[1..])),
+        Some("veritabani-yedekle") => std::process::exit(denetle::yedekle_main(&args[1..])),
         _ => {
-            eprintln!("Kullanım: wificorrect-merkez surum|sunucu|kuyruk|istatistik|listeler|surumler|yonetici|durum|saglik|veritabani-denetle");
+            eprintln!("Kullanım: wificorrect-merkez surum|sunucu|kuyruk|istatistik|listeler|surumler|yonetici|durum|saglik|veritabani-denetle|veritabani-yedekle");
             std::process::exit(2);
         }
     }

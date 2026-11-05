@@ -15,6 +15,10 @@ jobs:
       - run: sudo apt-get update -q && sudo apt-get install -y -q wireguard-tools openssh-client
       - uses: dtolnay/rust-toolchain@1.85
       - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            .
+            merkez
       - run: cargo test --locked
       - uses: actions/setup-python@v5
         with:
@@ -23,7 +27,7 @@ jobs:
       - run: cd merkez && cargo test --locked
       - run: cd merkez && cargo build --release --locked
       - run: cargo build --release --locked
-      - run: sudo apt-get install -y -q xorriso cpio debian-keyring qemu-system-x86 qemu-utils ovmf
+      - run: sudo apt-get install -y -q xorriso cpio debian-keyring qemu-system-x86 qemu-utils ovmf netcat-openbsd
       - name: Paketle
         env:
           WFC_SSH_PUB: ${{ vars.WFC_SSH_PUB }}

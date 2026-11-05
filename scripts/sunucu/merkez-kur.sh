@@ -34,6 +34,8 @@ while [ $# -gt 0 ]; do
 done
 [[ $host =~ ^[A-Za-z0-9._@-]+$ ]] || { echo "HATA: geçersiz ssh hedefi: $host" >&2; exit 2; }
 anahtar=${WFC_SSH_KEY:-$HOME/.ssh/gbserver}
+# göreli --ikili yolu cd'den önce mutlak yapılır
+if [ -n "$ikili" ] && [ -f "$ikili" ]; then ikili=$(cd "$(dirname "$ikili")" && pwd)/$(basename "$ikili"); fi
 cd "$(dirname "$0")/../.."
 gecici=$(mktemp -d)
 trap 'rm -rf "$gecici"' EXIT
@@ -60,11 +62,11 @@ if [ -n "$ikili" ]; then
   sha256sum "$gecici/wificorrect-merkez"
 else
   command -v gh >/dev/null || { echo "HATA: gh (GitHub CLI) bulunamadı" >&2; exit 1; }
-  run=$(gh run list --commit "$sha" --workflow test --limit 20 --json databaseId,conclusion \
+  run=$(gh run list --commit "$sha" --workflow test --event push --limit 20 --json databaseId,conclusion \
     --jq '[.[] | select(.conclusion == "success")] | .[0].databaseId // empty')
   if [ -z "$run" ]; then
     echo "HATA: $sha için 'test' iş akışı başarıyla bitmiş görünmüyor (bitmedi ya da başarısız). Durum:" >&2
-    gh run list --commit "$sha" --workflow test --limit 5 >&2 || true
+    gh run list --commit "$sha" --workflow test --event push --limit 5 >&2 || true
     exit 1
   fi
   echo "CI: test iş akışı başarılı (koşu $run)"

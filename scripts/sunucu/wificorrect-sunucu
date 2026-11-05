@@ -189,7 +189,7 @@ tasi-paketle)
 	# shellcheck disable=SC2086
 	tar -C / -cpf "$2" etc/wireguard etc/sysctl.d/99-wificorrect-vpn.conf etc/systemd/system/wificorrect-vpn.service "${ARSIV#/}" usr/local/sbin/wificorrect-sunucu $ek
 	echo "Paket: $2 ($(du -h "$2" | cut -f1)) — gizli anahtarlar ve kişisel veri içerir, güvenli taşıyın."
-	echo "Yönetim merkezi için yeni sunucuda scripts/sunucu/dagit.sh çalıştırın."
+	echo "Yönetim merkezi için yeni sunucuda scripts/sunucu/merkez-kur.sh çalıştırın."
 	echo "Yeni sunucuda: wificorrect-sunucu tasi-kur $2   ardından DNS'i yeni IP'ye çevirin, UDP $PORT'u yönlendirin."
 	;;
 tasi-kur)

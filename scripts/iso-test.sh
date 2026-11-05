@@ -40,8 +40,7 @@ vm() {
 # HMP: komutu gönder, yanıtı (en çok 15 sn) mon.log'a ekle; betiği asla düşürmez. nc -U (netcat-openbsd), yoksa socat.
 # Komuttan sonra 2 sn bekleyip girişi kapatırız (-N/-t2): QEMU komutu okuyup yürütür, bağlantı kapanınca nc/socat çıkar.
 mon() {
-  { printf '%s
-' "$1"; sleep 2; } | {
+  { printf '%s\n' "$1"; sleep 2; } | {
     if command -v nc >/dev/null 2>&1; then timeout 15 nc -N -U "$d/mon"; else timeout 15 socat -t2 - "UNIX-CONNECT:$d/mon"; fi
   } >>"$d/mon.log" 2>&1 || true
 }

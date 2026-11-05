@@ -6,7 +6,9 @@ use std::sync::Arc;
 use crate::guvenlik::{self, GecisBelirtecleri};
 use crate::kayitlar::Kayitlar;
 use crate::ortak::{now_iso, tarih_goster};
-use crate::raporlar::{self, Raporlar};
+use crate::raporlar;
+#[cfg(test)]
+use crate::raporlar::Raporlar;
 use crate::veri::{Cihaz, Hata, Saat, Sonuc, Veri, AYRILMA_SN};
 use crate::web::{e, kart, sorgu_ilk, yanit_html, yonlendir, Ot, Panel, Taban, Yanit};
 
@@ -64,6 +66,7 @@ impl Musteri {
     }
 
     /// Python `Musteri(..., raporlar=...)`.
+    #[cfg(test)]
     pub fn raporlar_ile(mut self, r: Raporlar) -> Musteri {
         self.taban = self.taban.raporlar_ile(r);
         self

@@ -56,6 +56,7 @@ pub fn parola_uret(n: usize) -> String {
 
 /// Bütün rastgelelik buradan geçer (üretimde işletim sistemi; testte `belirlenimli()` ile tekrarlanabilir).
 pub mod rastgele {
+    #[cfg(test)]
     use sha2::{Digest, Sha256};
 
     #[cfg(test)]

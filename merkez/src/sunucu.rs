@@ -5,7 +5,9 @@
 //! `accept()` de aynı SO_RCVTIMEO ile zaman aşımına uğruyor ve tiny_http kabul döngüsü ilk hatada kapanıyor (cihazda
 //! görüldü: boşta kalan sunucu `Connection refused` verdi). Bu yüzden kabul edilen her sokete zaman aşımı elle konur.
 use std::io::{BufRead, BufReader, Read, Write};
-use std::net::{Shutdown, SocketAddr, TcpListener, TcpStream};
+#[cfg(test)]
+use std::net::SocketAddr;
+use std::net::{Shutdown, TcpListener, TcpStream};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::thread::JoinHandle;
@@ -274,12 +276,15 @@ fn baglanti_isle(m: &Merkez, akim: TcpStream) {
 
 /// Çalışan sunucu (testler için durdurulabilir).
 pub struct Calisan {
+    #[cfg(test)]
     adres: SocketAddr,
+    #[cfg(test)]
     dur: Arc<AtomicBool>,
     kabul: JoinHandle<()>,
 }
 
 impl Calisan {
+    #[cfg(test)]
     pub fn adres(&self) -> SocketAddr {
         self.adres
     }
@@ -289,6 +294,7 @@ impl Calisan {
         let _ = self.kabul.join();
     }
 
+    #[cfg(test)]
     /// Yeni bağlantı kabul etmeyi bırakır (süren bağlantılar kendi sürelerinde biter).
     pub fn durdur(self) {
         self.dur.store(true, Ordering::SeqCst);
@@ -301,6 +307,7 @@ impl Calisan {
 /// (Python sınırsız iş parçacığı açardı; dolunca yeni bağlantı hemen kapatılır).
 pub fn baslat(merkez: Arc<Merkez>, adres: &str, en_cok: usize, zaman_asimi: Duration) -> Result<Calisan, String> {
     let dinleyici = TcpListener::bind(adres).map_err(|e| format!("{adres} dinlenemiyor: {e}"))?;
+    #[cfg(test)]
     let yerel = dinleyici.local_addr().map_err(|e| e.to_string())?;
     let dur = Arc::new(AtomicBool::new(false));
     let aktif = Arc::new(AtomicUsize::new(0));
@@ -339,7 +346,13 @@ pub fn baslat(merkez: Arc<Merkez>, adres: &str, en_cok: usize, zaman_asimi: Dura
             }
         })
         .map_err(|e| format!("kabul iş parçacığı başlatılamadı: {e}"))?;
-    Ok(Calisan { adres: yerel, dur, kabul })
+    Ok(Calisan {
+        #[cfg(test)]
+        adres: yerel,
+        #[cfg(test)]
+        dur,
+        kabul,
+    })
 }
 
 /// Üretim: umask 077 (Python `main`), 20 sn soket zaman aşımı; sonsuza dek çalışır. `en_cok`: eşzamanlı bağlantı sınırı.

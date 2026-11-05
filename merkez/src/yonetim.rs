@@ -19,7 +19,9 @@ use crate::musteri::Musteri;
 use crate::netgsm;
 use crate::ortak::{now_iso, py_dogru, py_str, py_strip, tarih_girdi, tarih_goster, tarih_saat_goster, Tasiyici};
 use crate::surumler;
-use crate::raporlar::{self, Raporlar};
+use crate::raporlar;
+#[cfg(test)]
+use crate::raporlar::Raporlar;
 use crate::saglik::{self, CEVRIMICI_SN, TEKRAR_SN};
 use crate::veri::{self, Cihaz, Hareket, Hata, Saat, SaglikKaydi, Sonuc, SmsSon, Sorun, Veri};
 use crate::web::{self, acilir, bilgi_tablosu, bolum, kart, sorgu_ilk, yanit_html, yonlendir, Ot, Panel, Taban, Yanit};
@@ -308,42 +310,49 @@ impl Yonetim {
     }
 
     /// Python `Yonetim(..., surum_dizini=...)`.
+    #[cfg(test)]
     pub fn surum_dizini_ile(mut self, d: PathBuf) -> Yonetim {
         self.surum_dizini = d;
         self
     }
 
     /// Python `Yonetim(..., liste_dizini=...)`.
+    #[cfg(test)]
     pub fn liste_dizini_ile(mut self, d: PathBuf) -> Yonetim {
         self.liste_dizini = d;
         self
     }
 
     /// Python `Yonetim(..., gonder=...)`: deneme SMS'inin gideceği taşıyıcı.
+    #[cfg(test)]
     pub fn sms_tasiyici_ile(mut self, t: Arc<dyn Tasiyici>) -> Yonetim {
         self.sms_tasiyici = t;
         self
     }
 
     /// Python `Yonetim(..., getir=..., liste_getir=...)`: GitHub ve liste kaynakları indirmesi.
+    #[cfg(test)]
     pub fn indirme_tasiyici_ile(mut self, t: Arc<dyn Tasiyici>) -> Yonetim {
         self.indirme_tasiyici = t;
         self
     }
 
     /// Python `L.KAYNAKLAR` değişikliği (testlerde).
+    #[cfg(test)]
     pub fn liste_uretici_ile(mut self, u: Uretici) -> Yonetim {
         self.liste_uretici = u;
         self
     }
 
     /// Python `Yonetim(..., github_al=...)`.
+    #[cfg(test)]
     pub fn github_al_ile(mut self, f: GithubAl) -> Yonetim {
         self.github_al = f;
         self
     }
 
     /// Python `Yonetim(..., raporlar=...)`.
+    #[cfg(test)]
     pub fn raporlar_ile(mut self, r: Raporlar) -> Yonetim {
         self.taban = self.taban.raporlar_ile(r);
         self

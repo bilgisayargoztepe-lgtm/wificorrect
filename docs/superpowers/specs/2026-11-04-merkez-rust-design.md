@@ -147,6 +147,8 @@ seçilmedi**: üçü de olduğu gibi taşınır. Yürütme: **görev başına aj
    eder. Python başka yazıların rakamlarını da kabul ediyor, örneğin NetGSM'in kullanamayacağı bir numara üretiyordu.
 6. Biçim 1 (alan adı listeli, 2026-10-15 öncesi) rapor ve ham özet dosyaları okunmaz ve temizlenmez. Canlı envanterde
    (2026-11-04) bu biçimde dosya yok. Biçim değişince önbelleğin yeniden hesaplanması genel kural olarak kalır.
+7. SMS sağlayıcı çağrıları (NetGSM, Twilio) HTTP yönlendirmesi izlemez; Python `urlopen` 301/302/303'te POST'u gövdesiz GET'e
+   çevirip Authorization'ı yeni sunucuya taşırdı; iki tarafta da sonuç gönderilemeyen SMS.
 
 Başka her çıktı aynıdır.
 

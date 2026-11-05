@@ -125,7 +125,8 @@ pub fn save_json(yol: &Path, v: &serde_json::Value) -> std::io::Result<()> {
 }
 
 /// `;` ayraçlı CSV'yi (Python csv: `"` ile alıntı, `""` kaçışı, CRLF/LF/CR satır sonu) alan listelerine ayırır.
-/// Boş satırlar atlanır (csv.DictReader gibi).
+/// Boş satırlar atlanır (csv.DictReader gibi). Başvuru ayrıştırıcı: yalnızca testler kullanır (üretimde akışlı okuyucu).
+#[cfg(test)]
 fn csv_coz(metin: &str) -> Vec<Vec<String>> {
     let mut satirlar = Vec::new();
     let mut satir: Vec<String> = Vec::new();
@@ -185,22 +186,9 @@ fn csv_coz(metin: &str) -> Vec<Vec<String>> {
     satirlar
 }
 
-/// CSV dosyası (`;`, BOM'lu olabilir, `.gz` ise açılır) → başlık adlarıyla satırlar. Dosya yoksa boş.
-/// Eksik alanlar satırda bulunmaz, fazlalar atılır (DictReader).
-pub fn read_rows(yol: &Path) -> Vec<BTreeMap<String, String>> {
-    let Ok(mut f) = std::fs::File::open(yol) else { return Vec::new() };
-    let mut ham = Vec::new();
-    if yol.extension().map(|e| e == "gz").unwrap_or(false) {
-        if flate2::read::MultiGzDecoder::new(f).read_to_end(&mut ham).is_err() && ham.is_empty() {
-            return Vec::new();
-        }
-    } else if f.read_to_end(&mut ham).is_err() {
-        return Vec::new();
-    }
-    let metin = String::from_utf8_lossy(&ham);
-    satirlar_metinden(&metin)
-}
-
+/// Başlıklı CSV metni → başlık adlarıyla satırlar (başvuru ayrıştırıcı: akışlı okuyucu `rows_akis_okuyucu` bununla
+/// aynı sonucu vermelidir; yalnızca testler kullanır).
+#[cfg(test)]
 fn satirlar_metinden(metin: &str) -> Vec<BTreeMap<String, String>> {
     let metin = metin.strip_prefix('\u{feff}').unwrap_or(metin);
     let mut satirlar = csv_coz(metin).into_iter();
@@ -765,13 +753,24 @@ pub(crate) mod tests {
         assert_eq!(normalize_phone("abc"), None);
     }
 
+    /// Akışlı okuyucunun bütün satırları (Python `list(common.read_rows(yol))`).
+    fn oku_hepsi(yol: &Path) -> Vec<BTreeMap<String, String>> {
+        let mut out = Vec::new();
+        rows_akis(yol, &mut |r| {
+            out.push(r);
+            true
+        })
+        .unwrap();
+        out
+    }
+
     #[test]
-    fn read_rows_bom_gz_ve_eksik_dosya() {
+    fn rows_akis_bom_gz_ve_eksik_dosya() {
         let d = gecici_dizin();
-        assert!(read_rows(&d.join("yok.csv")).is_empty());
+        assert!(oku_hepsi(&d.join("yok.csv")).is_empty());
         let icerik = "\u{feff}zaman;olay;ad\r\n2026-11-04;GIRIS;Ayşe \"A\"\r\n\r\n2026-11-05;\"CIKIS;x\";\"a\"\"b\"\r\nkisa\r\n";
         std::fs::write(d.join("a.csv"), icerik).unwrap();
-        let r = read_rows(&d.join("a.csv"));
+        let r = oku_hepsi(&d.join("a.csv"));
         assert_eq!(r.len(), 3);
         assert_eq!(r[0]["zaman"], "2026-11-04");
         assert_eq!(r[0]["ad"], "Ayşe \"A\"");
@@ -783,10 +782,10 @@ pub(crate) mod tests {
         let mut gz = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
         gz.write_all(icerik.as_bytes()).unwrap();
         std::fs::write(d.join("a.csv.gz"), gz.finish().unwrap()).unwrap();
-        assert_eq!(read_rows(&d.join("a.csv.gz")), r);
+        assert_eq!(oku_hepsi(&d.join("a.csv.gz")), r);
         // yalnızca başlık
         std::fs::write(d.join("b.csv"), "a;b\n").unwrap();
-        assert!(read_rows(&d.join("b.csv")).is_empty());
+        assert!(oku_hepsi(&d.join("b.csv")).is_empty());
         let _ = std::fs::remove_dir_all(&d);
     }
 

@@ -156,6 +156,7 @@ pub fn log_yakala<R>(f: impl FnOnce() -> R) -> (R, Vec<String>) {
 pub struct Basliklar(pub Vec<(String, String)>);
 
 impl Basliklar {
+    #[cfg(test)]
     pub fn yeni(l: &[(&str, &str)]) -> Basliklar {
         Basliklar(l.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect())
     }
@@ -165,6 +166,7 @@ impl Basliklar {
         self.0.iter().find(|(k, _)| k.eq_ignore_ascii_case(ad)).map(|(_, v)| v.as_str())
     }
 
+    #[cfg(test)]
     pub fn ekle(&mut self, ad: &str, deger: &str) {
         self.0.push((ad.to_string(), deger.to_string()));
     }
@@ -181,25 +183,30 @@ pub struct Istek {
 }
 
 impl Istek {
+    #[cfg(test)]
     pub fn yeni(yontem: &str, yol: &str) -> Istek {
         Istek { yontem: yontem.into(), yol: yol.into(), ..Default::default() }
     }
 
+    #[cfg(test)]
     pub fn baslik(mut self, ad: &str, deger: &str) -> Istek {
         self.basliklar.ekle(ad, deger);
         self
     }
 
+    #[cfg(test)]
     pub fn govde(mut self, g: &str) -> Istek {
         self.govde = g.into();
         self
     }
 
+    #[cfg(test)]
     pub fn sorgu(mut self, s: &str) -> Istek {
         self.sorgu = s.into();
         self
     }
 
+    #[cfg(test)]
     pub fn ip(mut self, ip: &str) -> Istek {
         self.ip = ip.into();
         self
@@ -224,14 +231,17 @@ impl Yanit {
         Yanit::yeni(durum, &[("Content-Type", "text/plain; charset=utf-8")], metin.as_bytes().to_vec())
     }
 
+    #[cfg(test)]
     pub fn baslik(&self, ad: &str) -> Option<&str> {
         self.basliklar.iter().find(|(k, _)| k.eq_ignore_ascii_case(ad)).map(|(_, v)| v.as_str())
     }
 
+    #[cfg(test)]
     pub fn basliklar_hepsi(&self, ad: &str) -> Vec<&str> {
         self.basliklar.iter().filter(|(k, _)| k.eq_ignore_ascii_case(ad)).map(|(_, v)| v.as_str()).collect()
     }
 
+    #[cfg(test)]
     pub fn govde_metin(&self) -> String {
         String::from_utf8_lossy(&self.govde).into_owned()
     }
@@ -448,6 +458,7 @@ impl Taban {
     }
 
     /// Rapor dosyalarının klasörü (Python `Taban(..., raporlar=Raporlar(dizin))`).
+    #[cfg(test)]
     pub fn raporlar_ile(mut self, r: crate::raporlar::Raporlar) -> Taban {
         self.raporlar = r;
         self

@@ -230,7 +230,10 @@ impl fmt::Debug for Musteri {
     }
 }
 
+/// Satır türü sütunları aynen taşır: `ssh_pub`, `anahtar_ozet`, `admin_tuz` uygulama kodunda okunmaz ama `veritabani-denetle`
+/// (denetle.rs) her sütunu bu türle okuyarak depolama sınıfını sınar.
 #[derive(Clone)]
+#[allow(dead_code)]
 pub struct Cihaz {
     pub id: i64,
     pub musteri: i64,
@@ -357,7 +360,7 @@ pub struct SaglikKaydi {
     pub rapor: Value,
 }
 
-fn musteri_satir(r: &Row) -> rusqlite::Result<Musteri> {
+pub(crate) fn musteri_satir(r: &Row) -> rusqlite::Result<Musteri> {
     Ok(Musteri {
         numara: r.get("numara")?,
         tuz: r.get("tuz")?,
@@ -378,7 +381,7 @@ fn musteri_satir(r: &Row) -> rusqlite::Result<Musteri> {
     })
 }
 
-fn cihaz_satir(r: &Row) -> rusqlite::Result<Cihaz> {
+pub(crate) fn cihaz_satir(r: &Row) -> rusqlite::Result<Cihaz> {
     Ok(Cihaz {
         id: r.get("id")?,
         musteri: r.get("musteri")?,
@@ -403,7 +406,7 @@ fn cihaz_satir(r: &Row) -> rusqlite::Result<Cihaz> {
     })
 }
 
-fn hareket_satir(r: &Row) -> rusqlite::Result<Hareket> {
+pub(crate) fn hareket_satir(r: &Row) -> rusqlite::Result<Hareket> {
     Ok(Hareket {
         id: r.get("id")?,
         zaman: r.get("zaman")?,
@@ -415,7 +418,7 @@ fn hareket_satir(r: &Row) -> rusqlite::Result<Hareket> {
     })
 }
 
-fn sorun_satir(r: &Row) -> rusqlite::Result<Sorun> {
+pub(crate) fn sorun_satir(r: &Row) -> rusqlite::Result<Sorun> {
     Ok(Sorun {
         id: r.get("id")?,
         musteri: r.get("musteri")?,
@@ -429,11 +432,11 @@ fn sorun_satir(r: &Row) -> rusqlite::Result<Sorun> {
     })
 }
 
-fn surum_satir(r: &Row) -> rusqlite::Result<SurumKaydi> {
+pub(crate) fn surum_satir(r: &Row) -> rusqlite::Result<SurumKaydi> {
     Ok(SurumKaydi { surum: r.get("surum")?, sha256: r.get("sha256")?, boyut: r.get("boyut")?, kaynak: r.get("kaynak")?, zaman: r.get("zaman")? })
 }
 
-fn bekleyen_satir(r: &Row) -> rusqlite::Result<Bekleyen> {
+pub(crate) fn bekleyen_satir(r: &Row) -> rusqlite::Result<Bekleyen> {
     Ok(Bekleyen {
         kimlik: r.get("kimlik")?,
         sir_ozet: r.get("sir_ozet")?,
@@ -453,7 +456,7 @@ fn bekleyen_satir(r: &Row) -> rusqlite::Result<Bekleyen> {
     })
 }
 
-fn sms_son_satir(r: &Row) -> rusqlite::Result<SmsSon> {
+pub(crate) fn sms_son_satir(r: &Row) -> rusqlite::Result<SmsSon> {
     Ok(SmsSon { musteri: r.get("musteri")?, zaman: r.get("zaman")?, saglayici: r.get("saglayici")?, sonuc: r.get("sonuc")?, kod: r.get("kod")? })
 }
 

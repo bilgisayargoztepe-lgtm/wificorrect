@@ -630,7 +630,7 @@ pub fn gun_haritasi(grup: &[(String, PathBuf)]) -> BTreeMap<String, Girdi> {
 }
 
 /// `iz` verilirse ham aynı sırla yazılmış olmalı (sır izi tutmalı).
-fn ham_gecerli(h: &Value, iz: Option<&str>) -> bool {
+pub(crate) fn ham_gecerli(h: &Value, iz: Option<&str>) -> bool {
     let liste = |k: &str| h.get(k).map(Value::is_array).unwrap_or(false);
     let nesne = |k: &str| h.get(k).map(Value::is_object).unwrap_or(false);
     h.is_object()
@@ -662,7 +662,6 @@ pub struct GunMeta {
     pub imza: String,
     /// Yalnızca geçerli sürüm metni.
     pub surum: Option<String>,
-    pub farkli: usize,
     pub dosya_ok: bool,
     /// Boş olmayan metin; yoksa None.
     pub manifest_sha: Option<String>,
@@ -688,7 +687,6 @@ fn ozet_ekle(ozet: &mut Ozet, g: &str, h: &Value) {
         GunMeta {
             imza: h["imza"].as_str().unwrap_or_default().to_string(),
             surum: h.get("surum").and_then(Value::as_str).filter(|v| surum_gecerli(v)).map(str::to_string),
-            farkli: m.len(),
             dosya_ok: h.get("dosya_ok") == Some(&Value::Bool(true)),
             manifest_sha: h.get("manifest_sha").and_then(Value::as_str).filter(|s| !s.is_empty()).map(str::to_string),
         },

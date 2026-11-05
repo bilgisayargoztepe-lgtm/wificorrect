@@ -78,6 +78,7 @@ pub struct Kayit {
 
 // Derleme anında: Kayit Send olsaydı iki uygulama da uyar, `<Kayit as SendIse<_>>` belirsiz kalır ve derleme durur
 // (static_assertions'ın assert_not_impl_any! yöntemi).
+#[allow(dead_code)] // yalnızca derleme anı iddiası (aşağıdaki const bloğu); hiç çağrılmaz
 trait SendIse<A> {
     fn yok() {}
 }
@@ -1100,3 +1101,7 @@ mod testler {
         assert_eq!(rastgele::token_hex(16), "b0b98249afed054d2391c43341da71fb");
     }
 }
+
+#[cfg(test)]
+#[path = "altin_kullanim_testler.rs"]
+mod kullanim_testler;

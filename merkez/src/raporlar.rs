@@ -6,7 +6,7 @@
 //!
 //! Python'dan fark (spec bilinçli fark 6): yalnızca güncel biçim (2) okunur; biçim 1 (alan adı listeli) dosya yok sayılır.
 use std::fmt::Display;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use chrono::{Datelike, Duration, NaiveDate, TimeZone};
 use serde_json::Value;
@@ -94,7 +94,7 @@ pub struct ListeOgesi {
     pub kayit_tam: u64,
 }
 
-fn liste_ogesi(x: &Value) -> Option<ListeOgesi> {
+pub(crate) fn liste_ogesi(x: &Value) -> Option<ListeOgesi> {
     let (tur, donem) = (x.get("tur")?.as_str()?, x.get("donem")?.as_str()?);
     if !donem_gecerli(tur, donem) {
         return None;
@@ -230,6 +230,7 @@ impl Default for Raporlar {
 }
 
 impl Raporlar {
+    #[cfg(test)]
     pub fn new(dizin: impl Into<PathBuf>) -> Raporlar {
         Raporlar { dizin: dizin.into() }
     }
@@ -258,10 +259,6 @@ impl Raporlar {
             return None;
         }
         normal_rapor(&self.oku(&numara.to_string(), &format!("{tur}-{donem}.json"))?, tur, donem)
-    }
-
-    pub fn dizin(&self) -> &Path {
-        &self.dizin
     }
 }
 

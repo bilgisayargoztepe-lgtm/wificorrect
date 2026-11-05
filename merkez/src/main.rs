@@ -1,12 +1,11 @@
 //! WifiCorrect yönetim merkezi (Rust). Python merkezinin (scripts/sunucu/merkez/) davranışı aynen taşınır.
-// İskelet: modüllerin çoğu sonraki görevlerde kullanılır.
-#![allow(dead_code)]
 
 #[cfg(test)]
 mod altin;
 mod ap;
 mod api;
 mod cihaz;
+mod denetle;
 mod detay;
 mod durum;
 mod guvenlik;
@@ -46,8 +45,9 @@ fn main() {
         Some("yonetici") => std::process::exit(yonetici::main_uretim(&args[1..])),
         Some("durum") => std::process::exit(durum::main_uretim()),
         Some("saglik") => std::process::exit(saglik::main_uretim()),
+        Some("veritabani-denetle") => std::process::exit(denetle::main_uretim(&args[1..])),
         _ => {
-            eprintln!("Kullanım: wificorrect-merkez surum|sunucu|kuyruk|istatistik|listeler|surumler|yonetici|durum|saglik");
+            eprintln!("Kullanım: wificorrect-merkez surum|sunucu|kuyruk|istatistik|listeler|surumler|yonetici|durum|saglik|veritabani-denetle");
             std::process::exit(2);
         }
     }

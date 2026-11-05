@@ -7,7 +7,6 @@ description = "WifiCorrect yönetim merkezi (Python merkezinin Rust karşılığ
 publish = false
 
 [dependencies]
-tiny_http = "0.12"
 serde = { version = "1", features = ["derive"] }
 # preserve_order: save_json Python gibi anahtar sırasını korur
 serde_json = { version = "1", features = ["preserve_order"] }

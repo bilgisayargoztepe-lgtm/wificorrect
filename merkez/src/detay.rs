@@ -103,6 +103,7 @@ fn saat_deger(s: &str) -> String {
 }
 
 /// ISO zamandan HH:MM; cihazdan gelen alan biçimsizse boş (çıktı hiçbir zaman işaretleme taşımaz).
+#[cfg(test)]
 pub fn saat(z: &str) -> String {
     saat_deger(z)
 }

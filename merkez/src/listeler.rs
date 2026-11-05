@@ -557,10 +557,6 @@ impl Uretici {
     }
 }
 
-pub fn uret(kategori: &str, t: &dyn Tasiyici, dizin: &Path, simdi: f64) -> Result<Map<String, Value>, String> {
-    Uretici::varsayilan().uret(kategori, t, dizin, simdi)
-}
-
 #[allow(clippy::too_many_arguments)]
 pub fn calistir(veri: &Veri, t: &dyn Tasiyici, dizin: &Path, simdi: f64, kim: &str, ip: &str, bekle: bool) -> Result<i32, Mesgul> {
     Uretici::varsayilan().calistir(veri, t, dizin, simdi, kim, ip, bekle)

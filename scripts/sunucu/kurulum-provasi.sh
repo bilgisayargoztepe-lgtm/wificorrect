@@ -161,7 +161,7 @@ caddy_duman() {
   # beklenen kodlar: bir istek 000 (Caddy'ye ulaşılamadı) ise duman anlamsız
   if grep -qx 'durum=' "$CD_CIKTI" || grep -qx 'durum=000' "$CD_CIKTI"; then cat "$CD_CIKTI"; echo "bir istek cevap almadı"; return 1; fi
   bitis=$((SECONDS + 10))
-  until journalctl -u wc-merkez --no-pager -o cat --since "-3min" 2>/dev/null | grep -qE "^GIRIS_HATALI alan=yonetim kullanici='$kul' ip=127\.0\.0\.1$"; do
+  until journalctl -u wc-merkez --no-pager -o cat --since "-3min" 2>/dev/null | grep -qE "^GIRIS_HATALI alan=yonetici kullanici='$kul' ip=127\.0\.0\.1$"; do
     [ "$SECONDS" -lt "$bitis" ] || { journalctl -u wc-merkez --no-pager -o cat --since "-3min" | grep GIRIS_ | tail -n 5; echo "GIRIS_HATALI satırı ip=127.0.0.1 ile bitmiyor ya da yok ($asama)"; return 1; }
     sleep 0.5
   done

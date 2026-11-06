@@ -63,7 +63,7 @@ kaydedilen altın kayıtlarla (`merkez/tests/altin/`) sabit; bilinçli farklar `
 denetim TAMAM, geçiş hatasız, 9 dış istek Python'la aynı, iki cihazın raporu (Göztepe 15:10:13, Visavis 15:10:34), ilk sağlık turu (15:14:31), yönetim, cihaz paneli ve AP
 (kullanıcı), gerçek doğrulama SMS'i (Göztepe 15:14:42, kullanıcının kendi numarası ve onayıyla). **Python dosyaları sunucuda duruyor, geri dönüş açık:** Python'a dönüş
 `--geri-don 20261106-150951` ("(Python)" işaretli dizin; yukarıda "Merkez kurulumu"), veritabanı yedekleri `merkez.db.yedek-20261106-150802` ve `-150951`.
-**Kalanlar:** (1) bir hafta izleme, 2026-11-13'e kadar (birimler, sağlık turları, journal'da `HATA`/`panicked`, fail2ban); (2) cihaz temizliği 0.4.30 (plan Task 15, kullanıcı
+**Kalanlar:** (1) bir hafta izleme, 2026-11-13'e kadar (birimler, sağlık turları, journal'da `HATA`/`panicked`, fail2ban); (2) cihaz temizliği 0.4.30 (plan Task 15, dal `cihaz-temizlik`, KURULUM_GUNLUGU "Cihaz temizliği"; yayın kullanıcı
 onayıyla; `ap_arayuz::tests::https_aktarimi_gercek_tls` CI'da bir kez AddrInUse ile düştü, sabit port yerine 0'a bağlansın); (3) 2026-11-13'ten sonra kullanıcı onayıyla Python'un
 silinmesi ve belgeler (plan Task 16; sunucudaki `/usr/local/lib/wificorrect/*.py`, `logo/` ve `/usr/local/sbin/wc-*` bağları dahil; `kurulum-provasi.sh`'nin Python adımları da kalkar),
 kalan sadeleştirme (`final-review.md` "Sadeleştirme adayları": dört atomik yazıcı, iki `chown_grup`, `yonetim.rs` bölme…; kullanıcı "kodları sadeleştir" dedi, bu iş ona sayılır) ve

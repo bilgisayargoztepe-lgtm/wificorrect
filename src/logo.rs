@@ -1,9 +1,9 @@
 //! wificorrect_ logosu ve sekme simgesi (2026-10-24, kullanıcının logo kiti: Desktop/logo; harfler yola çevrilmiş, yazı tipi
-//! gerekmez). Dosyalar `src/sablon/logo/` altında; merkezde aynıları `scripts/sunucu/merkez/logo/` (merkez testi ikisinin aynı
-//! olduğunu denetler). Sayfaya gömülür: panelin CSP'si (`img-src data:`) ve merkezin cihaz bloğundaki CSP dosya sunmaya izin
+//! gerekmez). Dosyalar `src/sablon/logo/` altında; Rust merkez de bunları gömer (Python silinene kadar
+//! `scripts/sunucu/merkez/logo/`'da kopyası durur). Sayfaya gömülür: panelin CSP'si (`img-src data:`) ve merkezin cihaz bloğundaki CSP dosya sunmaya izin
 //! vermez, satır içi SVG ve `data:` simgesi CSP'ye takılmaz (cihaz ile merkez hangi sırayla güncellenirse güncellensin).
 //! Yerleşim: sol şeritte W_ işareti, oturumsuz sayfalarda beyaz şeritte ve giriş sayfasının alt bilgisinde açık zemin logosu
-//! (`logo-koyu.svg` ve `w-koyu.svg` merkezle aynı kalsın diye klasörde duruyor, cihaz kullanmıyor).
+//! (`logo-koyu.svg` yalnızca merkezde kullanılır; `w-koyu.svg` yalnızca Python'un kopya testi için duruyor, Python silinince gider).
 
 use std::sync::OnceLock;
 

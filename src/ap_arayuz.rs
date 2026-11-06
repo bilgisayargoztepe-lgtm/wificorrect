@@ -1219,8 +1219,10 @@ mod tests {
         assert!(ok, "openssl ile deneme sertifikası üretilemedi");
         let ssl = tiny_http::SslConfig { certificate: std::fs::read(&c).unwrap(), private_key: std::fs::read(&k).unwrap() };
         let _ = std::fs::remove_dir_all(&d);
-        let port = TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();
-        (tiny_http::Server::https(("127.0.0.1", port), ssl).unwrap(), ([127, 0, 0, 1], port).into())
+        // port 0'ı doğrudan sunucu bağlar: bir dinleyiciyi bırakıp aynı numarayı yeniden bağlamak paralel testlerle yarışırdı
+        let sunucu = tiny_http::Server::https("127.0.0.1:0", ssl).unwrap();
+        let adres = sunucu.server_addr().to_ip().unwrap();
+        (sunucu, adres)
     }
 
     /// Sahte 443 (aktarımın TLS'iyle konuşamayan cihaz): her bağlantıda ClientHello'yu okur, sonra `cevap`ı yazar ve

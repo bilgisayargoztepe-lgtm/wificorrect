@@ -2,15 +2,13 @@
 //! gerekmez). Dosyalar `src/sablon/logo/` altında; merkezde aynıları `scripts/sunucu/merkez/logo/` (merkez testi ikisinin aynı
 //! olduğunu denetler). Sayfaya gömülür: panelin CSP'si (`img-src data:`) ve merkezin cihaz bloğundaki CSP dosya sunmaya izin
 //! vermez, satır içi SVG ve `data:` simgesi CSP'ye takılmaz (cihaz ile merkez hangi sırayla güncellenirse güncellensin).
-//! Yerleşim yönetimdeki gibi: sol menünün üstünde koyu zemin logosu, oturumsuz sayfalarda beyaz şeritte açık zemin logosu
-//! (`w-koyu.svg` merkezle aynı kalsın diye klasörde duruyor, cihaz kullanmıyor).
+//! Yerleşim: sol şeritte W_ işareti, oturumsuz sayfalarda beyaz şeritte ve giriş sayfasının alt bilgisinde açık zemin logosu
+//! (`logo-koyu.svg` ve `w-koyu.svg` merkezle aynı kalsın diye klasörde duruyor, cihaz kullanmıyor).
 
 use std::sync::OnceLock;
 
 /// Açık zemin: antrasit "wifi" + mercan "correct_" (oturumsuz sayfaların beyaz üst şeridi)
 const LOGO_ACIK: &str = include_str!("sablon/logo/logo-acik.svg");
-/// Koyu zemin: beyaz "wifi" + mercan "correct_" (sol menü ve telefondaki üst şerit)
-const LOGO_KOYU: &str = include_str!("sablon/logo/logo-koyu.svg");
 /// Sekme simgesi: W_ uygulama ikonu (SVG destekleyen tarayıcılar) ve 32 px PNG (ötekiler)
 const FAVICON_SVG: &str = include_str!("sablon/logo/favicon.svg");
 const FAVICON_PNG: &[u8] = include_bytes!("sablon/logo/favicon-32.png");
@@ -51,12 +49,6 @@ fn marka(svg: &str) -> String {
     format!("<a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{}</a>", sinifli(svg, "logo"))
 }
 
-/// Koyu zemin için logo bağlantısı: sol menünün üstü ve telefondaki üst şerit (panel.html `.marka`).
-pub fn marka_koyu() -> &'static str {
-    static HTML: OnceLock<String> = OnceLock::new();
-    HTML.get_or_init(|| marka(LOGO_KOYU))
-}
-
 /// Açık zemin için logo bağlantısı: oturumsuz sayfaların beyaz üst şeridi (yönetimin giriş sayfası gibi).
 pub fn marka_acik() -> &'static str {
     static HTML: OnceLock<String> = OnceLock::new();
@@ -90,13 +82,12 @@ mod tests {
 
     #[test]
     fn dosyalar_gecerli_ve_renkler_kitteki_gibi() {
-        for svg in [LOGO_ACIK, LOGO_KOYU, FAVICON_SVG] {
+        for svg in [LOGO_ACIK, FAVICON_SVG] {
             assert!(svg.trim_start().starts_with("<svg ") && svg.trim_end().ends_with("</svg>") && svg.contains("viewBox="), "{svg}");
             assert!(!svg.contains("<script") && !svg.contains("href="), "SVG dışarıya bağlanmaz ve betik taşımaz");
         }
-        // açık zemin: antrasit "wifi"; koyu zemin: beyaz "wifi"; ikisinde de mercan "correct_"; ikon antrasit zeminli
+        // açık zemin: antrasit "wifi" + mercan "correct_"; ikon antrasit zeminli
         assert!(LOGO_ACIK.contains("#293133") && LOGO_ACIK.contains("#FF6247"));
-        assert!(LOGO_KOYU.contains("#FFFFFF") && LOGO_KOYU.contains("#FF6247") && !LOGO_KOYU.contains("#293133"));
         assert!(FAVICON_SVG.contains("fill=\"#293133\"") && FAVICON_SVG.contains("skewX"), "W_ ikonu (alt çizgili)");
         assert!(FAVICON_PNG.starts_with(b"\x89PNG\r\n\x1a\n"));
     }
@@ -107,9 +98,8 @@ mod tests {
         assert!(f.contains("rel=\"icon\" type=\"image/png\" sizes=\"32x32\" href=\"data:image/png;base64,iVBORw0KGgo"), "{f}");
         assert!(f.contains("type=\"image/svg+xml\" href=\"data:image/svg+xml;base64,PHN2Zy"), "{f}");
         assert!(f.find("image/png").unwrap() < f.find("image/svg+xml").unwrap());
-        for (m, renk) in [(marka_koyu(), "#FFFFFF"), (marka_acik(), "#293133")] {
-            assert!(m.starts_with("<a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\"><svg class=\"logo\" aria-hidden=\"true\" focusable=\"false\" "), "{m}");
-            assert!(m.ends_with("</svg></a>") && m.matches("<svg ").count() == 1 && m.contains(renk), "{m}");
-        }
+        let m = marka_acik();
+        assert!(m.starts_with("<a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\"><svg class=\"logo\" aria-hidden=\"true\" focusable=\"false\" "), "{m}");
+        assert!(m.ends_with("</svg></a>") && m.matches("<svg ").count() == 1 && m.contains("#293133"), "{m}");
     }
 }

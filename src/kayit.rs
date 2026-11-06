@@ -1,4 +1,4 @@
-//! Kayıtları okuma, resmi talep araması ve talep paketi (eski ctl.py `ara` / `disa-aktar`, panel Loglar / Kullanıcılar / Resmi talep).
+//! Kayıtları okuma, resmi talep araması ve talep paketi (`ctl ara` / `ctl disa-aktar`, panel Kayıtlar / Kullanıcılar / Resmi talep).
 //! Yalnızca okur: mühürlü `.csv.gz` dosyalar açılıp okunur, hiçbir kayıt değiştirilmez.
 
 use crate::ayar::Config;

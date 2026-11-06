@@ -43,16 +43,6 @@ pub(super) fn sade_sayfa(durum: u16, baslik: &str, mesaj: &str, baglanti: bool) 
     Resp { status: durum, body, headers: vec![("Content-Type".into(), "text/html; charset=utf-8".into())], file: None }
 }
 
-/// Merkez eski sürümdeyse `/_ap-gecis` merkeze değil cihaza gelir (normal panel isteği olarak)
-pub(super) fn gecis_yok() -> Resp {
-    sade_sayfa(
-        503,
-        "AP erişimi şu an kullanılamıyor",
-        "Yönetim merkezi AP arayüzü geçişini henüz desteklemiyor. Hizmet sağlayıcınıza başvurun; AP'ye bilgisayardan betikle (ap-ac) girilebilir.",
-        false,
-    )
-}
-
 impl Panel {
     /// `X-WFC-AP: 1` başlıklı istek: aktarım mı, sade cevap mı, yoksa (başlık güvenilmez) normal panel isteği mi.
     /// Merkez AP kipinde de müşteri numarasını gönderir (yönetici geçişinde de): bağlı müşteri değilse 403.

@@ -1,4 +1,4 @@
-//! Müşteri giriş portalı (eski portal.py; docs/MASTER_ENGINEERING.md §11, RUST_YENIDEN_YAZIM.md A4).
+//! Müşteri giriş portalı (docs/MASTER_ENGINEERING.md §11, docs/RUST_YENIDEN_YAZIM.md A4).
 //! Akış: form → hız sınırları → SMS kodu → doğrulama → nft yetkisi + oturum + 5651 kayıtları.
 
 use crate::ag;

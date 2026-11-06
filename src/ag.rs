@@ -1,4 +1,4 @@
-//! Port görevleri ve Wi-Fi yayını (eski ports.py + port-geri-al.sh; RUST_YENIDEN_YAZIM.md A2 #10, A10 Portlar).
+//! Port görevleri ve Wi-Fi yayını (docs/RUST_YENIDEN_YAZIM.md A2 #10, A10 Portlar).
 //! Tek kaynak `/etc/wificorrect/ag.toml`; ağ dosyaları ondan üretilir (ifupdown, nft WAN adı, hostapd, konsol yazısı).
 //! Değişiklik: geri alma zamanlayıcısı (3 dk) kurulur, sonra ağ değişir; panelden "Onayla" denmezse eski ayar döner.
 //! Bekleyen değişiklik varken cihaz yeniden açılırsa açılışta eski ayar geri yüklenir (fişi çekmek de kurtarır).

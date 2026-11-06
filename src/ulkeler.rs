@@ -223,11 +223,6 @@ pub fn mask_phone(e164: &str) -> String {
     format!("+{cc} {}{}", "X".repeat(keep), &national[keep..])
 }
 
-/// Türk numarası mı (NetGSM yalnızca bunlara gönderir).
-pub fn is_tr(e164: &str) -> bool {
-    e164.starts_with("90") && e164.len() == 12
-}
-
 /// Portal formundaki ülke listesi; değerler ISO kodu, gösterim "🇹🇷 +90 Türkiye".
 pub fn options_html(selected: &str) -> String {
     ULKELER
@@ -272,7 +267,6 @@ mod tests {
         assert_eq!(mask_phone("905334553132"), "+90 5XX XXX XX 32");
         assert_eq!(mask_phone("4915123456789"), "+49 XXXXXXXXX89");
         assert_eq!(flag("TR"), "🇹🇷");
-        assert!(is_tr("905334553132") && !is_tr("4915123456789"));
         let html = options_html("TR");
         assert!(html.starts_with("<option value=\"TR\" selected>🇹🇷 +90 Türkiye</option>"));
         assert_eq!(html.matches(" selected").count(), 1);

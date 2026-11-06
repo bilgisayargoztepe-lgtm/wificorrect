@@ -1,4 +1,4 @@
-//! 5651 kaydedici (eski logger.py; docs/MASTER_ENGINEERING.md §14, RUST_YENIDEN_YAZIM.md A7).
+//! 5651 kaydedici (docs/MASTER_ENGINEERING.md §14, docs/RUST_YENIDEN_YAZIM.md A7).
 //! conntrack olayları → trafik.csv, dnsmasq sorguları (journald) → dns.csv, her ikisi kişinin günlük dosyasına;
 //! 30 sn'de bir oturum bakımı (süre dolumu, IP değişimi, IP başkasına verildi), disk doluluğu.
 //! Wi-Fi takılma bekçisi (A9) Wi-Fi açılınca eklenecek.
@@ -980,12 +980,10 @@ mod tests {
                 assert!(!f.orig.bytes.is_empty(), "nf_conntrack_acct kapalı mı? {l}");
             }
         }
-        for text in [include_str!("../tests/fixtures/dnsmasq-openwrt.txt"), include_str!("../tests/fixtures/dnsmasq-debian.txt")] {
-            let q: Vec<&str> = text.lines().filter(|l| l.contains("query[")).collect();
-            assert!(!q.is_empty());
-            for l in q {
-                assert!(parse_dns(l).is_some(), "{l}");
-            }
+        let q: Vec<&str> = include_str!("../tests/fixtures/dnsmasq-debian.txt").lines().filter(|l| l.contains("query[")).collect();
+        assert!(!q.is_empty());
+        for l in q {
+            assert!(parse_dns(l).is_some(), "{l}");
         }
     }
 

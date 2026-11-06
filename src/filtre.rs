@@ -1,4 +1,4 @@
-//! Yasaklı siteler ve kelimeler (eski dns-filtre.sh; RUST_YENIDEN_YAZIM.md "yasaklı kelimeler ve siteler" modülü).
+//! Yasaklı siteler ve kelimeler (docs/RUST_YENIDEN_YAZIM.md "yasaklı kelimeler ve siteler" modülü).
 //! - Site (ör. bet365.com): alan adı ve bütün alt adları → dnsmasq `address=/site/` (NXDOMAIN; sorgu DNS kaydına düşer).
 //! - Kelime (ör. bet): alan adının herhangi bir parçasında geçerse → müşteri DNS sorgusu güvenlik duvarında reddedilir
 //!   (iptables-nft + xt_string; dnsmasq kelime ortası eşleştiremez). İstisna kelimesi geçen sorgu kelime filtresinden geçer.

@@ -1,4 +1,4 @@
-//! Yönetim komutları (eski ctl.py). Bu adımda: dhcp-olay, yukle, oturumlar. Diğerleri (gun-kapat, yedekle, ara...) sonraki adımlarda.
+//! Yönetim komutları (`wificorrect ctl ...`): dhcp-olay, yukle, oturumlar, mühürleme ve yedek, kayıt arama, ağ, PPPoE, AP, filtre, güncelleme ve merkez komutları.
 
 use crate::ayar::Config;
 use crate::ortak::{self, Row, Runner};
@@ -160,7 +160,6 @@ fn ap_adres_kaldir(cfg: &Config, y: &crate::ap::Yollar, args: &[String], ip_oku:
         eprintln!("Kullanım: wificorrect ctl ap-adres-kaldir <elle|sure> [KIMLIK]");
         return ExitCode::from(2);
     };
-    runner(&crate::ap::eski_adres_temizle(&cfg.main.iface)); // 0.4.11'den kalan zamanlayıcı (ana ad alanındaki adres)
     match crate::ap::kaldir(y, neden, kimlik, ip_oku, runner) {
         Ok(Some(k)) => {
             let hata = k.hata.map_or(String::new(), |h| format!(" hata={h}"));
@@ -587,16 +586,6 @@ fn ap_parola_kaydet(merkez_path: &std::path::Path, yeni: &str, denetim: &dyn Fn(
     }
 }
 
-/// `ayar::Config::eski_sirlari_temizle` (postinst ve açılış): hata tek satır, çıkış etkilenmez.
-fn eski_sirlari_temizle() {
-    let cfg_path = std::env::var("WFC_AYAR").unwrap_or_else(|_| crate::ayar::PATH.to_string());
-    match Config::eski_sirlari_temizle(&cfg_path) {
-        Ok(true) => println!("ayar dosyasındaki eski SMS bilgileri silindi"),
-        Ok(false) => {}
-        Err(e) => eprintln!("eski SMS bilgileri silinemedi: {e}"),
-    }
-}
-
 pub fn run(cfg: Config, args: &[String]) -> ExitCode {
     let runner = |c: &[String]| ortak::run(c);
     let now = ortak::wall();
@@ -608,7 +597,6 @@ pub fn run(cfg: Config, args: &[String]) -> ExitCode {
             ExitCode::SUCCESS
         }
         Some("yukle") => {
-            eski_sirlari_temizle(); // paket kurulumunda yapılamadıysa açılışta
             println!("{} oturum geri yüklendi", yukle(&cfg, now, &runner));
             if let Some(a) = ap_acilis(&cfg, &crate::ap::Yollar::sistem(), &|c: &[&str]| ortak::capture(c), now) {
                 println!("AP yan odası {a} artık yok; durum temizlendi");
@@ -622,11 +610,6 @@ pub fn run(cfg: Config, args: &[String]) -> ExitCode {
         Some("ap-dhcp-denetle") => ap_dhcp_denetle(&cfg),
         // Panel → AP kurulumu → Takılan cihaz: "Bağlan" / "Otomatik bul" (systemd-run --unit wfc-ap-bul)
         Some("ap-bul") => ap_bul(&cfg, args),
-        // Paket kurulumu (postinst): 0.4.8 öncesinden ayar dosyasında kalan SMS sırları
-        Some("ayar-temizle") => {
-            eski_sirlari_temizle();
-            ExitCode::SUCCESS
-        }
         Some("oturumlar") => {
             oturumlar(&cfg, now);
             ExitCode::SUCCESS
@@ -994,7 +977,7 @@ pub fn run(cfg: Config, args: &[String]) -> ExitCode {
         _ => {
             eprintln!(
                 "Kullanım: wificorrect ctl <komut>\n  dhcp-olay <add|old|del> <mac> <ip> [ad]\n  yukle\n  oturumlar\n  \
-                 gun-kapat [YYYY-AA-GG] [--zorla]\n  dogrula [--son N]\n  temizle [--kuru]\n  yedekle\n  saat\n  ara ...  (ayrıntı: ctl ara)\n  disa-aktar --baslangic G --bitis G --cikti DOSYA\n  ag-uygula | ag-gecis DOSYA | ag-onayla | ag-geri-al | ag-ilk\n  pppoe-hazirla | pppoe-temizle | pppoe-peers AG.TOML ARAYUZ | pppoe-servis DOSYA\n  ayar-temizle\n  filtre-uygula\n  liste-uygula | liste-guncelle\n  hiz-uygula\n  admin-parola\n  merkez-eslesme\n  saglik\n  guncelle\n  ap-adres-ekle a.b.c.d/önek [--sure SN]  (AP yan odası)\n  ap-adres-kaldir <elle|sure> [KIMLIK]\n  ap-dhcp-denetle\n  ap-bul KIM ROL IP [HEDEF]"
+                 gun-kapat [YYYY-AA-GG] [--zorla]\n  dogrula [--son N]\n  temizle [--kuru]\n  yedekle\n  saat\n  ara ...  (ayrıntı: ctl ara)\n  disa-aktar --baslangic G --bitis G --cikti DOSYA\n  ag-uygula | ag-gecis DOSYA | ag-onayla | ag-geri-al | ag-ilk\n  pppoe-hazirla | pppoe-temizle | pppoe-peers AG.TOML ARAYUZ | pppoe-servis DOSYA\n  filtre-uygula\n  liste-uygula | liste-guncelle\n  hiz-uygula\n  admin-parola\n  merkez-eslesme\n  saglik\n  guncelle\n  ap-adres-ekle a.b.c.d/önek [--sure SN]  (AP yan odası)\n  ap-adres-kaldir <elle|sure> [KIMLIK]\n  ap-dhcp-denetle\n  ap-bul KIM ROL IP [HEDEF]"
             );
             ExitCode::from(2)
         }
@@ -1534,8 +1517,6 @@ mod tests {
         assert!(!y.gecici.exists() && denetim().contains("kapandi adres=192.168.1.250/24 neden=sure"));
         assert!(!y.hedef.exists());
         assert!(denetim().lines().any(|l| l.contains("AP_ARAYUZ") && l.contains("kullanici=4511643 rol=sahip") && l.contains("kapandi hedef=192.168.1.1:80 yol=yan_oda neden=yan_oda")), "{}", denetim());
-        let eski = a(&["ip", "addr", "flush", "dev", "br-hotspot", "label", "br-hotspot:ap"]);
-        assert!(calls.lock().unwrap().iter().any(|x| *x == eski)); // 0.4.11'in köprüdeki adresi de kalkar
         assert_eq!(kod(ap_adres_kaldir(&c, &y, &a(&["ap-adres-kaldir", "fabrika"]), &ip_var, &runner, NOW)), kod(ExitCode::from(2)));
         // yeniden başlatma: dosya kaldı, aracı yok → yukle temizler, neden=acilis
         assert_eq!(kod(ap_adres_ekle(&c, &y, &a(&["ap-adres-ekle", "192.168.1.250/24"]), &ip_yok, &runner, NOW)), kod(ExitCode::SUCCESS));

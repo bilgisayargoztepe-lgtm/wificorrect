@@ -1,5 +1,5 @@
-//! Ayar dosyası (/etc/wificorrect/ayarlar.toml). Eski UCI `hotspot` yapılandırmasının karşılığı;
-//! bölüm ve anahtar adları docs/MASTER_ENGINEERING.md §8 ile aynı. Eksik anahtar varsayılanı alır.
+//! Ayar dosyası (/etc/wificorrect/ayarlar.toml): bölüm ve anahtar adları docs/MASTER_ENGINEERING.md §8 ile aynı.
+//! Eksik anahtar varsayılanı alır, bilinmeyen bölüm ve anahtar yok sayılır.
 
 use serde::{Deserialize, Serialize};
 
@@ -133,22 +133,6 @@ pub struct PortalMetin {
     pub aydinlatma_en: String,
     pub acik_riza_en: String,
     pub sozlesme_en: String,
-}
-
-/// 0.4.11 ve öncesinin varsayılan aydınlatma metninin (veri sorumlusu sabit "Göztepe Bilgisayar") sha256'sı (kırpılmış).
-/// Panel her kayıtta bütün ayarları yazdığı için eski varsayılan çoğu cihazın ayar dosyasında durur.
-const ESKI_AYDINLATMA_SHA: &str = "4b2efded1040a72a2f9e39b28e1406bf70ef76356876736abd6f09e2f1dec7c1";
-
-impl PortalMetin {
-    /// Kayıtlı aydınlatma metni eski ürün varsayılanının aynısıysa yeni (işletmeden bağımsız) varsayılanla değişir;
-    /// işletmenin düzenlediği metne dokunulmaz.
-    fn eski_varsayilani_guncelle(&mut self) {
-        use sha2::{Digest, Sha256};
-        let ozet: String = Sha256::digest(self.aydinlatma.trim().as_bytes()).iter().map(|x| format!("{x:02x}")).collect();
-        if ozet == ESKI_AYDINLATMA_SHA {
-            self.aydinlatma = PortalMetin::default().aydinlatma;
-        }
-    }
 }
 
 impl Default for PortalMetin {
@@ -308,9 +292,7 @@ pub struct Config {
 
 impl Config {
     pub fn parse(text: &str) -> Result<Config, String> {
-        let mut c: Config = toml::from_str(text).map_err(|e| format!("ayar dosyası okunamadı: {e}"))?;
-        c.portal.eski_varsayilani_guncelle();
-        Ok(c)
+        toml::from_str(text).map_err(|e| format!("ayar dosyası okunamadı: {e}"))
     }
 
     /// Panelden kayıt: atomik, izin 600. ponytail: dosyadaki yorumlar korunmaz (örnek dosyada duruyor).
@@ -322,20 +304,6 @@ impl Config {
     pub fn load(path: &str) -> Result<Config, String> {
         let text = std::fs::read_to_string(path).map_err(|e| format!("{path} açılamadı: {e}"))?;
         Self::parse(&text)
-    }
-
-    /// 0.4.8 öncesinden kalan SMS sırları ve ayarları (`[netgsm]`, `[twilio]`, `[sms]` altında `provider` / `merkez`;
-    /// SMS artık merkezden gider): dosyada varsa ayarlar bir kez yeniden yazılır (atomik, 600; diğer ayarlar aynen).
-    /// Paket kurulumunda (postinst) ve açılışta (`ctl yukle`) çağrılır. Dönen: dosya yeniden yazıldı mı.
-    pub fn eski_sirlari_temizle(path: &str) -> Result<bool, String> {
-        let text = std::fs::read_to_string(path).map_err(|e| format!("{path} açılamadı: {e}"))?;
-        let ham: toml::Table = text.parse().map_err(|e| format!("ayar dosyası okunamadı: {e}"))?;
-        let sms_eski = ham.get("sms").and_then(toml::Value::as_table).is_some_and(|s| s.contains_key("provider") || s.contains_key("merkez"));
-        if !(ham.contains_key("netgsm") || ham.contains_key("twilio") || sms_eski) {
-            return Ok(false);
-        }
-        Self::parse(&text)?.save(path)?;
-        Ok(true)
     }
 
     /// Geçerli MAC'li girdiler: {mac: ad}.
@@ -373,43 +341,6 @@ mod tests {
     }
 
     #[test]
-    fn eski_sirlar_dosyadan_silinir() {
-        use std::os::unix::fs::PermissionsExt;
-        let d = std::env::temp_dir().join(format!("wfc-ayar-sir-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&d);
-        std::fs::create_dir_all(&d).unwrap();
-        let p = d.join("ayarlar.toml");
-        let ps = p.to_str().unwrap();
-        let eski = "# yorum\n[main]\nsite_name = 'Bocafe'\nsession_minutes = 1440\n[sms]\nmock = false\nprovider = 'twilio'\nmerkez = true\n\
-                    [netgsm]\nusercode = '850'\npassword = 'gizli-1'\n[twilio]\nenabled = true\nauth_token = 'gizli-2'\n\
-                    [[allow]]\nmac = 'aa:bb:cc:dd:ee:99'\nname = 'AP'\n";
-        std::fs::write(&p, eski).unwrap();
-        std::fs::set_permissions(&p, std::fs::Permissions::from_mode(0o644)).unwrap();
-        assert_eq!(Config::eski_sirlari_temizle(ps), Ok(true));
-        let yeni = std::fs::read_to_string(&p).unwrap();
-        for yok in ["gizli-1", "gizli-2", "[netgsm]", "[twilio]", "provider =", "merkez ="] {
-            assert!(!yeni.contains(yok), "{yok}");
-        }
-        let c = Config::load(ps).unwrap();
-        assert_eq!((c.main.site_name.as_str(), c.main.session_minutes, c.sms.mock, c.allow.len()), ("Bocafe", 1440, false, 1));
-        assert_eq!(std::fs::metadata(&p).unwrap().permissions().mode() & 0o777, 0o600);
-        // temiz dosyaya dokunulmaz (yorumlar kalır)
-        let temiz = "# yorum\n[main]\nsite_name = 'X'\n[sms]\nmock = true\n";
-        std::fs::write(&p, temiz).unwrap();
-        assert_eq!(Config::eski_sirlari_temizle(ps), Ok(false));
-        assert_eq!(std::fs::read_to_string(&p).unwrap(), temiz);
-        // yalnızca [sms] altındaki eski anahtar da yeter; bozuk dosya hata, dokunulmaz
-        std::fs::write(&p, "[sms]\nmock = false\nmerkez = true\n").unwrap();
-        assert_eq!(Config::eski_sirlari_temizle(ps), Ok(true));
-        assert!(!std::fs::read_to_string(&p).unwrap().contains("merkez ="));
-        std::fs::write(&p, "[main\n[netgsm]\n").unwrap();
-        assert!(Config::eski_sirlari_temizle(ps).is_err());
-        assert_eq!(std::fs::read_to_string(&p).unwrap(), "[main\n[netgsm]\n");
-        assert!(Config::eski_sirlari_temizle(d.join("yok.toml").to_str().unwrap()).is_err());
-        let _ = std::fs::remove_dir_all(&d);
-    }
-
-    #[test]
     fn aydinlatma_isletmeden_bagimsiz() {
         // ürünle gelen metinlerde belirli bir işletme yok; veri sorumlusu unvan yer tutucusu
         let d = PortalMetin::default();
@@ -427,20 +358,8 @@ mod tests {
         // iletişim alanları boş başlar (kodda işletmeye özel varsayılan yok)
         let m = Main::default();
         assert!(m.adres.is_empty() && m.telefon.is_empty() && m.eposta.is_empty() && m.kep.is_empty());
-        // eski varsayılan kayıtlıysa yenisiyle değişir (kaydedilen dosyada da)
-        let eski = include_str!("../tests/fixtures/aydinlatma-0.4.11.txt").trim();
-        let mut c = Config::default();
-        c.portal.aydinlatma = eski.into();
-        let yazi = toml::to_string_pretty(&c).unwrap();
-        assert!(yazi.contains("info@goztepebilgisayar.com"));
-        let c = Config::parse(&yazi).unwrap();
-        assert_eq!(c.portal.aydinlatma, d.aydinlatma);
-        // anahtar yoksa varsayılan; işletmenin düzenlediği metin (eskinin değiştirilmişi dahil) aynen kalır
+        // anahtar yoksa varsayılan
         assert_eq!(Config::parse("[main]\nsite_name = 'X'\n").unwrap().portal.aydinlatma, d.aydinlatma);
-        let mut c = Config::default();
-        c.portal.aydinlatma = format!("{eski}\n* Ek satır");
-        let c = Config::parse(&toml::to_string_pretty(&c).unwrap()).unwrap();
-        assert!(c.portal.aydinlatma.contains("info@goztepebilgisayar.com") && c.portal.aydinlatma.ends_with("* Ek satır"));
     }
 
     #[test]

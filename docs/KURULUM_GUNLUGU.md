@@ -1621,3 +1621,31 @@ gerekmez): wificorrect_ = "wifi" Nunito ExtraBold dik + "correct_" Nunito ExtraB
   AP geçidinin sade sayfalarında (beyaz şerit) açık logo. Logo dosyası okunamazsa "WifiCorrect" yazısı.
 - Misafirlerin giriş sayfası (işletmenin sayfası) 0.4.21'e kadar logosuzdu; 0.4.22'den beri alt bilgide ("Giriş sayfasında
   wificorrect_ logosu"). Testler: cihazda `src/logo.rs` + panel testleri, merkezde `test_logo.py`.
+
+## Merkez Rust'a taşındı (2026-11-06)
+Dal `merkez-rust` (PR #47); tasarım `docs/superpowers/specs/2026-11-04-merkez-rust-design.md`, plan `docs/superpowers/plans/2026-11-04-merkez-rust.md`. Kullanıcı isteği:
+"pyton betiği kullanan bütün kod satırlarını rust'a çevir … kodları sadeleştir … geçmişten kalan bütün kod satırlarını sil … planlı bir şekilde yap kayıp istemiyorum".
+Bu bölümden önceki `merkez-guncelle.sh`, `dagit.sh`, `.py` ve `wc-*` bağı anlatımları geçmiştir.
+- **Ne değişti:** merkezin bütün Python modülleri `merkez/` crate'ine (Rust 1.85, tek ikili `wificorrect-merkez`, kendi `Cargo.lock`'u, bundled SQLite) taşındı. Alt komutlar: `sunucu`, `kuyruk`,
+  `istatistik`, `listeler`, `surumler al|ekle DOSYA SURUM`, `yonetici parola AD`, `durum`, `saglik`, `veritabani-denetle VT [--dosyalar KOK]`, `veritabani-yedekle KAYNAK HEDEF`, `surum`. Aynı port
+  (127.0.0.1:8081), aynı birim adları ve kullanıcıları, aynı veritabanı şeması ve dosya biçimleri; Caddyfile değişmedi. Birimler ikiliyi doğrudan çağırır (`/usr/local/sbin/wc-*` bağları yeni kurulumda yok).
+  Dış istekler curl alt süreciyle; sırlar stdin'den (`-K -`), komut satırına girmez. Logo tek kopya: merkez `src/sablon/logo/`'yu ikiliye gömer.
+- **Davranış nasıl korundu:** Python testleri her istek/cevabı, veritabanı farkını ve yazılan dosyayı `merkez/tests/altin/` altına kaydetti (CI `altin.yml`, Python 3.14; elle düzenlenmez), Rust testleri aynı senaryoyu
+  bu kayıtla karşılaştırır (`altin.rs`; kayıtsız kalan her boş olmayan kayıt `altin_kullanim_testler.rs`'te gerekçeli listede). Cihazda `bash scripts/test-merkez.sh wificorrect` → 524 test. Bilinçli farklar
+  spec'te (1–9): `/api/raporlar` 404; eşleşme yalnız `etkin_mock` (NetGSM parolası artık hiçbir cihaza gitmez); birimler ve bağlar; `Server`/`Date`; ASCII rakam; biçim 1 rapor-ham okunmaz; SMS yönlendirme izlemez;
+  eşzamanlı 256 bağlantı + istek okumaya toplam 30 sn (dakikada bir `BAGLANTI_SINIRI`); SMS süreleri bağlanma 7 / boşta 5 / toplam 12 sn (genel SMS 10 / 10 / 25). Test altına alınmayan yollar için son inceleme: `final-review.md` (defter dizini).
+- **Kurulum:** `scripts/sunucu/merkez-kur.sh [hedef] [--ikili DOSYA] [--yalniz-denetle] [--kuru]` (kullanıcının bilgisayarında, Git Bash, `gh` oturumlu): ağaç temiz + HEAD itilmiş → `test` iş akışı (push) başarılı → yapıt
+  `wificorrect-merkez-<sha>` + sha256 → paket (`*.py`, `tests`, `logo`, `__pycache__` yok) → `/tmp/wfc-sunucu` → `ssh -t … sudo bash kur.sh` (çıktı `/tmp/wfc-sunucu/sonuc.txt`). `kur.sh` sırası: (1) paketteki ikiliyle tutarlı veritabanı
+  yedeği `merkez.db.yedek-<zaman>` (root'a ait geçici dizinde üretilir, sahibi ve izni kaynağınki) (2) `veritabani-denetle` o kopyada + `/var/lib/wificorrect` JSON'ları (değer yazmaz; hata → canlıya dokunulmaz), Caddyfile doğrulaması (3) geri dönüş
+  kopyası `/var/lib/wificorrect/geri-donus/<zaman>/` (birimler, `wificorrect-sunucu`, varsa eski ikili; Python dönemi dizini hiç budanmaz, kalanlardan en yeni 5'i kalır) (4) kurulum (5) başlatma (6) `GET /giris` + `Host: yonetim.wificorrect.com` → 200.
+  Adım 3'ten sonra 200'e kadar her çıkış (hata, Ctrl-C, SSH kopması, SIGTERM, ölü `tee`) kendiliğinden önceki kuruluma döner; sonuç `geri-donus/son-geri-donus.txt`. Python dosyalarına dokunmaz.
+- **Geri dönüş:** `scripts/sunucu/merkez-geri-don.sh [hedef] [ZAMAN]` ya da sunucuda `sudo bash /var/lib/wificorrect/geri-donus/kur.sh --geri-don [ZAMAN]`: birimleri, `wificorrect-sunucu`'yu ve ikiliyi dizindeki hâline getirir (dizinde ikili yoksa kaldırır),
+  yeniden başlatır, 200 denetler. Veritabanını geri yüklemez: Python, Rust'ın yazdığını okur (`scripts/sunucu/parite/geri_oku.py`, prova adım 5).
+- **Prova** (`.github/workflows/merkez-kurulum.yml`, `scripts/sunucu/kurulum-provasi.sh`; `scripts/sunucu/**`, `merkez/**` değişince): ikili ubuntu-24.04'te derlenir (glibc 2.39), prova `ubuntu-26.04` çalıştırıcısında (canlıyla aynı araçlar): sabit commit `54a780b`'den
+  Python kurulumu → denetim reddi → sağlık reddi (asılı sunucu) ve kendiliğinden dönüş → Rust'a geçiş → gerçek Caddy (depodaki Caddyfile, `http://` + `auto_https off`; 10 istek Python/Rust `diff`, `GIRIS_HATALI ip=127.0.0.1`) → elle Python'a dönüş → 7 kez yeniden kurulum ve budama →
+  `chattr +i` ile adım hatası → SIGTERM ve ölü boru (çıkış 143 ve 141). `WC_TEST=1` drop-in'leri gerçek SMS'i keser, sistemin `caddy.service`'i sahte. Bu prova kullanıcı isteğinde yoktu, canlı kesinti riskine karşı eklendi; başarısız kurulumun ikilisinin yerinde kalması kusurunu buldu.
+- **Canlı sunucunun araçları (2026-11-05 bakıldı; betiklerde dikkat):** Ubuntu 26.04.1; `install`, `chown`, `chmod`, `sort`, `stat` … **uutils coreutils 0.10** (`coreutils-from-uutils`), `cp`, `mv`, `find`, `sed` GNU; **sudo-rs** 0.2.13; systemd 259; Python 3.14.4; caddy 2.6.2; glibc 2.43; `sqlite3` komutu yok.
+- **Geçiş (2026-11-06):** 15:08 `--yalniz-denetle` TAMAM (`merkez.db.yedek-20261106-150802`; canlı veri ve dosyalarda depolama sınıfı ya da biçim uyuşmazlığı çıkmadı). 15:09:51 geçiş (`merkez.db.yedek-20261106-150951`, Python'a dönüş dizini `20261106-150951`), `/giris` 200, otomatik dönüş yok.
+  Gerçek Caddy + TLS üzerinden 9 yan etkisiz istek geçiş öncesiyle birebir aynı. İlk başarılı sağlık raporları Göztepe 15:10:13, Visavis 15:10:34 (ikisi 0.4.29); ilk Rust sağlık turu 15:14:31, durum 15:15:13 (çıkış 0, günlükte hata yok). Kullanıcı yönetim, müşteri sayfası, Sürümler, cihaz paneli ve AP geçişini denedi: çalışıyor.
+  Gerçek doğrulama SMS'i: Göztepe 15:14:42 `OTP_GONDERILDI`, kod kullanıcının telefonuna geldi (kendi numarası, açık onayı). Bellek: Python son çalışmasında en çok 24,5 MB (systemd), Rust ilk dakikalarda ~6 MB.
+- **Kalanlar:** bir hafta izleme, cihaz temizliği 0.4.30 (plan Task 15), Python'un silinmesi ve kalan sadeleştirme (plan Task 16): docs/DEVAM.md "Dallar ve durum".

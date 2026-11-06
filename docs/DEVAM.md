@@ -1,4 +1,4 @@
-# Devir notu — kaldığın yerden devam (2026-10-26)
+# Devir notu — kaldığın yerden devam (2026-11-06)
 
 Bu dosya, projeye yeni bir oturumda/hesapta devam eden ajan içindir. Önce bunu, sonra `CLAUDE.md`'deki belgeleri oku.
 
@@ -9,7 +9,7 @@ Bu dosya, projeye yeni bir oturumda/hesapta devam eden ajan içindir. Önce bunu
   kullanıcıya terminalde çalıştırtırsın — cmd için: `"C:\Program Files\Git\bin\bash.exe" <betik>`). Claude'un terminal
   panelindeki sudo istemini kullanıcı görmüyor: sudo'lu işi görünür bir PowerShell penceresinde başlat
   (`Start-Process powershell -ArgumentList '-NoExit','-ExecutionPolicy','Bypass','-File','<betik.ps1>'`; betik repoya geçip
-  `& "C:\Program Files\Git\bin\bash.exe" scripts/sunucu/merkez-guncelle.sh` çalıştırır; satır içi `-Command` tırnakları bozuyor).
+  `& "C:\Program Files\Git\bin\bash.exe" scripts/sunucu/merkez-kur.sh` çalıştırır; satır içi `-Command` tırnakları bozuyor).
 - İkinci cihaz (Visavis, tünel 10.99.0.10) dükkân ağında değil; merkez üzerinden atlanır:
   `ssh -o HostKeyAlias=192.168.1.115 -o ProxyCommand="ssh -i ~/.ssh/gbserver -W %h:%p gbserver@192.168.1.109" -i ~/.ssh/bocafe root@10.99.0.10`
   (ana makine anahtarı dükkândaki ilk adresiyle kayıtlı).
@@ -20,9 +20,13 @@ Bu dosya, projeye yeni bir oturumda/hesapta devam eden ajan içindir. Önce bunu
 - Sırlar repoya girmez (repo **herkese açık**: github.com/bilgisayargoztepe-lgtm/wificorrect).
 - Cihaz testleri **cihazda** koşar: `bash scripts/test.sh wificorrect [süzgeç]` (~5 dk; aynı anda iki tane çalıştırma).
   Cihaza kurulum: `bash scripts/gelistir.sh` + `ssh wificorrect 'systemctl restart wificorrect-panel wificorrect-portal wificorrect-kaydedici'`.
-  Merkez testleri: `sh scripts/sunucu/merkez/tests/hepsi.sh python`.
-- Merkez kurulumu: `scripts/sunucu/merkez-guncelle.sh` (şu anki daldan; önce veritabanı yedeği, sonra `kur.sh` —
-  Caddyfile doğrulanmadan kurulmaz). Kullanıcı çalıştırır (sudo).
+  Merkez testleri de cihazda: `bash scripts/test-merkez.sh wificorrect [süzgeç]` (`@release`: release derlemesi, uyarıda hata; cihaz testleriyle
+  aynı anda çalıştırma). Python testleri (`sh scripts/sunucu/merkez/tests/hepsi.sh python`) Python silinene kadar yalnızca CI'da kalır.
+- Merkez kurulumu: `scripts/sunucu/merkez-kur.sh [hedef] [--ikili DOSYA] [--yalniz-denetle] [--kuru]`. Şu anki HEAD'i kurar: ağaç temiz ve itilmiş,
+  `test` iş akışı yeşil olmalı; CI yapıtını indirir, sha256 doğrular, sunucuda `kur.sh` çalıştırır (önce tutarlı veritabanı yedeği ve denetim,
+  Caddyfile doğrulanmadan kurulmaz; `/giris` 200 vermezse, adım hata verirse ya da kesilirse kendiliğinden önceki kuruluma döner). Kullanıcı çalıştırır
+  (sudo). `--yalniz-denetle` canlıya dokunmadan dener, `--kuru` sunucuya hiç bağlanmaz. Elle geri dönüş: `scripts/sunucu/merkez-geri-don.sh [hedef] [ZAMAN]`
+  ya da checkout olmadan sunucuda `sudo bash /var/lib/wificorrect/geri-donus/kur.sh --geri-don [ZAMAN]`.
 
 ## Yeni bilgisayar kurulumu (2026-10-10'da başka PC'ye geçildi)
 - Gerekenler: Git for Windows (Git Bash), Python 3, GitHub CLI (`gh auth login`, hesap bilgisayargoztepe-lgtm), Claude Code.
@@ -43,15 +47,28 @@ Bu dosya, projeye yeni bir oturumda/hesapta devam eden ajan içindir. Önce bunu
 
 ## Ürün özeti
 WifiCorrect: işletmelere yıllık abonelikle satılan 5651 uyumlu, SMS (NetGSM) doğrulamalı misafir internet cihazı.
-Cihaz: Debian 13 + Rust ikilisi `wificorrect` (`src/`). Merkez: Python stdlib (`scripts/sunucu/merkez/`), Caddy 2.6.2 arkasında,
+Cihaz: Debian 13 + Rust ikilisi `wificorrect` (`src/`). Merkez: Rust (`merkez/`, ikili `wificorrect-merkez`; Python hâli `scripts/sunucu/merkez/*.py` silinene kadar duruyor), Caddy 2.6.2 arkasında,
 `yonetim.wificorrect.com` (hizmet sağlayıcı), `panel.wificorrect.com` (müşteri), `api.wificorrect.com` (cihazlar),
 `cihaz.wificorrect.com` (cihaz paneline geçit), `ap.wificorrect.com` (AP arayüzü). Cihaz ↔ merkez WireGuard (10.99.0.0/24;
 merkez .1, Visavis .10, Göztepe .11).
 Canlı müşteriler: **Göztepe Bilgisayar = 1537344** (cihaz 192.168.1.110, test kanalı) ve **Visavis** (tünel 10.99.0.10,
 kararlı kanal; numarası yönetimde; aşağıda "Visavis").
 
-## Dallar ve durum (2026-10-30)
-Repo `bilgisayargoztepe-lgtm/wificorrect` (avsharbeyi'den devredildi). Her şey **`main`**'de (PR #3–#45 birleşti; #2 kapatıldı).
+## Dallar ve durum (2026-11-06)
+Repo `bilgisayargoztepe-lgtm/wificorrect` (avsharbeyi'den devredildi). Her şey **`main`**'de (PR #3–#47 birleşti; #2 kapatıldı).
+**İki cihaz da 0.4.29** (2026-11-06 bakıldı).
+**Merkez Rust'a taşındı (PR #47, dal `merkez-rust`; 2026-11-06 15:09'dan beri canlıda; kullanıcı: "şimdi yap", "1. yoldan birleştir"):** Python merkezinin
+tamamı `merkez/` crate'ine (ikili `/usr/local/bin/wificorrect-merkez`) taşındı; birimler aynı ad ve kullanıcılarla Rust alt komutlarını çağırır. Davranış Python'dan
+kaydedilen altın kayıtlarla (`merkez/tests/altin/`) sabit; bilinçli farklar `docs/superpowers/specs/2026-11-04-merkez-rust-design.md`'de. Canlıda doğrulandı: ön
+denetim TAMAM, geçiş hatasız, 9 dış istek Python'la aynı, iki cihazın raporu (Göztepe 15:10:13, Visavis 15:10:34), ilk sağlık turu (15:14:31), yönetim, cihaz paneli ve AP
+(kullanıcı), gerçek doğrulama SMS'i (Göztepe 15:14:42, kullanıcının kendi numarası ve onayıyla). **Python dosyaları sunucuda duruyor, geri dönüş açık:** Python'a dönüş
+`--geri-don 20261106-150951` ("(Python)" işaretli dizin; yukarıda "Merkez kurulumu"), veritabanı yedekleri `merkez.db.yedek-20261106-150802` ve `-150951`.
+**Kalanlar:** (1) bir hafta izleme, 2026-11-13'e kadar (birimler, sağlık turları, journal'da `HATA`/`panicked`, fail2ban); (2) cihaz temizliği 0.4.30 (plan Task 15, kullanıcı
+onayıyla; `ap_arayuz::tests::https_aktarimi_gercek_tls` CI'da bir kez AddrInUse ile düştü, sabit port yerine 0'a bağlansın); (3) 2026-11-13'ten sonra kullanıcı onayıyla Python'un
+silinmesi ve belgeler (plan Task 16; sunucudaki `/usr/local/lib/wificorrect/*.py`, `logo/` ve `/usr/local/sbin/wc-*` bağları dahil; `kurulum-provasi.sh`'nin Python adımları da kalkar),
+kalan sadeleştirme (`final-review.md` "Sadeleştirme adayları": dört atomik yazıcı, iki `chown_grup`, `yonetim.rs` bölme…; kullanıcı "kodları sadeleştir" dedi, bu iş ona sayılır) ve
+yönetim SMS sayfasındaki eskimiş "NetGSM bilgileri eski sürümlü cihazlara" metni. Defter ve raporlar: `C:\Users\hp\Desktop\claudecode\wificorrect-merkez\.superpowers\sdd\2026-11-04-merkez-rust\`
+(`progress.md`, `final-review.md`; git'e girmez, worktree Task 16'ya kadar silinmez). Ayrıntı KURULUM_GUNLUGU "Merkez Rust'a taşındı".
 **İki cihaz da 0.4.28** (uzaktan güncellemeyle; denetim kaydından): Göztepe 2026-10-31 19:13 (19:29 tamam), Visavis 2026-11-01 03:04'te
 gece penceresinde (kararlı kanal, 03:15 tamam). Saat doğrulaması iki cihazda tamam: 2026-10-31 `ctl saat` → "doğrulandı (NTP)"; Göztepe
 2026-11-02'de elektrik kesintisinden sonraki açılışta "doğrulandı (RTC)".
@@ -65,10 +82,12 @@ süre bağlı kalanlar, en çok veri tüketenler olsun; sadeleştir"): Günlük 
 kullanıcı sayısı, en çok veri kullananlar ve en uzun bağlı kalanlar (ilk 10, ad + maskeli telefon). Veri cihazın kendi kayıtlarından
 (`src/rapor.rs`; merkez raporları değişmedi), bağlı kalma için kaydedici yeni günlük kayıt tutar; her bakış `PANEL_RAPOR`. Aynı sürümde
 misafir kodu tür Otel/Pansiyon ya da Yurt'a geçince kendiliğinden açılır. Ayrıntı KURULUM_GUNLUGU "Sade raporlar: günlük, haftalık, aylık".
-**`kararli-en-son` (merkez + cihaz 0.4.29; henüz birleşmedi, canlıda değil):** (1) Merkez: Sürümler → Kanal hedefleri'nde "Her zaman
+**`kararli-en-son` (PR #46, merkez + cihaz 0.4.29; birleşti, `v0.4.29` 2026-11-02 20:52'de yayında; kullanıcı: "commit et gönder
+birleştir ve yayınla"; merkez 2026-11-02 22:16'da kullanıcı tarafından güncellendi, `wc-surumler.timer` saatte bir çalışıyor;
+2026-11-03'te Göztepe 0.4.29, Visavis hâlâ 0.4.28: Kararlı hedefi "en son"a alınmamış olabilir):** (1) Merkez: Sürümler → Kanal hedefleri'nde "Her zaman
 en son sürüm" seçeneği (kullanıcı 2026-11-02: "hedef kararlı sürüm her zaman en son sürüm olsun"): kanal GitHub'dan alınmış en yüksek
 sürümü hedefler (elle eklenen yerel paketler girmez); merkez GitHub'a saatte bir bakıp yeni sürümü kendisi alır (`wc-surumler.timer` →
-`surumler.py al`). Kurulumdan sonra kullanıcı Sürümler'de Kararlı için (önerilen: Test için de) "Her zaman en son sürüm"ü seçip kaydeder.
+`wificorrect-merkez surumler al`). Kurulumdan sonra kullanıcı Sürümler'de Kararlı için (önerilen: Test için de) "Her zaman en son sürüm"ü seçip kaydeder.
 Ayrıntı KURULUM_GUNLUGU "Kanal hedefi: her zaman en son sürüm". (2) Cihaz: Bağlı kullanıcılar kartında bugün veri kullanmamış kişide
 (ölçüm yok ya da 0 MB) "· Bugün —" yazmaz (kullanıcı 2026-11-02: "bugün mb kullanmamış kullanıcıların yanında bugün ---- yazmasın boş
 kalsın"); KURULUM_GUNLUGU "Bağlı kullanıcılar: bugün veri yoksa Bugün yazmaz".
@@ -137,7 +156,7 @@ testleri 453/453 ve sahte operatörle cihazda (`scripts/pppoe-deneme.sh`, ağ ad
 düzeltmelerde değişmedi); gerçek PPPoE hattında denenmedi. Sırada: Visavis'in 0.4.18'e geçmesi, sonra ilk PPPoE'li müşteride canlı kabul.
 Servis parolasının 5 dk'da inmesi için merkez ve cihaz ikisi de ≥ 0.4.17 olmalı (eski merkezde parola günlük eşitlemeyle gelir).
 **Bilinen hata (merkez, düzeltilmedi):** "Şimdi güncelle" isteği istenen sürümün değil HERHANGİ bir güncelleme sonucunun zamanıyla tüketiliyor
-(`api.py` `saglik`: `g["zaman"] > guncelleme_hemen` → `guncelleme_hemen_koy(0)`). Önceki kurulumun 10 dk denetimi sürerken basılırsa
+(`merkez/src/api.rs` `saglik`: `g["zaman"] > guncelleme_hemen` → `guncelleme_hemen_koy(0)`). Önceki kurulumun 10 dk denetimi sürerken basılırsa
 denetimin sonucu isteği siler (2026-10-24'te 0.4.15 denetimi 0.4.18 isteğini sildi); denetim bitince yeniden basmak gerekir. Düzeltme:
 yalnızca `g["surum"] == m["guncelleme_hemen_surum"]` ise tüket (+ test). Sürümler'deki hedef listesinde en yeni sürüm en üstte.
 **Yönetim sol menü (2026-10-24, kullanıcı kararı; yalnızca merkez):** menü solda ve gruplu: Müşteriler (Müşteri listesi, Yeni
@@ -152,7 +171,7 @@ henüz yok (tasarım bekliyor; KURULUM_GUNLUGU "AP arayüzü — merkez" → "Bi
 yeni sürümleri al" → kanal hedefi (Göztepe **test**, Visavis **kararlı**: ikisinin de hedefini seç) → müşteri sayfasında
 "Şimdi güncelle" (kullanıcı basar) ya da 03:00–06:00 penceresi (`kararli-en-son` merkeze kurulunca: merkez GitHub'a saatte bir bakar,
 "Her zaman en son sürüm" seçili kanal yeni sürüme kendiliğinden geçer; elle alma ve hedef seçimi gerekmez). Acil yerel deneme: cihazda `scripts/paket.sh` ile .deb, sunucuda
-`sudo -u wcpanel python3 /usr/local/lib/wificorrect/surumler.py ekle DOSYA SURUM` (gelistir.sh paketli cihazı paketten saptırır).
+`sudo -u wcpanel /usr/local/bin/wificorrect-merkez surumler ekle DOSYA SURUM` (gelistir.sh paketli cihazı paketten saptırır).
 Merkez her güncellemede yeniden başlar ve bellekteki oturumlar düşer (yönetime yeniden giriş gerekir).
 **PPPoE açık bir cihaza (sağlık kartında "İnternet: PPPoE …") 0.4.17'den eski bir sürüm asla hedeflenmez** (kanal hedefi ya da "Şimdi
 güncelle"): eski paket `wificorrect-pppoe.service`'i kaldırır, pppd bir sonraki açılışa kadar çalışır, sonra PPPoE de Servis de yoktur;
@@ -270,15 +289,14 @@ bet365/pornhub NXDOMAIN, google/netgsm/banka/e-Devlet/bağlantı denetimi açık
 spec `docs/superpowers/specs/2026-10-14-aylik-rapor-design.md`, plan `docs/superpowers/plans/2026-10-14-raporlar.md`.
 Müşteri paneli menüsünde "Raporlar" (önce haftalar, sonra aylar), yönetimde müşteri sayfasında bağlantı; gerekçe/hareket yok
 (kişisel veri yok). Engellenenler bölümü yok (kayıtta engel işareti yok), yazdır düğmesi yok (JS yok; Ctrl+P notu + print CSS).
-Kurulum: `merkez-guncelle.sh` (kullanıcı, sudo), sonra hemen görmek için `sudo systemctl start wc-istatistik` (ilk çalıştırma
+Kurulum: `merkez-kur.sh` (kullanıcı, sudo), sonra hemen görmek için `sudo systemctl start wc-istatistik` (ilk çalıştırma
 bütün arşiv günlerini bir kez hash'ler).
 **Merkez yedeği YOK (2026-10-15 tespiti):** merkez.db, WireGuard sunucu anahtarı/kayıt listesi ve arşivler yalnızca
 gbservers diskinde; `tasi-paketle` yalnızca sunucu çalışırken işe yarar. **Kullanıcı kararı (2026-10-19): "yedekler önemli
 değil"** — gece yedeği yapılmayacak. Bilinen sonucu: merkez.db ve WireGuard sunucu anahtarı kaybolursa yeni merkez cihazları
 tanımaz, tüneller kurulamaz, her cihaz yeniden bağlanmalı (tünel olmadığı için büyük ihtimalle yerinde). Cihazlar kendini
 silmez (`MERKEZ_TANINMADI`, `src/ctl.rs`), lisans tarihi dolana kadar bağlı misafirlere hizmet verir ve 5651 kayıtlarını tutar;
-ama SMS merkezden gittiği için yeni misafir giriş yapamaz. Merkezin Rust'a taşınması ertelendi (fayda küçük, risk büyük;
-merkez ~36 MB). Sunucuda ayrıca Emek ERP, Kurye API, OSRM/Nominatim, PostgreSQL, Samba, xrdp ve başka işletmelerin web
+ama SMS merkezden gittiği için yeni misafir giriş yapamaz. Sunucuda ayrıca Emek ERP, Kurye API, OSRM/Nominatim, PostgreSQL, Samba, xrdp ve başka işletmelerin web
 siteleri çalışıyor — müşteri artınca merkezi ayrı sunucuya al.
 **Ertelenenler (2026-10-19, kullanıcı: "sonra yapacağız"):**
 - **Sunucu tek komutla kurulum:** `wificorrect-sunucu` .deb + `sunucu-kur.sh` (boş Ubuntu/Debian'da tek komut; Caddy, fail2ban,
@@ -309,9 +327,7 @@ Kullanıcının onayladığı sıra (2026-10-11; donanım bekçisi hariç): ~~1 
 7 imzalı resmi talep raporu · 8 online ödeme (`veri.lisans_uzat`; 2026-10-26 konuşuldu: ödeme kuruluşuna başvuru — iyzico,
 PayTR ya da banka sanal POS'u; müşteri kuruluşun kendi ödeme sayfasına yönlenir, kart bilgisi merkeze gelmez —, wificorrect.com'da
 sözleşme/iade/KVKK sayfaları, her ödemeye e-Arşiv/e-Fatura; kullanıcının kararı bekleniyor: hesap var mı, yıllık ücret ve KDV,
-taksit, otomatik yenileme) · 9 **merkezi Rust'a taşıma** (2026-10-13 kararı;
-~4.300 satır Python + 3.600 satır test, 9 işe bölünür: veritabanı, güvenlik, web tabanı, cihaz API, yönetim, müşteri paneli,
-arka plan işleri, kurulum/yan yana geçiş, uçtan uca + Python'u kaldırma; aynı SQLite şeması ve parola biçimi korunur). Zaman damgası: kontör alınınca. İki aşamalı giriş istenmedi.
+taksit, otomatik yenileme) · ~~9 merkezi Rust'a taşıma~~ (2026-11-06 canlıda; Python'un silinmesi yukarıda "Dallar ve durum"). Zaman damgası: kontör alınınca. İki aşamalı giriş istenmedi.
 Ertelenmiş küçük bulgular: `.superpowers/sdd/*/progress.md` (yalnızca bu makinede).
 Bekleyen kullanıcı işleri: Göztepe'de PPPoE düzeltmelerinin (0.4.20/0.4.21) ONT canlı kabulü (KURULUM_GUNLUGU "PPPoE düzeltmeleri"), Göztepe'de Ayarlar → Giriş yöntemleri'nde misafir kodu kutusunun işaretlenmesi (tür otel ama `giris.misafir_kodu = false`; 0.4.28 kutuyu yalnızca tür değişirken açar), ilk PPPoE'li müşteride canlı kabul (yanında yedek modemle; liste KURULUM_GUNLUGU
 "PPPoE" sonunda; gerçek SMS yalnızca açık onayla); iki J1900'de BIOS → "Restore on AC Power Loss = Power On" (monitör + klavyeyle; sonra fiş çekip

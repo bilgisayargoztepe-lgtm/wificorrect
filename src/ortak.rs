@@ -1,4 +1,4 @@
-//! Ortak yardımcılar (eski common.py): doğrulayıcılar, zaman, 5651 CSV yazımı, oturum durumu, nft komutları, IP→MAC.
+//! Ortak yardımcılar: doğrulayıcılar, zaman, 5651 CSV yazımı, oturum durumu, nft komutları, IP→MAC.
 
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;

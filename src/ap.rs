@@ -370,12 +370,6 @@ pub fn ekle_komutlari(c: &Cidr, kimlik: &str, sure: u64) -> (Vec<String>, Vec<St
     )
 }
 
-/// 0.4.11'in geçici adresi ana ad alanında köprüdeydi (etiket `<köprü>:ap`); o sürümün zamanlayıcısı güncellemeden sonra
-/// çalışırsa adres de kalkar. Yalnızca bu etiketli adresleri siler; yoksa bir şey yapmaz.
-pub fn eski_adres_temizle(kopru: &str) -> Vec<String> {
-    s(&["ip", "addr", "flush", "dev", kopru, "label", &format!("{kopru}:ap")])
-}
-
 fn zamanlayici_durdur(kimlik: &str) -> Vec<String> {
     s(&["systemctl", "stop", &format!("{BIRIM_ONEK}{kimlik}.timer")])
 }

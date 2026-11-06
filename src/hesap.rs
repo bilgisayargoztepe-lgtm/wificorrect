@@ -1,4 +1,4 @@
-//! Panel hesapları, giriş kilidi ve oturumlar (eski panel_auth.py; RUST_YENIDEN_YAZIM.md A10, A14).
+//! Panel hesapları, giriş kilidi ve oturumlar (docs/RUST_YENIDEN_YAZIM.md A10, A14).
 //! Hesap dosyası `/etc/wificorrect/hesaplar.json` (600). Parola özeti PBKDF2-HMAC-SHA256, kullanıcı başına tuz.
 //! `admin` girişli bir kullanıcı değildir: özeti merkezden gelir (ya da `wificorrect ctl admin-parola`) ve panelde yalnızca
 //! admin kilidini açar (Admin ayarları + Panel hareketleri, 30 dk).

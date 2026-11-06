@@ -40,7 +40,7 @@ pub struct Girdi {
     pub hiz_hata: bool,
 }
 
-/// Merkezin beklediği biçim (api.py `saglik_temizle`): servisler nesne, tamsayılar negatif değil.
+/// Merkezin beklediği biçim (merkez `api::saglik_temizle`): servisler nesne, tamsayılar negatif değil.
 pub fn rapor(g: &Girdi) -> Value {
     let servisler: serde_json::Map<String, Value> = g.servisler.iter().map(|(a, d)| (a.to_string(), Value::Bool(*d))).collect();
     json!({

@@ -1,4 +1,4 @@
-//! Mühürleme, doğrulama, saklama ve uzak yedek (eski ctl.py; docs/MASTER_ENGINEERING.md §15, RUST_YENIDEN_YAZIM.md A8).
+//! Mühürleme, doğrulama, saklama ve uzak yedek (docs/MASTER_ENGINEERING.md §15, docs/RUST_YENIDEN_YAZIM.md A8).
 //! 00:15 gun-kapat: önceki mühürsüz her gün → *.csv.gz + MANIFEST.sha256 + hash zinciri (zincir.txt), dosyalar salt okunur.
 //! 02:00 yedekle (mühürlü, gönderilmemiş günler) + temizle (2 yılı aşmış ve yedeklenmiş günler).
 //! RFC 3161 zaman damgası sağlayıcı seçilince eklenecek (eski sistemde de kapalıydı).

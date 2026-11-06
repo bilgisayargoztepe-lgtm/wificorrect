@@ -1,4 +1,4 @@
-//! Yönetim paneli — 8a çekirdek (eski panel.py; RUST_YENIDEN_YAZIM.md A10, A14).
+//! Yönetim paneli (docs/RUST_YENIDEN_YAZIM.md A10, A14).
 //! https://<cihaz>:8443, yalnızca dükkân ağından (güvenlik duvarı + burada müşteri ağı reddi).
 //! İki rol (2026-10-03 kullanıcı kararı): işletme sahibi kayıtlar dahil işletmeyle ilgili her şeyi görür ve yönetir;
 //! admin (hizmet sağlayıcı) ondan "Admin ayarları" sayfasıyla ayrılır: SMS sağlayıcıları ve sınırları, deneme modu,
@@ -958,10 +958,6 @@ impl Panel {
         }
         if req.path == "/giris" {
             return Self::yerel_kapali();
-        }
-        // AP arayüzü geçişi merkezindir; merkez eski sürümdeyse istek buraya gelir (spec 2026-10-16-ap-arayuz)
-        if req.path == "/_ap-gecis" {
-            return ap_aktarim::gecis_yok();
         }
         // geçerli oturum korunur; yoksa merkezin doğruladığı müşteriye oturum açılır
         let mut yeni = None;
@@ -5514,9 +5510,9 @@ mod tests {
         assert_eq!(durum(Some(MUSTERI)), 403);
         assert!(denetim_metni(&e).contains(&format!("kullanici={MUSTERI} rol=sahip ip=- kapandi hedef=10.50.0.2:80 yol=misafir neden=sure")));
         assert!(!e.p.ap_yollar.hedef.exists());
-        // merkez eski sürümdeyse /_ap-gecis cihaza panel isteği olarak gelir
+        // /_ap-gecis merkezindir (Caddy hep merkeze verir); cihaza doğrudan gelirse bilinmeyen yol
         let r = e.p.handle(&req("GET", "/_ap-gecis", &[], Some(&tok)));
-        assert!(r.status == 503 && r.body.contains("AP erişimi şu an kullanılamıyor"), "{}", r.body);
+        assert_eq!(r.status, 404, "{}", r.body);
     }
 
     /// tiny_http üzerinden uçtan uca: istek (yerel, sahte) AP'ye gider, cevap panel başlıkları olmadan akar.
@@ -5541,8 +5537,8 @@ mod tests {
         });
         let mut e = env();
         e.p.ap_baglan = Box::new(move |_: &crate::ap_arayuz::Hedef| Ok(Box::new(TcpStream::connect(ap_adres)?) as Box<dyn crate::ap_arayuz::Akis>));
-        let port = TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();
-        let sunucu = tiny_http::Server::http(("127.0.0.1", port)).unwrap();
+        let sunucu = tiny_http::Server::http("127.0.0.1:0").unwrap();
+        let port = sunucu.server_addr().to_ip().unwrap().port();
         let istemci = |istek: &'static [u8]| {
             std::thread::spawn(move || {
                 let mut c = TcpStream::connect(("127.0.0.1", port)).unwrap();

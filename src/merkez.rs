@@ -48,14 +48,9 @@ pub(crate) fn ap_parola_oku(v: &Value) -> Option<String> {
 /// (yol, JSON gövde) → (HTTP durumu, gövde). Err: merkeze ulaşılamadı.
 pub type Http = dyn Fn(&str, &str) -> Result<(u16, String), String> + Send + Sync;
 
-/// Gerçek istemci: curl, sertifika doğrulanır, gövde standart girdiden (parola komut satırında görünmez).
-/// curl argümanları: gövde (parola, cihaz anahtarı) standart girdiden gelir, komut satırında görünmez.
-/// Bağlanma 10 sn, toplam 25 sn (merkez ilk girişte kuyruğu en çok 15 sn bekler); panelin işçileri uzun bloklanmasın.
-pub fn curl_args(url: &str) -> Vec<String> {
-    curl_args_sure(url, 25)
-}
-
-/// `curl_args`, toplam süre `max_sn` (bağlanma en çok 10 sn ya da `max_sn`). Cevap en çok 2 MB (JSON; rapor ≤ 1 MB).
+/// Gerçek istemci: curl, sertifika doğrulanır, gövde (parola, cihaz anahtarı) standart girdiden gelir, komut satırında
+/// görünmez. Toplam süre `max_sn` (varsayılan 25 sn: merkez ilk girişte kuyruğu en çok 15 sn bekler; panelin işçileri uzun
+/// bloklanmasın), bağlanma en çok 10 sn ya da `max_sn`. Cevap en çok 2 MB (JSON).
 pub fn curl_args_sure(url: &str, max_sn: u32) -> Vec<String> {
     let (bag, max) = (max_sn.min(10).to_string(), max_sn.to_string());
     ["-s", "--connect-timeout", &bag, "--max-time", &max, "--max-filesize", "2M", "-X", "POST", "-H", "Content-Type: application/json", "--data-binary", "@-", "-w", "\n%{http_code}", url]
@@ -757,7 +752,7 @@ mod tests {
 
     #[test]
     fn curl_parolayi_komut_satirina_koymaz() {
-        let a = curl_args("https://api.wificorrect.com/api/giris");
+        let a = curl_args_sure("https://api.wificorrect.com/api/giris", 25);
         assert!(a.iter().any(|x| x == "@-") && a.windows(2).any(|w| w[0] == "--connect-timeout" && w[1] == "10"));
         assert!(a.windows(2).any(|w| w[0] == "--max-time" && w[1] == "25") && !a.iter().any(|x| x.contains("parola")));
         // JSON cevapları küçük (rapor dosyası en çok 1 MB); bellekte tutulan gövde sınırsız büyümesin

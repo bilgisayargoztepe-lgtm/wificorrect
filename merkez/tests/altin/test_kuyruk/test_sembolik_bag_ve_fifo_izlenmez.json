@@ -1,0 +1,15 @@
+{
+ "bicim": 3,
+ "dosya": "test_kuyruk",
+ "test": "test_sembolik_bag_ve_fifo_izlenmez",
+ "cevaplar": [],
+ "veritabanlari": [],
+ "dosyalar": [
+  {
+   "gizli": {
+    "metin": "{\"islem\": \"cihaz-kapat\", \"numara\": \"1234567\"}"
+   }
+  }
+ ],
+ "yollar": []
+}

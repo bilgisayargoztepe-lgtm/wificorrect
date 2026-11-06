@@ -1,0 +1,42 @@
+{
+ "bicim": 3,
+ "dosya": "test_sms_merkez",
+ "test": "test_sayac",
+ "cevaplar": [],
+ "veritabanlari": [
+  {
+   "ad": "m.db",
+   "tablolar": {
+    "ayar": [],
+    "bekleyen": [],
+    "cihaz": [],
+    "eski_arsiv": [],
+    "hareket": [],
+    "musteri": [],
+    "saglik": [],
+    "sms_sayac": [
+     {
+      "gun": "2026-09-21",
+      "musteri": 1234567,
+      "sayi": 2
+     }
+    ],
+    "sms_son": [],
+    "sorun": [],
+    "sqlite_sequence": [],
+    "surum": []
+   }
+  }
+ ],
+ "dosyalar": [
+  {
+   "detay/": {
+    "dizin": true
+   },
+   "ist/": {
+    "dizin": true
+   }
+  }
+ ],
+ "yollar": []
+}

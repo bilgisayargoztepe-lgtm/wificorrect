@@ -15,13 +15,19 @@ jobs:
       - run: sudo apt-get update -q && sudo apt-get install -y -q wireguard-tools openssh-client
       - uses: dtolnay/rust-toolchain@1.85
       - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            .
+            merkez
       - run: cargo test --locked
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
       - run: sh scripts/sunucu/merkez/tests/hepsi.sh python
+      - run: cd merkez && cargo test --locked
+      - run: cd merkez && cargo build --release --locked
       - run: cargo build --release --locked
-      - run: sudo apt-get install -y -q xorriso cpio debian-keyring qemu-system-x86 qemu-utils ovmf
+      - run: sudo apt-get install -y -q xorriso cpio debian-keyring qemu-system-x86 qemu-utils ovmf netcat-openbsd
       - name: Paketle
         env:
           WFC_SSH_PUB: ${{ vars.WFC_SSH_PUB }}
@@ -36,7 +42,11 @@ jobs:
           sh scripts/iso.sh "dist/wificorrect_${s}_amd64.deb" "$s" dist
           sudo chmod 666 /dev/kvm || true
           sh scripts/iso-test.sh "dist/wificorrect-kurulum-${s}.iso"
-          tar -czf "dist/wificorrect-sunucu-${GITHUB_REF_NAME}.tar.gz" --exclude=__pycache__ -C scripts sunucu
+          # sunucu paketi: merkez Rust ikilisi sunucu/merkez/wificorrect-merkez olarak girer (kur.sh paketle aynı dizinden okur)
+          sun="$RUNNER_TEMP/sunucu-paket"
+          rm -rf "$sun" && mkdir -p "$sun" && cp -a scripts/sunucu "$sun/sunucu"
+          install -m 755 merkez/target/release/wificorrect-merkez "$sun/sunucu/merkez/wificorrect-merkez"
+          tar -czf "dist/wificorrect-sunucu-${GITHUB_REF_NAME}.tar.gz" --exclude=__pycache__ -C "$sun" sunucu
           (cd dist && sha256sum wificorrect *.deb *.iso *.tar.gz > SHA256SUMS)
       - name: Release
         env:

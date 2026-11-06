@@ -3,6 +3,7 @@ import json
 import os
 import sys
 import tempfile
+import types
 import xml.etree.ElementTree as ET
 
 os.environ["WC_TEST"] = "1"  # netgsm.gonder gerçek isteği reddeder (yanlışlıkla SMS gitmesin)
@@ -636,24 +637,28 @@ def test_arsiv_kaydi_yoksa_ulasilamiyor_ve_yedek_acilmaz():
 def test_main_beklenmeyen_hatada_sms():
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
         o = Ortam(tmp)
-        eski = S.calistir
+        eski = S.calistir, S.time, V.Veri
 
         def bozuk(*a, **k):
             raise RuntimeError("deneme")
-        S.calistir = bozuk
+
+        class SaatliVeri(V.Veri):  # main'in açtığı veritabanı ve uyarısı da sahte saatle (altın kayıt gerçek saate bağlı olmasın)
+            def __init__(self, yol, saat=None):
+                super().__init__(yol, saat=lambda: T0)
+        S.calistir, S.time, V.Veri = bozuk, types.SimpleNamespace(time=lambda: T0), SaatliVeri
         try:
             assert S.main(db=o.yol, durum_yolu=os.path.join(tmp, "yok.json"), gonder=o.g) == 1
         finally:
-            S.calistir = eski
+            S.calistir, S.time, V.Veri = eski
         assert o.g.giden == ["WifiCorrect: izleme çalışmıyor (hata: RuntimeError)"]
 
         def patlayan(*a):
             raise OSError("ağ")
-        S.calistir = bozuk
+        S.calistir, S.time, V.Veri = bozuk, types.SimpleNamespace(time=lambda: T0), SaatliVeri
         try:  # SMS denemesi de patlasa main düşmez
             assert S.main(db=os.path.join(tmp, "b.db"), durum_yolu=os.path.join(tmp, "yok.json"), gonder=patlayan) == 1
         finally:
-            S.calistir = eski
+            S.calistir, S.time, V.Veri = eski
 
 
 

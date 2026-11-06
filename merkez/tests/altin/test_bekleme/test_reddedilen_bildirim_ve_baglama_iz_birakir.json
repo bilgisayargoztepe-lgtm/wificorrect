@@ -1,0 +1,265 @@
+{
+ "bicim": 3,
+ "dosya": "test_bekleme",
+ "test": "test_reddedilen_bildirim_ve_baglama_iz_birakir",
+ "cevaplar": [
+  {
+   "istek": "POST /api/bekliyor",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "durum": "bekle"
+    }
+   }
+  },
+  {
+   "istek": "POST /api/bekliyor",
+   "durum": 401,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "hata": "Cihaz tanınmadı.",
+     "kod": "taninmadi"
+    }
+   }
+  },
+  {
+   "istek": "POST /api/bekliyor",
+   "durum": 401,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "hata": "Cihaz tanınmadı.",
+     "kod": "taninmadi"
+    }
+   }
+  },
+  {
+   "istek": "POST /api/bagla",
+   "durum": 401,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "hata": "Bağlama belirteci geçersiz.",
+     "kod": "taninmadi"
+    }
+   }
+  },
+  {
+   "istek": "POST /api/bagla",
+   "durum": 401,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "hata": "Bağlama belirteci geçersiz.",
+     "kod": "taninmadi"
+    }
+   }
+  },
+  {
+   "istek": "POST /api/bekliyor",
+   "durum": 401,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "hata": "Cihaz tanınmadı.",
+     "kod": "taninmadi"
+    }
+   }
+  }
+ ],
+ "veritabanlari": [
+  {
+   "ad": "m.db",
+   "tablolar": {
+    "ayar": [],
+    "bekleyen": [
+     {
+      "ayrilma": 0.0,
+      "baglandi": 0.0,
+      "belirtec_bitis": 0.0,
+      "belirtec_ozet": "",
+      "cihaz": null,
+      "ilk": 1790000000.0,
+      "ip": "203.0.113.5",
+      "kimlik": "11111111111111111111111111111111",
+      "musteri": null,
+      "sir_ozet": "ffe054fe7ae0cb6dc65c3af9b61d5209f439851db43d0ba5997337df154668eb",
+      "son": 1790000000.0,
+      "ssh_pub": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI cihaz",
+      "surum": "0.4.13",
+      "wan_mac": "00:0e:c4:ce:a0:9b",
+      "wg_pub": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+     }
+    ],
+    "cihaz": [],
+    "eski_arsiv": [],
+    "hareket": [
+     {
+      "ayrinti": "kimlik=11111111 surum=0.4.13 mac=00:0e:c4:ce:a0:9b",
+      "id": 1,
+      "ip": "203.0.113.5",
+      "kim": "bekleyen:11111111",
+      "musteri": null,
+      "olay": "CIHAZ_BEKLIYOR",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     },
+     {
+      "ayrinti": "kimlik=11111111",
+      "id": 2,
+      "ip": "203.0.113.5",
+      "kim": "bekleyen:11111111",
+      "musteri": null,
+      "olay": "CIHAZ_BEKLIYOR_RED",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     },
+     {
+      "ayrinti": "kimlik=11111111",
+      "id": 3,
+      "ip": "203.0.113.5",
+      "kim": "bekleyen:11111111",
+      "musteri": null,
+      "olay": "CIHAZ_BAGLA_RED",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     },
+     {
+      "ayrinti": "kimlik=11111111",
+      "id": 4,
+      "ip": "203.0.113.5",
+      "kim": "bekleyen:11111111",
+      "musteri": null,
+      "olay": "CIHAZ_BEKLIYOR_RED",
+      "zaman": "2026-09-21T18:13:21+03:00"
+     }
+    ],
+    "musteri": [],
+    "saglik": [],
+    "sms_sayac": [],
+    "sms_son": [],
+    "sorun": [],
+    "sqlite_sequence": [
+     {
+      "name": "hareket",
+      "seq": 4
+     }
+    ],
+    "surum": []
+   }
+  }
+ ],
+ "dosyalar": [
+  {
+   "detay/": {
+    "dizin": true
+   },
+   "ist/": {
+    "dizin": true
+   }
+  }
+ ],
+ "yollar": [
+  [
+   "Api",
+   "POST",
+   "/api/bekliyor",
+   null,
+   200,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/bekliyor",
+   null,
+   401,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/bekliyor",
+   null,
+   401,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/bagla",
+   null,
+   401,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/bagla",
+   null,
+   401,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/bekliyor",
+   null,
+   401,
+   null
+  ]
+ ]
+}

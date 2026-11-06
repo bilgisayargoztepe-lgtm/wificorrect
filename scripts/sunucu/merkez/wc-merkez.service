@@ -5,8 +5,7 @@ After=network.target
 [Service]
 User=wcpanel
 Group=wcpanel
-Environment=PYTHONDONTWRITEBYTECODE=1
-ExecStart=/usr/bin/python3 /usr/local/lib/wificorrect/merkez.py
+ExecStart=/usr/local/bin/wificorrect-merkez sunucu
 Restart=on-failure
 RestartSec=3
 NoNewPrivileges=yes

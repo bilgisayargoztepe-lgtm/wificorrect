@@ -1,0 +1,61 @@
+{
+ "bicim": 3,
+ "dosya": "test_kayitlar",
+ "test": "test_ozet_gun_ve_bilinmeyen",
+ "cevaplar": [],
+ "veritabanlari": [
+  {
+   "ad": "m.db",
+   "tablolar": {
+    "ayar": [],
+    "bekleyen": [],
+    "cihaz": [],
+    "eski_arsiv": [],
+    "hareket": [],
+    "musteri": [],
+    "saglik": [],
+    "sms_sayac": [],
+    "sms_son": [],
+    "sorun": [],
+    "sqlite_sequence": [],
+    "surum": []
+   }
+  }
+ ],
+ "dosyalar": [
+  {
+   "detay/": {
+    "dizin": true
+   },
+   "detay/100001/": {
+    "dizin": true
+   },
+   "detay/100001/2026-09-20.json": {
+    "json": {
+     "gun": "2026-09-20",
+     "kisiler": [
+      {
+       "telefon": "5330000001",
+       "ad": "<b>x</b>"
+      }
+     ]
+    }
+   },
+   "ist/": {
+    "dizin": true
+   },
+   "ist/100001.json": {
+    "json": {
+     "2026-09-20": 14
+    }
+   },
+   "kisi_sir": {
+    "ikili": {
+     "sha256": "7367f5c378b7b3ffdaea52b319f1f22a43cb73b62ac3d1730daf28259f299017",
+     "uzunluk": 32
+    }
+   }
+  }
+ ],
+ "yollar": []
+}

@@ -1,0 +1,53 @@
+{
+ "bicim": 3,
+ "dosya": "test_listeler",
+ "test": "test_elle_ek_dosyasi",
+ "cevaplar": [],
+ "veritabanlari": [],
+ "dosyalar": [
+  {
+   "kaynak/": {
+    "dizin": true
+   },
+   "kaynak/kumar-1cee97163277.txt.gz": {
+    "metin": "c.com\n",
+    "gz": true
+   },
+   "kaynak/kumar-1e76245f6f33.txt.gz": {
+    "metin": "a.com\n",
+    "gz": true
+   },
+   "kumar.ek.txt": {
+    "metin": "# Türkiye eki\nyerelbahis.com\ngoogle.com\n"
+   },
+   "kumar.json": {
+    "json": {
+     "kategori": "kumar",
+     "sha256": "266046721fcfa249c2ab4f2aa8924a185b33e524218c82ed93c9ee3ec4ac65c2",
+     "sayi": 3,
+     "zaman": "2026-09-21T17:13:20+03:00",
+     "kesildi": false,
+     "kaynaklar": [
+      {
+       "ad": "A",
+       "sayi": 1
+      },
+      {
+       "ad": "B",
+       "sayi": 1
+      },
+      {
+       "ad": "Elle eklenenler",
+       "sayi": 1
+      }
+     ]
+    }
+   },
+   "kumar.txt.gz": {
+    "metin": "a.com\nc.com\nyerelbahis.com\n",
+    "gz": true
+   }
+  }
+ ],
+ "yollar": []
+}

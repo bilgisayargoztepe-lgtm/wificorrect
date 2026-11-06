@@ -1,0 +1,178 @@
+{
+ "bicim": 3,
+ "dosya": "test_cihaz",
+ "test": "test_belirtec_parola_degisirse_giris_sayfasina",
+ "cevaplar": [
+  {
+   "istek": "POST /giris",
+   "durum": 303,
+   "basliklar": [
+    [
+     "Location",
+     "/cihaz"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ],
+    [
+     "Set-Cookie",
+     "wc_musteri=<T1:43>; HttpOnly; Secure; SameSite=Strict; Path=/"
+    ]
+   ],
+   "govde": {
+    "metin": ""
+   }
+  },
+  {
+   "istek": "GET /cihaz",
+   "durum": 303,
+   "basliklar": [
+    [
+     "Location",
+     "https://cihaz.wificorrect.com/_giris?t=<T2:43>"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": ""
+   }
+  },
+  {
+   "istek": "GET /_giris?t=<T?:43>",
+   "durum": 303,
+   "basliklar": [
+    [
+     "Location",
+     "https://panel.wificorrect.com/giris"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": ""
+   }
+  }
+ ],
+ "veritabanlari": [
+  {
+   "ad": "m.db",
+   "tablolar": {
+    "ayar": [],
+    "bekleyen": [],
+    "cihaz": [
+     {
+      "admin_ozet": "",
+      "admin_parola": "",
+      "admin_tuz": "",
+      "admin_yineleme": 0,
+      "adres": "",
+      "anahtar_ozet": "4b3d539199668875d7f7b984e232922e427434cc4b74709eaed94a2dd9805cec",
+      "ayrilma": "",
+      "baglanma": "2026-09-21T17:13:20+03:00",
+      "durum": "bagli",
+      "id": 1,
+      "isletme_adi": "",
+      "isletme_turu": "",
+      "musteri": 5721885,
+      "otomatik": 0,
+      "son_eslesme": "",
+      "ssh_pub": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI c",
+      "surum": "",
+      "tunel_ip": "10.99.0.11",
+      "unvan": "",
+      "wg_pub": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+     }
+    ],
+    "eski_arsiv": [],
+    "hareket": [
+     {
+      "ayrinti": "müşteri paneli",
+      "id": 1,
+      "ip": "203.0.113.5",
+      "kim": "5721885",
+      "musteri": 5721885,
+      "olay": "GIRIS",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     }
+    ],
+    "musteri": [
+     {
+      "ap_parola": "6bnuKUG4dyZ7",
+      "askida": 0,
+      "bitis": "",
+      "guncelleme_hemen": 0.0,
+      "guncelleme_hemen_surum": "",
+      "guncelleme_kanali": "kararli",
+      "lisans_bitis": "2027-09-21",
+      "not_": "",
+      "numara": 5721885,
+      "olusturma": "2026-09-21T17:13:20+03:00",
+      "ozet": "a91c51e46c84af26de4a899c7e82868501626408be1fa7e56a26a1dbd535d652",
+      "parola_acik": "yeni-parola-12",
+      "son_giris": "2026-09-21T17:13:20+03:00",
+      "tuz": "<T3:32>",
+      "uyelik": "aktif",
+      "yineleme": 120000
+     }
+    ],
+    "saglik": [],
+    "sms_sayac": [],
+    "sms_son": [],
+    "sorun": [],
+    "sqlite_sequence": [
+     {
+      "name": "cihaz",
+      "seq": 1
+     },
+     {
+      "name": "hareket",
+      "seq": 1
+     }
+    ],
+    "surum": []
+   }
+  }
+ ],
+ "dosyalar": [
+  {
+   "detay/": {
+    "dizin": true
+   },
+   "ist/": {
+    "dizin": true
+   }
+  }
+ ],
+ "yollar": [
+  [
+   "Musteri",
+   "POST",
+   "/giris",
+   null,
+   303,
+   "/cihaz"
+  ],
+  [
+   "Musteri",
+   "GET",
+   "/cihaz",
+   null,
+   303,
+   "https://cihaz.wificorrect.com/_giris?t=BLG5GaDfGmUiUtgTstyWAcDbshWF1rVYRCN5H3nPCEo"
+  ],
+  [
+   "Cihaz",
+   "GET",
+   "/_giris",
+   null,
+   303,
+   "https://panel.wificorrect.com/giris"
+  ]
+ ]
+}

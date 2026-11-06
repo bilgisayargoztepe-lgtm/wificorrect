@@ -1,0 +1,19 @@
+{
+ "bicim": 3,
+ "dosya": "test_rapor",
+ "test": "test_gruplar",
+ "cevaplar": [],
+ "veritabanlari": [],
+ "dosyalar": [
+  {
+   "baska.json": {
+    "json": {
+     "1234567": [
+      "bocafe"
+     ]
+    }
+   }
+  }
+ ],
+ "yollar": []
+}

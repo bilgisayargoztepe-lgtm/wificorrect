@@ -1,0 +1,164 @@
+{
+ "bicim": 3,
+ "dosya": "test_saglik",
+ "test": "test_bayat_durumda_degerlendirme_yok_gunde_bir_sms",
+ "cevaplar": [],
+ "veritabanlari": [
+  {
+   "ad": "m.db",
+   "tablolar": {
+    "ayar": [
+     {
+      "anahtar": "uyari",
+      "deger": "{\"telefonlar\": [\"905334553132\"], \"acik\": true, \"gunluk_sinir\": 20}"
+     },
+     {
+      "anahtar": "sms",
+      "deger": "{\"mock\": false, \"usercode\": \"u\", \"password\": \"p\", \"msgheader\": \"H\", \"appkey\": \"\", \"tr_saglayici\": \"netgsm\", \"twilio\": {\"acik\": false, \"account_sid\": \"\", \"auth_token\": \"\", \"api_key_sid\": \"\", \"api_key_secret\": \"\", \"verify_sid\": \"\"}}"
+     },
+     {
+      "anahtar": "izleme_sms:durum_yok:2026-10-11",
+      "deger": "1"
+     },
+     {
+      "anahtar": "izleme_sms:durum_bayat:2026-10-11",
+      "deger": "1"
+     },
+     {
+      "anahtar": "sms_sayac:2026-10-11",
+      "deger": "2"
+     },
+     {
+      "anahtar": "izleme_sms:durum_bayat:2026-10-12",
+      "deger": "1"
+     },
+     {
+      "anahtar": "sms_sayac:2026-10-12",
+      "deger": "1"
+     }
+    ],
+    "bekleyen": [],
+    "cihaz": [
+     {
+      "admin_ozet": "",
+      "admin_parola": "",
+      "admin_tuz": "",
+      "admin_yineleme": 0,
+      "adres": "",
+      "anahtar_ozet": "4b3d539199668875d7f7b984e232922e427434cc4b74709eaed94a2dd9805cec",
+      "ayrilma": "",
+      "baglanma": "2026-10-11T20:15:00+03:00",
+      "durum": "bagli",
+      "id": 1,
+      "isletme_adi": "Göztepe",
+      "isletme_turu": "",
+      "musteri": 5721885,
+      "otomatik": 0,
+      "son_eslesme": "",
+      "ssh_pub": "ssh-ed25519 AAAA",
+      "surum": "",
+      "tunel_ip": "",
+      "unvan": "",
+      "wg_pub": "0000000000000000000000000000000000005721885="
+     }
+    ],
+    "eski_arsiv": [],
+    "hareket": [
+     {
+      "ayrinti": "izleme çalışmıyor (durum.json yok): gonderildi",
+      "id": 1,
+      "ip": "-",
+      "kim": "saglik",
+      "musteri": null,
+      "olay": "UYARI_SMS",
+      "zaman": "2026-10-11T20:15:00+03:00"
+     },
+     {
+      "ayrinti": "izleme çalışmıyor (durum.json bayat): gonderildi",
+      "id": 2,
+      "ip": "-",
+      "kim": "saglik",
+      "musteri": null,
+      "olay": "UYARI_SMS",
+      "zaman": "2026-10-11T20:15:00+03:00"
+     },
+     {
+      "ayrinti": "izleme çalışmıyor (durum.json bayat): gonderildi",
+      "id": 3,
+      "ip": "-",
+      "kim": "saglik",
+      "musteri": null,
+      "olay": "UYARI_SMS",
+      "zaman": "2026-10-11T20:15:00+03:00"
+     }
+    ],
+    "musteri": [
+     {
+      "ap_parola": "6vwWeTxWbXDf",
+      "askida": 0,
+      "bitis": "",
+      "guncelleme_hemen": 0.0,
+      "guncelleme_hemen_surum": "",
+      "guncelleme_kanali": "kararli",
+      "lisans_bitis": "2027-10-11",
+      "not_": "",
+      "numara": 5721885,
+      "olusturma": "2026-10-11T20:15:00+03:00",
+      "ozet": "fcd77d2f1464acefd0bf9649c59c9103b30bf9b4aa14a1930fdbc86ae817e02c",
+      "parola_acik": "6bnuKUG4dyZ7",
+      "son_giris": "",
+      "tuz": "<T1:32>",
+      "uyelik": "aktif",
+      "yineleme": 120000
+     }
+    ],
+    "saglik": [],
+    "sms_sayac": [],
+    "sms_son": [],
+    "sorun": [],
+    "sqlite_sequence": [
+     {
+      "name": "cihaz",
+      "seq": 1
+     },
+     {
+      "name": "hareket",
+      "seq": 3
+     }
+    ],
+    "surum": []
+   }
+  },
+  {
+   "ad": "m.db",
+   "tablolar": {
+    "ayar": [
+     {
+      "anahtar": "uyari",
+      "deger": "{\"telefonlar\": [\"905334553132\"], \"acik\": false, \"gunluk_sinir\": 20}"
+     },
+     {
+      "anahtar": "sms",
+      "deger": "{\"mock\": false, \"usercode\": \"u\", \"password\": \"p\", \"msgheader\": \"H\", \"appkey\": \"\", \"tr_saglayici\": \"netgsm\", \"twilio\": {\"acik\": false, \"account_sid\": \"\", \"auth_token\": \"\", \"api_key_sid\": \"\", \"api_key_secret\": \"\", \"verify_sid\": \"\"}}"
+     }
+    ],
+    "bekleyen": [],
+    "cihaz": [],
+    "eski_arsiv": [],
+    "hareket": [],
+    "musteri": [],
+    "saglik": [],
+    "sms_sayac": [],
+    "sms_son": [],
+    "sorun": [],
+    "sqlite_sequence": [],
+    "surum": []
+   }
+  }
+ ],
+ "dosyalar": [
+  {},
+  {}
+ ],
+ "yollar": []
+}

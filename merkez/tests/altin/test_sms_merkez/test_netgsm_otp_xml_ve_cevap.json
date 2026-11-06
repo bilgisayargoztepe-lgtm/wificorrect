@@ -1,0 +1,9 @@
+{
+ "bicim": 3,
+ "dosya": "test_sms_merkez",
+ "test": "test_netgsm_otp_xml_ve_cevap",
+ "cevaplar": [],
+ "veritabanlari": [],
+ "dosyalar": [],
+ "yollar": []
+}

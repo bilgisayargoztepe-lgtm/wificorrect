@@ -1,0 +1,48 @@
+{
+ "bicim": 3,
+ "dosya": "test_listeler",
+ "test": "test_hatali_kaynak_onceki_basarili_kopyasiyla_devam",
+ "cevaplar": [],
+ "veritabanlari": [],
+ "dosyalar": [
+  {
+   "kaynak/": {
+    "dizin": true
+   },
+   "kaynak/kumar-1cee97163277.txt.gz": {
+    "metin": "d.com\n",
+    "gz": true
+   },
+   "kaynak/kumar-1e76245f6f33.txt.gz": {
+    "metin": "a.com\nb.com\n",
+    "gz": true
+   },
+   "kumar.json": {
+    "json": {
+     "kategori": "kumar",
+     "sha256": "ee30da73bdcdb0025674153515d0cb99012827410dcac404be845ab4beef7df6",
+     "sayi": 3,
+     "zaman": "2026-09-21T17:13:30+03:00",
+     "kesildi": false,
+     "kaynaklar": [
+      {
+       "ad": "A",
+       "sayi": 2,
+       "hata": "liste boş",
+       "eski": true
+      },
+      {
+       "ad": "B",
+       "sayi": 1
+      }
+     ]
+    }
+   },
+   "kumar.txt.gz": {
+    "metin": "a.com\nb.com\nd.com\n",
+    "gz": true
+   }
+  }
+ ],
+ "yollar": []
+}

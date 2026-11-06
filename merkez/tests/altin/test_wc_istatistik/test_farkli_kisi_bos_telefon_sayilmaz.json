@@ -1,0 +1,25 @@
+{
+ "bicim": 3,
+ "dosya": "test_wc_istatistik",
+ "test": "test_farkli_kisi_bos_telefon_sayilmaz",
+ "cevaplar": [],
+ "veritabanlari": [],
+ "dosyalar": [
+  {
+   "gunluk/": {
+    "dizin": true
+   },
+   "gunluk/2026-09-27/": {
+    "dizin": true
+   },
+   "gunluk/2026-09-27/MANIFEST.sha256": {
+    "metin": "# gun=2026-09-27 onceki_zincir=0\nabc123  trafik.csv.gz\n"
+   },
+   "gunluk/2026-09-27/trafik.csv.gz": {
+    "metin": "﻿zaman;olay;telefon;ad;soyad;mac;ic_ip;protokol;ic_port;hedef_ip;hedef_port;nat_ip;nat_port;alan_adi;gonderilen_bayt;alinan_bayt;sure_sn;oturum_id;ek\n2026-09-27T10:00:00+03:00;BAGLANTI_BASLA;5551112233;;;;;;;;;;;;;;;;\n2026-09-27T10:00:00+03:00;BAGLANTI_BASLA;5551112233;;;;;;;;;;;;;;;;\n2026-09-27T10:00:00+03:00;BAGLANTI_BASLA;5559998877;;;;;;;;;;;;;;;;\n2026-09-27T10:00:00+03:00;BAGLANTI_BASLA;;;;;;;;;;;;;;;;;\n",
+    "gz": true
+   }
+  }
+ ],
+ "yollar": []
+}

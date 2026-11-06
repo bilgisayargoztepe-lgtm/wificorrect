@@ -1,0 +1,43 @@
+{
+ "bicim": 3,
+ "dosya": "test_listeler",
+ "test": "test_bir_kaynak_hata_digerleriyle_uretilir",
+ "cevaplar": [],
+ "veritabanlari": [],
+ "dosyalar": [
+  {
+   "kaynak/": {
+    "dizin": true
+   },
+   "kaynak/kumar-1cee97163277.txt.gz": {
+    "metin": "c.com\n",
+    "gz": true
+   },
+   "kumar.json": {
+    "json": {
+     "kategori": "kumar",
+     "sha256": "f49d3a28cf9749dffe9ee87637c61ad743d319eea215a96f8c0d60ec8b31cf33",
+     "sayi": 1,
+     "zaman": "2026-09-21T17:13:20+03:00",
+     "kesildi": false,
+     "kaynaklar": [
+      {
+       "ad": "A",
+       "sayi": 0,
+       "hata": "ag yok"
+      },
+      {
+       "ad": "B",
+       "sayi": 1
+      }
+     ]
+    }
+   },
+   "kumar.txt.gz": {
+    "metin": "c.com\n",
+    "gz": true
+   }
+  }
+ ],
+ "yollar": []
+}

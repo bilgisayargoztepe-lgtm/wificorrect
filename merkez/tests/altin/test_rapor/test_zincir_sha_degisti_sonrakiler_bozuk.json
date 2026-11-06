@@ -1,0 +1,15 @@
+{
+ "bicim": 3,
+ "dosya": "test_rapor",
+ "test": "test_zincir_sha_degisti_sonrakiler_bozuk",
+ "cevaplar": [],
+ "veritabanlari": [],
+ "dosyalar": [
+  {
+   "zincir.txt": {
+    "metin": "2026-10-01;aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa;6b0440c1ce48fe6bbbdc6b7b1499bf9aa8b74171dcdb3eeff952e1e7cf527813\n2026-10-02;bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb;eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\n2026-10-03;cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc;9723d8070912c45671317bf71fd0fec3f3ae37a6d44453378c1faf7e5208e673\n"
+   }
+  }
+ ],
+ "yollar": []
+}

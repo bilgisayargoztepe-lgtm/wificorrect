@@ -1,0 +1,98 @@
+{
+ "bicim": 3,
+ "dosya": "test_veri",
+ "test": "test_serbest_birakma_akisi",
+ "cevaplar": [],
+ "veritabanlari": [
+  {
+   "ad": "m.db",
+   "tablolar": {
+    "ayar": [],
+    "bekleyen": [],
+    "cihaz": [
+     {
+      "admin_ozet": "",
+      "admin_parola": "",
+      "admin_tuz": "",
+      "admin_yineleme": 0,
+      "adres": "",
+      "anahtar_ozet": "4b3d539199668875d7f7b984e232922e427434cc4b74709eaed94a2dd9805cec",
+      "ayrilma": "2026-09-21T17:13:20+03:00",
+      "baglanma": "2026-09-21T17:13:20+03:00",
+      "durum": "serbest",
+      "id": 1,
+      "isletme_adi": "",
+      "isletme_turu": "",
+      "musteri": 5721885,
+      "otomatik": 0,
+      "son_eslesme": "",
+      "ssh_pub": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI test@cihaz",
+      "surum": "",
+      "tunel_ip": "",
+      "unvan": "",
+      "wg_pub": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+     },
+     {
+      "admin_ozet": "",
+      "admin_parola": "",
+      "admin_tuz": "",
+      "admin_yineleme": 0,
+      "adres": "",
+      "anahtar_ozet": "ad124cf6935977307edf5d0b60ed37358cf3af60c617edc493dd8de0558d0829",
+      "ayrilma": "2026-09-21T17:13:20+03:00",
+      "baglanma": "2026-09-21T17:13:20+03:00",
+      "durum": "serbest",
+      "id": 2,
+      "isletme_adi": "",
+      "isletme_turu": "",
+      "musteri": 5721885,
+      "otomatik": 0,
+      "son_eslesme": "",
+      "ssh_pub": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI test@cihaz",
+      "surum": "",
+      "tunel_ip": "",
+      "unvan": "",
+      "wg_pub": "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB="
+     }
+    ],
+    "eski_arsiv": [],
+    "hareket": [],
+    "musteri": [
+     {
+      "ap_parola": "6vwWeTxWbXDf",
+      "askida": 0,
+      "bitis": "",
+      "guncelleme_hemen": 0.0,
+      "guncelleme_hemen_surum": "",
+      "guncelleme_kanali": "kararli",
+      "lisans_bitis": "2027-09-21",
+      "not_": "",
+      "numara": 5721885,
+      "olusturma": "2026-09-21T17:13:20+03:00",
+      "ozet": "fcd77d2f1464acefd0bf9649c59c9103b30bf9b4aa14a1930fdbc86ae817e02c",
+      "parola_acik": "6bnuKUG4dyZ7",
+      "son_giris": "",
+      "tuz": "<T1:32>",
+      "uyelik": "aktif",
+      "yineleme": 120000
+     }
+    ],
+    "saglik": [],
+    "sms_sayac": [],
+    "sms_son": [],
+    "sorun": [],
+    "sqlite_sequence": [
+     {
+      "name": "cihaz",
+      "seq": 2
+     }
+    ],
+    "surum": []
+   }
+  }
+ ],
+ "dosyalar": [
+  {}
+ ],
+ "yollar": []
+}

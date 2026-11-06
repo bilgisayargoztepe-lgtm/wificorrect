@@ -1,0 +1,87 @@
+{
+ "bicim": 3,
+ "dosya": "test_saglik",
+ "test": "test_liste_denetimi_durum_bozukken_de_calisir",
+ "cevaplar": [],
+ "veritabanlari": [
+  {
+   "ad": "m.db",
+   "tablolar": {
+    "ayar": [
+     {
+      "anahtar": "uyari",
+      "deger": "{\"telefonlar\": [\"905334553132\"], \"acik\": true, \"gunluk_sinir\": 20}"
+     },
+     {
+      "anahtar": "sms",
+      "deger": "{\"mock\": false, \"usercode\": \"u\", \"password\": \"p\", \"msgheader\": \"H\", \"appkey\": \"\", \"tr_saglayici\": \"netgsm\", \"twilio\": {\"acik\": false, \"account_sid\": \"\", \"auth_token\": \"\", \"api_key_sid\": \"\", \"api_key_secret\": \"\", \"verify_sid\": \"\"}}"
+     },
+     {
+      "anahtar": "izleme_sms:durum_yok:2026-10-11",
+      "deger": "1"
+     },
+     {
+      "anahtar": "sms_sayac:2026-10-11",
+      "deger": "1"
+     }
+    ],
+    "bekleyen": [],
+    "cihaz": [],
+    "eski_arsiv": [],
+    "hareket": [
+     {
+      "ayrinti": "izleme çalışmıyor (durum.json yok): gonderildi",
+      "id": 1,
+      "ip": "-",
+      "kim": "saglik",
+      "musteri": null,
+      "olay": "UYARI_SMS",
+      "zaman": "2026-10-11T20:15:00+03:00"
+     }
+    ],
+    "musteri": [],
+    "saglik": [],
+    "sms_sayac": [],
+    "sms_son": [],
+    "sorun": [
+     {
+      "acilis": "2026-10-11T20:15:00+03:00",
+      "acilis_sms": "",
+      "id": 1,
+      "kapanis": "",
+      "kapanis_sms": "",
+      "metin": "Engel listeleri güncellenemiyor: Kumar ve bahis",
+      "musteri": 0,
+      "onem": "uyari",
+      "tur": "liste_guncellenemiyor"
+     }
+    ],
+    "sqlite_sequence": [
+     {
+      "name": "sorun",
+      "seq": 1
+     },
+     {
+      "name": "hareket",
+      "seq": 1
+     }
+    ],
+    "surum": []
+   }
+  }
+ ],
+ "dosyalar": [
+  {
+   "listeler/": {
+    "dizin": true
+   },
+   "listeler/kumar.json": {
+    "json": {
+     "kategori": "kumar",
+     "hata": "Hiçbir kaynak indirilemedi."
+    }
+   }
+  }
+ ],
+ "yollar": []
+}

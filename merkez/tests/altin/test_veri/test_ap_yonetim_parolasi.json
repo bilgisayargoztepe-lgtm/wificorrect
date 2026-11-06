@@ -1,0 +1,66 @@
+{
+ "bicim": 3,
+ "dosya": "test_veri",
+ "test": "test_ap_yonetim_parolasi",
+ "cevaplar": [],
+ "veritabanlari": [
+  {
+   "ad": "m.db",
+   "tablolar": {
+    "ayar": [],
+    "bekleyen": [],
+    "cihaz": [],
+    "eski_arsiv": [],
+    "hareket": [],
+    "musteri": [
+     {
+      "ap_parola": "eJAHEtbPVMuP",
+      "askida": 0,
+      "bitis": "",
+      "guncelleme_hemen": 0.0,
+      "guncelleme_hemen_surum": "",
+      "guncelleme_kanali": "kararli",
+      "lisans_bitis": "2027-09-21",
+      "not_": "",
+      "numara": 5721885,
+      "olusturma": "2026-09-21T17:13:20+03:00",
+      "ozet": "2f0c6ae427e794ff157e8b1bb8a66746d57da95fe80c279226c874237d232ba4",
+      "parola_acik": "baska-parola-12",
+      "son_giris": "",
+      "tuz": "<T1:32>",
+      "uyelik": "aktif",
+      "yineleme": 120000
+     },
+     {
+      "ap_parola": "HrMvjRVphQyd",
+      "askida": 0,
+      "bitis": "",
+      "guncelleme_hemen": 0.0,
+      "guncelleme_hemen_surum": "",
+      "guncelleme_kanali": "kararli",
+      "lisans_bitis": "2027-09-21",
+      "not_": "",
+      "numara": 8592499,
+      "olusturma": "2026-09-21T17:13:20+03:00",
+      "ozet": "e3774b6d018985dae8974ef1ceae2b0fffddaca80a745bbe6015adacab37964f",
+      "parola_acik": "6vwWeTxWbXDf",
+      "son_giris": "",
+      "tuz": "<T2:32>",
+      "uyelik": "aktif",
+      "yineleme": 120000
+     }
+    ],
+    "saglik": [],
+    "sms_sayac": [],
+    "sms_son": [],
+    "sorun": [],
+    "sqlite_sequence": [],
+    "surum": []
+   }
+  }
+ ],
+ "dosyalar": [
+  {}
+ ],
+ "yollar": []
+}

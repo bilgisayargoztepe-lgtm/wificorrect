@@ -1,0 +1,228 @@
+{
+ "bicim": 3,
+ "dosya": "test_api",
+ "test": "test_giris_ve_eslesme_tek_admin_ozetini_tasir",
+ "cevaplar": [
+  {
+   "istek": "POST /api/giris",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "tuz": "<T2:32>",
+     "ozet": "fcd77d2f1464acefd0bf9649c59c9103b30bf9b4aa14a1930fdbc86ae817e02c",
+     "yineleme": 120000,
+     "lisans": "aktif",
+     "lisans_bitis": "2027-09-21",
+     "ap_parola": "6vwWeTxWbXDf",
+     "sms": {
+      "etkin_mock": true
+     },
+     "cihaz_anahtari": "<T1:43>",
+     "tunel_ip": "10.99.0.10",
+     "sunucu_pub": "SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS=",
+     "uc_nokta": "vpn.wificorrect.com:51820",
+     "yedek_hedefi": "wfc-5721885@10.99.0.1:"
+    }
+   }
+  },
+  {
+   "istek": "POST /api/eslesme",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "tuz": "<T2:32>",
+     "ozet": "fcd77d2f1464acefd0bf9649c59c9103b30bf9b4aa14a1930fdbc86ae817e02c",
+     "yineleme": 120000,
+     "lisans": "aktif",
+     "lisans_bitis": "2027-09-21",
+     "ap_parola": "6vwWeTxWbXDf",
+     "admin": {
+      "tuz": "<T3:32>",
+      "ozet": "cb9e0d95b5c5395dd61fc6e2629793055a4678070c59f316ecd69203367b2aef",
+      "yineleme": 120000
+     },
+     "sms": {
+      "etkin_mock": true
+     },
+     "durum": "bagli",
+     "uyelik": "aktif"
+    }
+   }
+  },
+  {
+   "istek": "POST /api/eslesme",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "tuz": "<T2:32>",
+     "ozet": "fcd77d2f1464acefd0bf9649c59c9103b30bf9b4aa14a1930fdbc86ae817e02c",
+     "yineleme": 120000,
+     "lisans": "aktif",
+     "lisans_bitis": "2027-09-21",
+     "ap_parola": "6vwWeTxWbXDf",
+     "admin": {
+      "tuz": "<T3:32>",
+      "ozet": "cb9e0d95b5c5395dd61fc6e2629793055a4678070c59f316ecd69203367b2aef",
+      "yineleme": 120000
+     },
+     "sms": {
+      "etkin_mock": true
+     },
+     "durum": "bagli",
+     "uyelik": "aktif"
+    }
+   }
+  }
+ ],
+ "veritabanlari": [
+  {
+   "ad": "m.db",
+   "tablolar": {
+    "ayar": [
+     {
+      "anahtar": "admin",
+      "deger": "{\"tuz\": \"<T3:32>\", \"ozet\": \"cb9e0d95b5c5395dd61fc6e2629793055a4678070c59f316ecd69203367b2aef\", \"yineleme\": 120000}"
+     }
+    ],
+    "bekleyen": [],
+    "cihaz": [
+     {
+      "admin_ozet": "",
+      "admin_parola": "",
+      "admin_tuz": "",
+      "admin_yineleme": 0,
+      "adres": "",
+      "anahtar_ozet": "4b3d539199668875d7f7b984e232922e427434cc4b74709eaed94a2dd9805cec",
+      "ayrilma": "",
+      "baglanma": "2026-09-21T17:13:20+03:00",
+      "durum": "bagli",
+      "id": 1,
+      "isletme_adi": "",
+      "isletme_turu": "",
+      "musteri": 5721885,
+      "otomatik": 0,
+      "son_eslesme": "2026-09-21T17:13:20+03:00",
+      "ssh_pub": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI cihaz",
+      "surum": "",
+      "tunel_ip": "10.99.0.10",
+      "unvan": "",
+      "wg_pub": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+     }
+    ],
+    "eski_arsiv": [],
+    "hareket": [
+     {
+      "ayrinti": "cihaz=1 tunel=10.99.0.10",
+      "id": 1,
+      "ip": "198.51.100.7",
+      "kim": "5721885",
+      "musteri": 5721885,
+      "olay": "CIHAZ_BAGLANDI",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     }
+    ],
+    "musteri": [
+     {
+      "ap_parola": "6vwWeTxWbXDf",
+      "askida": 0,
+      "bitis": "",
+      "guncelleme_hemen": 0.0,
+      "guncelleme_hemen_surum": "",
+      "guncelleme_kanali": "kararli",
+      "lisans_bitis": "2027-09-21",
+      "not_": "",
+      "numara": 5721885,
+      "olusturma": "2026-09-21T17:13:20+03:00",
+      "ozet": "fcd77d2f1464acefd0bf9649c59c9103b30bf9b4aa14a1930fdbc86ae817e02c",
+      "parola_acik": "6bnuKUG4dyZ7",
+      "son_giris": "",
+      "tuz": "<T2:32>",
+      "uyelik": "aktif",
+      "yineleme": 120000
+     }
+    ],
+    "saglik": [],
+    "sms_sayac": [],
+    "sms_son": [],
+    "sorun": [],
+    "sqlite_sequence": [
+     {
+      "name": "cihaz",
+      "seq": 1
+     },
+     {
+      "name": "hareket",
+      "seq": 1
+     }
+    ],
+    "surum": []
+   }
+  }
+ ],
+ "dosyalar": [
+  {
+   "detay/": {
+    "dizin": true
+   },
+   "ist/": {
+    "dizin": true
+   }
+  }
+ ],
+ "yollar": [
+  [
+   "Api",
+   "POST",
+   "/api/giris",
+   null,
+   200,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/eslesme",
+   null,
+   200,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/eslesme",
+   null,
+   200,
+   null
+  ]
+ ]
+}

@@ -1,0 +1,98 @@
+{
+ "bicim": 3,
+ "dosya": "test_veri",
+ "test": "test_eski_cihaz_tablosuna_admin_sutunlari_eklenir",
+ "cevaplar": [],
+ "veritabanlari": [
+  {
+   "ad": "m.db",
+   "tablolar": {
+    "ayar": [],
+    "bekleyen": [],
+    "cihaz": [
+     {
+      "admin_ozet": "",
+      "admin_parola": "",
+      "admin_tuz": "",
+      "admin_yineleme": 0,
+      "adres": "",
+      "anahtar_ozet": "hash1",
+      "ayrilma": "",
+      "baglanma": "2026-01-01T00:00:00+03:00",
+      "durum": "bagli",
+      "id": 1,
+      "isletme_adi": "",
+      "isletme_turu": "",
+      "musteri": 1111111,
+      "otomatik": 0,
+      "son_eslesme": "",
+      "ssh_pub": "ssh1",
+      "surum": "",
+      "tunel_ip": "",
+      "unvan": "",
+      "wg_pub": "pub1"
+     },
+     {
+      "admin_ozet": "",
+      "admin_parola": "",
+      "admin_tuz": "",
+      "admin_yineleme": 0,
+      "adres": "",
+      "anahtar_ozet": "hash2",
+      "ayrilma": "",
+      "baglanma": "2026-01-01T00:00:00+03:00",
+      "durum": "serbest",
+      "id": 2,
+      "isletme_adi": "",
+      "isletme_turu": "",
+      "musteri": 1111111,
+      "otomatik": 0,
+      "son_eslesme": "",
+      "ssh_pub": "ssh2",
+      "surum": "",
+      "tunel_ip": "",
+      "unvan": "",
+      "wg_pub": "pub2"
+     }
+    ],
+    "eski_arsiv": [],
+    "hareket": [],
+    "musteri": [
+     {
+      "ap_parola": "6bnuKUG4dyZ7",
+      "askida": 0,
+      "bitis": "",
+      "guncelleme_hemen": 0.0,
+      "guncelleme_hemen_surum": "",
+      "guncelleme_kanali": "kararli",
+      "lisans_bitis": "2027-01-01",
+      "not_": "",
+      "numara": 1111111,
+      "olusturma": "2026-01-01T00:00:00+03:00",
+      "ozet": "o",
+      "parola_acik": "",
+      "son_giris": "",
+      "tuz": "t",
+      "uyelik": "aktif",
+      "yineleme": 120000
+     }
+    ],
+    "saglik": [],
+    "sms_sayac": [],
+    "sms_son": [],
+    "sorun": [],
+    "sqlite_sequence": [
+     {
+      "name": "cihaz",
+      "seq": 2
+     }
+    ],
+    "surum": []
+   }
+  }
+ ],
+ "dosyalar": [
+  {}
+ ],
+ "yollar": []
+}

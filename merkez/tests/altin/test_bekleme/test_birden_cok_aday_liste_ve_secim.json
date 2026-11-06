@@ -1,0 +1,372 @@
+{
+ "bicim": 3,
+ "dosya": "test_bekleme",
+ "test": "test_birden_cok_aday_liste_ve_secim",
+ "cevaplar": [
+  {
+   "istek": "POST /api/bekliyor",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "durum": "bekle"
+    }
+   }
+  },
+  {
+   "istek": "POST /api/bekliyor",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "durum": "bekle"
+    }
+   }
+  },
+  {
+   "istek": "POST /giris",
+   "durum": 303,
+   "basliklar": [
+    [
+     "Location",
+     "/baglan"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ],
+    [
+     "Set-Cookie",
+     "wc_musteri=<T1:43>; HttpOnly; Secure; SameSite=Strict; Path=/"
+    ]
+   ],
+   "govde": {
+    "metin": ""
+   }
+  },
+  {
+   "istek": "GET /baglan",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Cihaz bağlama · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><header><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_ACIK}</a><nav><a href=\"/cihaz\">Cihaz paneli</a><a href=\"/\">Yedek arşiv</a><a href=\"/raporlar\">Raporlar</a><a href=\"/parola\">Parola</a><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2:32>\"><button class=\"ikincil\">Çıkış</button></form></nav></header><main><div class=\"kart\"><h1>Birden çok cihaz bulundu</h1><p>Bu internet bağlantısında bağlanmayı bekleyen birden çok cihaz var. Sizinkini seçin: cihazın altındaki etiketteki MAC adresinin son dört hanesine bakın.</p><div class=\"kaydir\"><table><tr><th>İlk görülme</th><th>MAC (son 4)</th><th>Sürüm</th><th></th></tr><tr><td>21.09.2026 17:13</td><td>A0:9B</td><td>0.4.13</td><td><form method=\"post\" action=\"/baglan\"><input type=\"hidden\" name=\"csrf\" value=\"<T2:32>\"><input type=\"hidden\" name=\"kimlik\" value=\"11111111111111111111111111111111\"><button class=\"ikincil\">Bu cihaz</button></form></td></tr><tr><td>21.09.2026 17:13</td><td>22:33</td><td>0.4.13</td><td><form method=\"post\" action=\"/baglan\"><input type=\"hidden\" name=\"csrf\" value=\"<T2:32>\"><input type=\"hidden\" name=\"kimlik\" value=\"22222222222222222222222222222222\"><button class=\"ikincil\">Bu cihaz</button></form></td></tr></table></div><p><a href=\"/baglan\">Listeyi yenile</a></p></div></main></body></html>"
+   }
+  },
+  {
+   "istek": "POST /baglan",
+   "durum": 403,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Geçersiz istek · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><header><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_ACIK}</a><nav><a href=\"/cihaz\">Cihaz paneli</a><a href=\"/\">Yedek arşiv</a><a href=\"/raporlar\">Raporlar</a><a href=\"/parola\">Parola</a><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2:32>\"><button class=\"ikincil\">Çıkış</button></form></nav></header><main><div class=\"kart\"><h1>Geçersiz istek</h1><p>Sayfayı yenileyip tekrar deneyin.</p><p><a href=\"/\">Ana sayfa</a></p></div></main></body></html>"
+   }
+  },
+  {
+   "istek": "POST /baglan",
+   "durum": 400,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Cihaz seçilemedi · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><header><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_ACIK}</a><nav><a href=\"/cihaz\">Cihaz paneli</a><a href=\"/\">Yedek arşiv</a><a href=\"/raporlar\">Raporlar</a><a href=\"/parola\">Parola</a><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2:32>\"><button class=\"ikincil\">Çıkış</button></form></nav></header><main><div class=\"kart\"><h1>Cihaz seçilemedi</h1><p>Bu cihaz artık seçilemiyor. Sayfayı yenileyip tekrar deneyin.</p><p><a href=\"/\">Ana sayfa</a></p></div></main></body></html>"
+   }
+  },
+  {
+   "istek": "POST /baglan",
+   "durum": 303,
+   "basliklar": [
+    [
+     "Location",
+     "/baglan"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": ""
+   }
+  },
+  {
+   "istek": "POST /api/bekliyor",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "durum": "bekle"
+    }
+   }
+  },
+  {
+   "istek": "POST /api/bekliyor",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "durum": "baglan",
+     "belirtec": "<T3:43>"
+    }
+   }
+  }
+ ],
+ "veritabanlari": [
+  {
+   "ad": "m.db",
+   "tablolar": {
+    "ayar": [],
+    "bekleyen": [
+     {
+      "ayrilma": 0.0,
+      "baglandi": 0.0,
+      "belirtec_bitis": 0.0,
+      "belirtec_ozet": "",
+      "cihaz": null,
+      "ilk": 1790000000.0,
+      "ip": "203.0.113.5",
+      "kimlik": "11111111111111111111111111111111",
+      "musteri": null,
+      "sir_ozet": "ffe054fe7ae0cb6dc65c3af9b61d5209f439851db43d0ba5997337df154668eb",
+      "son": 1790000000.0,
+      "ssh_pub": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI cihaz",
+      "surum": "0.4.13",
+      "wan_mac": "00:0e:c4:ce:a0:9b",
+      "wg_pub": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+     },
+     {
+      "ayrilma": 1790000000.0,
+      "baglandi": 0.0,
+      "belirtec_bitis": 1790000600.0,
+      "belirtec_ozet": "ad124cf6935977307edf5d0b60ed37358cf3af60c617edc493dd8de0558d0829",
+      "cihaz": null,
+      "ilk": 1790000000.0,
+      "ip": "203.0.113.5",
+      "kimlik": "22222222222222222222222222222222",
+      "musteri": 5721885,
+      "sir_ozet": "a0fab1377f49a759b57f63318262ebe89fabfc990e8e93ceac2984561482b9d4",
+      "son": 1790000000.0,
+      "ssh_pub": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI cihaz",
+      "surum": "0.4.13",
+      "wan_mac": "00:0e:c4:ce:a0:9b",
+      "wg_pub": "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB="
+     }
+    ],
+    "cihaz": [],
+    "eski_arsiv": [],
+    "hareket": [
+     {
+      "ayrinti": "kimlik=11111111 surum=0.4.13 mac=00:0e:c4:ce:a0:9b",
+      "id": 1,
+      "ip": "203.0.113.5",
+      "kim": "bekleyen:11111111",
+      "musteri": null,
+      "olay": "CIHAZ_BEKLIYOR",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     },
+     {
+      "ayrinti": "kimlik=22222222 surum=0.4.13 mac=00:0e:c4:11:22:33",
+      "id": 2,
+      "ip": "203.0.113.5",
+      "kim": "bekleyen:22222222",
+      "musteri": null,
+      "olay": "CIHAZ_BEKLIYOR",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     },
+     {
+      "ayrinti": "müşteri paneli",
+      "id": 3,
+      "ip": "203.0.113.5",
+      "kim": "5721885",
+      "musteri": 5721885,
+      "olay": "GIRIS",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     },
+     {
+      "ayrinti": "kimlik=22222222 secim=liste",
+      "id": 4,
+      "ip": "203.0.113.5",
+      "kim": "5721885",
+      "musteri": 5721885,
+      "olay": "CIHAZ_OTOMATIK_AYRILDI",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     }
+    ],
+    "musteri": [
+     {
+      "ap_parola": "6bnuKUG4dyZ7",
+      "askida": 0,
+      "bitis": "",
+      "guncelleme_hemen": 0.0,
+      "guncelleme_hemen_surum": "",
+      "guncelleme_kanali": "kararli",
+      "lisans_bitis": "2027-09-21",
+      "not_": "",
+      "numara": 5721885,
+      "olusturma": "2026-09-21T17:13:20+03:00",
+      "ozet": "e4b42aba6380c081c1e40ea833fbd8d6c017c31428ff9779ed2c6c68422dbf14",
+      "parola_acik": "musteri-parola-1",
+      "son_giris": "2026-09-21T17:13:20+03:00",
+      "tuz": "<T4:32>",
+      "uyelik": "aktif",
+      "yineleme": 120000
+     }
+    ],
+    "saglik": [],
+    "sms_sayac": [],
+    "sms_son": [],
+    "sorun": [],
+    "sqlite_sequence": [
+     {
+      "name": "hareket",
+      "seq": 4
+     }
+    ],
+    "surum": []
+   }
+  }
+ ],
+ "dosyalar": [
+  {
+   "detay/": {
+    "dizin": true
+   },
+   "ist/": {
+    "dizin": true
+   }
+  }
+ ],
+ "yollar": [
+  [
+   "Api",
+   "POST",
+   "/api/bekliyor",
+   null,
+   200,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/bekliyor",
+   null,
+   200,
+   null
+  ],
+  [
+   "Musteri",
+   "POST",
+   "/giris",
+   null,
+   303,
+   "/baglan"
+  ],
+  [
+   "Musteri",
+   "GET",
+   "/baglan",
+   null,
+   200,
+   null
+  ],
+  [
+   "Musteri",
+   "POST",
+   "/baglan",
+   null,
+   403,
+   null
+  ],
+  [
+   "Musteri",
+   "POST",
+   "/baglan",
+   null,
+   400,
+   null
+  ],
+  [
+   "Musteri",
+   "POST",
+   "/baglan",
+   null,
+   303,
+   "/baglan"
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/bekliyor",
+   null,
+   200,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/bekliyor",
+   null,
+   200,
+   null
+  ]
+ ]
+}

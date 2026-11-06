@@ -1,0 +1,963 @@
+{
+ "bicim": 3,
+ "dosya": "test_wc_istatistik",
+ "test": "test_main_raporlari_uretir",
+ "cevaplar": [],
+ "veritabanlari": [],
+ "dosyalar": [
+  {
+   "detay/": {
+    "dizin": true
+   },
+   "detay/1234567/": {
+    "dizin": true
+   },
+   "detay/1234567/2026-09-30.json": {
+    "json": {
+     "gun": "2026-09-30",
+     "kisiler": [
+      {
+       "telefon": "905551112233",
+       "ad": "",
+       "soyad": "",
+       "mac": [],
+       "oturumlar": [],
+       "gonderilen": 0,
+       "alinan": 0,
+       "baglanti_sayisi": 0,
+       "ilk": "2026-09-30T10:00:00+03:00",
+       "son": "2026-09-30T10:00:00+03:00",
+       "siteler": [],
+       "baglantilar": [],
+       "diger_site_sayisi": 0
+      }
+     ]
+    }
+   },
+   "detay/1234567/2026-10-01.json": {
+    "json": {
+     "gun": "2026-10-01",
+     "kisiler": [
+      {
+       "telefon": "905334553132",
+       "ad": "",
+       "soyad": "",
+       "mac": [],
+       "oturumlar": [],
+       "gonderilen": 0,
+       "alinan": 0,
+       "baglanti_sayisi": 0,
+       "ilk": "2026-10-01T10:00:00+03:00",
+       "son": "2026-10-01T10:00:00+03:00",
+       "siteler": [],
+       "baglantilar": [],
+       "diger_site_sayisi": 0
+      }
+     ]
+    }
+   },
+   "detay/1234567/kisiler.json": {
+    "json": {
+     "905334553132": {
+      "ad": "",
+      "soyad": "",
+      "gunler": [
+       "2026-10-01"
+      ],
+      "odalar": {}
+     },
+     "905551112233": {
+      "ad": "",
+      "soyad": "",
+      "gunler": [
+       "2026-09-30"
+      ],
+      "odalar": {}
+     }
+    }
+   },
+   "detay/bocafe/": {
+    "dizin": true
+   },
+   "detay/bocafe/2026-09-29.json": {
+    "json": {
+     "gun": "2026-09-29",
+     "kisiler": [
+      {
+       "telefon": "905550000000",
+       "ad": "",
+       "soyad": "",
+       "mac": [],
+       "oturumlar": [],
+       "gonderilen": 0,
+       "alinan": 0,
+       "baglanti_sayisi": 0,
+       "ilk": "2026-09-29T10:00:00+03:00",
+       "son": "2026-09-29T10:00:00+03:00",
+       "siteler": [],
+       "baglantilar": [],
+       "diger_site_sayisi": 0
+      }
+     ]
+    }
+   },
+   "detay/bocafe/kisiler.json": {
+    "json": {
+     "905550000000": {
+      "ad": "",
+      "soyad": "",
+      "gunler": [
+       "2026-09-29"
+      ],
+      "odalar": {}
+     }
+    }
+   },
+   "eski/": {
+    "dizin": true
+   },
+   "eski/1234567/": {
+    "dizin": true
+   },
+   "eski/1234567/gunluk/": {
+    "dizin": true
+   },
+   "eski/1234567/gunluk/2026-09-30/": {
+    "dizin": true
+   },
+   "eski/1234567/gunluk/2026-09-30/MANIFEST.sha256": {
+    "metin": "# gun=2026-09-30 onceki_zincir=0\nabc123  trafik.csv.gz\n"
+   },
+   "eski/1234567/gunluk/2026-09-30/trafik.csv.gz": {
+    "metin": "﻿zaman;olay;telefon;ad;soyad;mac;ic_ip;protokol;ic_port;hedef_ip;hedef_port;nat_ip;nat_port;alan_adi;gonderilen_bayt;alinan_bayt;sure_sn;oturum_id;ek\n2026-09-30T10:00:00+03:00;BAGLANTI_BASLA;905551112233;;;;;;;;;;;;;;;;\n",
+    "gz": true
+   },
+   "eski/bocafe/": {
+    "dizin": true
+   },
+   "eski/bocafe/gunluk/": {
+    "dizin": true
+   },
+   "eski/bocafe/gunluk/2026-09-29/": {
+    "dizin": true
+   },
+   "eski/bocafe/gunluk/2026-09-29/MANIFEST.sha256": {
+    "metin": "# gun=2026-09-29 onceki_zincir=0\nabc123  trafik.csv.gz\n"
+   },
+   "eski/bocafe/gunluk/2026-09-29/trafik.csv.gz": {
+    "metin": "﻿zaman;olay;telefon;ad;soyad;mac;ic_ip;protokol;ic_port;hedef_ip;hedef_port;nat_ip;nat_port;alan_adi;gonderilen_bayt;alinan_bayt;sure_sn;oturum_id;ek\n2026-09-29T10:00:00+03:00;BAGLANTI_BASLA;905550000000;;;;;;;;;;;;;;;;\n",
+    "gz": true
+   },
+   "ist/": {
+    "dizin": true
+   },
+   "ist/1234567.json": {
+    "json": {
+     "2026-09-30": 1,
+     "2026-10-01": 1
+    }
+   },
+   "ist/bocafe.json": {
+    "json": {
+     "2026-09-29": 1
+    }
+   },
+   "kayit.csv": {
+    "metin": ""
+   },
+   "rapor-ham/": {
+    "dizin": true
+   },
+   "rapor-ham/.sir": {
+    "ikili": {
+     "sha256": "7367f5c378b7b3ffdaea52b319f1f22a43cb73b62ac3d1730daf28259f299017",
+     "uzunluk": 32
+    }
+   },
+   "rapor-ham/1234567/": {
+    "dizin": true
+   },
+   "rapor-ham/1234567/2026-09-30.json": {
+    "json": {
+     "bicim": 2,
+     "imza": "<KARARSIZ>",
+     "sir_izi": "56f2e982",
+     "manifest_sha": "8a6045e19255824465be42147f45c1091af3cb38e25de53efdd6590eadca279e",
+     "dosya_ok": false,
+     "misafir": [
+      "a1d18ff183e4f837"
+     ],
+     "saat": {
+      "10": [
+       "a1d18ff183e4f837"
+      ]
+     },
+     "giris": {
+      "sms": 0,
+      "kod": 0
+     },
+     "izinli": [],
+     "gonderilen": 0,
+     "alinan": 0,
+     "sms": 0,
+     "surum": null
+    }
+   },
+   "rapor-ham/1234567/2026-10-01.json": {
+    "json": {
+     "bicim": 2,
+     "imza": "<KARARSIZ>",
+     "sir_izi": "56f2e982",
+     "manifest_sha": "1320e5cfc0c0ae9ffc88c11a974e508c45b07d2c9e24d50f12cca9fc2f8cee5b",
+     "dosya_ok": false,
+     "misafir": [
+      "c8d538944bdf4a08"
+     ],
+     "saat": {
+      "10": [
+       "c8d538944bdf4a08"
+      ]
+     },
+     "giris": {
+      "sms": 0,
+      "kod": 0
+     },
+     "izinli": [],
+     "gonderilen": 0,
+     "alinan": 0,
+     "sms": 0,
+     "surum": null
+    }
+   },
+   "rapor-ham/bocafe/": {
+    "dizin": true
+   },
+   "rapor-ham/bocafe/2026-09-29.json": {
+    "json": {
+     "bicim": 2,
+     "imza": "<KARARSIZ>",
+     "sir_izi": "56f2e982",
+     "manifest_sha": "aeffb09cf70229235ebf3dcf7903ec419bdec5bc38b7e73b390b6fb4045df16b",
+     "dosya_ok": false,
+     "misafir": [
+      "bdc135f536319c14"
+     ],
+     "saat": {
+      "10": [
+       "bdc135f536319c14"
+      ]
+     },
+     "giris": {
+      "sms": 0,
+      "kod": 0
+     },
+     "izinli": [],
+     "gonderilen": 0,
+     "alinan": 0,
+     "sms": 0,
+     "surum": null
+    }
+   },
+   "rapor/": {
+    "dizin": true
+   },
+   "rapor/1234567/": {
+    "dizin": true
+   },
+   "rapor/1234567/ay-2026-09.json": {
+    "json": {
+     "bicim": 2,
+     "tur": "ay",
+     "donem": "2026-09",
+     "baslangic": "2026-09-01",
+     "bitis": "2026-09-30",
+     "uretim": "2026-10-03T07:00:00+03:00",
+     "kesin": true,
+     "imza": "<KARARSIZ>",
+     "misafir": {
+      "farkli": 2,
+      "yeni": 2,
+      "donen": 0,
+      "giris": 0,
+      "giris_sms": 0,
+      "giris_kod": 0,
+      "izinli_cihaz": 0,
+      "gunluk_ortalama": 1.0,
+      "en_yogun_gun": {
+       "gun": "2026-09-29",
+       "farkli": 1
+      }
+     },
+     "saat": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      2,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "hafta_gunu": [
+      0,
+      1,
+      1,
+      0,
+      0,
+      0,
+      0
+     ],
+     "gunler": [
+      {
+       "gun": "2026-09-01",
+       "durum": "hizmet_oncesi",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-02",
+       "durum": "hizmet_oncesi",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-03",
+       "durum": "hizmet_oncesi",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-04",
+       "durum": "hizmet_oncesi",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-05",
+       "durum": "hizmet_oncesi",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-06",
+       "durum": "hizmet_oncesi",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-07",
+       "durum": "hizmet_oncesi",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-08",
+       "durum": "hizmet_oncesi",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-09",
+       "durum": "hizmet_oncesi",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-10",
+       "durum": "hizmet_oncesi",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-11",
+       "durum": "hizmet_oncesi",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-12",
+       "durum": "hizmet_oncesi",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-13",
+       "durum": "hizmet_oncesi",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-14",
+       "durum": "hizmet_oncesi",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-15",
+       "durum": "hizmet_oncesi",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-16",
+       "durum": "hizmet_oncesi",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-17",
+       "durum": "hizmet_oncesi",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-18",
+       "durum": "hizmet_oncesi",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-19",
+       "durum": "hizmet_oncesi",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-20",
+       "durum": "hizmet_oncesi",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-21",
+       "durum": "hizmet_oncesi",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-22",
+       "durum": "hizmet_oncesi",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-23",
+       "durum": "hizmet_oncesi",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-24",
+       "durum": "hizmet_oncesi",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-25",
+       "durum": "hizmet_oncesi",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-26",
+       "durum": "hizmet_oncesi",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-27",
+       "durum": "hizmet_oncesi",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-28",
+       "durum": "hizmet_oncesi",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-29",
+       "durum": "dogrulanamadi",
+       "neden": "dosya",
+       "farkli": 1
+      },
+      {
+       "gun": "2026-09-30",
+       "durum": "dogrulanamadi",
+       "neden": "dosya",
+       "farkli": 1
+      }
+     ],
+     "kayit": {
+      "gun": 2,
+      "tam": 0
+     },
+     "kullanim": {
+      "gonderilen": 0,
+      "alinan": 0,
+      "sms": 0
+     },
+     "surum": null,
+     "surum_sonra_degisti": false
+    }
+   },
+   "rapor/1234567/ay-2026-10.json": {
+    "json": {
+     "bicim": 2,
+     "tur": "ay",
+     "donem": "2026-10",
+     "baslangic": "2026-10-01",
+     "bitis": "2026-10-31",
+     "uretim": "2026-10-03T07:00:00+03:00",
+     "kesin": false,
+     "imza": "<KARARSIZ>",
+     "misafir": {
+      "farkli": 1,
+      "yeni": 1,
+      "donen": 0,
+      "giris": 0,
+      "giris_sms": 0,
+      "giris_kod": 0,
+      "izinli_cihaz": 0,
+      "gunluk_ortalama": 1.0,
+      "en_yogun_gun": {
+       "gun": "2026-10-01",
+       "farkli": 1
+      }
+     },
+     "saat": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "hafta_gunu": [
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0
+     ],
+     "gunler": [
+      {
+       "gun": "2026-10-01",
+       "durum": "dogrulanamadi",
+       "neden": "dosya",
+       "farkli": 1
+      },
+      {
+       "gun": "2026-10-02",
+       "durum": "bekleniyor",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-10-03",
+       "durum": "bugun",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-10-04",
+       "durum": "gelecek",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-10-05",
+       "durum": "gelecek",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-10-06",
+       "durum": "gelecek",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-10-07",
+       "durum": "gelecek",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-10-08",
+       "durum": "gelecek",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-10-09",
+       "durum": "gelecek",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-10-10",
+       "durum": "gelecek",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-10-11",
+       "durum": "gelecek",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-10-12",
+       "durum": "gelecek",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-10-13",
+       "durum": "gelecek",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-10-14",
+       "durum": "gelecek",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-10-15",
+       "durum": "gelecek",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-10-16",
+       "durum": "gelecek",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-10-17",
+       "durum": "gelecek",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-10-18",
+       "durum": "gelecek",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-10-19",
+       "durum": "gelecek",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-10-20",
+       "durum": "gelecek",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-10-21",
+       "durum": "gelecek",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-10-22",
+       "durum": "gelecek",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-10-23",
+       "durum": "gelecek",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-10-24",
+       "durum": "gelecek",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-10-25",
+       "durum": "gelecek",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-10-26",
+       "durum": "gelecek",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-10-27",
+       "durum": "gelecek",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-10-28",
+       "durum": "gelecek",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-10-29",
+       "durum": "gelecek",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-10-30",
+       "durum": "gelecek",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-10-31",
+       "durum": "gelecek",
+       "neden": "",
+       "farkli": null
+      }
+     ],
+     "kayit": {
+      "gun": 2,
+      "tam": 0
+     },
+     "kullanim": {
+      "gonderilen": 0,
+      "alinan": 0,
+      "sms": 0
+     },
+     "surum": null,
+     "surum_sonra_degisti": false
+    }
+   },
+   "rapor/1234567/hafta-2026-W40.json": {
+    "json": {
+     "bicim": 2,
+     "tur": "hafta",
+     "donem": "2026-W40",
+     "baslangic": "2026-09-28",
+     "bitis": "2026-10-04",
+     "uretim": "2026-10-03T07:00:00+03:00",
+     "kesin": false,
+     "imza": "<KARARSIZ>",
+     "misafir": {
+      "farkli": 3,
+      "yeni": 3,
+      "donen": 0,
+      "giris": 0,
+      "giris_sms": 0,
+      "giris_kod": 0,
+      "izinli_cihaz": 0,
+      "gunluk_ortalama": 1.0,
+      "en_yogun_gun": {
+       "gun": "2026-09-29",
+       "farkli": 1
+      }
+     },
+     "saat": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      3,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "hafta_gunu": [
+      0,
+      1,
+      1,
+      1,
+      0,
+      0,
+      0
+     ],
+     "gunler": [
+      {
+       "gun": "2026-09-28",
+       "durum": "hizmet_oncesi",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-29",
+       "durum": "dogrulanamadi",
+       "neden": "dosya",
+       "farkli": 1
+      },
+      {
+       "gun": "2026-09-30",
+       "durum": "dogrulanamadi",
+       "neden": "dosya",
+       "farkli": 1
+      },
+      {
+       "gun": "2026-10-01",
+       "durum": "dogrulanamadi",
+       "neden": "dosya",
+       "farkli": 1
+      },
+      {
+       "gun": "2026-10-02",
+       "durum": "bekleniyor",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-10-03",
+       "durum": "bugun",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-10-04",
+       "durum": "gelecek",
+       "neden": "",
+       "farkli": null
+      }
+     ],
+     "kayit": {
+      "gun": 4,
+      "tam": 0
+     },
+     "kullanim": {
+      "gonderilen": 0,
+      "alinan": 0,
+      "sms": 0
+     },
+     "surum": null,
+     "surum_sonra_degisti": false
+    }
+   },
+   "rapor/1234567/liste.json": {
+    "json": [
+     {
+      "tur": "hafta",
+      "donem": "2026-W40",
+      "baslangic": "2026-09-28",
+      "bitis": "2026-10-04",
+      "kesin": false,
+      "farkli": 3,
+      "kayit_gun": 4,
+      "kayit_tam": 0
+     },
+     {
+      "tur": "ay",
+      "donem": "2026-10",
+      "baslangic": "2026-10-01",
+      "bitis": "2026-10-31",
+      "kesin": false,
+      "farkli": 1,
+      "kayit_gun": 2,
+      "kayit_tam": 0
+     },
+     {
+      "tur": "ay",
+      "donem": "2026-09",
+      "baslangic": "2026-09-01",
+      "bitis": "2026-09-30",
+      "kesin": true,
+      "farkli": 2,
+      "kayit_gun": 2,
+      "kayit_tam": 0
+     }
+    ]
+   },
+   "yeni/": {
+    "dizin": true
+   },
+   "yeni/1234567/": {
+    "dizin": true
+   },
+   "yeni/1234567/veri/": {
+    "dizin": true
+   },
+   "yeni/1234567/veri/gunluk/": {
+    "dizin": true
+   },
+   "yeni/1234567/veri/gunluk/2026-10-01/": {
+    "dizin": true
+   },
+   "yeni/1234567/veri/gunluk/2026-10-01/MANIFEST.sha256": {
+    "metin": "# gun=2026-10-01 onceki_zincir=0\nabc123  trafik.csv.gz\n"
+   },
+   "yeni/1234567/veri/gunluk/2026-10-01/trafik.csv.gz": {
+    "metin": "﻿zaman;olay;telefon;ad;soyad;mac;ic_ip;protokol;ic_port;hedef_ip;hedef_port;nat_ip;nat_port;alan_adi;gonderilen_bayt;alinan_bayt;sure_sn;oturum_id;ek\n2026-10-01T10:00:00+03:00;BAGLANTI_BASLA;905334553132;;;;;;;;;;;;;;;;\n",
+    "gz": true
+   },
+   "yok-gruplar.json": {
+    "json": {
+     "1234567": [
+      "bocafe"
+     ]
+    }
+   }
+  }
+ ],
+ "yollar": []
+}

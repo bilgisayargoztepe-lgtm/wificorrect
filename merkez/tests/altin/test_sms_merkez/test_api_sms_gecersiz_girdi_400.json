@@ -1,0 +1,749 @@
+{
+ "bicim": 3,
+ "dosya": "test_sms_merkez",
+ "test": "test_api_sms_gecersiz_girdi_400",
+ "cevaplar": [
+  {
+   "istek": "POST /api/sms",
+   "durum": 400,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "hata": "Geçersiz istek.",
+     "kod": "gecersiz"
+    }
+   }
+  },
+  {
+   "istek": "POST /api/sms-dogrula",
+   "durum": 400,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "hata": "Geçersiz istek.",
+     "kod": "gecersiz"
+    }
+   }
+  },
+  {
+   "istek": "POST /api/sms",
+   "durum": 400,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "hata": "Geçersiz istek.",
+     "kod": "gecersiz"
+    }
+   }
+  },
+  {
+   "istek": "POST /api/sms-dogrula",
+   "durum": 400,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "hata": "Geçersiz istek.",
+     "kod": "gecersiz"
+    }
+   }
+  },
+  {
+   "istek": "POST /api/sms",
+   "durum": 400,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "hata": "Geçersiz istek.",
+     "kod": "gecersiz"
+    }
+   }
+  },
+  {
+   "istek": "POST /api/sms-dogrula",
+   "durum": 400,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "hata": "Geçersiz istek.",
+     "kod": "gecersiz"
+    }
+   }
+  },
+  {
+   "istek": "POST /api/sms",
+   "durum": 400,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "hata": "Geçersiz istek.",
+     "kod": "gecersiz"
+    }
+   }
+  },
+  {
+   "istek": "POST /api/sms-dogrula",
+   "durum": 400,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "hata": "Geçersiz istek.",
+     "kod": "gecersiz"
+    }
+   }
+  },
+  {
+   "istek": "POST /api/sms",
+   "durum": 400,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "hata": "Geçersiz istek.",
+     "kod": "gecersiz"
+    }
+   }
+  },
+  {
+   "istek": "POST /api/sms-dogrula",
+   "durum": 400,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "hata": "Geçersiz istek.",
+     "kod": "gecersiz"
+    }
+   }
+  },
+  {
+   "istek": "POST /api/sms",
+   "durum": 400,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "hata": "Geçersiz istek.",
+     "kod": "gecersiz"
+    }
+   }
+  },
+  {
+   "istek": "POST /api/sms-dogrula",
+   "durum": 400,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "hata": "Geçersiz istek.",
+     "kod": "gecersiz"
+    }
+   }
+  },
+  {
+   "istek": "POST /api/sms",
+   "durum": 400,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "hata": "Geçersiz istek.",
+     "kod": "gecersiz"
+    }
+   }
+  },
+  {
+   "istek": "POST /api/sms-dogrula",
+   "durum": 400,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "hata": "Geçersiz istek.",
+     "kod": "gecersiz"
+    }
+   }
+  },
+  {
+   "istek": "POST /api/sms",
+   "durum": 400,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "hata": "Geçersiz istek.",
+     "kod": "gecersiz"
+    }
+   }
+  },
+  {
+   "istek": "POST /api/sms-dogrula",
+   "durum": 400,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "hata": "Geçersiz istek.",
+     "kod": "gecersiz"
+    }
+   }
+  },
+  {
+   "istek": "POST /api/sms",
+   "durum": 400,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "hata": "Geçersiz istek.",
+     "kod": "gecersiz"
+    }
+   }
+  },
+  {
+   "istek": "POST /api/sms-dogrula",
+   "durum": 400,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "hata": "Geçersiz istek.",
+     "kod": "gecersiz"
+    }
+   }
+  },
+  {
+   "istek": "POST /api/sms",
+   "durum": 400,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "hata": "Geçersiz istek.",
+     "kod": "gecersiz"
+    }
+   }
+  },
+  {
+   "istek": "POST /api/sms-dogrula",
+   "durum": 400,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "hata": "Geçersiz istek.",
+     "kod": "gecersiz"
+    }
+   }
+  },
+  {
+   "istek": "POST /api/sms",
+   "durum": 400,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "hata": "Geçersiz istek.",
+     "kod": "gecersiz"
+    }
+   }
+  },
+  {
+   "istek": "POST /api/sms-dogrula",
+   "durum": 400,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "hata": "Geçersiz istek.",
+     "kod": "gecersiz"
+    }
+   }
+  },
+  {
+   "istek": "POST /api/sms",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "sonuc": "hata",
+     "kod": "AG",
+     "saglayici": "netgsm"
+    }
+   }
+  }
+ ],
+ "veritabanlari": [
+  {
+   "ad": "m.db",
+   "tablolar": {
+    "ayar": [
+     {
+      "anahtar": "sms",
+      "deger": "{\"mock\": false, \"usercode\": \"8500000000\", \"password\": \"netgsm-gizli\", \"msgheader\": \"BASLIK\", \"appkey\": \"\", \"tr_saglayici\": \"netgsm\", \"twilio\": {\"acik\": false, \"account_sid\": \"\", \"auth_token\": \"\", \"api_key_sid\": \"\", \"api_key_secret\": \"\", \"verify_sid\": \"\"}}"
+     }
+    ],
+    "bekleyen": [],
+    "cihaz": [
+     {
+      "admin_ozet": "",
+      "admin_parola": "",
+      "admin_tuz": "",
+      "admin_yineleme": 0,
+      "adres": "",
+      "anahtar_ozet": "4b3d539199668875d7f7b984e232922e427434cc4b74709eaed94a2dd9805cec",
+      "ayrilma": "",
+      "baglanma": "2026-09-21T17:13:20+03:00",
+      "durum": "bagli",
+      "id": 1,
+      "isletme_adi": "",
+      "isletme_turu": "",
+      "musteri": 5721885,
+      "otomatik": 0,
+      "son_eslesme": "",
+      "ssh_pub": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI c",
+      "surum": "",
+      "tunel_ip": "",
+      "unvan": "",
+      "wg_pub": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+     }
+    ],
+    "eski_arsiv": [],
+    "hareket": [],
+    "musteri": [
+     {
+      "ap_parola": "6vwWeTxWbXDf",
+      "askida": 0,
+      "bitis": "",
+      "guncelleme_hemen": 0.0,
+      "guncelleme_hemen_surum": "",
+      "guncelleme_kanali": "kararli",
+      "lisans_bitis": "2027-09-21",
+      "not_": "",
+      "numara": 5721885,
+      "olusturma": "2026-09-21T17:13:20+03:00",
+      "ozet": "fcd77d2f1464acefd0bf9649c59c9103b30bf9b4aa14a1930fdbc86ae817e02c",
+      "parola_acik": "6bnuKUG4dyZ7",
+      "son_giris": "",
+      "tuz": "<T1:32>",
+      "uyelik": "aktif",
+      "yineleme": 120000
+     }
+    ],
+    "saglik": [],
+    "sms_sayac": [
+     {
+      "gun": "2026-09-21",
+      "musteri": 5721885,
+      "sayi": 1
+     }
+    ],
+    "sms_son": [
+     {
+      "kod": "AG",
+      "musteri": 5721885,
+      "saglayici": "netgsm",
+      "sonuc": "hata",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     }
+    ],
+    "sorun": [],
+    "sqlite_sequence": [
+     {
+      "name": "cihaz",
+      "seq": 1
+     }
+    ],
+    "surum": []
+   }
+  }
+ ],
+ "dosyalar": [
+  {
+   "detay/": {
+    "dizin": true
+   },
+   "ist/": {
+    "dizin": true
+   }
+  }
+ ],
+ "yollar": [
+  [
+   "Api",
+   "POST",
+   "/api/sms",
+   null,
+   400,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/sms-dogrula",
+   null,
+   400,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/sms",
+   null,
+   400,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/sms-dogrula",
+   null,
+   400,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/sms",
+   null,
+   400,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/sms-dogrula",
+   null,
+   400,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/sms",
+   null,
+   400,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/sms-dogrula",
+   null,
+   400,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/sms",
+   null,
+   400,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/sms-dogrula",
+   null,
+   400,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/sms",
+   null,
+   400,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/sms-dogrula",
+   null,
+   400,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/sms",
+   null,
+   400,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/sms-dogrula",
+   null,
+   400,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/sms",
+   null,
+   400,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/sms-dogrula",
+   null,
+   400,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/sms",
+   null,
+   400,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/sms-dogrula",
+   null,
+   400,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/sms",
+   null,
+   400,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/sms-dogrula",
+   null,
+   400,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/sms",
+   null,
+   400,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/sms-dogrula",
+   null,
+   400,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/sms",
+   null,
+   200,
+   null
+  ]
+ ]
+}

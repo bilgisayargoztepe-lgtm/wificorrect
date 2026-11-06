@@ -7,8 +7,7 @@ Wants=network-online.target
 Type=oneshot
 User=wcpanel
 Group=wcpanel
-Environment=PYTHONDONTWRITEBYTECODE=1
-ExecStart=/usr/local/sbin/wc-listeler
+ExecStart=/usr/local/bin/wificorrect-merkez listeler
 TimeoutStartSec=20min
 Nice=10
 NoNewPrivileges=yes

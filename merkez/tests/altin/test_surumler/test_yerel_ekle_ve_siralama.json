@@ -1,0 +1,63 @@
+{
+ "bicim": 3,
+ "dosya": "test_surumler",
+ "test": "test_yerel_ekle_ve_siralama",
+ "cevaplar": [],
+ "veritabanlari": [
+  {
+   "ad": "m.db",
+   "tablolar": {
+    "ayar": [],
+    "bekleyen": [],
+    "cihaz": [],
+    "eski_arsiv": [],
+    "hareket": [],
+    "musteri": [],
+    "saglik": [],
+    "sms_sayac": [],
+    "sms_son": [],
+    "sorun": [],
+    "sqlite_sequence": [],
+    "surum": [
+     {
+      "boyut": 5,
+      "kaynak": "yerel",
+      "sha256": "88f339e1dfac23b89f191ac35a4a269cc3a577b60368d6cf84bdd1a8a61e50c7",
+      "surum": "0.10.0",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     },
+     {
+      "boyut": 5,
+      "kaynak": "yerel",
+      "sha256": "88f339e1dfac23b89f191ac35a4a269cc3a577b60368d6cf84bdd1a8a61e50c7",
+      "surum": "0.9.2",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     }
+    ]
+   }
+  }
+ ],
+ "dosyalar": [
+  {
+   "a.deb": {
+    "metin": "yerel"
+   },
+   "detay/": {
+    "dizin": true
+   },
+   "ist/": {
+    "dizin": true
+   },
+   "surumler/": {
+    "dizin": true
+   },
+   "surumler/0.10.0.deb": {
+    "metin": "yerel"
+   },
+   "surumler/0.9.2.deb": {
+    "metin": "yerel"
+   }
+  }
+ ],
+ "yollar": []
+}

@@ -1,0 +1,78 @@
+{
+ "bicim": 3,
+ "dosya": "test_saglik",
+ "test": "test_main_beklenmeyen_hatada_sms",
+ "cevaplar": [],
+ "veritabanlari": [
+  {
+   "ad": "m.db",
+   "tablolar": {
+    "ayar": [
+     {
+      "anahtar": "uyari",
+      "deger": "{\"telefonlar\": [\"905334553132\"], \"acik\": true, \"gunluk_sinir\": 20}"
+     },
+     {
+      "anahtar": "sms",
+      "deger": "{\"mock\": false, \"usercode\": \"u\", \"password\": \"p\", \"msgheader\": \"H\", \"appkey\": \"\", \"tr_saglayici\": \"netgsm\", \"twilio\": {\"acik\": false, \"account_sid\": \"\", \"auth_token\": \"\", \"api_key_sid\": \"\", \"api_key_secret\": \"\", \"verify_sid\": \"\"}}"
+     },
+     {
+      "anahtar": "izleme_sms:hata:2026-10-11",
+      "deger": "1"
+     },
+     {
+      "anahtar": "sms_sayac:2026-10-11",
+      "deger": "1"
+     }
+    ],
+    "bekleyen": [],
+    "cihaz": [],
+    "eski_arsiv": [],
+    "hareket": [
+     {
+      "ayrinti": "izleme çalışmıyor (hata: RuntimeError): gonderildi",
+      "id": 1,
+      "ip": "-",
+      "kim": "saglik",
+      "musteri": null,
+      "olay": "UYARI_SMS",
+      "zaman": "2026-10-11T20:15:00+03:00"
+     }
+    ],
+    "musteri": [],
+    "saglik": [],
+    "sms_sayac": [],
+    "sms_son": [],
+    "sorun": [],
+    "sqlite_sequence": [
+     {
+      "name": "hareket",
+      "seq": 1
+     }
+    ],
+    "surum": []
+   }
+  },
+  {
+   "ad": "b.db",
+   "tablolar": {
+    "ayar": [],
+    "bekleyen": [],
+    "cihaz": [],
+    "eski_arsiv": [],
+    "hareket": [],
+    "musteri": [],
+    "saglik": [],
+    "sms_sayac": [],
+    "sms_son": [],
+    "sorun": [],
+    "sqlite_sequence": [],
+    "surum": []
+   }
+  }
+ ],
+ "dosyalar": [
+  {}
+ ],
+ "yollar": []
+}

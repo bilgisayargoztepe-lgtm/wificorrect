@@ -1,0 +1,21 @@
+{
+ "bicim": 3,
+ "dosya": "test_wc_istatistik",
+ "test": "test_trafiksiz_tamam_gun_sifirdir",
+ "cevaplar": [],
+ "veritabanlari": [],
+ "dosyalar": [
+  {
+   "gunluk/": {
+    "dizin": true
+   },
+   "gunluk/2026-09-27/": {
+    "dizin": true
+   },
+   "gunluk/2026-09-27/MANIFEST.sha256": {
+    "metin": "# gun=2026-09-27 onceki_zincir=0\n"
+   }
+  }
+ ],
+ "yollar": []
+}

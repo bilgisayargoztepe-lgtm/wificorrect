@@ -1,0 +1,1223 @@
+{
+ "bicim": 3,
+ "dosya": "test_raporlar",
+ "test": "test_uctan_uca_kisisel_veri_yok",
+ "cevaplar": [
+  {
+   "istek": "POST /giris",
+   "durum": 303,
+   "basliklar": [
+    [
+     "Location",
+     "/baglan"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ],
+    [
+     "Set-Cookie",
+     "wc_musteri=<T1:43>; HttpOnly; Secure; SameSite=Strict; Path=/"
+    ]
+   ],
+   "govde": {
+    "metin": ""
+   }
+  },
+  {
+   "istek": "GET /raporlar",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Raporlar · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><header><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_ACIK}</a><nav><a href=\"/cihaz\">Cihaz paneli</a><a href=\"/\">Yedek arşiv</a><a href=\"/raporlar\">Raporlar</a><a href=\"/parola\">Parola</a><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2:32>\"><button class=\"ikincil\">Çıkış</button></form></nav></header><main class=\"genis\"><div class=\"kart\"><h1>Raporlar</h1><p class=\"alt\">Misafir sayıları, 5651 kayıt durumu ve cihazın çalışması. Raporlarda kişisel veri (telefon, ad, MAC, IP) yoktur. Her gün 02:30 ve 12:30'da güncellenir.</p></div><div class=\"kart\"><h2>Haftalık raporlar</h2><div class=\"kaydir\"><table class=\"detay\"><tr><th>Dönem</th><th>Farklı misafir</th><th>5651 kaydı</th></tr><tr><td><a href=\"/rapor/hafta/2026-W39\">21–27.09.2026</a> <b class=\"uyarisi\">sürüyor</b></td><td class=\"n\">0</td><td>Henüz biten gün yok</td></tr><tr><td><a href=\"/rapor/hafta/2026-W38\">14–20.09.2026</a> <span class=\"alt\">kesinleşmedi</span></td><td class=\"n\">0</td><td>7 günün 0'ı tam</td></tr><tr><td><a href=\"/rapor/hafta/2026-W37\">07–13.09.2026</a> </td><td class=\"n\">5</td><td>7 günün 2'si tam</td></tr><tr><td><a href=\"/rapor/hafta/2026-W36\">31.08–06.09.2026</a> </td><td class=\"n\">3</td><td>2 günün 2'si tam</td></tr></table></div></div><div class=\"kart\"><h2>Aylık raporlar</h2><div class=\"kaydir\"><table class=\"detay\"><tr><th>Dönem</th><th>Farklı misafir</th><th>5651 kaydı</th></tr><tr><td><a href=\"/rapor/ay/2026-09\">Eylül 2026</a> <b class=\"uyarisi\">sürüyor</b></td><td class=\"n\">5</td><td>16 günün 4'ü tam</td></tr></table></div></div></main></body></html>"
+   }
+  },
+  {
+   "istek": "GET /rapor/ay/2026-09",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Rapor Eylül 2026 · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><header><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_ACIK}</a><nav><a href=\"/cihaz\">Cihaz paneli</a><a href=\"/\">Yedek arşiv</a><a href=\"/raporlar\">Raporlar</a><a href=\"/parola\">Parola</a><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2:32>\"><button class=\"ikincil\">Çıkış</button></form></nav></header><main class=\"genis\"><p class=\"yazdirma alt\"><a href=\"/raporlar\">← Raporlar</a> · Yazdırmak ya da PDF olarak kaydetmek için Ctrl+P'ye basın (telefonda tarayıcı menüsünden Yazdır / Paylaş).</p><div class=\"kart\"><h1>Aylık rapor · Eylül 2026</h1><table><tr><th>İşletme</th><td>Müşteri 5721885</td></tr><tr><th>Unvan</th><td>—</td></tr><tr><th>Müşteri no</th><td>5721885</td></tr><tr><th>Dönem</th><td>01.09.2026 – 30.09.2026</td></tr><tr><th>Üretim</th><td>21.09.2026 12:00</td></tr></table><p class=\"uyarisi\">Dönem sürüyor — her gün 02:30 ve 12:30'da güncellenir.</p></div><div class=\"kart\"><h2>5651 kayıt durumu</h2><p><b>16 günün 4'ü tam</b></p><p class=\"alt\">Tam: kayıt geldi, mühürlü, merkezde yedekli, bütünlük (MANIFEST ve mühür zinciri) doğrulandı. Cihazın ilk kayıt gününden önceki günler sayılmaz.</p><div class=\"kaydir\"><table class=\"detay\"><tr><th>Tarih</th><th>Gün</th><th>Durum</th><th>Misafir</th></tr><tr><td>01.09.2026</td><td>Sal</td><td><span class=\"bos\">Hizmet öncesi</span> <span class=\"alt\">(cihaz henüz kurulmamıştı; sayılmaz)</span></td><td class=\"n\"></td></tr><tr><td>02.09.2026</td><td>Çar</td><td><span class=\"bos\">Hizmet öncesi</span> <span class=\"alt\">(cihaz henüz kurulmamıştı; sayılmaz)</span></td><td class=\"n\"></td></tr><tr><td>03.09.2026</td><td>Per</td><td><span class=\"bos\">Hizmet öncesi</span> <span class=\"alt\">(cihaz henüz kurulmamıştı; sayılmaz)</span></td><td class=\"n\"></td></tr><tr><td>04.09.2026</td><td>Cum</td><td><span class=\"bos\">Hizmet öncesi</span> <span class=\"alt\">(cihaz henüz kurulmamıştı; sayılmaz)</span></td><td class=\"n\"></td></tr><tr><td>05.09.2026</td><td>Cmt</td><td><span class=\"iyi\">✔ Tam</span></td><td class=\"n\">3</td></tr><tr><td>06.09.2026</td><td>Paz</td><td><span class=\"iyi\">✔ Tam</span></td><td class=\"n\">3</td></tr><tr><td>07.09.2026</td><td>Pzt</td><td><span class=\"iyi\">✔ Tam</span></td><td class=\"n\">3</td></tr><tr><td>08.09.2026</td><td>Sal</td><td><span class=\"iyi\">✔ Tam</span></td><td class=\"n\">3</td></tr><tr><td>09.09.2026</td><td>Çar</td><td><b class=\"kotu\">Kayıt gelmedi</b> <span class=\"alt\">(cihaz kapalı, bağlantısız ya da yedek gönderilmedi)</span></td><td class=\"n\"></td></tr><tr><td>10.09.2026</td><td>Per</td><td><b class=\"kotu\">Kayıt gelmedi</b> <span class=\"alt\">(cihaz kapalı, bağlantısız ya da yedek gönderilmedi)</span></td><td class=\"n\"></td></tr><tr><td>11.09.2026</td><td>Cum</td><td><b class=\"kotu\">Kayıt gelmedi</b> <span class=\"alt\">(cihaz kapalı, bağlantısız ya da yedek gönderilmedi)</span></td><td class=\"n\"></td></tr><tr><td>12.09.2026</td><td>Cmt</td><td><b class=\"kotu\">Kayıt gelmedi</b> <span class=\"alt\">(cihaz kapalı, bağlantısız ya da yedek gönderilmedi)</span></td><td class=\"n\"></td></tr><tr><td>13.09.2026</td><td>Paz</td><td><b class=\"kotu\">Kayıt gelmedi</b> <span class=\"alt\">(cihaz kapalı, bağlantısız ya da yedek gönderilmedi)</span></td><td class=\"n\"></td></tr><tr><td>14.09.2026</td><td>Pzt</td><td><b class=\"kotu\">Kayıt gelmedi</b> <span class=\"alt\">(cihaz kapalı, bağlantısız ya da yedek gönderilmedi)</span></td><td class=\"n\"></td></tr><tr><td>15.09.2026</td><td>Sal</td><td><b class=\"kotu\">Kayıt gelmedi</b> <span class=\"alt\">(cihaz kapalı, bağlantısız ya da yedek gönderilmedi)</span></td><td class=\"n\"></td></tr><tr><td>16.09.2026</td><td>Çar</td><td><b class=\"kotu\">Kayıt gelmedi</b> <span class=\"alt\">(cihaz kapalı, bağlantısız ya da yedek gönderilmedi)</span></td><td class=\"n\"></td></tr><tr><td>17.09.2026</td><td>Per</td><td><b class=\"kotu\">Kayıt gelmedi</b> <span class=\"alt\">(cihaz kapalı, bağlantısız ya da yedek gönderilmedi)</span></td><td class=\"n\"></td></tr><tr><td>18.09.2026</td><td>Cum</td><td><b class=\"kotu\">Kayıt gelmedi</b> <span class=\"alt\">(cihaz kapalı, bağlantısız ya da yedek gönderilmedi)</span></td><td class=\"n\"></td></tr><tr><td>19.09.2026</td><td>Cmt</td><td><b class=\"kotu\">Kayıt gelmedi</b> <span class=\"alt\">(cihaz kapalı, bağlantısız ya da yedek gönderilmedi)</span></td><td class=\"n\"></td></tr><tr><td>20.09.2026</td><td>Paz</td><td><span class=\"uyarisi\">Bekleniyor</span> <span class=\"alt\">(gece yedeğiyle gelir)</span></td><td class=\"n\"></td></tr><tr><td>21.09.2026</td><td>Pzt</td><td>Sürüyor</td><td class=\"n\"></td></tr><tr><td>22.09.2026</td><td>Sal</td><td><span class=\"bos\">—</span></td><td class=\"n\"></td></tr><tr><td>23.09.2026</td><td>Çar</td><td><span class=\"bos\">—</span></td><td class=\"n\"></td></tr><tr><td>24.09.2026</td><td>Per</td><td><span class=\"bos\">—</span></td><td class=\"n\"></td></tr><tr><td>25.09.2026</td><td>Cum</td><td><span class=\"bos\">—</span></td><td class=\"n\"></td></tr><tr><td>26.09.2026</td><td>Cmt</td><td><span class=\"bos\">—</span></td><td class=\"n\"></td></tr><tr><td>27.09.2026</td><td>Paz</td><td><span class=\"bos\">—</span></td><td class=\"n\"></td></tr><tr><td>28.09.2026</td><td>Pzt</td><td><span class=\"bos\">—</span></td><td class=\"n\"></td></tr><tr><td>29.09.2026</td><td>Sal</td><td><span class=\"bos\">—</span></td><td class=\"n\"></td></tr><tr><td>30.09.2026</td><td>Çar</td><td><span class=\"bos\">—</span></td><td class=\"n\"></td></tr></table></div></div><div class=\"kart\"><h2>Misafirler</h2><table><tr><th>Farklı misafir</th><td>5</td></tr><tr><th>İlk kez gelen (yeni)</th><td>5</td></tr><tr><th>Daha önce de gelmiş</th><td>0</td></tr><tr><th>Toplam giriş</th><td>9</td></tr><tr><th>Günlük ortalama</th><td>3,0</td></tr><tr><th>En yoğun gün</th><td>05.09.2026 Cumartesi · 3 misafir</td></tr></table><h3>Giriş yöntemi</h3><table><tr><th>SMS ile giriş</th><td>3</td></tr><tr><th>Misafir kodu ile giriş</th><td>6</td></tr><tr><th>İzinli cihaz (portalsız)</th><td>1</td></tr></table></div><div class=\"kart\"><h2>Yoğunluk</h2><p class=\"alt\">Her satır: o saatte ya da günde internete çıkan farklı misafir.</p><h3>Saate göre</h3><table><tr><td>00–01</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>01–02</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>02–03</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>03–04</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>04–05</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>05–06</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>06–07</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>07–08</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>08–09</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>09–10</td><td class=\"cubuk\"><span style=\"width:33%\"></span></td><td class=\"n\">1</td></tr><tr><td>10–11</td><td class=\"cubuk\"><span style=\"width:100%\"></span></td><td class=\"n\">3</td></tr><tr><td>11–12</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>12–13</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>13–14</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>14–15</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>15–16</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>16–17</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>17–18</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>18–19</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>19–20</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>20–21</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>21–22</td><td class=\"cubuk\"><span style=\"width:66%\"></span></td><td class=\"n\">2</td></tr><tr><td>22–23</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>23–00</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr></table><h3>Haftanın gününe göre</h3><table><tr><td>Pazartesi</td><td class=\"cubuk\"><span style=\"width:100%\"></span></td><td class=\"n\">3</td></tr><tr><td>Salı</td><td class=\"cubuk\"><span style=\"width:100%\"></span></td><td class=\"n\">3</td></tr><tr><td>Çarşamba</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>Perşembe</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>Cuma</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>Cumartesi</td><td class=\"cubuk\"><span style=\"width:100%\"></span></td><td class=\"n\">3</td></tr><tr><td>Pazar</td><td class=\"cubuk\"><span style=\"width:100%\"></span></td><td class=\"n\">3</td></tr></table></div><div class=\"kart\"><h2>Kullanım</h2><table><tr><th>Toplam veri</th><td>3,3 KB (indirme 2,9 KB, yükleme 336 B)</td></tr><tr><th>Doğrulama SMS&#x27;i</th><td>6</td></tr></table></div><div class=\"kart\"><h2>Cihaz</h2><table><tr><th>Toplam çevrimdışı süre</th><td>Yok</td></tr><tr><th>Yazılım sürümü (dönem sonu)</th><td>0.4.9</td></tr></table><h3>Dönemde açılan sorunlar</h3><p class=\"alt\">Bu dönemde açılan sorun yok.</p><p class=\"alt\">Çevrimdışı süre merkezin cihaza ulaşamadığını fark ettiği andan sayılır; gerçek süre biraz daha uzun olabilir.</p></div></main></body></html>"
+   }
+  },
+  {
+   "istek": "GET /rapor/hafta/2026-W36",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Rapor 31.08–06.09.2026 · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><header><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_ACIK}</a><nav><a href=\"/cihaz\">Cihaz paneli</a><a href=\"/\">Yedek arşiv</a><a href=\"/raporlar\">Raporlar</a><a href=\"/parola\">Parola</a><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2:32>\"><button class=\"ikincil\">Çıkış</button></form></nav></header><main class=\"genis\"><p class=\"yazdirma alt\"><a href=\"/raporlar\">← Raporlar</a> · Yazdırmak ya da PDF olarak kaydetmek için Ctrl+P'ye basın (telefonda tarayıcı menüsünden Yazdır / Paylaş).</p><div class=\"kart\"><h1>Haftalık rapor · 31.08–06.09.2026</h1><table><tr><th>İşletme</th><td>Müşteri 5721885</td></tr><tr><th>Unvan</th><td>—</td></tr><tr><th>Müşteri no</th><td>5721885</td></tr><tr><th>Dönem</th><td>31.08.2026 – 06.09.2026</td></tr><tr><th>Üretim</th><td>21.09.2026 12:00</td></tr></table></div><div class=\"kart\"><h2>5651 kayıt durumu</h2><p><b>2 günün 2'si tam</b></p><p class=\"alt\">Tam: kayıt geldi, mühürlü, merkezde yedekli, bütünlük (MANIFEST ve mühür zinciri) doğrulandı. Cihazın ilk kayıt gününden önceki günler sayılmaz.</p><div class=\"kaydir\"><table class=\"detay\"><tr><th>Tarih</th><th>Gün</th><th>Durum</th><th>Misafir</th></tr><tr><td>31.08.2026</td><td>Pzt</td><td><span class=\"bos\">Hizmet öncesi</span> <span class=\"alt\">(cihaz henüz kurulmamıştı; sayılmaz)</span></td><td class=\"n\"></td></tr><tr><td>01.09.2026</td><td>Sal</td><td><span class=\"bos\">Hizmet öncesi</span> <span class=\"alt\">(cihaz henüz kurulmamıştı; sayılmaz)</span></td><td class=\"n\"></td></tr><tr><td>02.09.2026</td><td>Çar</td><td><span class=\"bos\">Hizmet öncesi</span> <span class=\"alt\">(cihaz henüz kurulmamıştı; sayılmaz)</span></td><td class=\"n\"></td></tr><tr><td>03.09.2026</td><td>Per</td><td><span class=\"bos\">Hizmet öncesi</span> <span class=\"alt\">(cihaz henüz kurulmamıştı; sayılmaz)</span></td><td class=\"n\"></td></tr><tr><td>04.09.2026</td><td>Cum</td><td><span class=\"bos\">Hizmet öncesi</span> <span class=\"alt\">(cihaz henüz kurulmamıştı; sayılmaz)</span></td><td class=\"n\"></td></tr><tr><td>05.09.2026</td><td>Cmt</td><td><span class=\"iyi\">✔ Tam</span></td><td class=\"n\">3</td></tr><tr><td>06.09.2026</td><td>Paz</td><td><span class=\"iyi\">✔ Tam</span></td><td class=\"n\">3</td></tr></table></div></div><div class=\"kart\"><h2>Misafirler</h2><table><tr><th>Farklı misafir</th><td>3</td></tr><tr><th>İlk kez gelen (yeni)</th><td>3</td></tr><tr><th>Daha önce de gelmiş</th><td>0</td></tr><tr><th>Toplam giriş</th><td>6</td></tr><tr><th>Günlük ortalama</th><td>3,0</td></tr><tr><th>En yoğun gün</th><td>05.09.2026 Cumartesi · 3 misafir</td></tr></table><h3>Giriş yöntemi</h3><table><tr><th>SMS ile giriş</th><td>2</td></tr><tr><th>Misafir kodu ile giriş</th><td>4</td></tr><tr><th>İzinli cihaz (portalsız)</th><td>1</td></tr></table></div><div class=\"kart\"><h2>Yoğunluk</h2><p class=\"alt\">Her satır: o saatte ya da günde internete çıkan farklı misafir.</p><h3>Saate göre</h3><table><tr><td>00–01</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>01–02</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>02–03</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>03–04</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>04–05</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>05–06</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>06–07</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>07–08</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>08–09</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>09–10</td><td class=\"cubuk\"><span style=\"width:50%\"></span></td><td class=\"n\">1</td></tr><tr><td>10–11</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>11–12</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>12–13</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>13–14</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>14–15</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>15–16</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>16–17</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>17–18</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>18–19</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>19–20</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>20–21</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>21–22</td><td class=\"cubuk\"><span style=\"width:100%\"></span></td><td class=\"n\">2</td></tr><tr><td>22–23</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>23–00</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr></table><h3>Haftanın gününe göre</h3><table><tr><td>Pazartesi</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>Salı</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>Çarşamba</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>Perşembe</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>Cuma</td><td class=\"cubuk\"><span style=\"width:0%\"></span></td><td class=\"n\">0</td></tr><tr><td>Cumartesi</td><td class=\"cubuk\"><span style=\"width:100%\"></span></td><td class=\"n\">3</td></tr><tr><td>Pazar</td><td class=\"cubuk\"><span style=\"width:100%\"></span></td><td class=\"n\">3</td></tr></table></div><div class=\"kart\"><h2>Kullanım</h2><table><tr><th>Toplam veri</th><td>2,2 KB (indirme 2,0 KB, yükleme 224 B)</td></tr><tr><th>Doğrulama SMS&#x27;i</th><td>4</td></tr></table></div><div class=\"kart\"><h2>Cihaz</h2><table><tr><th>Toplam çevrimdışı süre</th><td>Yok</td></tr><tr><th>Yazılım sürümü (dönem sonu)</th><td>0.4.9</td></tr></table><h3>Dönemde açılan sorunlar</h3><p class=\"alt\">Bu dönemde açılan sorun yok.</p><p class=\"alt\">Çevrimdışı süre merkezin cihaza ulaşamadığını fark ettiği andan sayılır; gerçek süre biraz daha uzun olabilir.</p></div></main></body></html>"
+   }
+  }
+ ],
+ "veritabanlari": [
+  {
+   "ad": "m.db",
+   "tablolar": {
+    "ayar": [],
+    "bekleyen": [],
+    "cihaz": [],
+    "eski_arsiv": [],
+    "hareket": [
+     {
+      "ayrinti": "müşteri paneli",
+      "id": 1,
+      "ip": "203.0.113.5",
+      "kim": "5721885",
+      "musteri": 5721885,
+      "olay": "GIRIS",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     }
+    ],
+    "musteri": [
+     {
+      "ap_parola": "6vwWeTxWbXDf",
+      "askida": 0,
+      "bitis": "",
+      "guncelleme_hemen": 0.0,
+      "guncelleme_hemen_surum": "",
+      "guncelleme_kanali": "kararli",
+      "lisans_bitis": "2027-09-21",
+      "not_": "",
+      "numara": 5721885,
+      "olusturma": "2026-09-21T17:13:20+03:00",
+      "ozet": "fcd77d2f1464acefd0bf9649c59c9103b30bf9b4aa14a1930fdbc86ae817e02c",
+      "parola_acik": "6bnuKUG4dyZ7",
+      "son_giris": "2026-09-21T17:13:20+03:00",
+      "tuz": "<T3:32>",
+      "uyelik": "aktif",
+      "yineleme": 120000
+     }
+    ],
+    "saglik": [],
+    "sms_sayac": [],
+    "sms_son": [],
+    "sorun": [],
+    "sqlite_sequence": [
+     {
+      "name": "hareket",
+      "seq": 1
+     }
+    ],
+    "surum": []
+   }
+  }
+ ],
+ "dosyalar": [
+  {
+   "a/": {
+    "dizin": true
+   },
+   "a/gunluk/": {
+    "dizin": true
+   },
+   "a/gunluk/2026-09-05/": {
+    "dizin": true
+   },
+   "a/gunluk/2026-09-05/MANIFEST.sha256": {
+    "metin": "<KARARSIZ>"
+   },
+   "a/gunluk/2026-09-05/denetim.csv.gz": {
+    "metin": "﻿zaman;olay;telefon;ad;soyad;mac;ic_ip;protokol;ic_port;hedef_ip;hedef_port;nat_ip;nat_port;alan_adi;gonderilen_bayt;alinan_bayt;sure_sn;oturum_id;ek\r\n2026-09-05T09:08:00+03:00;OTP_GONDERILDI;905551112233;;;;;;;;;;;;;;;;\r\n2026-09-05T09:08:30+03:00;OTP_GONDERILDI;905559998877;;;;;;;;;;;;;;;;\r\n2026-09-05T09:08:40+03:00;OTP_ISTEK;905559998877;;;;;;;;;;;;;;;;\r\n2026-09-05T03:10:00+03:00;GUNCELLEME_TAMAM;;;;;;;;;;;;;;;;;surum=0.4.8 onceki=0.4.7\r\n2026-09-05T03:20:00+03:00;GUNCELLEME_TAMAM;;;;;;;;;;;;;;;;;surum=0.4.9 onceki=0.4.8\r\n",
+    "gz": true
+   },
+   "a/gunluk/2026-09-05/dns.csv.gz": {
+    "metin": "﻿zaman;olay;telefon;ad;soyad;mac;ic_ip;protokol;ic_port;hedef_ip;hedef_port;nat_ip;nat_port;alan_adi;gonderilen_bayt;alinan_bayt;sure_sn;oturum_id;ek\r\n2026-09-05T09:11:00+03:00;DNS;905551112233;;;;;;;;;;;www.instagram.com;;;;;\r\n2026-09-05T09:12:00+03:00;DNS;905551112233;;;;;;;;;;;i.instagram.com;;;;;\r\n2026-09-05T21:07:00+03:00;DNS;TC:10000000146;;;;;;;;;;;instagram.com.;;;;;\r\n2026-09-05T21:08:00+03:00;DNS;;;;;;;;;;;;facebook.com;;;;;\r\n2026-09-05T21:09:00+03:00;DNS;905551112233;;;;;;;;;;;10.0.0.1;;;;;\r\n2026-09-05T21:10:00+03:00;DNSX;905551112233;;;;;;;;;;;twitter.com;;;;;\r\n",
+    "gz": true
+   },
+   "a/gunluk/2026-09-05/kullanicilar/": {
+    "dizin": true
+   },
+   "a/gunluk/2026-09-05/kullanicilar/905551112233.csv.gz": {
+    "metin": "﻿zaman;olay;telefon;ad;soyad;mac;ic_ip;protokol;ic_port;hedef_ip;hedef_port;nat_ip;nat_port;alan_adi;gonderilen_bayt;alinan_bayt;sure_sn;oturum_id;ek\r\n",
+    "gz": true
+   },
+   "a/gunluk/2026-09-05/kullanicilar/TC:10000000146.csv.gz": {
+    "metin": "﻿zaman;olay;telefon;ad;soyad;mac;ic_ip;protokol;ic_port;hedef_ip;hedef_port;nat_ip;nat_port;alan_adi;gonderilen_bayt;alinan_bayt;sure_sn;oturum_id;ek\r\n",
+    "gz": true
+   },
+   "a/gunluk/2026-09-05/oturum.csv.gz": {
+    "metin": "﻿zaman;olay;telefon;ad;soyad;mac;ic_ip;protokol;ic_port;hedef_ip;hedef_port;nat_ip;nat_port;alan_adi;gonderilen_bayt;alinan_bayt;sure_sn;oturum_id;ek\r\n2026-09-05T09:09:00+03:00;OTURUM_BASLA;905551112233;;;;;;;;;;;;;;;;bitis=x sozlesme=1 riza=1\r\n2026-09-05T21:04:00+03:00;OTURUM_BASLA;TC:10000000146;;;;;;;;;;;;;;;;bitis=x sozlesme=1 riza=1 giris=misafir_kodu oda=101\r\n2026-09-05T21:05:00+03:00;OTURUM_BASLA;PASAPORT:DE:X1234567;;;;;;;;;;;;;;;;giris=misafir_kodu\r\n2026-09-05T22:00:00+03:00;OTURUM_UZATILDI;TC:10000000146;;;;;;;;;;;;;;;;giris=misafir_kodu\r\n2026-09-05T23:00:00+03:00;OTURUM_BITIS;905551112233;;;;;;;;;;;;;;;;\r\n",
+    "gz": true
+   },
+   "a/gunluk/2026-09-05/trafik.csv.gz": {
+    "metin": "﻿zaman;olay;telefon;ad;soyad;mac;ic_ip;protokol;ic_port;hedef_ip;hedef_port;nat_ip;nat_port;alan_adi;gonderilen_bayt;alinan_bayt;sure_sn;oturum_id;ek\r\n2026-09-05T09:10:00+03:00;BAGLANTI_BASLA;905551112233;Ali;Veli;aa:bb:cc:dd:ee:02;10.50.0.23;;;142.250.187.110;;;;;;;;oturum-abc;\r\n2026-09-05T09:40:00+03:00;BAGLANTI_BITIS;905551112233;;;aa:bb:cc:dd:ee:02;10.50.0.23;;;;;;;;100;1000;;;\r\n2026-09-05T21:05:00+03:00;BAGLANTI_BASLA;TC:10000000146;Ayşe;;aa:bb:cc:dd:ee:03;10.50.0.24;;;;;;;;;;;;\r\n2026-09-05T21:06:00+03:00;BAGLANTI_BITIS;PASAPORT:DE:X1234567;;;aa:bb:cc:dd:ee:04;10.50.0.25;;;;;;;;5;x;;;\r\n2026-09-05T11:00:00+03:00;BAGLANTI_BITIS;;;;aa:bb:cc:dd:ee:01;10.50.0.2;;;;;;;;7;3;;;ct=1 izinli=AP\r\nbozuk-zaman;BAGLANTI_BITIS;905554443322;;;aa:bb:cc:dd:ee:02;;;;;;;;;999999;;;;\r\n2026-09-05T25:00:00+03:00;BAGLANTI_BASLA;905554443322;;;;;;;;;;;;;;;;\r\n",
+    "gz": true
+   },
+   "a/gunluk/2026-09-06/": {
+    "dizin": true
+   },
+   "a/gunluk/2026-09-06/MANIFEST.sha256": {
+    "metin": "<KARARSIZ>"
+   },
+   "a/gunluk/2026-09-06/denetim.csv.gz": {
+    "metin": "﻿zaman;olay;telefon;ad;soyad;mac;ic_ip;protokol;ic_port;hedef_ip;hedef_port;nat_ip;nat_port;alan_adi;gonderilen_bayt;alinan_bayt;sure_sn;oturum_id;ek\r\n2026-09-06T09:08:00+03:00;OTP_GONDERILDI;905551112233;;;;;;;;;;;;;;;;\r\n2026-09-06T09:08:30+03:00;OTP_GONDERILDI;905559998877;;;;;;;;;;;;;;;;\r\n2026-09-06T09:08:40+03:00;OTP_ISTEK;905559998877;;;;;;;;;;;;;;;;\r\n2026-09-06T03:10:00+03:00;GUNCELLEME_TAMAM;;;;;;;;;;;;;;;;;surum=0.4.8 onceki=0.4.7\r\n2026-09-06T03:20:00+03:00;GUNCELLEME_TAMAM;;;;;;;;;;;;;;;;;surum=0.4.9 onceki=0.4.8\r\n",
+    "gz": true
+   },
+   "a/gunluk/2026-09-06/dns.csv.gz": {
+    "metin": "﻿zaman;olay;telefon;ad;soyad;mac;ic_ip;protokol;ic_port;hedef_ip;hedef_port;nat_ip;nat_port;alan_adi;gonderilen_bayt;alinan_bayt;sure_sn;oturum_id;ek\r\n2026-09-06T09:11:00+03:00;DNS;905551112233;;;;;;;;;;;www.instagram.com;;;;;\r\n2026-09-06T09:12:00+03:00;DNS;905551112233;;;;;;;;;;;i.instagram.com;;;;;\r\n2026-09-06T21:07:00+03:00;DNS;TC:10000000146;;;;;;;;;;;instagram.com.;;;;;\r\n2026-09-06T21:08:00+03:00;DNS;;;;;;;;;;;;facebook.com;;;;;\r\n2026-09-06T21:09:00+03:00;DNS;905551112233;;;;;;;;;;;10.0.0.1;;;;;\r\n2026-09-06T21:10:00+03:00;DNSX;905551112233;;;;;;;;;;;twitter.com;;;;;\r\n",
+    "gz": true
+   },
+   "a/gunluk/2026-09-06/kullanicilar/": {
+    "dizin": true
+   },
+   "a/gunluk/2026-09-06/kullanicilar/905551112233.csv.gz": {
+    "metin": "﻿zaman;olay;telefon;ad;soyad;mac;ic_ip;protokol;ic_port;hedef_ip;hedef_port;nat_ip;nat_port;alan_adi;gonderilen_bayt;alinan_bayt;sure_sn;oturum_id;ek\r\n",
+    "gz": true
+   },
+   "a/gunluk/2026-09-06/kullanicilar/TC:10000000146.csv.gz": {
+    "metin": "﻿zaman;olay;telefon;ad;soyad;mac;ic_ip;protokol;ic_port;hedef_ip;hedef_port;nat_ip;nat_port;alan_adi;gonderilen_bayt;alinan_bayt;sure_sn;oturum_id;ek\r\n",
+    "gz": true
+   },
+   "a/gunluk/2026-09-06/oturum.csv.gz": {
+    "metin": "﻿zaman;olay;telefon;ad;soyad;mac;ic_ip;protokol;ic_port;hedef_ip;hedef_port;nat_ip;nat_port;alan_adi;gonderilen_bayt;alinan_bayt;sure_sn;oturum_id;ek\r\n2026-09-06T09:09:00+03:00;OTURUM_BASLA;905551112233;;;;;;;;;;;;;;;;bitis=x sozlesme=1 riza=1\r\n2026-09-06T21:04:00+03:00;OTURUM_BASLA;TC:10000000146;;;;;;;;;;;;;;;;bitis=x sozlesme=1 riza=1 giris=misafir_kodu oda=101\r\n2026-09-06T21:05:00+03:00;OTURUM_BASLA;PASAPORT:DE:X1234567;;;;;;;;;;;;;;;;giris=misafir_kodu\r\n2026-09-06T22:00:00+03:00;OTURUM_UZATILDI;TC:10000000146;;;;;;;;;;;;;;;;giris=misafir_kodu\r\n2026-09-06T23:00:00+03:00;OTURUM_BITIS;905551112233;;;;;;;;;;;;;;;;\r\n",
+    "gz": true
+   },
+   "a/gunluk/2026-09-06/trafik.csv.gz": {
+    "metin": "﻿zaman;olay;telefon;ad;soyad;mac;ic_ip;protokol;ic_port;hedef_ip;hedef_port;nat_ip;nat_port;alan_adi;gonderilen_bayt;alinan_bayt;sure_sn;oturum_id;ek\r\n2026-09-06T09:10:00+03:00;BAGLANTI_BASLA;905551112233;Ali;Veli;aa:bb:cc:dd:ee:02;10.50.0.23;;;142.250.187.110;;;;;;;;oturum-abc;\r\n2026-09-06T09:40:00+03:00;BAGLANTI_BITIS;905551112233;;;aa:bb:cc:dd:ee:02;10.50.0.23;;;;;;;;100;1000;;;\r\n2026-09-06T21:05:00+03:00;BAGLANTI_BASLA;TC:10000000146;Ayşe;;aa:bb:cc:dd:ee:03;10.50.0.24;;;;;;;;;;;;\r\n2026-09-06T21:06:00+03:00;BAGLANTI_BITIS;PASAPORT:DE:X1234567;;;aa:bb:cc:dd:ee:04;10.50.0.25;;;;;;;;5;x;;;\r\n2026-09-06T11:00:00+03:00;BAGLANTI_BITIS;;;;aa:bb:cc:dd:ee:01;10.50.0.2;;;;;;;;7;3;;;ct=1 izinli=AP\r\nbozuk-zaman;BAGLANTI_BITIS;905554443322;;;aa:bb:cc:dd:ee:02;;;;;;;;;999999;;;;\r\n2026-09-06T25:00:00+03:00;BAGLANTI_BASLA;905554443322;;;;;;;;;;;;;;;;\r\n",
+    "gz": true
+   },
+   "a/gunluk/2026-09-07/": {
+    "dizin": true
+   },
+   "a/gunluk/2026-09-07/MANIFEST.sha256": {
+    "metin": "<KARARSIZ>"
+   },
+   "a/gunluk/2026-09-07/denetim.csv.gz": {
+    "metin": "﻿zaman;olay;telefon;ad;soyad;mac;ic_ip;protokol;ic_port;hedef_ip;hedef_port;nat_ip;nat_port;alan_adi;gonderilen_bayt;alinan_bayt;sure_sn;oturum_id;ek\r\n2026-09-07T09:08:00+03:00;OTP_GONDERILDI;905551112233;;;;;;;;;;;;;;;;\r\n2026-09-07T09:08:30+03:00;OTP_GONDERILDI;905559998877;;;;;;;;;;;;;;;;\r\n2026-09-07T09:08:40+03:00;OTP_ISTEK;905559998877;;;;;;;;;;;;;;;;\r\n2026-09-07T03:10:00+03:00;GUNCELLEME_TAMAM;;;;;;;;;;;;;;;;;surum=0.4.8 onceki=0.4.7\r\n2026-09-07T03:20:00+03:00;GUNCELLEME_TAMAM;;;;;;;;;;;;;;;;;surum=0.4.9 onceki=0.4.8\r\n",
+    "gz": true
+   },
+   "a/gunluk/2026-09-07/dns.csv.gz": {
+    "metin": "﻿zaman;olay;telefon;ad;soyad;mac;ic_ip;protokol;ic_port;hedef_ip;hedef_port;nat_ip;nat_port;alan_adi;gonderilen_bayt;alinan_bayt;sure_sn;oturum_id;ek\r\n2026-09-07T09:11:00+03:00;DNS;905551112233;;;;;;;;;;;www.instagram.com;;;;;\r\n2026-09-07T09:12:00+03:00;DNS;905551112233;;;;;;;;;;;i.instagram.com;;;;;\r\n2026-09-07T21:07:00+03:00;DNS;TC:10000000146;;;;;;;;;;;instagram.com.;;;;;\r\n2026-09-07T21:08:00+03:00;DNS;;;;;;;;;;;;facebook.com;;;;;\r\n2026-09-07T21:09:00+03:00;DNS;905551112233;;;;;;;;;;;10.0.0.1;;;;;\r\n2026-09-07T21:10:00+03:00;DNSX;905551112233;;;;;;;;;;;twitter.com;;;;;\r\n",
+    "gz": true
+   },
+   "a/gunluk/2026-09-07/kullanicilar/": {
+    "dizin": true
+   },
+   "a/gunluk/2026-09-07/kullanicilar/905551112233.csv.gz": {
+    "metin": "﻿zaman;olay;telefon;ad;soyad;mac;ic_ip;protokol;ic_port;hedef_ip;hedef_port;nat_ip;nat_port;alan_adi;gonderilen_bayt;alinan_bayt;sure_sn;oturum_id;ek\r\n",
+    "gz": true
+   },
+   "a/gunluk/2026-09-07/kullanicilar/TC:10000000146.csv.gz": {
+    "metin": "﻿zaman;olay;telefon;ad;soyad;mac;ic_ip;protokol;ic_port;hedef_ip;hedef_port;nat_ip;nat_port;alan_adi;gonderilen_bayt;alinan_bayt;sure_sn;oturum_id;ek\r\n",
+    "gz": true
+   },
+   "a/gunluk/2026-09-07/oturum.csv.gz": {
+    "metin": "﻿zaman;olay;telefon;ad;soyad;mac;ic_ip;protokol;ic_port;hedef_ip;hedef_port;nat_ip;nat_port;alan_adi;gonderilen_bayt;alinan_bayt;sure_sn;oturum_id;ek\r\n2026-09-07T09:09:00+03:00;OTURUM_BASLA;905551112233;;;;;;;;;;;;;;;;bitis=x sozlesme=1 riza=1\r\n2026-09-07T21:04:00+03:00;OTURUM_BASLA;TC:10000000146;;;;;;;;;;;;;;;;bitis=x sozlesme=1 riza=1 giris=misafir_kodu oda=101\r\n2026-09-07T21:05:00+03:00;OTURUM_BASLA;PASAPORT:DE:X1234567;;;;;;;;;;;;;;;;giris=misafir_kodu\r\n2026-09-07T22:00:00+03:00;OTURUM_UZATILDI;TC:10000000146;;;;;;;;;;;;;;;;giris=misafir_kodu\r\n2026-09-07T23:00:00+03:00;OTURUM_BITIS;905551112233;;;;;;;;;;;;;;;;\r\n",
+    "gz": true
+   },
+   "a/gunluk/2026-09-07/trafik.csv.gz": {
+    "metin": "﻿zaman;olay;telefon;ad;soyad;mac;ic_ip;protokol;ic_port;hedef_ip;hedef_port;nat_ip;nat_port;alan_adi;gonderilen_bayt;alinan_bayt;sure_sn;oturum_id;ek\r\n2026-09-07T09:10:00+03:00;BAGLANTI_BASLA;905551112233;Ali;Veli;aa:bb:cc:dd:ee:02;10.50.0.23;;;142.250.187.110;;;;;;;;oturum-abc;\r\n2026-09-07T09:40:00+03:00;BAGLANTI_BITIS;905551112233;;;aa:bb:cc:dd:ee:02;10.50.0.23;;;;;;;;100;1000;;;\r\n2026-09-07T21:05:00+03:00;BAGLANTI_BASLA;TC:10000000146;Ayşe;;aa:bb:cc:dd:ee:03;10.50.0.24;;;;;;;;;;;;\r\n2026-09-07T21:06:00+03:00;BAGLANTI_BITIS;PASAPORT:DE:X1234567;;;aa:bb:cc:dd:ee:04;10.50.0.25;;;;;;;;5;x;;;\r\n2026-09-07T11:00:00+03:00;BAGLANTI_BITIS;;;;aa:bb:cc:dd:ee:01;10.50.0.2;;;;;;;;7;3;;;ct=1 izinli=AP\r\nbozuk-zaman;BAGLANTI_BITIS;905554443322;;;aa:bb:cc:dd:ee:02;;;;;;;;;999999;;;;\r\n2026-09-07T25:00:00+03:00;BAGLANTI_BASLA;905554443322;;;;;;;;;;;;;;;;\r\n",
+    "gz": true
+   },
+   "a/gunluk/2026-09-08/": {
+    "dizin": true
+   },
+   "a/gunluk/2026-09-08/MANIFEST.sha256": {
+    "metin": "<KARARSIZ>"
+   },
+   "a/gunluk/2026-09-08/dns.csv.gz": {
+    "metin": "﻿zaman;olay;telefon;ad;soyad;mac;ic_ip;protokol;ic_port;hedef_ip;hedef_port;nat_ip;nat_port;alan_adi;gonderilen_bayt;alinan_bayt;sure_sn;oturum_id;ek\r\n2026-09-08T10:00:00+03:00;DNS;905551112233;;;;;;;;;;;www.ornek.com.tr;;;;;\r\n2026-09-08T10:00:00+03:00;DNS;905559998877;;;;;;;;;;;www.ornek.com.tr;;;;;\r\n2026-09-08T10:00:00+03:00;DNS;905554443322;;;;;;;;;;;www.ornek.com.tr;;;;;\r\n",
+    "gz": true
+   },
+   "a/gunluk/2026-09-08/kullanicilar/": {
+    "dizin": true
+   },
+   "a/gunluk/2026-09-08/kullanicilar/905551112233.csv.gz": {
+    "metin": "﻿zaman;olay;telefon;ad;soyad;mac;ic_ip;protokol;ic_port;hedef_ip;hedef_port;nat_ip;nat_port;alan_adi;gonderilen_bayt;alinan_bayt;sure_sn;oturum_id;ek\r\n",
+    "gz": true
+   },
+   "a/gunluk/2026-09-08/kullanicilar/905554443322.csv.gz": {
+    "metin": "﻿zaman;olay;telefon;ad;soyad;mac;ic_ip;protokol;ic_port;hedef_ip;hedef_port;nat_ip;nat_port;alan_adi;gonderilen_bayt;alinan_bayt;sure_sn;oturum_id;ek\r\n",
+    "gz": true
+   },
+   "a/gunluk/2026-09-08/kullanicilar/905559998877.csv.gz": {
+    "metin": "﻿zaman;olay;telefon;ad;soyad;mac;ic_ip;protokol;ic_port;hedef_ip;hedef_port;nat_ip;nat_port;alan_adi;gonderilen_bayt;alinan_bayt;sure_sn;oturum_id;ek\r\n",
+    "gz": true
+   },
+   "a/gunluk/2026-09-08/trafik.csv.gz": {
+    "metin": "﻿zaman;olay;telefon;ad;soyad;mac;ic_ip;protokol;ic_port;hedef_ip;hedef_port;nat_ip;nat_port;alan_adi;gonderilen_bayt;alinan_bayt;sure_sn;oturum_id;ek\r\n2026-09-08T10:00:00+03:00;BAGLANTI_BASLA;905551112233;;;aa:bb:cc:dd:ee:02;10.50.0.23;;;;;;;;;;;;\r\n2026-09-08T10:00:00+03:00;BAGLANTI_BASLA;905559998877;;;aa:bb:cc:dd:ee:02;10.50.0.23;;;;;;;;;;;;\r\n2026-09-08T10:00:00+03:00;BAGLANTI_BASLA;905554443322;;;aa:bb:cc:dd:ee:02;10.50.0.23;;;;;;;;;;;;\r\n",
+    "gz": true
+   },
+   "a/zincir.txt": {
+    "metin": "<KARARSIZ>"
+   },
+   "detay/": {
+    "dizin": true
+   },
+   "ham/": {
+    "dizin": true
+   },
+   "ham/5721885/": {
+    "dizin": true
+   },
+   "ham/5721885/2026-09-05.json": {
+    "json": {
+     "bicim": 2,
+     "imza": "<KARARSIZ>",
+     "sir_izi": "ff8da591",
+     "manifest_sha": "<KARARSIZ>",
+     "dosya_ok": true,
+     "misafir": [
+      "64574b970254abdd",
+      "8363c46bf274cda4",
+      "87d722dab93130e1"
+     ],
+     "saat": {
+      "9": [
+       "64574b970254abdd"
+      ],
+      "21": [
+       "8363c46bf274cda4",
+       "87d722dab93130e1"
+      ]
+     },
+     "giris": {
+      "sms": 1,
+      "kod": 2
+     },
+     "izinli": [
+      "6d8416cd8225f8ad"
+     ],
+     "gonderilen": 112,
+     "alinan": 1003,
+     "sms": 2,
+     "surum": "0.4.9"
+    }
+   },
+   "ham/5721885/2026-09-06.json": {
+    "json": {
+     "bicim": 2,
+     "imza": "<KARARSIZ>",
+     "sir_izi": "ff8da591",
+     "manifest_sha": "<KARARSIZ>",
+     "dosya_ok": true,
+     "misafir": [
+      "64574b970254abdd",
+      "8363c46bf274cda4",
+      "87d722dab93130e1"
+     ],
+     "saat": {
+      "9": [
+       "64574b970254abdd"
+      ],
+      "21": [
+       "8363c46bf274cda4",
+       "87d722dab93130e1"
+      ]
+     },
+     "giris": {
+      "sms": 1,
+      "kod": 2
+     },
+     "izinli": [
+      "6d8416cd8225f8ad"
+     ],
+     "gonderilen": 112,
+     "alinan": 1003,
+     "sms": 2,
+     "surum": "0.4.9"
+    }
+   },
+   "ham/5721885/2026-09-07.json": {
+    "json": {
+     "bicim": 2,
+     "imza": "<KARARSIZ>",
+     "sir_izi": "ff8da591",
+     "manifest_sha": "<KARARSIZ>",
+     "dosya_ok": true,
+     "misafir": [
+      "64574b970254abdd",
+      "8363c46bf274cda4",
+      "87d722dab93130e1"
+     ],
+     "saat": {
+      "9": [
+       "64574b970254abdd"
+      ],
+      "21": [
+       "8363c46bf274cda4",
+       "87d722dab93130e1"
+      ]
+     },
+     "giris": {
+      "sms": 1,
+      "kod": 2
+     },
+     "izinli": [
+      "6d8416cd8225f8ad"
+     ],
+     "gonderilen": 112,
+     "alinan": 1003,
+     "sms": 2,
+     "surum": "0.4.9"
+    }
+   },
+   "ham/5721885/2026-09-08.json": {
+    "json": {
+     "bicim": 2,
+     "imza": "<KARARSIZ>",
+     "sir_izi": "ff8da591",
+     "manifest_sha": "<KARARSIZ>",
+     "dosya_ok": true,
+     "misafir": [
+      "64574b970254abdd",
+      "92cc14e067c22247",
+      "ad129637b53e7c82"
+     ],
+     "saat": {
+      "10": [
+       "64574b970254abdd",
+       "92cc14e067c22247",
+       "ad129637b53e7c82"
+      ]
+     },
+     "giris": {
+      "sms": 0,
+      "kod": 0
+     },
+     "izinli": [],
+     "gonderilen": 0,
+     "alinan": 0,
+     "sms": 0,
+     "surum": null
+    }
+   },
+   "ist/": {
+    "dizin": true
+   },
+   "rapor/": {
+    "dizin": true
+   },
+   "rapor/5721885/": {
+    "dizin": true
+   },
+   "rapor/5721885/ay-2026-09.json": {
+    "json": {
+     "bicim": 2,
+     "tur": "ay",
+     "donem": "2026-09",
+     "baslangic": "2026-09-01",
+     "bitis": "2026-09-30",
+     "uretim": "2026-09-21T12:00:00+03:00",
+     "kesin": false,
+     "imza": "<KARARSIZ>",
+     "misafir": {
+      "farkli": 5,
+      "yeni": 5,
+      "donen": 0,
+      "giris": 9,
+      "giris_sms": 3,
+      "giris_kod": 6,
+      "izinli_cihaz": 1,
+      "gunluk_ortalama": 3.0,
+      "en_yogun_gun": {
+       "gun": "2026-09-05",
+       "farkli": 3
+      }
+     },
+     "saat": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      2,
+      0,
+      0
+     ],
+     "hafta_gunu": [
+      3,
+      3,
+      0,
+      0,
+      0,
+      3,
+      3
+     ],
+     "gunler": [
+      {
+       "gun": "2026-09-01",
+       "durum": "hizmet_oncesi",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-02",
+       "durum": "hizmet_oncesi",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-03",
+       "durum": "hizmet_oncesi",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-04",
+       "durum": "hizmet_oncesi",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-05",
+       "durum": "tam",
+       "neden": "",
+       "farkli": 3
+      },
+      {
+       "gun": "2026-09-06",
+       "durum": "tam",
+       "neden": "",
+       "farkli": 3
+      },
+      {
+       "gun": "2026-09-07",
+       "durum": "tam",
+       "neden": "",
+       "farkli": 3
+      },
+      {
+       "gun": "2026-09-08",
+       "durum": "tam",
+       "neden": "",
+       "farkli": 3
+      },
+      {
+       "gun": "2026-09-09",
+       "durum": "kayit_yok",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-10",
+       "durum": "kayit_yok",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-11",
+       "durum": "kayit_yok",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-12",
+       "durum": "kayit_yok",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-13",
+       "durum": "kayit_yok",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-14",
+       "durum": "kayit_yok",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-15",
+       "durum": "kayit_yok",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-16",
+       "durum": "kayit_yok",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-17",
+       "durum": "kayit_yok",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-18",
+       "durum": "kayit_yok",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-19",
+       "durum": "kayit_yok",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-20",
+       "durum": "bekleniyor",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-21",
+       "durum": "bugun",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-22",
+       "durum": "gelecek",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-23",
+       "durum": "gelecek",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-24",
+       "durum": "gelecek",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-25",
+       "durum": "gelecek",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-26",
+       "durum": "gelecek",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-27",
+       "durum": "gelecek",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-28",
+       "durum": "gelecek",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-29",
+       "durum": "gelecek",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-30",
+       "durum": "gelecek",
+       "neden": "",
+       "farkli": null
+      }
+     ],
+     "kayit": {
+      "gun": 16,
+      "tam": 4
+     },
+     "kullanim": {
+      "gonderilen": 336,
+      "alinan": 3009,
+      "sms": 6
+     },
+     "surum": "0.4.9",
+     "surum_sonra_degisti": false
+    }
+   },
+   "rapor/5721885/hafta-2026-W36.json": {
+    "json": {
+     "bicim": 2,
+     "tur": "hafta",
+     "donem": "2026-W36",
+     "baslangic": "2026-08-31",
+     "bitis": "2026-09-06",
+     "uretim": "2026-09-21T12:00:00+03:00",
+     "kesin": true,
+     "imza": "<KARARSIZ>",
+     "misafir": {
+      "farkli": 3,
+      "yeni": 3,
+      "donen": 0,
+      "giris": 6,
+      "giris_sms": 2,
+      "giris_kod": 4,
+      "izinli_cihaz": 1,
+      "gunluk_ortalama": 3.0,
+      "en_yogun_gun": {
+       "gun": "2026-09-05",
+       "farkli": 3
+      }
+     },
+     "saat": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      2,
+      0,
+      0
+     ],
+     "hafta_gunu": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      3,
+      3
+     ],
+     "gunler": [
+      {
+       "gun": "2026-08-31",
+       "durum": "hizmet_oncesi",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-01",
+       "durum": "hizmet_oncesi",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-02",
+       "durum": "hizmet_oncesi",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-03",
+       "durum": "hizmet_oncesi",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-04",
+       "durum": "hizmet_oncesi",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-05",
+       "durum": "tam",
+       "neden": "",
+       "farkli": 3
+      },
+      {
+       "gun": "2026-09-06",
+       "durum": "tam",
+       "neden": "",
+       "farkli": 3
+      }
+     ],
+     "kayit": {
+      "gun": 2,
+      "tam": 2
+     },
+     "kullanim": {
+      "gonderilen": 224,
+      "alinan": 2006,
+      "sms": 4
+     },
+     "surum": "0.4.9",
+     "surum_sonra_degisti": true
+    }
+   },
+   "rapor/5721885/hafta-2026-W37.json": {
+    "json": {
+     "bicim": 2,
+     "tur": "hafta",
+     "donem": "2026-W37",
+     "baslangic": "2026-09-07",
+     "bitis": "2026-09-13",
+     "uretim": "2026-09-21T12:00:00+03:00",
+     "kesin": true,
+     "imza": "<KARARSIZ>",
+     "misafir": {
+      "farkli": 5,
+      "yeni": 2,
+      "donen": 3,
+      "giris": 3,
+      "giris_sms": 1,
+      "giris_kod": 2,
+      "izinli_cihaz": 1,
+      "gunluk_ortalama": 3.0,
+      "en_yogun_gun": {
+       "gun": "2026-09-07",
+       "farkli": 3
+      }
+     },
+     "saat": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      2,
+      0,
+      0
+     ],
+     "hafta_gunu": [
+      3,
+      3,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "gunler": [
+      {
+       "gun": "2026-09-07",
+       "durum": "tam",
+       "neden": "",
+       "farkli": 3
+      },
+      {
+       "gun": "2026-09-08",
+       "durum": "tam",
+       "neden": "",
+       "farkli": 3
+      },
+      {
+       "gun": "2026-09-09",
+       "durum": "kayit_yok",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-10",
+       "durum": "kayit_yok",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-11",
+       "durum": "kayit_yok",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-12",
+       "durum": "kayit_yok",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-13",
+       "durum": "kayit_yok",
+       "neden": "",
+       "farkli": null
+      }
+     ],
+     "kayit": {
+      "gun": 7,
+      "tam": 2
+     },
+     "kullanim": {
+      "gonderilen": 112,
+      "alinan": 1003,
+      "sms": 2
+     },
+     "surum": "0.4.9",
+     "surum_sonra_degisti": false
+    }
+   },
+   "rapor/5721885/hafta-2026-W38.json": {
+    "json": {
+     "bicim": 2,
+     "tur": "hafta",
+     "donem": "2026-W38",
+     "baslangic": "2026-09-14",
+     "bitis": "2026-09-20",
+     "uretim": "2026-09-21T12:00:00+03:00",
+     "kesin": false,
+     "imza": "<KARARSIZ>",
+     "misafir": {
+      "farkli": 0,
+      "yeni": 0,
+      "donen": 0,
+      "giris": 0,
+      "giris_sms": 0,
+      "giris_kod": 0,
+      "izinli_cihaz": 0,
+      "gunluk_ortalama": 0.0,
+      "en_yogun_gun": null
+     },
+     "saat": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "hafta_gunu": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "gunler": [
+      {
+       "gun": "2026-09-14",
+       "durum": "kayit_yok",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-15",
+       "durum": "kayit_yok",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-16",
+       "durum": "kayit_yok",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-17",
+       "durum": "kayit_yok",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-18",
+       "durum": "kayit_yok",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-19",
+       "durum": "kayit_yok",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-20",
+       "durum": "bekleniyor",
+       "neden": "",
+       "farkli": null
+      }
+     ],
+     "kayit": {
+      "gun": 7,
+      "tam": 0
+     },
+     "kullanim": {
+      "gonderilen": 0,
+      "alinan": 0,
+      "sms": 0
+     },
+     "surum": "0.4.9",
+     "surum_sonra_degisti": false
+    }
+   },
+   "rapor/5721885/hafta-2026-W39.json": {
+    "json": {
+     "bicim": 2,
+     "tur": "hafta",
+     "donem": "2026-W39",
+     "baslangic": "2026-09-21",
+     "bitis": "2026-09-27",
+     "uretim": "2026-09-21T12:00:00+03:00",
+     "kesin": false,
+     "imza": "<KARARSIZ>",
+     "misafir": {
+      "farkli": 0,
+      "yeni": 0,
+      "donen": 0,
+      "giris": 0,
+      "giris_sms": 0,
+      "giris_kod": 0,
+      "izinli_cihaz": 0,
+      "gunluk_ortalama": 0.0,
+      "en_yogun_gun": null
+     },
+     "saat": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "hafta_gunu": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "gunler": [
+      {
+       "gun": "2026-09-21",
+       "durum": "bugun",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-22",
+       "durum": "gelecek",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-23",
+       "durum": "gelecek",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-24",
+       "durum": "gelecek",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-25",
+       "durum": "gelecek",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-26",
+       "durum": "gelecek",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-27",
+       "durum": "gelecek",
+       "neden": "",
+       "farkli": null
+      }
+     ],
+     "kayit": {
+      "gun": 0,
+      "tam": 0
+     },
+     "kullanim": {
+      "gonderilen": 0,
+      "alinan": 0,
+      "sms": 0
+     },
+     "surum": "0.4.9",
+     "surum_sonra_degisti": false
+    }
+   },
+   "rapor/5721885/liste.json": {
+    "json": [
+     {
+      "tur": "hafta",
+      "donem": "2026-W39",
+      "baslangic": "2026-09-21",
+      "bitis": "2026-09-27",
+      "kesin": false,
+      "farkli": 0,
+      "kayit_gun": 0,
+      "kayit_tam": 0
+     },
+     {
+      "tur": "hafta",
+      "donem": "2026-W38",
+      "baslangic": "2026-09-14",
+      "bitis": "2026-09-20",
+      "kesin": false,
+      "farkli": 0,
+      "kayit_gun": 7,
+      "kayit_tam": 0
+     },
+     {
+      "tur": "hafta",
+      "donem": "2026-W37",
+      "baslangic": "2026-09-07",
+      "bitis": "2026-09-13",
+      "kesin": true,
+      "farkli": 5,
+      "kayit_gun": 7,
+      "kayit_tam": 2
+     },
+     {
+      "tur": "hafta",
+      "donem": "2026-W36",
+      "baslangic": "2026-08-31",
+      "bitis": "2026-09-06",
+      "kesin": true,
+      "farkli": 3,
+      "kayit_gun": 2,
+      "kayit_tam": 2
+     },
+     {
+      "tur": "ay",
+      "donem": "2026-09",
+      "baslangic": "2026-09-01",
+      "bitis": "2026-09-30",
+      "kesin": false,
+      "farkli": 5,
+      "kayit_gun": 16,
+      "kayit_tam": 4
+     }
+    ]
+   }
+  }
+ ],
+ "yollar": [
+  [
+   "Musteri",
+   "POST",
+   "/giris",
+   null,
+   303,
+   "/baglan"
+  ],
+  [
+   "Musteri",
+   "GET",
+   "/raporlar",
+   null,
+   200,
+   null
+  ],
+  [
+   "Musteri",
+   "GET",
+   "/rapor/ay/2026-09",
+   null,
+   200,
+   null
+  ],
+  [
+   "Musteri",
+   "GET",
+   "/rapor/hafta/2026-W36",
+   null,
+   200,
+   null
+  ]
+ ]
+}

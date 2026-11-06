@@ -1,0 +1,33 @@
+{
+ "bicim": 3,
+ "dosya": "test_rapor",
+ "test": "test_zincir_eski_dosyalar_gerekmedikce_okunmaz",
+ "cevaplar": [],
+ "veritabanlari": [],
+ "dosyalar": [
+  {
+   "eski/": {
+    "dizin": true
+   },
+   "eski/zincir.txt.2026-09-20": {
+    "metin": "2026-09-01;aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa;6b0440c1ce48fe6bbbdc6b7b1499bf9aa8b74171dcdb3eeff952e1e7cf527813\n"
+   },
+   "eski/zincir.txt.2026-09-21": {
+    "metin": "2026-09-01;aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa;6b0440c1ce48fe6bbbdc6b7b1499bf9aa8b74171dcdb3eeff952e1e7cf527813\n"
+   },
+   "eski/zincir.txt.2026-09-22": {
+    "metin": "2026-09-01;aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa;6b0440c1ce48fe6bbbdc6b7b1499bf9aa8b74171dcdb3eeff952e1e7cf527813\n"
+   },
+   "eski/zincir.txt.2026-09-23": {
+    "metin": "2026-09-01;aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa;6b0440c1ce48fe6bbbdc6b7b1499bf9aa8b74171dcdb3eeff952e1e7cf527813\n"
+   },
+   "eski/zincir.txt.2026-09-24": {
+    "metin": "2026-09-01;aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa;6b0440c1ce48fe6bbbdc6b7b1499bf9aa8b74171dcdb3eeff952e1e7cf527813\n"
+   },
+   "zincir.txt": {
+    "metin": "2026-10-02;cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc;b2f21147bedb0dd59fef0c7aaae23d26ca59f36e41e01035da256fd3ba3ba8c4\n"
+   }
+  }
+ ],
+ "yollar": []
+}

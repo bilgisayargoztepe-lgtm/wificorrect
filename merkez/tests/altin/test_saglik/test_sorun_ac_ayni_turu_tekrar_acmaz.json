@@ -1,0 +1,68 @@
+{
+ "bicim": 3,
+ "dosya": "test_saglik",
+ "test": "test_sorun_ac_ayni_turu_tekrar_acmaz",
+ "cevaplar": [],
+ "veritabanlari": [
+  {
+   "ad": "m.db",
+   "tablolar": {
+    "ayar": [],
+    "bekleyen": [],
+    "cihaz": [],
+    "eski_arsiv": [],
+    "hareket": [],
+    "musteri": [],
+    "saglik": [],
+    "sms_sayac": [],
+    "sms_son": [],
+    "sorun": [
+     {
+      "acilis": "2026-09-21T17:13:20+03:00",
+      "acilis_sms": "",
+      "id": 1,
+      "kapanis": "",
+      "kapanis_sms": "",
+      "metin": "Disk dolu (%91)",
+      "musteri": 1000001,
+      "onem": "uyari",
+      "tur": "disk_dolu"
+     },
+     {
+      "acilis": "2026-09-21T17:13:20+03:00",
+      "acilis_sms": "",
+      "id": 2,
+      "kapanis": "",
+      "kapanis_sms": "",
+      "metin": "Rapor gelmiyor",
+      "musteri": 1000001,
+      "onem": "kritik",
+      "tur": "rapor_yok"
+     },
+     {
+      "acilis": "2026-09-21T17:13:20+03:00",
+      "acilis_sms": "",
+      "id": 3,
+      "kapanis": "",
+      "kapanis_sms": "",
+      "metin": "Disk dolu (%91)",
+      "musteri": 1000002,
+      "onem": "uyari",
+      "tur": "disk_dolu"
+     }
+    ],
+    "sqlite_sequence": [
+     {
+      "name": "sorun",
+      "seq": 3
+     }
+    ],
+    "surum": []
+   }
+  }
+ ],
+ "dosyalar": [
+  {}
+ ],
+ "yollar": []
+}

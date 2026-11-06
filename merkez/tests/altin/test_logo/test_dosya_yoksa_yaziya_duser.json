@@ -1,0 +1,15 @@
+{
+ "bicim": 3,
+ "dosya": "test_logo",
+ "test": "test_dosya_yoksa_yaziya_duser",
+ "cevaplar": [],
+ "veritabanlari": [],
+ "dosyalar": [
+  {
+   "logo-acik.svg": {
+    "metin": "bozuk"
+   }
+  }
+ ],
+ "yollar": []
+}

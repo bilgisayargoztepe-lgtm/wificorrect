@@ -1,0 +1,46 @@
+{
+ "bicim": 3,
+ "dosya": "test_listeler",
+ "test": "test_kucuk_liste_tabani",
+ "cevaplar": [],
+ "veritabanlari": [],
+ "dosyalar": [
+  {
+   "kaynak/": {
+    "dizin": true
+   },
+   "kaynak/kumar-1cee97163277.txt.gz": {
+    "metin": "c.com\n",
+    "gz": true
+   },
+   "kaynak/kumar-1e76245f6f33.txt.gz": {
+    "metin": "z.com\n",
+    "gz": true
+   },
+   "kumar.json": {
+    "json": {
+     "kategori": "kumar",
+     "sha256": "90c1d9ab4b2bf09ee998c2435cb04d51d356f2c7f385d4696d36d722a0c2294a",
+     "sayi": 2,
+     "zaman": "2026-09-21T17:13:50+03:00",
+     "kesildi": false,
+     "kaynaklar": [
+      {
+       "ad": "A",
+       "sayi": 1
+      },
+      {
+       "ad": "B",
+       "sayi": 1
+      }
+     ]
+    }
+   },
+   "kumar.txt.gz": {
+    "metin": "c.com\nz.com\n",
+    "gz": true
+   }
+  }
+ ],
+ "yollar": []
+}

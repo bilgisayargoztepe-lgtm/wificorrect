@@ -1,0 +1,32 @@
+{
+ "bicim": 3,
+ "dosya": "test_rapor",
+ "test": "test_gun_dogrula_yol_hilesi",
+ "cevaplar": [],
+ "veritabanlari": [],
+ "dosyalar": [
+  {
+   "gunluk/": {
+    "dizin": true
+   },
+   "gunluk/2026-10-01/": {
+    "dizin": true
+   },
+   "gunluk/2026-10-01/kullanicilar/": {
+    "dizin": true
+   },
+   "gunluk/2026-10-01/kullanicilar/905551112233.csv.gz": {
+    "metin": "﻿zaman;olay;telefon;ad;soyad;mac;ic_ip;protokol;ic_port;hedef_ip;hedef_port;nat_ip;nat_port;alan_adi;gonderilen_bayt;alinan_bayt;sure_sn;oturum_id;ek\r\n",
+    "gz": true
+   },
+   "gunluk/2026-10-01/trafik.csv.gz": {
+    "metin": "﻿zaman;olay;telefon;ad;soyad;mac;ic_ip;protokol;ic_port;hedef_ip;hedef_port;nat_ip;nat_port;alan_adi;gonderilen_bayt;alinan_bayt;sure_sn;oturum_id;ek\r\n2026-10-01T10:00:00+03:00;BAGLANTI_BASLA;905551112233;;;aa:bb:cc:dd:ee:02;10.50.0.23;;;;;;;;;;;;\r\n",
+    "gz": true
+   },
+   "gunluk/x": {
+    "metin": "x"
+   }
+  }
+ ],
+ "yollar": []
+}

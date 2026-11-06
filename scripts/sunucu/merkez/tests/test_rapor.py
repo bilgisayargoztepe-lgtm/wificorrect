@@ -1023,12 +1023,13 @@ def test_gecici_dosya_hata_sonrasi_kalmaz():
 
 
 def test_kur_sh_ve_merkez_birimi():
-    """M7, M8: kur.sh rapor modüllerini ve dizinlerini kurar; merkez (wcpanel) rapor-ham'a erişemez."""
+    """M7, M8: kur.sh rapor dizinlerini kurar; merkez (wcpanel) rapor-ham'a erişemez. (Rust ikilisine geçişten sonra: rapor
+    modülleri ikilinin içinde, kur.sh .py kurmaz; asıl denetim merkez/src/kurulum_testler.rs.)"""
     kok = os.path.dirname(HERE)
     kur = open(os.path.join(kok, "kur.sh"), encoding="utf-8").read()
-    assert "rapor.py" in kur and "raporlar.py" in kur
-    assert "install -d -o root -g wcpanel -m 750" in kur and "/var/lib/wificorrect/rapor\n" in kur
-    assert "install -d -m 700 /var/lib/wificorrect/rapor-ham" in kur
+    assert "rapor.py" not in kur and "raporlar.py" not in kur
+    assert "install -d -o root -g wcpanel -m 750" in kur and "$VERI/rapor\n" in kur
+    assert "install -d -m 700 $VERI/rapor-ham" in kur
     srv = open(os.path.join(kok, "wc-merkez.service"), encoding="utf-8").read()
     assert "InaccessiblePaths=-/var/lib/wificorrect/rapor-ham" in srv
 

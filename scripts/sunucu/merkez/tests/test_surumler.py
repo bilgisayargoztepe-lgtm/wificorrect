@@ -136,25 +136,23 @@ def test_otomatik_al_ekleneni_harekete_hatayi_gunluge_yazar():
 def test_kur_sh_ve_saatlik_zamanlayici():
     kok = os.path.dirname(HERE)
     kur = open(os.path.join(kok, "kur.sh"), encoding="utf-8").read()
-    assert re.search(r"install -m 644 [^\n]*\\\n[^\n]*\\\n[^\n]*wc-surumler\.service wc-surumler\.timer /etc/systemd/system/", kur)
-    assert re.search(r"systemctl enable -q --now [^\n]*wc-surumler\.timer", kur)
+    # Rust ikilisine geçişten sonra (asıl denetim merkez/src/kurulum_testler.rs): birim ikiliyi çağırır
+    assert re.search(r"install -m 644 [^\n]*\\\n[^\n]*\\\n[^\n]*wc-surumler\.service wc-surumler\.timer \$BIRIMLER/", kur)
+    assert re.search(r"^ZAMANLAYICILAR=.*wc-surumler\.timer", kur, re.M) and "systemctl enable -q --now $ZAMANLAYICILAR" in kur
     zam = open(os.path.join(kok, "wc-surumler.timer"), encoding="utf-8").read()
     assert "OnCalendar=hourly" in zam and "Persistent=true" in zam
     srv = open(os.path.join(kok, "wc-surumler.service"), encoding="utf-8").read()
-    assert "ExecStart=/usr/bin/python3 /usr/local/lib/wificorrect/surumler.py al" in srv
+    assert "ExecStart=/usr/local/bin/wificorrect-merkez surumler al" in srv
     assert "User=wcpanel" in srv and "ProtectSystem=strict" in srv and "ReadWritePaths=/var/lib/wificorrect/merkez" in srv
 
 
 def test_kur_sh_yerel_modulleri_kuruyor():
+    # Rust ikilisine geçişten sonra: kur.sh hiçbir .py kurmaz (modüller ikilinin içinde); Python kurulumu sunucuda kalır
     kok = os.path.dirname(HERE)
-    yerel = {f[:-3] for f in os.listdir(kok) if f.endswith(".py")}
-    kur = open(os.path.join(kok, "kur.sh"), encoding="utf-8").read()
-    for f in sorted(yerel):
-        kodu = open(os.path.join(kok, f + ".py"), encoding="utf-8").read()
-        for m in re.findall(r"^\s*import (\w+)|^\s*from (\w+) import", kodu, re.M):
-            ad = m[0] or m[1]
-            if ad in yerel:
-                assert f"{ad}.py" in kur, f"kur.sh {ad}.py dosyasini kurmuyor ({f}.py kullaniyor)"
+    satirlar = open(os.path.join(kok, "kur.sh"), encoding="utf-8").read().splitlines()
+    kur = "\n".join(s for s in satirlar if not s.lstrip().startswith("#"))
+    assert ".py" not in kur and "ln -s" not in kur and "PYTHONDONTWRITEBYTECODE" not in kur
+    assert "wificorrect-merkez" in kur
 
 
 if __name__ == "__main__":

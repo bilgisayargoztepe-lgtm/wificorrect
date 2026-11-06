@@ -19,10 +19,10 @@ def test_merkez_ve_cihaz_kopyalari_ayni():
 
 
 def test_kur_sh_her_dosyayi_kurar():
+    # Rust ikilisine geçişten sonra logo ikiliye gömülüdür: kur.sh logo dosyası kurmaz
     with open(os.path.join(HERE, "..", "kur.sh"), encoding="utf-8") as f:
         kur = f.read()
-    for ad in DOSYALAR:
-        assert f"logo/{ad}" in kur, ad
+    assert "logo/" not in kur
 
 
 def test_logolar_ve_simge():

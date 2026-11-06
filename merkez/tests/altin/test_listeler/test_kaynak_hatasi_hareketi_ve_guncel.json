@@ -1,0 +1,131 @@
+{
+ "bicim": 3,
+ "dosya": "test_listeler",
+ "test": "test_kaynak_hatasi_hareketi_ve_guncel",
+ "cevaplar": [],
+ "veritabanlari": [
+  {
+   "ad": "m.db",
+   "tablolar": {
+    "ayar": [],
+    "bekleyen": [],
+    "cihaz": [],
+    "eski_arsiv": [],
+    "hareket": [
+     {
+      "ayrinti": "kategori=kumar kaynak=A neden=ag yok",
+      "id": 1,
+      "ip": "",
+      "kim": "listeler",
+      "musteri": null,
+      "olay": "LISTE_HATA",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     },
+     {
+      "ayrinti": "kategori=kumar surum=0b0424de sayi=1",
+      "id": 2,
+      "ip": "",
+      "kim": "listeler",
+      "musteri": null,
+      "olay": "LISTE_GUNCEL",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     },
+     {
+      "ayrinti": "kategori=yetiskin neden=Hiçbir kaynak indirilemedi; önceki liste kullanılıyor.",
+      "id": 3,
+      "ip": "",
+      "kim": "listeler",
+      "musteri": null,
+      "olay": "LISTE_HATA",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     },
+     {
+      "ayrinti": "kategori=zararli neden=Hiçbir kaynak indirilemedi; önceki liste kullanılıyor.",
+      "id": 4,
+      "ip": "",
+      "kim": "listeler",
+      "musteri": null,
+      "olay": "LISTE_HATA",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     }
+    ],
+    "musteri": [],
+    "saglik": [],
+    "sms_sayac": [],
+    "sms_son": [],
+    "sorun": [],
+    "sqlite_sequence": [
+     {
+      "name": "hareket",
+      "seq": 4
+     }
+    ],
+    "surum": []
+   }
+  }
+ ],
+ "dosyalar": [
+  {
+   "detay/": {
+    "dizin": true
+   },
+   "ist/": {
+    "dizin": true
+   },
+   "l/": {
+    "dizin": true
+   },
+   "l/.kilit": {
+    "metin": ""
+   },
+   "l/kaynak/": {
+    "dizin": true
+   },
+   "l/kaynak/kumar-4d50e35b22de.txt.gz": {
+    "metin": "b.com\n",
+    "gz": true
+   },
+   "l/kumar.json": {
+    "json": {
+     "kategori": "kumar",
+     "sha256": "0b0424de36ef3cb760f0cf898a9bc2f4f662118500d9d18b200d8240864cdce7",
+     "sayi": 1,
+     "zaman": "2026-09-21T17:13:20+03:00",
+     "kesildi": false,
+     "kaynaklar": [
+      {
+       "ad": "A",
+       "sayi": 0,
+       "hata": "ag yok"
+      },
+      {
+       "ad": "B",
+       "sayi": 1
+      }
+     ]
+    }
+   },
+   "l/kumar.txt.gz": {
+    "metin": "b.com\n",
+    "gz": true
+   },
+   "l/yetiskin.json": {
+    "json": {
+     "kategori": "yetiskin",
+     "hata": "Hiçbir kaynak indirilemedi; önceki liste kullanılıyor.",
+     "hata_zaman": "2026-09-21T17:13:20+03:00",
+     "kaynaklar": []
+    }
+   },
+   "l/zararli.json": {
+    "json": {
+     "kategori": "zararli",
+     "hata": "Hiçbir kaynak indirilemedi; önceki liste kullanılıyor.",
+     "hata_zaman": "2026-09-21T17:13:20+03:00",
+     "kaynaklar": []
+    }
+   }
+  }
+ ],
+ "yollar": []
+}

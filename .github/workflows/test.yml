@@ -25,6 +25,32 @@ jobs:
           python-version: "3.13"
       - run: sh scripts/sunucu/merkez/tests/hepsi.sh python
 
+  merkez-rust:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.85
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: merkez
+      - run: cd merkez && cargo test --locked
+      # Sunucuya kurulacak ikili: yalnız push'ta (PR koşusunun github.sha'sı birleştirme commit'idir); merkez-kur.sh yapıtı sha'ya göre indirir
+      - if: github.event_name == 'push'
+        run: cd merkez && cargo build --release --locked
+      - name: Yapıt hazırla
+        if: github.event_name == 'push'
+        run: |
+          mkdir yapit
+          install -m 755 merkez/target/release/wificorrect-merkez yapit/wificorrect-merkez
+          (cd yapit && sha256sum wificorrect-merkez > wificorrect-merkez.sha256)
+      - if: github.event_name == 'push'
+        uses: actions/upload-artifact@v4
+        with:
+          name: wificorrect-merkez-${{ github.sha }}
+          path: yapit/
+          retention-days: 30
+          if-no-files-found: error
+
   paket:
     runs-on: ubuntu-24.04
     steps:

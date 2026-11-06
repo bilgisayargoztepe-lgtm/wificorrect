@@ -1,0 +1,45 @@
+{
+ "bicim": 3,
+ "dosya": "test_saglik",
+ "test": "test_liste_sorunu_saf",
+ "cevaplar": [],
+ "veritabanlari": [],
+ "dosyalar": [
+  {
+   "l/": {
+    "dizin": true
+   },
+   "l/kumar.json": {
+    "json": {
+     "kategori": "kumar",
+     "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "sayi": 5,
+     "zaman": "2026-10-09T20:16:00+03:00"
+    }
+   },
+   "l/yetiskin.json": {
+    "metin": "{bozuk"
+   },
+   "l/zararli.json": {
+    "json": {
+     "kategori": "zararli",
+     "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+     "sayi": 5,
+     "zaman": "2026-10-11T19:15:00+03:00",
+     "kaynaklar": [
+      {
+       "ad": "USOM",
+       "sayi": 0,
+       "hata": "liste yerine HTML sayfası döndü"
+      },
+      {
+       "ad": "HaGeZi",
+       "sayi": 5
+      }
+     ]
+    }
+   }
+  }
+ ],
+ "yollar": []
+}

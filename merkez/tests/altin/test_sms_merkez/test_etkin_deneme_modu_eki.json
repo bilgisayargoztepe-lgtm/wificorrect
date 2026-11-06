@@ -1,0 +1,436 @@
+{
+ "bicim": 3,
+ "dosya": "test_sms_merkez",
+ "test": "test_etkin_deneme_modu_eki",
+ "cevaplar": [
+  {
+   "istek": "POST /api/eslesme",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "tuz": "<T1:32>",
+     "ozet": "fcd77d2f1464acefd0bf9649c59c9103b30bf9b4aa14a1930fdbc86ae817e02c",
+     "yineleme": 120000,
+     "lisans": "aktif",
+     "lisans_bitis": "2027-09-21",
+     "ap_parola": "6vwWeTxWbXDf",
+     "sms": {
+      "etkin_mock": false,
+      "mock": false,
+      "provider": "netgsm",
+      "netgsm": {
+       "usercode": "8500000000",
+       "password": "netgsm-gizli",
+       "msgheader": "BASLIK",
+       "appkey": ""
+      }
+     },
+     "durum": "bagli",
+     "uyelik": "aktif"
+    }
+   }
+  },
+  {
+   "istek": "POST /api/saglik",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "tamam": true,
+     "sms_etkin_mock": false,
+     "listeler": {},
+     "ap_parola": "6vwWeTxWbXDf"
+    }
+   }
+  },
+  {
+   "istek": "POST /api/eslesme",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "tuz": "<T1:32>",
+     "ozet": "fcd77d2f1464acefd0bf9649c59c9103b30bf9b4aa14a1930fdbc86ae817e02c",
+     "yineleme": 120000,
+     "lisans": "aktif",
+     "lisans_bitis": "2027-09-21",
+     "ap_parola": "6vwWeTxWbXDf",
+     "sms": {
+      "etkin_mock": true,
+      "mock": true,
+      "provider": "netgsm",
+      "netgsm": {
+       "usercode": "8500000000",
+       "password": "netgsm-gizli",
+       "msgheader": "BASLIK",
+       "appkey": ""
+      }
+     },
+     "durum": "bagli",
+     "uyelik": "aktif"
+    }
+   }
+  },
+  {
+   "istek": "POST /api/saglik",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "tamam": true,
+     "sms_etkin_mock": true,
+     "listeler": {},
+     "ap_parola": "6vwWeTxWbXDf"
+    }
+   }
+  },
+  {
+   "istek": "POST /api/eslesme",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "tuz": "<T1:32>",
+     "ozet": "fcd77d2f1464acefd0bf9649c59c9103b30bf9b4aa14a1930fdbc86ae817e02c",
+     "yineleme": 120000,
+     "lisans": "aktif",
+     "lisans_bitis": "2027-09-21",
+     "ap_parola": "6vwWeTxWbXDf",
+     "sms": {
+      "etkin_mock": true,
+      "mock": false,
+      "provider": "netgsm",
+      "netgsm": {
+       "usercode": "8500000000",
+       "password": "",
+       "msgheader": "BASLIK",
+       "appkey": ""
+      }
+     },
+     "durum": "bagli",
+     "uyelik": "aktif"
+    }
+   }
+  },
+  {
+   "istek": "POST /api/eslesme",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "tuz": "<T2:32>",
+     "ozet": "2699afc514475a0f0b09a91b38801e6642f4571a405c74c9573c89f6a09058e6",
+     "yineleme": 120000,
+     "lisans": "aktif",
+     "lisans_bitis": "2027-09-21",
+     "ap_parola": "eJAHEtbPVMuP",
+     "sms": {
+      "etkin_mock": true
+     },
+     "durum": "bagli",
+     "uyelik": "aktif"
+    }
+   }
+  },
+  {
+   "istek": "POST /api/saglik",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "tamam": true,
+     "sms_etkin_mock": true,
+     "listeler": {},
+     "ap_parola": "eJAHEtbPVMuP"
+    }
+   }
+  }
+ ],
+ "veritabanlari": [
+  {
+   "ad": "m.db",
+   "tablolar": {
+    "ayar": [
+     {
+      "anahtar": "sms",
+      "deger": "{\"mock\": false, \"usercode\": \"8500000000\", \"password\": \"\", \"msgheader\": \"BASLIK\", \"appkey\": \"\"}"
+     }
+    ],
+    "bekleyen": [],
+    "cihaz": [
+     {
+      "admin_ozet": "",
+      "admin_parola": "",
+      "admin_tuz": "",
+      "admin_yineleme": 0,
+      "adres": "",
+      "anahtar_ozet": "4b3d539199668875d7f7b984e232922e427434cc4b74709eaed94a2dd9805cec",
+      "ayrilma": "",
+      "baglanma": "2026-09-21T17:13:20+03:00",
+      "durum": "bagli",
+      "id": 1,
+      "isletme_adi": "",
+      "isletme_turu": "",
+      "musteri": 5721885,
+      "otomatik": 0,
+      "son_eslesme": "2026-09-21T17:13:20+03:00",
+      "ssh_pub": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI c",
+      "surum": "",
+      "tunel_ip": "",
+      "unvan": "",
+      "wg_pub": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+     }
+    ],
+    "eski_arsiv": [],
+    "hareket": [],
+    "musteri": [
+     {
+      "ap_parola": "6vwWeTxWbXDf",
+      "askida": 0,
+      "bitis": "",
+      "guncelleme_hemen": 0.0,
+      "guncelleme_hemen_surum": "",
+      "guncelleme_kanali": "kararli",
+      "lisans_bitis": "2027-09-21",
+      "not_": "",
+      "numara": 5721885,
+      "olusturma": "2026-09-21T17:13:20+03:00",
+      "ozet": "fcd77d2f1464acefd0bf9649c59c9103b30bf9b4aa14a1930fdbc86ae817e02c",
+      "parola_acik": "6bnuKUG4dyZ7",
+      "son_giris": "",
+      "tuz": "<T1:32>",
+      "uyelik": "aktif",
+      "yineleme": 120000
+     }
+    ],
+    "saglik": [
+     {
+      "cihaz": 1,
+      "rapor": "{\"surum\": \"0.4.8\", \"acik_sn\": 10, \"disk_yuzde\": 10, \"son_muhur\": \"\", \"bagli\": 0, \"servisler\": {\"portal\": true, \"panel\": true, \"kaydedici\": true, \"dnsmasq\": true, \"guvenlik\": true}, \"kayit_boslugu_1s\": false, \"wan\": true, \"sms_sorunu\": false, \"hiz_hata\": false}",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     }
+    ],
+    "sms_sayac": [],
+    "sms_son": [],
+    "sorun": [],
+    "sqlite_sequence": [
+     {
+      "name": "cihaz",
+      "seq": 1
+     }
+    ],
+    "surum": []
+   }
+  },
+  {
+   "ad": "m.db",
+   "tablolar": {
+    "ayar": [],
+    "bekleyen": [],
+    "cihaz": [
+     {
+      "admin_ozet": "",
+      "admin_parola": "",
+      "admin_tuz": "",
+      "admin_yineleme": 0,
+      "adres": "",
+      "anahtar_ozet": "6a96efc47e751bb5248c5ce79318ba19786e573c9144da9823384ad139080b8e",
+      "ayrilma": "",
+      "baglanma": "2026-09-21T17:13:20+03:00",
+      "durum": "bagli",
+      "id": 1,
+      "isletme_adi": "",
+      "isletme_turu": "",
+      "musteri": 8592499,
+      "otomatik": 0,
+      "son_eslesme": "2026-09-21T17:13:20+03:00",
+      "ssh_pub": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI c",
+      "surum": "",
+      "tunel_ip": "",
+      "unvan": "",
+      "wg_pub": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+     }
+    ],
+    "eski_arsiv": [],
+    "hareket": [],
+    "musteri": [
+     {
+      "ap_parola": "eJAHEtbPVMuP",
+      "askida": 0,
+      "bitis": "",
+      "guncelleme_hemen": 0.0,
+      "guncelleme_hemen_surum": "",
+      "guncelleme_kanali": "kararli",
+      "lisans_bitis": "2027-09-21",
+      "not_": "",
+      "numara": 8592499,
+      "olusturma": "2026-09-21T17:13:20+03:00",
+      "ozet": "2699afc514475a0f0b09a91b38801e6642f4571a405c74c9573c89f6a09058e6",
+      "parola_acik": "HrMvjRVphQyd",
+      "son_giris": "",
+      "tuz": "<T2:32>",
+      "uyelik": "aktif",
+      "yineleme": 120000
+     }
+    ],
+    "saglik": [
+     {
+      "cihaz": 1,
+      "rapor": "{\"surum\": \"0.4.8\", \"acik_sn\": 10, \"disk_yuzde\": 10, \"son_muhur\": \"\", \"bagli\": 0, \"servisler\": {\"portal\": true, \"panel\": true, \"kaydedici\": true, \"dnsmasq\": true, \"guvenlik\": true}, \"kayit_boslugu_1s\": false, \"wan\": true, \"sms_sorunu\": false, \"hiz_hata\": false}",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     }
+    ],
+    "sms_sayac": [],
+    "sms_son": [],
+    "sorun": [],
+    "sqlite_sequence": [
+     {
+      "name": "cihaz",
+      "seq": 1
+     }
+    ],
+    "surum": []
+   }
+  }
+ ],
+ "dosyalar": [
+  {
+   "detay/": {
+    "dizin": true
+   },
+   "ist/": {
+    "dizin": true
+   }
+  },
+  {
+   "detay/": {
+    "dizin": true
+   },
+   "ist/": {
+    "dizin": true
+   }
+  }
+ ],
+ "yollar": [
+  [
+   "Api",
+   "POST",
+   "/api/eslesme",
+   null,
+   200,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/saglik",
+   null,
+   200,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/eslesme",
+   null,
+   200,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/saglik",
+   null,
+   200,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/eslesme",
+   null,
+   200,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/eslesme",
+   null,
+   200,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/saglik",
+   null,
+   200,
+   null
+  ]
+ ]
+}

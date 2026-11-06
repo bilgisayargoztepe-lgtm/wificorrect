@@ -1,0 +1,15 @@
+{
+ "bicim": 3,
+ "dosya": "test_rapor",
+ "test": "test_tamam_mi_fifo_beklemez",
+ "cevaplar": [],
+ "veritabanlari": [],
+ "dosyalar": [
+  {
+   "gun/": {
+    "dizin": true
+   }
+  }
+ ],
+ "yollar": []
+}

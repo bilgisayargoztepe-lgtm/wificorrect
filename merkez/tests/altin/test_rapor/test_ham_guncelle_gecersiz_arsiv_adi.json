@@ -1,0 +1,35 @@
+{
+ "bicim": 3,
+ "dosya": "test_rapor",
+ "test": "test_ham_guncelle_gecersiz_arsiv_adi",
+ "cevaplar": [],
+ "veritabanlari": [],
+ "dosyalar": [
+  {
+   "arsiv/": {
+    "dizin": true
+   },
+   "arsiv/gunluk/": {
+    "dizin": true
+   },
+   "arsiv/gunluk/2026-10-05/": {
+    "dizin": true
+   },
+   "arsiv/gunluk/2026-10-05/MANIFEST.sha256": {
+    "metin": "<KARARSIZ>"
+   },
+   "arsiv/gunluk/2026-10-05/kullanicilar/": {
+    "dizin": true
+   },
+   "arsiv/gunluk/2026-10-05/kullanicilar/905551112233.csv.gz": {
+    "metin": "﻿zaman;olay;telefon;ad;soyad;mac;ic_ip;protokol;ic_port;hedef_ip;hedef_port;nat_ip;nat_port;alan_adi;gonderilen_bayt;alinan_bayt;sure_sn;oturum_id;ek\r\n",
+    "gz": true
+   },
+   "arsiv/gunluk/2026-10-05/trafik.csv.gz": {
+    "metin": "﻿zaman;olay;telefon;ad;soyad;mac;ic_ip;protokol;ic_port;hedef_ip;hedef_port;nat_ip;nat_port;alan_adi;gonderilen_bayt;alinan_bayt;sure_sn;oturum_id;ek\r\n2026-10-05T10:00:00+03:00;BAGLANTI_BASLA;905551112233;;;aa:bb:cc:dd:ee:02;10.50.0.23;;;;;;;;;;;;\r\n",
+    "gz": true
+   }
+  }
+ ],
+ "yollar": []
+}

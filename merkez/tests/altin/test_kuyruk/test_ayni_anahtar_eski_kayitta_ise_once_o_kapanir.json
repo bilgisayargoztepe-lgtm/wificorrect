@@ -1,0 +1,24 @@
+{
+ "bicim": 3,
+ "dosya": "test_kuyruk",
+ "test": "test_ayni_anahtar_eski_kayitta_ise_once_o_kapanir",
+ "cevaplar": [],
+ "veritabanlari": [],
+ "dosyalar": [
+  {
+   "kayit.csv": {
+    "metin": "bitti;bocafe-test;10.99.0.10;AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=;wfc-bocafe-test;2026-10-04\ncihaz;1234567;10.99.0.11;AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=;wfc-1234567\ncihaz;7654321;10.99.0.20;BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=;wfc-7654321\n"
+   },
+   "wg/": {
+    "dizin": true
+   },
+   "wg/sunucu.pub": {
+    "metin": "SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS=\n"
+   },
+   "wg/uc-nokta": {
+    "metin": "vpn.wificorrect.com:51820\n"
+   }
+  }
+ ],
+ "yollar": []
+}

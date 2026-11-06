@@ -1,0 +1,475 @@
+#!/bin/bash
+# Merkez kurulum/geçiş/geri dönüş provası: GERÇEK systemd'li atılabilir bir Ubuntu makinesinde (GitHub Actions ubuntu-26.04)
+# scripts/sunucu/merkez/kur.sh'nin canlı geçişte yapacaklarını uçtan uca sınar (Task 13c). root olarak çalışır:
+#   sudo IKILI=merkez/target/release/wificorrect-merkez bash scripts/sunucu/kurulum-provasi.sh
+# Her adım "PROVA ADIM <n> <ad>: TAMAM|HATA <neden>" yazar; ilk HATA'da çıkış 1.
+# CANLI SUNUCUYA/CİHAZA BAĞLANMAZ. Dış yan etki yok: bütün wc-* hizmetlerinde WC_TEST=1 (gerçek SMS/istek gitmez); sistemin
+# caddy.service'i sahte (sleep). Gerçek Caddy ayrı bir süreç olarak depodaki Caddyfile'dan türetilmiş yapılandırmayla yalnızca
+# 127.0.0.1:18080'de, `http://` adresleri ve `auto_https off` + `admin off` ile çalışır (ACME'ye ya da dışarıya çıkmaz).
+# Atılabilir makine dışında ÇALIŞTIRMAYIN (sistem birimlerini ve /var/lib/wificorrect'i değiştirir).
+set -uo pipefail
+[ "$(id -u)" = 0 ] || { echo "HATA: root olmalı" >&2; exit 2; }
+[ "${PROVA_ATILABILIR:-}" = 1 ] || { echo "HATA: bu betik makineyi değiştirir; yalnız atılabilir makinede PROVA_ATILABILIR=1 ile çalışır" >&2; exit 2; }
+# yıkıcı betik (merkez.db'nin üzerine yazar, sistem birimlerini değiştirir): yalnız boş GitHub Actions makinesinde
+[ "${GITHUB_ACTIONS:-}" = true ] || { echo "HATA: prova yalnız GitHub Actions çalıştırıcısında koşar (GITHUB_ACTIONS=true değil)" >&2; exit 2; }
+if [ -e /etc/systemd/system/wc-merkez.service ] || [ -e /var/lib/wificorrect/merkez/merkez.db ]; then
+  echo "HATA: bu makinede merkez kurulu görünüyor, prova yalnız boş CI makinesinde koşar" >&2; exit 2
+fi
+# canlıya kurulu son Python merkezi (eski kurulum olarak kullanılır); Python silinince (Task 16) Python adımları kalkar
+ESKI_PYTHON_COMMIT=54a780bfdaf7c4e602cff16fe51a36a442e989f9
+
+DEPO=$(cd "$(dirname "$0")/../.." && pwd)
+IKILI_KAYNAK=$(readlink -f "${IKILI:?IKILI=derlenmiş wificorrect-merkez yolu gerekli}")
+LOG=${PROVA_LOG:-/tmp/prova-log}
+CALISMA=/opt/prova
+GERI=/var/lib/wificorrect/geri-donus
+VERI=/var/lib/wificorrect
+DB=$VERI/merkez/merkez.db
+BIRIMLER=/etc/systemd/system
+ZAMANLAYICILAR="wc-kuyruk.path wc-durum.timer wc-istatistik.timer wc-saglik.timer wc-listeler.timer wc-surumler.timer"
+# (birim, alt komut, kullanıcı; boş = root) — birim testleriyle aynı beklenti
+HIZMETLER="wc-merkez.service|sunucu|wcpanel
+wc-surumler.service|surumler al|wcpanel
+wc-saglik.service|saglik|wcpanel
+wc-listeler.service|listeler|wcpanel
+wc-durum.service|durum|
+wc-istatistik.service|istatistik|
+wc-kuyruk.service|kuyruk|"
+mkdir -p "$LOG" "$CALISMA"
+# wcpanel de çalıştırabilsin diye ikili herkesin okuyabildiği bir yere kopyalanır
+GERCEK_IKILI=$CALISMA/gercek-ikili
+install -m 755 "$IKILI_KAYNAK" "$GERCEK_IKILI"
+exec > >(tee -a "$LOG/prova.log") 2>&1
+
+ADIM_NO=0 ADIM_AD=
+adim() { ADIM_NO=$1; ADIM_AD=$2; echo "--- adım $1: $2 ($(date +%T))"; }
+tamam() { echo "PROVA ADIM $ADIM_NO $ADIM_AD: TAMAM${1:+ ($1)}"; }
+hata() { echo "PROVA ADIM $ADIM_NO $ADIM_AD: HATA $*"; exit 1; }
+
+son_dok() { # tanı: çıkışta birim durumu ve günlükler
+  set +e
+  { systemctl status 'wc-*' caddy fail2ban --no-pager -l; systemctl list-units 'wc-*' --all --no-pager; } >"$LOG/systemctl-status.txt" 2>&1
+  journalctl -u 'wc-*' --no-pager -o short-iso >"$LOG/journal-wc.txt" 2>&1
+  [ -z "${CADDY_PID:-}" ] || kill "$CADDY_PID" 2>/dev/null   # gerçek Caddy süreci
+  ls -laR "$GERI" >"$LOG/geri-donus-agaci.txt" 2>&1
+  chmod -R a+rX "$LOG" 2>/dev/null
+}
+trap son_dok EXIT
+
+# ---- yardımcılar ----------------------------------------------------------------------------------------------------
+http() { curl -s -m 5 --connect-timeout 2 -o /dev/null -w '%{http_code}' -H 'Host: yonetim.wificorrect.com' http://127.0.0.1:8081/giris 2>/dev/null || true; }
+http_bekle() { # 200 gelene kadar en çok $1 sn bekler
+  local bitis=$((SECONDS + ${1:-40})) k
+  while :; do k=$(http); [ "$k" = 200 ] && return 0; [ "$SECONDS" -ge "$bitis" ] && { echo "son HTTP kodu: $k"; return 1; }; sleep 1; done
+}
+exec_start() { systemctl show -p ExecStart --value wc-merkez; }
+dinleyen() { # 8081'i dinleyen sürecin komut satırı
+  local pid; pid=$(ss -H -ltnp 'sport = :8081' 2>/dev/null | grep -o 'pid=[0-9]*' | head -n1 | cut -d= -f2)
+  [ -n "$pid" ] && tr '\0' ' ' </proc/"$pid"/cmdline
+}
+python_servis() { exec_start | grep -q 'python3' && http_bekle 40 && dinleyen | grep -q 'python3.*merkez\.py'; }
+rust_servis() { exec_start | grep -q '/usr/local/bin/wificorrect-merkez sunucu' && http_bekle 40 && dinleyen | grep -q 'wificorrect-merkez sunucu'; }
+geri_sayisi() { find "$GERI" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l; }
+python_dizini() { grep -qsE 'python3|/usr/local/sbin/wc-' "$GERI/$1"/wc-*.service; }
+denetle_tamam() { "$GERCEK_IKILI" veritabani-denetle "$1" --dosyalar "$VERI" 2>&1 | tail -n 1 | grep -qx TAMAM; }
+
+# ---- gerçek Caddy ---------------------------------------------------------------------------------------------------
+# Depodaki gerçek Caddyfile'dan türetilir: yalnızca sütun 0'daki site adresi satırlarında her ad `http://<ad>:18080` olur,
+# başa `{ admin off, auto_https off, default_bind 127.0.0.1 }` eklenir; gövde (forward_auth, reverse_proxy, başlıklar,
+# handle_errors) AYNEN kalır. `http://` öneki + `auto_https off`: sertifika/ACME yok; `default_bind`: yalnız yerel adres.
+CADDY_PORT=18080
+CADDY_PID=
+caddy_yapilandirma() { # caddy_yapilandirma KAYNAK HEDEF
+  {
+    printf '{\n\tadmin off\n\tauto_https off\n\tdefault_bind 127.0.0.1\n}\n\n'
+    awk -v port="$CADDY_PORT" '
+      /^[^[:space:]#}].*\{[[:space:]]*$/ {
+        s = $0; sub(/[[:space:]]*\{[[:space:]]*$/, "", s)
+        n = split(s, a, /[[:space:]]*,[[:space:]]*/); o = ""
+        for (i = 1; i <= n; i++) o = o (i > 1 ? ", " : "") "http://" a[i] ":" port
+        print o " {"; next
+      }
+      { print }' "$1"
+  } >"$2"
+}
+caddy_baslat() {
+  local kaynak=$CALISMA/kaynak/scripts/sunucu/merkez/Caddyfile hedef=$CALISMA/Caddyfile.prova
+  caddy_yapilandirma "$kaynak" "$hedef" || return 1
+  cp "$hedef" "$LOG/Caddyfile.prova"
+  # türetme sağlam mı: tam 3 site satırı, hepsi http://; başka sütun-0 `{` satırı kalmadı
+  [ "$(grep -c '^http://' "$hedef")" = 3 ] || { echo "türetilmiş Caddyfile'da 3 http:// site satırı yok"; return 1; }
+  [ "$(grep -E '^[^[:space:]#}].*\{[[:space:]]*$' "$hedef" | grep -vc '^http://')" = 0 ] || { echo "http:// öneksiz site satırı kaldı"; return 1; }
+  # gövde AYNEN: türetilmiş dosyada 6 satırlık genel blok ve site satırları çıkarılınca kaynağın site satırsız hâliyle aynı
+  diff <(tail -n +7 "$hedef" | grep -v '^http://') <(grep -vE '^[^[:space:]#}].*\{[[:space:]]*$' "$kaynak") >"$LOG/caddyfile-govde-fark.txt" \
+    || { head -n 20 "$LOG/caddyfile-govde-fark.txt"; echo "türetilmiş Caddyfile gövdesi kaynaktan farklı"; return 1; }
+  mkdir -p "$CALISMA/caddy-xdg"
+  XDG_DATA_HOME=$CALISMA/caddy-xdg XDG_CONFIG_HOME=$CALISMA/caddy-xdg caddy validate --config "$hedef" --adapter caddyfile >"$LOG/caddy-validate.log" 2>&1 \
+    || { tail -n 20 "$LOG/caddy-validate.log"; return 1; }
+  XDG_DATA_HOME=$CALISMA/caddy-xdg XDG_CONFIG_HOME=$CALISMA/caddy-xdg caddy run --config "$hedef" --adapter caddyfile >"$LOG/caddy-gercek.log" 2>&1 &
+  CADDY_PID=$!
+  local bitis=$((SECONDS + 20)) k
+  while :; do
+    k=$(curl -s -m 2 -o /dev/null -w '%{http_code}' -H 'Host: yonetim.wificorrect.com' "http://127.0.0.1:$CADDY_PORT/giris" 2>/dev/null)
+    [ "$k" != 000 ] && return 0
+    kill -0 "$CADDY_PID" 2>/dev/null || { tail -n 20 "$LOG/caddy-gercek.log"; return 1; }
+    [ "$SECONDS" -lt "$bitis" ] || { tail -n 20 "$LOG/caddy-gercek.log"; return 1; }
+    sleep 0.5
+  done
+}
+# ist AD HOST YONTEM YOL [curl argümanları]: Caddy'ye istek atar; kararlı alanları ($CD_CIKTI) dosyasına ekler:
+# durum kodu ve sıralı Content-Type, Location, X-Frame-Options, Content-Security-Policy, Strict-Transport-Security,
+# Set-Cookie (yalnız ad + öznitelikler, değer atılır). Server/Date alınmaz.
+ist() {
+  local ad=$1 host=$2 yontem=$3 yol=$4; shift 4
+  local h=$CALISMA/duman-baslik.tmp
+  curl -s -m 10 -X "$yontem" -D "$h" -o "$CALISMA/duman-govde.tmp" -H "Host: $host" "$@" "http://127.0.0.1:$CADDY_PORT$yol" >/dev/null 2>&1 || echo "curl hatası ($ad)" >&2
+  {
+    echo "## $ad"
+    tr -d '\r' <"$h" | awk '
+      /^HTTP\// { durum = $2; n = 0; delete s; next }
+      /^[A-Za-z-]+:/ {
+        ad = tolower(substr($0, 1, index($0, ":") - 1)); deger = substr($0, index($0, ":") + 1); sub(/^[ \t]+/, "", deger)
+        if (ad == "set-cookie") { c = deger; sub(/=[^;]*/, "=<deger>", c); s[++n] = "set-cookie=" c }
+        else if (ad ~ /^(content-type|location|x-frame-options|content-security-policy|strict-transport-security)$/) s[++n] = ad "=" deger
+      }
+      END { print "durum=" durum; for (i = 1; i <= n; i++) print s[i] }' | { IFS= read -r ilk; echo "$ilk"; sort; }
+  } >>"$CD_CIKTI"
+}
+# caddy_duman ÇIKTI AŞAMA: gerçek Caddy üzerinden 10 istek; sonra yönetim girişinin yanlış parola satırı journal'da
+# `ip=127.0.0.1` ile bitmeli (Caddy'nin X-Forwarded-For son öğesi: fail2ban'ın gördüğü satır).
+caddy_duman() {
+  local asama=$2 jar=$CALISMA/duman-jar.tmp csrf kul="prova-$2" bitis
+  CD_CIKTI=$1; : >"$CD_CIKTI"
+  ist yonetim_giris_get yonetim.wificorrect.com GET /giris
+  ist panel_giris_get panel.wificorrect.com GET /giris
+  ist api_eslesme_bilinmeyen_anahtar api.wificorrect.com POST /api/eslesme -H 'Content-Type: application/json' --data-binary '{"cihaz_anahtari":"x"}'
+  ist api_eslesme_bos_govde api.wificorrect.com POST /api/eslesme -H 'Content-Type: application/json' --data-binary ''
+  head -c 12000 /dev/zero | tr '\0' 'a' >"$CALISMA/duman-12000.tmp"
+  ist api_sms_12000_bayt api.wificorrect.com POST /api/sms -H 'Content-Type: application/json' --data-binary "@$CALISMA/duman-12000.tmp"
+  ist cihaz_kok cihaz.wificorrect.com GET /
+  ist cihaz_giris_gecersiz_belirtec cihaz.wificorrect.com GET '/_giris?t=x'
+  ist ap_kok ap.wificorrect.com GET /
+  ist ap_service_worker ap.wificorrect.com GET /sw.js -H 'Service-Worker: script'
+  # yönetim girişi: önce /giris'ten çerez ve (varsa) CSRF, sonra yanlış parolayla POST
+  rm -f "$jar"
+  curl -s -m 10 -c "$jar" -o "$CALISMA/duman-giris.tmp" -H 'Host: yonetim.wificorrect.com' "http://127.0.0.1:$CADDY_PORT/giris" >/dev/null 2>&1
+  csrf=$(grep -o 'name="csrf" value="[^"]*"' "$CALISMA/duman-giris.tmp" | head -n1 | sed 's/.*value="//; s/"$//')
+  local ek=()
+  [ -z "$csrf" ] || ek=(--data-urlencode "csrf=$csrf")
+  ist yonetim_giris_yanlis_parola yonetim.wificorrect.com POST /giris -b "$jar" -c "$jar" \
+    --data-urlencode "kullanici=$kul" --data-urlencode "sifre=prova-yanlis" "${ek[@]}"
+  # beklenen kodlar: bir istek 000 (Caddy'ye ulaşılamadı) ise duman anlamsız
+  if grep -qx 'durum=' "$CD_CIKTI" || grep -qx 'durum=000' "$CD_CIKTI"; then cat "$CD_CIKTI"; echo "bir istek cevap almadı"; return 1; fi
+  bitis=$((SECONDS + 10))
+  until journalctl -u wc-merkez --no-pager -o cat --since "-3min" 2>/dev/null | grep -qE "^GIRIS_HATALI alan=yonetici kullanici='$kul' ip=127\.0\.0\.1$"; do
+    [ "$SECONDS" -lt "$bitis" ] || { journalctl -u wc-merkez --no-pager -o cat --since "-3min" | grep GIRIS_ | tail -n 5; echo "GIRIS_HATALI satırı ip=127.0.0.1 ile bitmiyor ya da yok ($asama)"; return 1; }
+    sleep 0.5
+  done
+  return 0
+}
+
+# paket hazırla: HEAD'deki scripts/sunucu (merkez-kur.sh gibi: *.py, tests, parite, logo, __pycache__ hariç) + ikili.
+# paket_yap AD [sarmalayici]  -> $CALISMA/AD/merkez/kur.sh
+paket_yap() {
+  local ad=$1 mod=${2:-gercek} p=$CALISMA/$1
+  rm -rf "$p"; mkdir -p "$p"
+  tar -C "$CALISMA/kaynak/scripts/sunucu" -cf - --exclude='*.py' --exclude=tests --exclude=parite --exclude=logo --exclude=__pycache__ \
+    wificorrect-sunucu merkez | tar -x -C "$p"
+  case $mod in
+    gercek) install -m 755 "$GERCEK_IKILI" "$p/merkez/wificorrect-merkez" ;;
+    denetim_red) # veritabani-denetle 1 döner; öteki her şey gerçek ikiliye
+      printf '#!/bin/bash\nif [ "$1" = veritabani-denetle ]; then echo "prova: sahte denetim reddi" >&2; exit 1; fi\nexec %s "$@"\n' "$GERCEK_IKILI" >"$p/merkez/wificorrect-merkez" ;;
+    asili) # sunucu: 8081'i açar, bağlantıyı kabul eder ama hiç cevap vermez; öteki her şey gerçek ikiliye
+      printf '#!/bin/bash\nif [ "$1" = sunucu ]; then exec python3 -I -c %s; fi\nexec %s "$@"\n' \
+        "'import socket;s=socket.socket();s.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR,1);s.bind((\"127.0.0.1\",8081));s.listen(8);c=[]
+while True: c.append(s.accept()[0])'" "$GERCEK_IKILI" >"$p/merkez/wificorrect-merkez" ;;
+    *) hata "bilinmeyen paket kipi: $mod" ;;
+  esac
+  chmod 755 "$p/merkez/wificorrect-merkez"
+}
+
+kur() { # kur AD LOGAD [argümanlar]: paketteki kur.sh'yi çalıştırır, çıktıyı $LOG/kur-LOGAD.log'a da yazar; çıkış kodunu döndürür
+  local p=$CALISMA/$1 l=$LOG/kur-$2.log; shift 2
+  bash "$p/merkez/kur.sh" "$@" >"$l" 2>&1; local k=$?
+  echo "kur.sh çıkış kodu: $k (günlük: $l)"; sed 's/^/    | /' "$l" | tail -n 40
+  return $k
+}
+
+# ---- hazırlık -------------------------------------------------------------------------------------------------------
+adim 0 hazirlik
+set -e
+echo "sistem python3: $(/usr/bin/python3 --version)  | ikili sürümü: $("$GERCEK_IKILI" surum)"
+# 1) eski paket: canlıdaki Python merkezi (sabit commit)
+git -C "$DEPO" cat-file -e "$ESKI_PYTHON_COMMIT^{commit}" 2>/dev/null || { echo "HATA: $ESKI_PYTHON_COMMIT yok (checkout fetch-depth: 0 olmalı)"; exit 1; }
+rm -rf "$CALISMA/eski" "$CALISMA/kaynak"; mkdir -p "$CALISMA/eski" "$CALISMA/kaynak"
+git -C "$DEPO" archive "$ESKI_PYTHON_COMMIT" scripts/sunucu | tar -x -C "$CALISMA/eski"
+git -C "$DEPO" archive HEAD scripts/sunucu | tar -x -C "$CALISMA/kaynak"
+# 2) dış yan etki yok: caddy sahte, wc-* hizmetlerine WC_TEST=1 (birimler ilk kez başlamadan ÖNCE)
+mkdir -p "$BIRIMLER/caddy.service.d"
+printf '[Service]\nType=simple\nExecStart=\nExecStart=/bin/sleep infinity\nExecReload=\nExecReload=/bin/true\n' >"$BIRIMLER/caddy.service.d/prova.conf"
+while IFS='|' read -r u _ _; do
+  mkdir -p "$BIRIMLER/$u.d"
+  printf '[Service]\nEnvironment=WC_TEST=1\n' >"$BIRIMLER/$u.d/prova.conf"
+done <<<"$HIZMETLER"
+systemctl daemon-reload
+# 3) paketler (kur.sh'nin kendisi de ister; burada önceden, caddy drop-in'i varken kurulur)
+export DEBIAN_FRONTEND=noninteractive
+echo "man-db man-db/auto-update boolean false" | debconf-set-selections   # apt tetikleyicisi dakikalarca sürmesin
+apt-get update -q >/dev/null
+apt-get install -y -q caddy fail2ban wireguard-tools curl >/dev/null
+command -v caddy fail2ban-client wg >/dev/null || { echo "HATA: caddy/fail2ban/wg kurulamadı"; exit 1; }
+arac_surumleri() {
+  local a
+  for a in install chown chmod sort cp mv; do printf '%s: %s\n' "$a" "$("$a" --version 2>&1 | head -n1)"; done
+  printf 'sudo: %s\n' "$(sudo --version 2>&1 | head -n1)"
+  printf 'systemctl: %s\n' "$(systemctl --version | head -n1)"
+  printf 'python3: %s\n' "$(/usr/bin/python3 --version 2>&1)"
+  printf 'caddy: %s\n' "$(caddy version | head -n1)"
+  printf 'işletim sistemi: %s\n' "$(. /etc/os-release; echo "$PRETTY_NAME")"
+  printf 'glibc: %s\n' "$(ldd --version | head -n1)"
+}
+# canlı sunucu (Ubuntu 26.04.1): install/chown/chmod/sort/stat uutils, cp/mv GNU (gnucp, gnumv). Çalıştırıcıyı buna eşitle; eşitlenemezse GEÇME.
+if ! chown --version 2>&1 | head -n1 | grep -qi uutils; then
+  apt-get install -y -q coreutils-from-uutils >/dev/null 2>&1 || true
+  hash -r
+fi
+for a in cp mv; do
+  if "$a" --version 2>&1 | head -n1 | grep -qi uutils; then apt-get install -y -q gnucp gnumv >/dev/null 2>&1 || true; hash -r; fi
+done
+echo "--- araç sürümleri (canlı: uutils 0.10 install/chown/chmod/sort, cp/mv GNU, sudo-rs, systemd 259, python 3.14, caddy 2.6.2)"
+arac_surumleri
+for a in install chown chmod sort; do "$a" --version 2>&1 | head -n1 | grep -qi uutils || { echo "HATA: $a uutils değil; canlıyla eşitlenemedi"; exit 1; }; done
+for a in cp mv; do "$a" --version 2>&1 | head -n1 | grep -qi 'GNU coreutils' || { echo "HATA: $a GNU değil"; exit 1; }; done
+echo "caddy: $(caddy version | head -n1)"
+systemctl is-active caddy >/dev/null && echo "caddy (sahte) etkin"
+# 4) gerçekçi veritabanı eski kurulumdan ÖNCE; sahibi wcpanel, izin 600
+id wcpanel >/dev/null 2>&1 || useradd --system --no-create-home --home-dir /nonexistent --shell /usr/sbin/nologin wcpanel
+install -d -o wcpanel -g wcpanel -m 700 $VERI/merkez
+install -o wcpanel -g wcpanel -m 600 "$DEPO/merkez/tests/veri/python-gocmus.db" "$DB"
+# wc-durum/istatistik arşiv ve WireGuard kaydı arar (canlıda var)
+mkdir -p /srv/wificorrect-arsiv /etc/wireguard/wificorrect
+caddy_baslat || hata "gerçek Caddy başlatılamadı (bkz. caddy-validate.log, caddy-gercek.log, Caddyfile.prova)"
+echo "gerçek Caddy: pid $CADDY_PID, 127.0.0.1:$CADDY_PORT, $(caddy version | head -n1)"
+set +e
+echo "hazırlık tamam"
+
+# ---- 1. eski Python kurulumu ----------------------------------------------------------------------------------------
+adim 1 eski_python_kurulumu
+bash "$CALISMA/eski/scripts/sunucu/merkez/kur.sh" >"$LOG/kur-eski-python.log" 2>&1; k=$?
+tail -n 25 "$LOG/kur-eski-python.log" | sed 's/^/    | /'
+[ "$k" = 0 ] || hata "eski kur.sh çıkış kodu $k (bkz. kur-eski-python.log)"
+install -m 755 "$CALISMA/eski/scripts/sunucu/wificorrect-sunucu" /usr/local/sbin/wificorrect-sunucu
+python_servis || { journalctl -u wc-merkez --no-pager -n 30; hata "Python wc-merkez 200 vermiyor (python3 $(/usr/bin/python3 --version))"; }
+caddy_duman "$LOG/caddy-duman-python.txt" python || hata "gerçek Caddy duman (Python) başarısız (bkz. caddy-duman-python.txt)"
+tamam "python3: $(/usr/bin/python3 --version), sistem yorumlayıcısı değiştirilmedi, drop-in gerekmedi"
+[ -f /usr/local/lib/wificorrect/merkez.py ] && [ -L /usr/local/sbin/wc-durum ] || hata "Python dosyaları/bağları yok"
+
+py_yerinde() { [ -f /usr/local/lib/wificorrect/merkez.py ] && [ -L /usr/local/sbin/wc-durum ] && [ -L /usr/local/sbin/wc-kuyruk ]; }
+
+# ---- 2. denetim reddi -----------------------------------------------------------------------------------------------
+adim 2 denetim_reddi
+paket_yap p2 denetim_red
+[ ! -d "$GERI" ] || hata "ön koşul: geri dönüş dizini bu noktada olmamalı"
+kur p2 denetim-reddi; k=$?
+[ "$k" != 0 ] || hata "kur.sh denetim reddinde 0 döndü"
+exec_start | grep -q python3 || hata "ExecStart değişti: $(exec_start)"
+python_servis || hata "Python artık 200 vermiyor"
+[ ! -d "$GERI" ] || [ "$(geri_sayisi)" = 0 ] || hata "denetim reddinde geri dönüş dizini oluştu: $(ls "$GERI")"
+grep -q 'veritabanı denetimi başarısız' "$LOG/kur-denetim-reddi.log" || hata "çıktıda denetim hatası iletisi yok"
+ls "$DB".yedek-* >/dev/null 2>&1 || hata "denetim reddinde de yedek incelenebilsin diye bırakılmalı"
+py_yerinde || hata "Python dosyaları bozuldu"
+tamam "kur.sh çıkış $k, canlı Python kurulumu değişmedi, geri dönüş dizini yok"
+
+# ---- 3. sağlık reddi ve kendiliğinden dönüş ------------------------------------------------------------------------
+adim 3 saglik_reddi_otomatik_donus
+paket_yap p3 asili
+t0=$SECONDS
+kur p3 saglik-reddi; k=$?
+sure=$((SECONDS - t0))
+[ "$k" != 0 ] || hata "kur.sh asılı sunucuda 0 döndü"
+[ "$sure" -le 120 ] || hata "kur.sh $sure sn sürdü (≈60 sn beklenirdi)"
+grep -q 'GERİ DÖNÜLDÜ' "$LOG/kur-saglik-reddi.log" || hata "'GERİ DÖNÜLDÜ' iletisi yok"
+python_servis || hata "geri dönüşten sonra Python 200 vermiyor: $(exec_start)"
+[ ! -e /usr/local/bin/wificorrect-merkez ] || hata "başarısız kurulumun ikilisi /usr/local/bin'de kaldı (önceki kurulum Python: ikili olmamalı)"
+[ "$(geri_sayisi)" -ge 1 ] || hata "geri dönüş dizini yok"
+[ -s "$GERI/son-geri-donus.txt" ] || hata "son-geri-donus.txt yok"
+bash "$CALISMA/p3/merkez/kur.sh" --geri-don >"$LOG/geri-don-liste.log" 2>&1  # en yeni (Python) dizine yeniden döner: zararsız; liste çıktısı denetlenir
+grep -qE '^  [0-9]{8}-[0-9]{6} \(Python\)$' "$LOG/geri-don-liste.log" || { cat "$LOG/geri-don-liste.log"; hata "--geri-don listesinde (Python) işaretli dizin yok"; }
+python_servis || hata "--geri-don sonrası Python 200 vermiyor"
+py_yerinde || hata "Python dosyaları bozuldu"
+tamam "kur.sh çıkış $k, $sure sn, Python'a dönüldü"
+
+# ---- 4. sağlam ikiliyle geçiş ---------------------------------------------------------------------------------------
+adim 4 saglam_gecis
+paket_yap p4 gercek
+durum_once=$(systemctl show -p InactiveEnterTimestampMonotonic --value wc-durum.service)
+kur p4 gecis; k=$?
+[ "$k" = 0 ] || hata "kur.sh çıkış $k"
+rust_servis || hata "Rust 200 vermiyor: $(exec_start) | dinleyen: $(dinleyen)"
+for z in $ZAMANLAYICILAR; do
+  [ "$(systemctl is-enabled "$z" 2>&1)" = enabled ] && [ "$(systemctl is-active "$z" 2>&1)" = active ] || hata "$z etkin/aktif değil"
+done
+while IFS='|' read -r u kom kul; do
+  es=$(systemctl show -p ExecStart --value "$u"); us=$(systemctl show -p User --value "$u")
+  case $es in *"path=/usr/local/bin/wificorrect-merkez ;"*"argv[]=/usr/local/bin/wificorrect-merkez $kom ;"*) ;; *) hata "$u ExecStart beklenenden farklı: $es" ;; esac
+  [ "$us" = "$kul" ] || hata "$u User='$us' beklenen='$kul'"
+done <<<"$HIZMETLER"
+bekle=$((SECONDS + 90))
+prop() { systemctl show -p "$1" --value wc-durum.service; }
+while [ "$SECONDS" -lt "$bekle" ]; do
+  [ "$(prop ActiveState)" = inactive ] && [ "$(prop Result)" = success ] && [ "$(prop InactiveEnterTimestampMonotonic)" != "$durum_once" ] && break
+  sleep 2
+done
+if ! { [ "$(prop ActiveState)" = inactive ] && [ "$(prop Result)" = success ] && [ "$(prop ExecMainStatus)" = 0 ] && [ "$(prop InactiveEnterTimestampMonotonic)" != "$durum_once" ]; }; then
+  journalctl -u wc-durum --no-pager -n 20; hata "wc-durum bu kurulumda başarıyla bitmedi: $(prop ActiveState) $(prop Result) $(prop ExecMainStatus)"
+fi
+yedek=$(ls -1 "$DB".yedek-* 2>/dev/null | tail -n1)
+[ -n "$yedek" ] || hata "veritabanı yedeği yok"
+[ "$(stat -c '%U:%G %a' "$yedek")" = "$(stat -c '%U:%G %a' "$DB")" ] || hata "yedek sahip/izin farklı: $(stat -c '%U:%G %a' "$yedek") <> $(stat -c '%U:%G %a' "$DB")"
+denetle_tamam "$yedek" || hata "yedek denetimi TAMAM değil"
+[ -f "$GERI/kur.sh" ] || hata "$GERI/kur.sh saklanmadı"
+py_yerinde || hata "Python dosyaları/bağları silinmiş"
+denetle_tamam "$DB" || hata "Rust, Python'un bıraktığı canlı veritabanını okuyamadı/TAMAM değil"
+GD4=$(grep -o "$GERI/[0-9]\{8\}-[0-9]\{6\}" "$LOG/kur-gecis.log" | head -n1)
+[ -d "$GD4" ] && python_dizini "$(basename "$GD4")" || hata "geçişin geri dönüş dizini Python dönemi değil: $GD4"
+[ ! -e "$GD4/wificorrect-merkez" ] || hata "adım 4'ün geri dönüş dizininde ikili var (adım 3'ün bozuk ikilisi kopyalanmış): $GD4"
+tamam "Rust sunucu, 7 hizmet/6 zamanlayıcı, wc-durum bitti, yedek $(basename "$yedek")"
+
+# ---- 4c. gerçek Caddy ↔ Rust ------------------------------------------------------------------------------------------
+adim 4c gercek_caddy
+caddy_duman "$LOG/caddy-duman-rust.txt" rust || hata "gerçek Caddy duman (Rust) başarısız (bkz. caddy-duman-rust.txt)"
+if ! diff -u "$LOG/caddy-duman-python.txt" "$LOG/caddy-duman-rust.txt" >"$LOG/caddy-duman-fark.txt"; then
+  cat "$LOG/caddy-duman-fark.txt"; hata "gerçek Caddy üzerinden Python ve Rust cevapları farklı (bkz. caddy-duman-fark.txt)"
+fi
+# ACME/dış ağ yok: Caddy yalnızca yerel adreste dinler, 80/443 tutmaz, dışarıya bağlantısı yok
+ss -H -ltnp 2>/dev/null | grep '"caddy"' | grep -qE ':(80|443) ' && hata "Caddy 80/443 dinliyor"
+ss -H -ltnp 2>/dev/null | grep '"caddy"' | grep -vq "127.0.0.1:$CADDY_PORT" && hata "Caddy yerel adres dışında dinliyor: $(ss -H -ltnp | grep '"caddy"')"
+ss -H -tnp state established state syn-sent 2>/dev/null | grep '"caddy"' | grep -vE '127\.0\.0\.1|\[::1\]' && hata "Caddy dışarıya bağlantı açtı"
+grep -qiE 'acme|obtaining|tls\.obtain' "$LOG/caddy-gercek.log" && { grep -iE 'acme|obtaining|tls\.obtain' "$LOG/caddy-gercek.log" | head -n 5; hata "Caddy günlüğünde ACME/sertifika izi var"; }
+tamam "10 istek Python'la birebir aynı ($(wc -l <"$LOG/caddy-duman-rust.txt") satır), GIRIS_HATALI ip=127.0.0.1, ACME/dış bağlantı yok"
+
+# Rust çalışırken veritabanına yaz (kolay bağlama bildirimi); adım 5'te Python bunu okumalı
+bildir() {
+  curl -s -m 10 -o /dev/null -w '%{http_code}' -H 'Host: api.wificorrect.com' -H 'Content-Type: application/json' -H 'X-Forwarded-For: 203.0.113.5' \
+    -d "{\"kimlik\":\"$(printf '1%.0s' $(seq 32))\",\"sir\":\"$(printf 'a%.0s' $(seq 64))\",\"surum\":\"0.4.29\",\"wan_mac\":\"00:0e:c4:ce:a0:9b\",\"wg_pub\":\"$(printf 'A%.0s' $(seq 43))=\",\"ssh_pub\":\"ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI prova\"}" \
+    http://127.0.0.1:8081/api/bekliyor
+}
+satir_say() { /usr/bin/python3 -I -c 'import sqlite3,sys;print(sqlite3.connect(sys.argv[1]).execute("select count(*) from bekleyen where kimlik=\"11111111111111111111111111111111\"").fetchone()[0])' "$DB" 2>&1; }
+once=$(satir_say)
+b=$(bildir)
+sonra=$(satir_say)
+echo "Rust'a bekliyor bildirimi: HTTP $b; bekleyen satırı $once -> $sonra"
+
+# ---- 5. elle geri dönüş ---------------------------------------------------------------------------------------------
+adim 5 elle_geri_donus
+[ "$b" = 200 ] && [ "$once" = 0 ] && [ "$sonra" = 1 ] || hata "Rust veritabanına yazamadı (HTTP $b, sınama kaydı $once -> $sonra)"
+bash "$GERI/kur.sh" --geri-don "$(basename "$GD4")" >"$LOG/geri-don-elle.log" 2>&1; k=$?
+sed 's/^/    | /' "$LOG/geri-don-elle.log" | tail -n 25
+[ "$k" = 0 ] || hata "--geri-don çıkış $k"
+python_servis || hata "elle geri dönüşten sonra Python 200 vermiyor: $(exec_start)"
+[ ! -e /usr/local/bin/wificorrect-merkez ] || hata "Python'a dönünce Rust ikilisi /usr/local/bin'de kaldı"
+[ "$(satir_say)" = "$sonra" ] || hata "veritabanı satırı değişti"
+if journalctl -u wc-merkez --no-pager --since "-2min" 2>/dev/null | grep -qE 'Traceback|OperationalError|DatabaseError'; then
+  journalctl -u wc-merkez --no-pager --since "-2min" | tail -n 30; hata "Python, Rust'ın yazdığı veritabanında hata verdi"
+fi
+# Python bu veriyi API'den okuyabiliyor mu: aynı bildirimi tekrar et, "var olan kayıt" cevabı 200 gelmeli
+b2=$(bildir); [ "$b2" = 200 ] || hata "Python aynı bildirime HTTP $b2 verdi"
+tamam "Python, Rust'ın yazdığı veritabanıyla açıldı (bekleyen=$sonra), bildirime 200"
+
+# ---- 6. yeniden Rust ve budama ---------------------------------------------------------------------------------------
+adim 6 yeniden_rust_ve_budama
+# Not: brifte 6 kez; ilk koşu Python dönemi birimlerini yedeklediği için budama sayacına girmez, bu yüzden 7 koşu (budama görülsün)
+BUDANDI=
+for i in 1 2 3 4 5 6 7; do
+  sleep 2   # geri dönüş dizin adları saniye çözünürlüklü: art arda iki koşu aynı adı almasın
+  kur p4 "gecis-$i"; k=$?
+  [ "$k" = 0 ] || hata "$i. koşu: kur.sh çıkış $k"
+  rust_servis || hata "$i. koşu: Rust 200 vermiyor"
+  BUDANDI="$BUDANDI$(grep 'budandı' "$LOG/kur-gecis-$i.log")"$'\n'
+done
+[ -d "$GERI/$(basename "$GD4")" ] || hata "Python dizini budandı: $GD4"
+diger=0 py=0
+for d in $(find "$GERI" -mindepth 1 -maxdepth 1 -type d -printf '%f\n'); do if python_dizini "$d"; then py=$((py + 1)); else diger=$((diger + 1)); fi; done
+echo "geri dönüş dizinleri: Python dönemi $py, diğer $diger"
+[ "$diger" -le 5 ] || hata "Python olmayan dizin sayısı $diger > 5"
+[ -n "$(echo "$BUDANDI" | tr -d '\n ')" ] || hata "hiç dizin budanmadı (çıktıda 'budandı' yok)"
+echo "budanan:"; echo "$BUDANDI" | sed 's/^/    /'
+for d in $(echo "$BUDANDI" | grep -o '[0-9]\{8\}-[0-9]\{6\}'); do [ ! -e "$GERI/$d" ] || hata "budandı denen dizin duruyor: $d"; done
+py_yerinde || hata "Python dosyaları bozuldu"
+tamam "Python dizini duruyor, diğer=$diger, budanan: $(echo "$BUDANDI" | grep -c budandı)"
+
+# ---- 7. kurulum adımı hatası -> kendiliğinden geri dönüş -------------------------------------------------------------
+adim 7 adim_hatasi_otomatik_donus
+HEDEF=/etc/cron.daily/hotspot-arsiv-saklama
+[ -f "$HEDEF" ] || hata "ön koşul: $HEDEF yok"
+# geri dönüşün gerçekten yapıldığını görmek için: mevcut birime işaret koy (yeni kurulum ezer, geri dönüş işareti geri getirir)
+echo "# prova-isareti" >>"$BIRIMLER/wc-durum.service"; systemctl daemon-reload
+# yeni ikili eskisinden FARKLI olsun (sonuna birkaç bayt; ELF çalışmaya devam eder): cmp geri dönüşü gerçekten ayırt eder
+paket_yap p6 gercek
+printf 'PROVA-FARKI' >>"$CALISMA/p6/merkez/wificorrect-merkez"
+cmp -s "$GERCEK_IKILI" "$CALISMA/p6/merkez/wificorrect-merkez" && hata "ön koşul: yeni ikili eskisinden farklı olmalı"
+chattr +i "$HEDEF" 2>/dev/null && ! (echo x >>"$HEDEF") 2>/dev/null || { chattr -i "$HEDEF" 2>/dev/null; hata "chattr +i çalıştırıcıda çalışmıyor; ADIM 4 hatası enjekte edilemedi (CI'da geçmez)"; }
+kur p6 adim-hatasi; k=$?
+chattr -i "$HEDEF"
+[ "$k" != 0 ] || hata "kur.sh başarısız adımda 0 döndü"
+grep -q 'GERİ DÖNÜLDÜ' "$LOG/kur-adim-hatasi.log" || hata "'GERİ DÖNÜLDÜ' iletisi yok"
+grep -q 'prova-isareti' "$BIRIMLER/wc-durum.service" || hata "birim geri konmadı (işaret yok)"
+[ -s "$GERI/son-geri-donus.txt" ] || hata "son-geri-donus.txt yok"
+cmp -s "$GERCEK_IKILI" /usr/local/bin/wificorrect-merkez || hata "ikili eski sürüm değil (geri konmadı; yeni/farklı ikili yerinde)"
+rust_servis || hata "geri dönüşten sonra Rust 200 vermiyor"
+sed -i '/prova-isareti/d' "$BIRIMLER/wc-durum.service"; systemctl daemon-reload
+tamam "kur.sh çıkış $k; ERR/EXIT tuzağı önceki kuruluma döndü, farklı yeni ikili yerine eski ikili (cmp) geri geldi"
+
+# ---- 7b. sinyalle kesilme ve ölü boru ----------------------------------------------------------------------------------
+adim 7b sinyal_ve_olu_boru
+paket_yap p7 asili   # yeni "ikili" bir betik: gerçek ikiliden zaten farklı
+sinyal_dene() { # sinyal_dene AD KİP: kur.sh arka planda; ADIM 5 çıktısından sonra kesilir; sonra birimler geri dönmeli
+  local ad=$1 kip=$2 l=$LOG/kur-$1.log pid rc
+  : >"$l"; rm -f "$GERI/son-geri-donus.txt"; echo "# prova-isareti" >>"$BIRIMLER/wc-durum.service"; systemctl daemon-reload
+  if [ "$kip" = sigterm ]; then
+    bash "$CALISMA/p7/merkez/kur.sh" >"$l" 2>&1 & pid=$!
+  else
+    ( bash "$CALISMA/p7/merkez/kur.sh" 2>&1 | tee "$l" >/dev/null; exit "${PIPESTATUS[0]}" ) & pid=$!
+  fi
+  local bekle=$((SECONDS + 60))
+  until grep -q '^ADIM 5:' "$l"; do [ "$SECONDS" -lt "$bekle" ] || { kill -9 "$pid" 2>/dev/null; hata "$ad: ADIM 5'e gelinmedi"; }; sleep 0.5; done
+  sleep 3   # sağlık denetimi (200 beklemesi) sürüyor, tuzak etkin
+  # sinyal GERÇEKTEN işlemi canlıyken kesmeli: kur.sh kendi başarısızlığıyla bitmiş olsaydı aynı çıktılar oluşurdu
+  kill -0 "$pid" 2>/dev/null || hata "$ad: kur.sh kesmeden önce zaten bitmişti (sinyal ulaşmadı)"
+  if [ "$kip" = sigterm ]; then
+    kill -TERM "$pid" || hata "$ad: kill -TERM başarısız"
+  else
+    pgrep -f "tee $l" >/dev/null || hata "$ad: tee canlı değil (öldürülecek bir şey yok)"
+    pkill -9 -f "tee $l" || hata "$ad: tee öldürülemedi"
+  fi
+  wait "$pid" 2>/dev/null; rc=$?
+  echo "PROVA 7b $ad: kur.sh çıkış kodu $rc"
+  if [ "$kip" = sigterm ]; then
+    [ "$rc" = 143 ] || hata "$ad: çıkış kodu $rc, SIGTERM ile kesilen süreç için 143 beklenir (kendi başarısızlığı 1 döner)"
+  else
+    [ "$rc" != 0 ] && [ "$rc" != 1 ] || hata "$ad: çıkış kodu $rc, ölü boruda SIGPIPE (141) beklenir"
+  fi
+  # kur.sh geri dönüşü bitirene kadar bekle (sonuç dosyası tamamlanır)
+  local b2=$((SECONDS + 100))
+  until grep -qE 'GERİ DÖNÜLDÜ|geri dönüş de tam olmadı' "$GERI/son-geri-donus.txt" 2>/dev/null && ! pgrep -f "p7/merkez/kur.sh" >/dev/null; do
+    [ "$SECONDS" -lt "$b2" ] || hata "$ad: geri dönüş sonucu gelmedi: $(tail -n 5 "$GERI/son-geri-donus.txt" 2>&1)"; sleep 1
+  done
+  grep -q 'GERİ DÖNÜLDÜ' "$GERI/son-geri-donus.txt" || hata "$ad: geri dönüş tam olmadı: $(tail -n 5 "$GERI/son-geri-donus.txt")"
+  grep -q 'prova-isareti' "$BIRIMLER/wc-durum.service" || hata "$ad: birimler geri konmadı"
+  cmp -s "$GERCEK_IKILI" /usr/local/bin/wificorrect-merkez || hata "$ad: ikili geri konan sürüm değil"
+  rust_servis || hata "$ad: geri dönüşten sonra Rust 200 vermiyor"
+  sed -i '/prova-isareti/d' "$BIRIMLER/wc-durum.service"; systemctl daemon-reload
+}
+sinyal_dene sinyal-sigterm sigterm
+sinyal_dene sinyal-olu-boru borulu
+tamam "SIGTERM (çıkış 143) ve ölü boru: süreç canlıyken kesildi, iki durumda da önceki kuruluma dönüldü"
+
+# ---- 8. son durum --------------------------------------------------------------------------------------------------
+adim 8 son_durum
+systemctl is-active wc-merkez >/dev/null || hata "wc-merkez etkin değil"
+rust_servis || hata "wc-merkez 200 vermiyor"
+denetle_tamam "$DB" || hata "veritabani-denetle TAMAM değil"
+if journalctl -u wc-merkez --no-pager 2>/dev/null | grep -qi 'panicked'; then journalctl -u wc-merkez --no-pager | grep -i -B2 -A5 panicked | head -n 30; hata "wc-merkez günlüğünde panic var"; fi
+[ "$(for d in $(find "$GERI" -mindepth 1 -maxdepth 1 -type d -printf '%f\n'); do python_dizini "$d" || echo x; done | wc -l)" -le 5 ] || hata "Python olmayan geri dönüş dizini > 5"
+tamam
+echo "PROVA BITTI: bütün adımlar geçti"

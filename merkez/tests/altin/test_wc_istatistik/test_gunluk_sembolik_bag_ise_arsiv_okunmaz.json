@@ -1,0 +1,40 @@
+{
+ "bicim": 3,
+ "dosya": "test_wc_istatistik",
+ "test": "test_gunluk_sembolik_bag_ise_arsiv_okunmaz",
+ "cevaplar": [],
+ "veritabanlari": [],
+ "dosyalar": [
+  {
+   "baska/": {
+    "dizin": true
+   },
+   "baska/gunluk/": {
+    "dizin": true
+   },
+   "baska/gunluk/2026-10-01/": {
+    "dizin": true
+   },
+   "baska/gunluk/2026-10-01/MANIFEST.sha256": {
+    "metin": "# gun=2026-10-01 onceki_zincir=0\nabc123  trafik.csv.gz\n"
+   },
+   "baska/gunluk/2026-10-01/trafik.csv.gz": {
+    "metin": "﻿zaman;olay;telefon;ad;soyad;mac;ic_ip;protokol;ic_port;hedef_ip;hedef_port;nat_ip;nat_port;alan_adi;gonderilen_bayt;alinan_bayt;sure_sn;oturum_id;ek\n2026-10-01T10:00:00+03:00;BAGLANTI_BASLA;5334553132;;;;;;;;;;;;;;;;\n",
+    "gz": true
+   },
+   "dd/": {
+    "dizin": true
+   },
+   "dd/kisiler.json": {
+    "json": {}
+   },
+   "k.json": {
+    "json": {}
+   },
+   "kotu/": {
+    "dizin": true
+   }
+  }
+ ],
+ "yollar": []
+}

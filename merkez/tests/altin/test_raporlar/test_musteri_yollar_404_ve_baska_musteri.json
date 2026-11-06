@@ -1,0 +1,724 @@
+{
+ "bicim": 3,
+ "dosya": "test_raporlar",
+ "test": "test_musteri_yollar_404_ve_baska_musteri",
+ "cevaplar": [
+  {
+   "istek": "POST /giris",
+   "durum": 303,
+   "basliklar": [
+    [
+     "Location",
+     "/baglan"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ],
+    [
+     "Set-Cookie",
+     "wc_musteri=<T1:43>; HttpOnly; Secure; SameSite=Strict; Path=/"
+    ]
+   ],
+   "govde": {
+    "metin": ""
+   }
+  },
+  {
+   "istek": "GET /rapor/ay/2026-09",
+   "durum": 404,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Bulunamadı · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><header><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_ACIK}</a><nav><a href=\"/cihaz\">Cihaz paneli</a><a href=\"/\">Yedek arşiv</a><a href=\"/raporlar\">Raporlar</a><a href=\"/parola\">Parola</a><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2:32>\"><button class=\"ikincil\">Çıkış</button></form></nav></header><main><div class=\"kart\"><h1>Bulunamadı</h1><p>Bu dönem için rapor yok.</p><p><a href=\"/\">Ana sayfa</a></p></div></main></body></html>"
+   }
+  },
+  {
+   "istek": "GET /raporlar",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Raporlar · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><header><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_ACIK}</a><nav><a href=\"/cihaz\">Cihaz paneli</a><a href=\"/\">Yedek arşiv</a><a href=\"/raporlar\">Raporlar</a><a href=\"/parola\">Parola</a><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2:32>\"><button class=\"ikincil\">Çıkış</button></form></nav></header><main class=\"genis\"><div class=\"kart\"><h1>Raporlar</h1><p>Henüz rapor yok; ilk gün arşive geldiğinde oluşur.</p></div></main></body></html>"
+   }
+  },
+  {
+   "istek": "GET /rapor/ay/2026-13",
+   "durum": 404,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Bulunamadı · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><header><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_ACIK}</a><nav><a href=\"/cihaz\">Cihaz paneli</a><a href=\"/\">Yedek arşiv</a><a href=\"/raporlar\">Raporlar</a><a href=\"/parola\">Parola</a><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2:32>\"><button class=\"ikincil\">Çıkış</button></form></nav></header><main><div class=\"kart\"><h1>Bulunamadı</h1><p>Bu dönem için rapor yok.</p><p><a href=\"/\">Ana sayfa</a></p></div></main></body></html>"
+   }
+  },
+  {
+   "istek": "GET /rapor/hafta/../x",
+   "durum": 404,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Bulunamadı · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><header><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_ACIK}</a><nav><a href=\"/cihaz\">Cihaz paneli</a><a href=\"/\">Yedek arşiv</a><a href=\"/raporlar\">Raporlar</a><a href=\"/parola\">Parola</a><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2:32>\"><button class=\"ikincil\">Çıkış</button></form></nav></header><main><div class=\"kart\"><h1>Bulunamadı</h1><p>Bu dönem için rapor yok.</p><p><a href=\"/\">Ana sayfa</a></p></div></main></body></html>"
+   }
+  },
+  {
+   "istek": "GET /rapor/yil/2026",
+   "durum": 404,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Bulunamadı · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><header><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_ACIK}</a><nav><a href=\"/cihaz\">Cihaz paneli</a><a href=\"/\">Yedek arşiv</a><a href=\"/raporlar\">Raporlar</a><a href=\"/parola\">Parola</a><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2:32>\"><button class=\"ikincil\">Çıkış</button></form></nav></header><main><div class=\"kart\"><h1>Bulunamadı</h1><p>Bu dönem için rapor yok.</p><p><a href=\"/\">Ana sayfa</a></p></div></main></body></html>"
+   }
+  },
+  {
+   "istek": "GET /rapor/hafta/2026-W54",
+   "durum": 404,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Bulunamadı · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><header><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_ACIK}</a><nav><a href=\"/cihaz\">Cihaz paneli</a><a href=\"/\">Yedek arşiv</a><a href=\"/raporlar\">Raporlar</a><a href=\"/parola\">Parola</a><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2:32>\"><button class=\"ikincil\">Çıkış</button></form></nav></header><main><div class=\"kart\"><h1>Bulunamadı</h1><p>Bu dönem için rapor yok.</p><p><a href=\"/\">Ana sayfa</a></p></div></main></body></html>"
+   }
+  },
+  {
+   "istek": "GET /rapor/ay/",
+   "durum": 404,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Bulunamadı · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><header><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_ACIK}</a><nav><a href=\"/cihaz\">Cihaz paneli</a><a href=\"/\">Yedek arşiv</a><a href=\"/raporlar\">Raporlar</a><a href=\"/parola\">Parola</a><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2:32>\"><button class=\"ikincil\">Çıkış</button></form></nav></header><main><div class=\"kart\"><h1>Bulunamadı</h1><p>Bu dönem için rapor yok.</p><p><a href=\"/\">Ana sayfa</a></p></div></main></body></html>"
+   }
+  },
+  {
+   "istek": "GET /rapor/ay/2026-09/../../8592499",
+   "durum": 404,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Bulunamadı · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><header><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_ACIK}</a><nav><a href=\"/cihaz\">Cihaz paneli</a><a href=\"/\">Yedek arşiv</a><a href=\"/raporlar\">Raporlar</a><a href=\"/parola\">Parola</a><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2:32>\"><button class=\"ikincil\">Çıkış</button></form></nav></header><main><div class=\"kart\"><h1>Bulunamadı</h1><p>Bu dönem için rapor yok.</p><p><a href=\"/\">Ana sayfa</a></p></div></main></body></html>"
+   }
+  },
+  {
+   "istek": "GET /rapor/hafta/2026-w38",
+   "durum": 404,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Bulunamadı · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><header><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_ACIK}</a><nav><a href=\"/cihaz\">Cihaz paneli</a><a href=\"/\">Yedek arşiv</a><a href=\"/raporlar\">Raporlar</a><a href=\"/parola\">Parola</a><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2:32>\"><button class=\"ikincil\">Çıkış</button></form></nav></header><main><div class=\"kart\"><h1>Bulunamadı</h1><p>Bu dönem için rapor yok.</p><p><a href=\"/\">Ana sayfa</a></p></div></main></body></html>"
+   }
+  },
+  {
+   "istek": "GET /rapor/ay/2026-09",
+   "durum": 404,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Bulunamadı · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><header><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_ACIK}</a><nav><a href=\"/cihaz\">Cihaz paneli</a><a href=\"/\">Yedek arşiv</a><a href=\"/raporlar\">Raporlar</a><a href=\"/parola\">Parola</a><form method=\"post\" action=\"/cikis\"><input type=\"hidden\" name=\"csrf\" value=\"<T2:32>\"><button class=\"ikincil\">Çıkış</button></form></nav></header><main><div class=\"kart\"><h1>Bulunamadı</h1><p>Bu dönem için rapor yok.</p><p><a href=\"/\">Ana sayfa</a></p></div></main></body></html>"
+   }
+  },
+  {
+   "istek": "GET /raporlar",
+   "durum": 303,
+   "basliklar": [
+    [
+     "Location",
+     "/giris"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": ""
+   }
+  }
+ ],
+ "veritabanlari": [
+  {
+   "ad": "m.db",
+   "tablolar": {
+    "ayar": [],
+    "bekleyen": [],
+    "cihaz": [],
+    "eski_arsiv": [],
+    "hareket": [
+     {
+      "ayrinti": "müşteri paneli",
+      "id": 1,
+      "ip": "203.0.113.5",
+      "kim": "5721885",
+      "musteri": 5721885,
+      "olay": "GIRIS",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     }
+    ],
+    "musteri": [
+     {
+      "ap_parola": "6vwWeTxWbXDf",
+      "askida": 0,
+      "bitis": "",
+      "guncelleme_hemen": 0.0,
+      "guncelleme_hemen_surum": "",
+      "guncelleme_kanali": "kararli",
+      "lisans_bitis": "2027-09-21",
+      "not_": "",
+      "numara": 5721885,
+      "olusturma": "2026-09-21T17:13:20+03:00",
+      "ozet": "fcd77d2f1464acefd0bf9649c59c9103b30bf9b4aa14a1930fdbc86ae817e02c",
+      "parola_acik": "6bnuKUG4dyZ7",
+      "son_giris": "2026-09-21T17:13:20+03:00",
+      "tuz": "<T3:32>",
+      "uyelik": "aktif",
+      "yineleme": 120000
+     },
+     {
+      "ap_parola": "eJAHEtbPVMuP",
+      "askida": 0,
+      "bitis": "",
+      "guncelleme_hemen": 0.0,
+      "guncelleme_hemen_surum": "",
+      "guncelleme_kanali": "kararli",
+      "lisans_bitis": "2027-09-21",
+      "not_": "",
+      "numara": 8592499,
+      "olusturma": "2026-09-21T17:13:20+03:00",
+      "ozet": "2699afc514475a0f0b09a91b38801e6642f4571a405c74c9573c89f6a09058e6",
+      "parola_acik": "HrMvjRVphQyd",
+      "son_giris": "",
+      "tuz": "<T4:32>",
+      "uyelik": "aktif",
+      "yineleme": 120000
+     }
+    ],
+    "saglik": [],
+    "sms_sayac": [],
+    "sms_son": [],
+    "sorun": [],
+    "sqlite_sequence": [
+     {
+      "name": "hareket",
+      "seq": 1
+     }
+    ],
+    "surum": []
+   }
+  }
+ ],
+ "dosyalar": [
+  {
+   "detay/": {
+    "dizin": true
+   },
+   "ist/": {
+    "dizin": true
+   },
+   "rapor/": {
+    "dizin": true
+   },
+   "rapor/5721885/": {
+    "dizin": true
+   },
+   "rapor/5721885/ay-2026-09.json": {
+    "metin": "{bozuk"
+   },
+   "rapor/8592499/": {
+    "dizin": true
+   },
+   "rapor/8592499/ay-2026-09.json": {
+    "json": {
+     "bicim": 2,
+     "tur": "ay",
+     "donem": "2026-09",
+     "baslangic": "2026-09-01",
+     "bitis": "2026-09-30",
+     "uretim": "2026-09-21T12:31:07+03:00",
+     "kesin": false,
+     "imza": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+     "misafir": {
+      "farkli": 41,
+      "yeni": 30,
+      "donen": 11,
+      "giris": 77,
+      "giris_sms": 70,
+      "giris_kod": 7,
+      "izinli_cihaz": 2,
+      "gunluk_ortalama": 4.5,
+      "en_yogun_gun": {
+       "gun": "2026-09-12",
+       "farkli": 9
+      }
+     },
+     "saat": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      5,
+      9,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1
+     ],
+     "hafta_gunu": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+     ],
+     "gunler": [
+      {
+       "gun": "2026-09-01",
+       "durum": "tam",
+       "neden": "",
+       "farkli": 2
+      },
+      {
+       "gun": "2026-09-02",
+       "durum": "tam",
+       "neden": "",
+       "farkli": 2
+      },
+      {
+       "gun": "2026-09-03",
+       "durum": "tam",
+       "neden": "",
+       "farkli": 2
+      },
+      {
+       "gun": "2026-09-04",
+       "durum": "dogrulanamadi",
+       "neden": "zincir_yok",
+       "farkli": 2
+      },
+      {
+       "gun": "2026-09-05",
+       "durum": "kayit_yok",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-06",
+       "durum": "eksik",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-07",
+       "durum": "tam",
+       "neden": "",
+       "farkli": 2
+      },
+      {
+       "gun": "2026-09-08",
+       "durum": "tam",
+       "neden": "",
+       "farkli": 2
+      },
+      {
+       "gun": "2026-09-09",
+       "durum": "tam",
+       "neden": "",
+       "farkli": 2
+      },
+      {
+       "gun": "2026-09-10",
+       "durum": "tam",
+       "neden": "",
+       "farkli": 2
+      },
+      {
+       "gun": "2026-09-11",
+       "durum": "tam",
+       "neden": "",
+       "farkli": 2
+      },
+      {
+       "gun": "2026-09-12",
+       "durum": "tam",
+       "neden": "",
+       "farkli": 2
+      },
+      {
+       "gun": "2026-09-13",
+       "durum": "tam",
+       "neden": "",
+       "farkli": 2
+      },
+      {
+       "gun": "2026-09-14",
+       "durum": "tam",
+       "neden": "",
+       "farkli": 2
+      },
+      {
+       "gun": "2026-09-15",
+       "durum": "tam",
+       "neden": "",
+       "farkli": 2
+      },
+      {
+       "gun": "2026-09-16",
+       "durum": "tam",
+       "neden": "",
+       "farkli": 2
+      },
+      {
+       "gun": "2026-09-17",
+       "durum": "tam",
+       "neden": "",
+       "farkli": 2
+      },
+      {
+       "gun": "2026-09-18",
+       "durum": "tam",
+       "neden": "",
+       "farkli": 2
+      },
+      {
+       "gun": "2026-09-19",
+       "durum": "tam",
+       "neden": "",
+       "farkli": 2
+      },
+      {
+       "gun": "2026-09-20",
+       "durum": "bekleniyor",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-21",
+       "durum": "bugun",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-22",
+       "durum": "gelecek",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-23",
+       "durum": "gelecek",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-24",
+       "durum": "gelecek",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-25",
+       "durum": "gelecek",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-26",
+       "durum": "gelecek",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-27",
+       "durum": "gelecek",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-28",
+       "durum": "gelecek",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-29",
+       "durum": "gelecek",
+       "neden": "",
+       "farkli": null
+      },
+      {
+       "gun": "2026-09-30",
+       "durum": "gelecek",
+       "neden": "",
+       "farkli": null
+      }
+     ],
+     "kayit": {
+      "gun": 20,
+      "tam": 16
+     },
+     "kullanim": {
+      "gonderilen": 1073741824,
+      "alinan": 3221225472,
+      "sms": 70,
+      "alanlar": [
+       {
+        "alan": "instagram.com",
+        "misafir": 12
+       },
+       {
+        "alan": "<script>alert(1)</script>.com",
+        "misafir": 3
+       }
+      ]
+     },
+     "surum": "0.4.9",
+     "surum_sonra_degisti": false
+    }
+   },
+   "rapor/8592499/liste.json": {
+    "json": [
+     {
+      "tur": "hafta",
+      "donem": "2026-W39",
+      "baslangic": "2026-09-21",
+      "bitis": "2026-09-27",
+      "kesin": false,
+      "farkli": 3,
+      "kayit_gun": 0,
+      "kayit_tam": 0
+     },
+     {
+      "tur": "hafta",
+      "donem": "2026-W38",
+      "baslangic": "2026-09-14",
+      "bitis": "2026-09-20",
+      "kesin": false,
+      "farkli": 6,
+      "kayit_gun": 7,
+      "kayit_tam": 6
+     },
+     {
+      "tur": "hafta",
+      "donem": "2026-W36",
+      "baslangic": "2026-08-31",
+      "bitis": "2026-09-06",
+      "kesin": true,
+      "farkli": 8,
+      "kayit_gun": 7,
+      "kayit_tam": 7
+     },
+     {
+      "tur": "ay",
+      "donem": "2026-09",
+      "baslangic": "2026-09-01",
+      "bitis": "2026-09-30",
+      "kesin": false,
+      "farkli": 41,
+      "kayit_gun": 20,
+      "kayit_tam": 16
+     },
+     {
+      "tur": "ay",
+      "donem": "2026-08",
+      "baslangic": "2026-08-01",
+      "bitis": "2026-08-31",
+      "kesin": true,
+      "farkli": 50,
+      "kayit_gun": 31,
+      "kayit_tam": 31
+     }
+    ]
+   }
+  }
+ ],
+ "yollar": [
+  [
+   "Musteri",
+   "POST",
+   "/giris",
+   null,
+   303,
+   "/baglan"
+  ],
+  [
+   "Musteri",
+   "GET",
+   "/rapor/ay/2026-09",
+   null,
+   404,
+   null
+  ],
+  [
+   "Musteri",
+   "GET",
+   "/raporlar",
+   null,
+   200,
+   null
+  ],
+  [
+   "Musteri",
+   "GET",
+   "/rapor/ay/2026-13",
+   null,
+   404,
+   null
+  ],
+  [
+   "Musteri",
+   "GET",
+   "/rapor/hafta/../x",
+   null,
+   404,
+   null
+  ],
+  [
+   "Musteri",
+   "GET",
+   "/rapor/yil/2026",
+   null,
+   404,
+   null
+  ],
+  [
+   "Musteri",
+   "GET",
+   "/rapor/hafta/2026-W54",
+   null,
+   404,
+   null
+  ],
+  [
+   "Musteri",
+   "GET",
+   "/rapor/ay/",
+   null,
+   404,
+   null
+  ],
+  [
+   "Musteri",
+   "GET",
+   "/rapor/ay/2026-09/../../8592499",
+   null,
+   404,
+   null
+  ],
+  [
+   "Musteri",
+   "GET",
+   "/rapor/hafta/2026-w38",
+   null,
+   404,
+   null
+  ],
+  [
+   "Musteri",
+   "GET",
+   "/rapor/ay/2026-09",
+   null,
+   404,
+   null
+  ],
+  [
+   "Musteri",
+   "GET",
+   "/raporlar",
+   null,
+   303,
+   "/giris"
+  ]
+ ]
+}

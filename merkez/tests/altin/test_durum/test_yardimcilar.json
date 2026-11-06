@@ -1,0 +1,63 @@
+{
+ "bicim": 3,
+ "dosya": "test_durum",
+ "test": "test_yardimcilar",
+ "cevaplar": [],
+ "veritabanlari": [],
+ "dosyalar": [
+  {
+   "eski/": {
+    "dizin": true
+   },
+   "eski/bocafe/": {
+    "dizin": true
+   },
+   "eski/bocafe/gunluk/": {
+    "dizin": true
+   },
+   "eski/bocafe/gunluk/2026-09-20/": {
+    "dizin": true
+   },
+   "kayit.csv": {
+    "metin": "yonetici;pc;10.99.0.2;AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=;\ncihaz;100001;10.99.0.10;AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=;wfc-100001\nbitti;bocafe-test;10.99.0.11;BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=;wfc-bocafe-test;2026-10-04\n"
+   },
+   "yeni/": {
+    "dizin": true
+   },
+   "yeni/..kotu/": {
+    "dizin": true
+   },
+   "yeni/..kotu/veri/": {
+    "dizin": true
+   },
+   "yeni/100001/": {
+    "dizin": true
+   },
+   "yeni/100001/veri/": {
+    "dizin": true
+   },
+   "yeni/100001/veri/gunluk/": {
+    "dizin": true
+   },
+   "yeni/100001/veri/gunluk/2026-10-03/": {
+    "dizin": true
+   },
+   "yeni/100001/veri/zincir.txt": {
+    "metin": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+   },
+   "yeni/bocafe-test/": {
+    "dizin": true
+   },
+   "yeni/bocafe-test/veri/": {
+    "dizin": true
+   },
+   "yeni/bocafe-test/veri/gunluk/": {
+    "dizin": true
+   },
+   "yeni/bocafe-test/veri/gunluk/2026-10-01/": {
+    "dizin": true
+   }
+  }
+ ],
+ "yollar": []
+}

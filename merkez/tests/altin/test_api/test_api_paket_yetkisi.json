@@ -1,0 +1,638 @@
+{
+ "bicim": 3,
+ "dosya": "test_api",
+ "test": "test_api_paket_yetkisi",
+ "cevaplar": [
+  {
+   "istek": "POST /api/giris",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "tuz": "<T2:32>",
+     "ozet": "fcd77d2f1464acefd0bf9649c59c9103b30bf9b4aa14a1930fdbc86ae817e02c",
+     "yineleme": 120000,
+     "lisans": "aktif",
+     "lisans_bitis": "2027-09-21",
+     "ap_parola": "6vwWeTxWbXDf",
+     "sms": {
+      "etkin_mock": true
+     },
+     "cihaz_anahtari": "<T1:43>",
+     "tunel_ip": "10.99.0.10",
+     "sunucu_pub": "SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS=",
+     "uc_nokta": "vpn.wificorrect.com:51820",
+     "yedek_hedefi": "wfc-5721885@10.99.0.1:"
+    }
+   }
+  },
+  {
+   "istek": "POST /api/paket",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/octet-stream"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "ikili": {
+     "sha256": "aa5fa64d47b31ad091866a777d1b84a743793537625793c89e04a083e4c39106",
+     "uzunluk": 9
+    }
+   }
+  },
+  {
+   "istek": "POST /api/paket",
+   "durum": 403,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "hata": "Bu paket için yetkiniz yok.",
+     "kod": "yetki"
+    }
+   }
+  },
+  {
+   "istek": "POST /api/saglik",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "tamam": true,
+     "sms_etkin_mock": true,
+     "listeler": {},
+     "ap_parola": "6vwWeTxWbXDf",
+     "guncelleme": {
+      "surum": "0.4.1",
+      "sha256": "abababababababababababababababababababababababababababababababab",
+      "boyut": 9,
+      "hemen": false,
+      "onceki_sha256": "abababababababababababababababababababababababababababababababab"
+     }
+    }
+   }
+  },
+  {
+   "istek": "POST /api/paket",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/octet-stream"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "ikili": {
+     "sha256": "cc990512d25f12f3d1cdca67369fcf4c827ba76ffb746926ceadd1d68e82fab1",
+     "uzunluk": 9
+    }
+   }
+  },
+  {
+   "istek": "POST /api/paket",
+   "durum": 403,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "hata": "Bu paket için yetkiniz yok.",
+     "kod": "yetki"
+    }
+   }
+  },
+  {
+   "istek": "POST /api/paket",
+   "durum": 403,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "hata": "Bu paket için yetkiniz yok.",
+     "kod": "yetki"
+    }
+   }
+  },
+  {
+   "istek": "POST /api/paket",
+   "durum": 401,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "hata": "Cihaz tanınmadı.",
+     "kod": "taninmadi"
+    }
+   }
+  },
+  {
+   "istek": "POST /api/paket",
+   "durum": 403,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "hata": "Bu paket için yetkiniz yok.",
+     "kod": "yetki"
+    }
+   }
+  },
+  {
+   "istek": "POST /api/paket",
+   "durum": 403,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "hata": "Bu paket için yetkiniz yok.",
+     "kod": "yetki"
+    }
+   }
+  },
+  {
+   "istek": "POST /api/paket",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/octet-stream"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "ikili": {
+     "sha256": "cc990512d25f12f3d1cdca67369fcf4c827ba76ffb746926ceadd1d68e82fab1",
+     "uzunluk": 9
+    }
+   }
+  },
+  {
+   "istek": "POST /api/paket",
+   "durum": 403,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "hata": "Bu paket için yetkiniz yok.",
+     "kod": "yetki"
+    }
+   }
+  },
+  {
+   "istek": "POST /api/paket",
+   "durum": 403,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "hata": "Bu paket için yetkiniz yok.",
+     "kod": "yetki"
+    }
+   }
+  },
+  {
+   "istek": "POST /api/paket",
+   "durum": 403,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "hata": "Bu paket için yetkiniz yok.",
+     "kod": "yetki"
+    }
+   }
+  },
+  {
+   "istek": "POST /api/paket",
+   "durum": 403,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "hata": "Bu paket için yetkiniz yok.",
+     "kod": "yetki"
+    }
+   }
+  },
+  {
+   "istek": "POST /api/paket",
+   "durum": 403,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "hata": "Bu paket için yetkiniz yok.",
+     "kod": "yetki"
+    }
+   }
+  },
+  {
+   "istek": "POST /api/paket",
+   "durum": 404,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "hata": "Paket bulunamadı.",
+     "kod": "yok"
+    }
+   }
+  }
+ ],
+ "veritabanlari": [
+  {
+   "ad": "m.db",
+   "tablolar": {
+    "ayar": [
+     {
+      "anahtar": "kanal_test",
+      "deger": "0.4.1"
+     }
+    ],
+    "bekleyen": [],
+    "cihaz": [
+     {
+      "admin_ozet": "",
+      "admin_parola": "",
+      "admin_tuz": "",
+      "admin_yineleme": 0,
+      "adres": "",
+      "anahtar_ozet": "4b3d539199668875d7f7b984e232922e427434cc4b74709eaed94a2dd9805cec",
+      "ayrilma": "",
+      "baglanma": "2026-09-21T17:13:20+03:00",
+      "durum": "bagli",
+      "id": 1,
+      "isletme_adi": "Bocafe",
+      "isletme_turu": "",
+      "musteri": 5721885,
+      "otomatik": 0,
+      "son_eslesme": "",
+      "ssh_pub": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI cihaz",
+      "surum": "1.0",
+      "tunel_ip": "10.99.0.10",
+      "unvan": "Bocafe Ltd.",
+      "wg_pub": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+     }
+    ],
+    "eski_arsiv": [],
+    "hareket": [
+     {
+      "ayrinti": "cihaz=1 tunel=10.99.0.10",
+      "id": 1,
+      "ip": "198.51.100.7",
+      "kim": "5721885",
+      "musteri": 5721885,
+      "olay": "CIHAZ_BAGLANDI",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     }
+    ],
+    "musteri": [
+     {
+      "ap_parola": "6vwWeTxWbXDf",
+      "askida": 0,
+      "bitis": "",
+      "guncelleme_hemen": 0.0,
+      "guncelleme_hemen_surum": "",
+      "guncelleme_kanali": "test",
+      "lisans_bitis": "2027-09-21",
+      "not_": "",
+      "numara": 5721885,
+      "olusturma": "2026-09-21T17:13:20+03:00",
+      "ozet": "fcd77d2f1464acefd0bf9649c59c9103b30bf9b4aa14a1930fdbc86ae817e02c",
+      "parola_acik": "6bnuKUG4dyZ7",
+      "son_giris": "",
+      "tuz": "<T2:32>",
+      "uyelik": "aktif",
+      "yineleme": 120000
+     }
+    ],
+    "saglik": [
+     {
+      "cihaz": 1,
+      "rapor": "{\"surum\": \"1.2.3\", \"acik_sn\": 5000, \"disk_yuzde\": 42, \"son_muhur\": \"2026-10-10\", \"bagli\": 7, \"servisler\": {\"portal\": true, \"panel\": true, \"kaydedici\": true, \"dnsmasq\": true, \"guvenlik\": false}, \"kayit_boslugu_1s\": false, \"wan\": true, \"sms_sorunu\": false, \"hiz_hata\": false, \"paket\": \"0.4.0\"}",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     }
+    ],
+    "sms_sayac": [],
+    "sms_son": [],
+    "sorun": [],
+    "sqlite_sequence": [
+     {
+      "name": "cihaz",
+      "seq": 1
+     },
+     {
+      "name": "hareket",
+      "seq": 1
+     }
+    ],
+    "surum": [
+     {
+      "boyut": 9,
+      "kaynak": "yerel",
+      "sha256": "abababababababababababababababababababababababababababababababab",
+      "surum": "0.4.0",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     },
+     {
+      "boyut": 9,
+      "kaynak": "yerel",
+      "sha256": "abababababababababababababababababababababababababababababababab",
+      "surum": "0.4.1",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     },
+     {
+      "boyut": 9,
+      "kaynak": "yerel",
+      "sha256": "abababababababababababababababababababababababababababababababab",
+      "surum": "0.3.9",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     }
+    ]
+   }
+  }
+ ],
+ "dosyalar": [
+  {
+   "detay/": {
+    "dizin": true
+   },
+   "ist/": {
+    "dizin": true
+   },
+   "sur/": {
+    "dizin": true
+   },
+   "sur/0.3.9.deb": {
+    "metin": "deb-0.3.9"
+   },
+   "sur/0.4.0.deb": {
+    "metin": "deb-0.4.0"
+   }
+  }
+ ],
+ "yollar": [
+  [
+   "Api",
+   "POST",
+   "/api/giris",
+   null,
+   200,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/paket",
+   null,
+   200,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/paket",
+   null,
+   403,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/saglik",
+   null,
+   200,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/paket",
+   null,
+   200,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/paket",
+   null,
+   403,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/paket",
+   null,
+   403,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/paket",
+   null,
+   401,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/paket",
+   null,
+   403,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/paket",
+   null,
+   403,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/paket",
+   null,
+   200,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/paket",
+   null,
+   403,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/paket",
+   null,
+   403,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/paket",
+   null,
+   403,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/paket",
+   null,
+   403,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/paket",
+   null,
+   403,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/paket",
+   null,
+   404,
+   null
+  ]
+ ]
+}

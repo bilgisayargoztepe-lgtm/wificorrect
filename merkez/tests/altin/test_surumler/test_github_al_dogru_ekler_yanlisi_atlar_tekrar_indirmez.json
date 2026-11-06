@@ -1,0 +1,60 @@
+{
+ "bicim": 3,
+ "dosya": "test_surumler",
+ "test": "test_github_al_dogru_ekler_yanlisi_atlar_tekrar_indirmez",
+ "cevaplar": [],
+ "veritabanlari": [
+  {
+   "ad": "m.db",
+   "tablolar": {
+    "ayar": [],
+    "bekleyen": [],
+    "cihaz": [],
+    "eski_arsiv": [],
+    "hareket": [],
+    "musteri": [],
+    "saglik": [],
+    "sms_sayac": [],
+    "sms_son": [],
+    "sorun": [],
+    "sqlite_sequence": [],
+    "surum": [
+     {
+      "boyut": 9,
+      "kaynak": "github",
+      "sha256": "cc990512d25f12f3d1cdca67369fcf4c827ba76ffb746926ceadd1d68e82fab1",
+      "surum": "0.4.0",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     },
+     {
+      "boyut": 9,
+      "kaynak": "github",
+      "sha256": "aa5fa64d47b31ad091866a777d1b84a743793537625793c89e04a083e4c39106",
+      "surum": "0.4.1",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     }
+    ]
+   }
+  }
+ ],
+ "dosyalar": [
+  {
+   "detay/": {
+    "dizin": true
+   },
+   "ist/": {
+    "dizin": true
+   },
+   "surumler/": {
+    "dizin": true
+   },
+   "surumler/0.4.0.deb": {
+    "metin": "deb-0.4.0"
+   },
+   "surumler/0.4.1.deb": {
+    "metin": "deb-0.4.1"
+   }
+  }
+ ],
+ "yollar": []
+}

@@ -1,0 +1,727 @@
+{
+ "bicim": 3,
+ "dosya": "test_api",
+ "test": "test_bozuk_rapor_reddedilir",
+ "cevaplar": [
+  {
+   "istek": "POST /api/giris",
+   "durum": 200,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "tuz": "<T2:32>",
+     "ozet": "fcd77d2f1464acefd0bf9649c59c9103b30bf9b4aa14a1930fdbc86ae817e02c",
+     "yineleme": 120000,
+     "lisans": "aktif",
+     "lisans_bitis": "2027-09-21",
+     "ap_parola": "6vwWeTxWbXDf",
+     "sms": {
+      "etkin_mock": true
+     },
+     "cihaz_anahtari": "<T1:43>",
+     "tunel_ip": "10.99.0.10",
+     "sunucu_pub": "SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS=",
+     "uc_nokta": "vpn.wificorrect.com:51820",
+     "yedek_hedefi": "wfc-5721885@10.99.0.1:"
+    }
+   }
+  },
+  {
+   "istek": "POST /api/saglik",
+   "durum": 400,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "hata": "Geçersiz rapor.",
+     "kod": "gecersiz"
+    }
+   }
+  },
+  {
+   "istek": "POST /api/saglik",
+   "durum": 400,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "hata": "Geçersiz rapor.",
+     "kod": "gecersiz"
+    }
+   }
+  },
+  {
+   "istek": "POST /api/saglik",
+   "durum": 400,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "hata": "Geçersiz rapor.",
+     "kod": "gecersiz"
+    }
+   }
+  },
+  {
+   "istek": "POST /api/saglik",
+   "durum": 400,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "hata": "Geçersiz rapor.",
+     "kod": "gecersiz"
+    }
+   }
+  },
+  {
+   "istek": "POST /api/saglik",
+   "durum": 400,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "hata": "Geçersiz rapor.",
+     "kod": "gecersiz"
+    }
+   }
+  },
+  {
+   "istek": "POST /api/saglik",
+   "durum": 400,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "hata": "Geçersiz rapor.",
+     "kod": "gecersiz"
+    }
+   }
+  },
+  {
+   "istek": "POST /api/saglik",
+   "durum": 400,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "hata": "Geçersiz rapor.",
+     "kod": "gecersiz"
+    }
+   }
+  },
+  {
+   "istek": "POST /api/saglik",
+   "durum": 400,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "hata": "Geçersiz rapor.",
+     "kod": "gecersiz"
+    }
+   }
+  },
+  {
+   "istek": "POST /api/saglik",
+   "durum": 400,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "hata": "Geçersiz rapor.",
+     "kod": "gecersiz"
+    }
+   }
+  },
+  {
+   "istek": "POST /api/saglik",
+   "durum": 400,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "hata": "Geçersiz rapor.",
+     "kod": "gecersiz"
+    }
+   }
+  },
+  {
+   "istek": "POST /api/saglik",
+   "durum": 400,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "hata": "Geçersiz rapor.",
+     "kod": "gecersiz"
+    }
+   }
+  },
+  {
+   "istek": "POST /api/saglik",
+   "durum": 400,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "hata": "Geçersiz rapor.",
+     "kod": "gecersiz"
+    }
+   }
+  },
+  {
+   "istek": "POST /api/saglik",
+   "durum": 400,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "hata": "Geçersiz rapor.",
+     "kod": "gecersiz"
+    }
+   }
+  },
+  {
+   "istek": "POST /api/saglik",
+   "durum": 400,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "hata": "Geçersiz rapor.",
+     "kod": "gecersiz"
+    }
+   }
+  },
+  {
+   "istek": "POST /api/saglik",
+   "durum": 400,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "hata": "Geçersiz rapor.",
+     "kod": "gecersiz"
+    }
+   }
+  },
+  {
+   "istek": "POST /api/saglik",
+   "durum": 400,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "hata": "Geçersiz rapor.",
+     "kod": "gecersiz"
+    }
+   }
+  },
+  {
+   "istek": "POST /api/saglik",
+   "durum": 400,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "hata": "Geçersiz rapor.",
+     "kod": "gecersiz"
+    }
+   }
+  },
+  {
+   "istek": "POST /api/saglik",
+   "durum": 400,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "hata": "Geçersiz rapor.",
+     "kod": "gecersiz"
+    }
+   }
+  },
+  {
+   "istek": "POST /api/saglik",
+   "durum": 400,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "hata": "Geçersiz rapor.",
+     "kod": "gecersiz"
+    }
+   }
+  },
+  {
+   "istek": "POST /api/saglik",
+   "durum": 400,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "hata": "Geçersiz rapor.",
+     "kod": "gecersiz"
+    }
+   }
+  },
+  {
+   "istek": "POST /api/saglik",
+   "durum": 401,
+   "basliklar": [
+    [
+     "Content-Type",
+     "application/json; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "json": {
+     "hata": "Cihaz tanınmadı.",
+     "kod": "taninmadi"
+    }
+   }
+  }
+ ],
+ "veritabanlari": [
+  {
+   "ad": "m.db",
+   "tablolar": {
+    "ayar": [],
+    "bekleyen": [],
+    "cihaz": [
+     {
+      "admin_ozet": "",
+      "admin_parola": "",
+      "admin_tuz": "",
+      "admin_yineleme": 0,
+      "adres": "",
+      "anahtar_ozet": "4b3d539199668875d7f7b984e232922e427434cc4b74709eaed94a2dd9805cec",
+      "ayrilma": "",
+      "baglanma": "2026-09-21T17:13:20+03:00",
+      "durum": "bagli",
+      "id": 1,
+      "isletme_adi": "Bocafe",
+      "isletme_turu": "",
+      "musteri": 5721885,
+      "otomatik": 0,
+      "son_eslesme": "",
+      "ssh_pub": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI cihaz",
+      "surum": "1.0",
+      "tunel_ip": "10.99.0.10",
+      "unvan": "Bocafe Ltd.",
+      "wg_pub": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+     }
+    ],
+    "eski_arsiv": [],
+    "hareket": [
+     {
+      "ayrinti": "cihaz=1 tunel=10.99.0.10",
+      "id": 1,
+      "ip": "198.51.100.7",
+      "kim": "5721885",
+      "musteri": 5721885,
+      "olay": "CIHAZ_BAGLANDI",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     }
+    ],
+    "musteri": [
+     {
+      "ap_parola": "6vwWeTxWbXDf",
+      "askida": 0,
+      "bitis": "",
+      "guncelleme_hemen": 0.0,
+      "guncelleme_hemen_surum": "",
+      "guncelleme_kanali": "kararli",
+      "lisans_bitis": "2027-09-21",
+      "not_": "",
+      "numara": 5721885,
+      "olusturma": "2026-09-21T17:13:20+03:00",
+      "ozet": "fcd77d2f1464acefd0bf9649c59c9103b30bf9b4aa14a1930fdbc86ae817e02c",
+      "parola_acik": "6bnuKUG4dyZ7",
+      "son_giris": "",
+      "tuz": "<T2:32>",
+      "uyelik": "aktif",
+      "yineleme": 120000
+     }
+    ],
+    "saglik": [],
+    "sms_sayac": [],
+    "sms_son": [],
+    "sorun": [],
+    "sqlite_sequence": [
+     {
+      "name": "cihaz",
+      "seq": 1
+     },
+     {
+      "name": "hareket",
+      "seq": 1
+     }
+    ],
+    "surum": []
+   }
+  }
+ ],
+ "dosyalar": [
+  {
+   "detay/": {
+    "dizin": true
+   },
+   "ist/": {
+    "dizin": true
+   }
+  }
+ ],
+ "yollar": [
+  [
+   "Api",
+   "POST",
+   "/api/giris",
+   null,
+   200,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/saglik",
+   null,
+   400,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/saglik",
+   null,
+   400,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/saglik",
+   null,
+   400,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/saglik",
+   null,
+   400,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/saglik",
+   null,
+   400,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/saglik",
+   null,
+   400,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/saglik",
+   null,
+   400,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/saglik",
+   null,
+   400,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/saglik",
+   null,
+   400,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/saglik",
+   null,
+   400,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/saglik",
+   null,
+   400,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/saglik",
+   null,
+   400,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/saglik",
+   null,
+   400,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/saglik",
+   null,
+   400,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/saglik",
+   null,
+   400,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/saglik",
+   null,
+   400,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/saglik",
+   null,
+   400,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/saglik",
+   null,
+   400,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/saglik",
+   null,
+   400,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/saglik",
+   null,
+   400,
+   null
+  ],
+  [
+   "Api",
+   "POST",
+   "/api/saglik",
+   null,
+   401,
+   null
+  ]
+ ]
+}

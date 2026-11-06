@@ -1,0 +1,86 @@
+{
+ "bicim": 3,
+ "dosya": "test_rapor",
+ "test": "test_ham_guncelle_bozuk_gz_ve_silinen_gun",
+ "cevaplar": [],
+ "veritabanlari": [],
+ "dosyalar": [
+  {
+   "arsiv/": {
+    "dizin": true
+   },
+   "arsiv/gunluk/": {
+    "dizin": true
+   },
+   "arsiv/gunluk/2026-10-06/": {
+    "dizin": true
+   },
+   "arsiv/gunluk/2026-10-06/MANIFEST.sha256": {
+    "metin": "<KARARSIZ>"
+   },
+   "arsiv/gunluk/2026-10-06/kullanicilar/": {
+    "dizin": true
+   },
+   "arsiv/gunluk/2026-10-06/kullanicilar/905551112233.csv.gz": {
+    "metin": "﻿zaman;olay;telefon;ad;soyad;mac;ic_ip;protokol;ic_port;hedef_ip;hedef_port;nat_ip;nat_port;alan_adi;gonderilen_bayt;alinan_bayt;sure_sn;oturum_id;ek\r\n",
+    "gz": true
+   },
+   "arsiv/gunluk/2026-10-06/trafik.csv.gz": {
+    "ikili": {
+     "sha256": "3125b4311a26cd33454f54ef19a99b0d8f36a7159bb480f3ea07e3f58c156f6c",
+     "uzunluk": 14
+    }
+   },
+   "arsiv/gunluk/2026-10-07/": {
+    "dizin": true
+   },
+   "arsiv/gunluk/2026-10-07/MANIFEST.sha256": {
+    "metin": "<KARARSIZ>"
+   },
+   "arsiv/gunluk/2026-10-07/kullanicilar/": {
+    "dizin": true
+   },
+   "arsiv/gunluk/2026-10-07/kullanicilar/905551112233.csv.gz": {
+    "metin": "﻿zaman;olay;telefon;ad;soyad;mac;ic_ip;protokol;ic_port;hedef_ip;hedef_port;nat_ip;nat_port;alan_adi;gonderilen_bayt;alinan_bayt;sure_sn;oturum_id;ek\r\n",
+    "gz": true
+   },
+   "arsiv/gunluk/2026-10-07/trafik.csv.gz": {
+    "metin": "﻿zaman;olay;telefon;ad;soyad;mac;ic_ip;protokol;ic_port;hedef_ip;hedef_port;nat_ip;nat_port;alan_adi;gonderilen_bayt;alinan_bayt;sure_sn;oturum_id;ek\r\n2026-10-07T10:00:00+03:00;BAGLANTI_BASLA;905551112233;;;aa:bb:cc:dd:ee:02;10.50.0.23;;;;;;;;;;;;\r\n",
+    "gz": true
+   },
+   "ham/": {
+    "dizin": true
+   },
+   "ham/a/": {
+    "dizin": true
+   },
+   "ham/a/2026-10-07.json": {
+    "json": {
+     "bicim": 2,
+     "imza": "<KARARSIZ>",
+     "sir_izi": "ff8da591",
+     "manifest_sha": "<KARARSIZ>",
+     "dosya_ok": true,
+     "misafir": [
+      "64574b970254abdd"
+     ],
+     "saat": {
+      "10": [
+       "64574b970254abdd"
+      ]
+     },
+     "giris": {
+      "sms": 0,
+      "kod": 0
+     },
+     "izinli": [],
+     "gonderilen": 0,
+     "alinan": 0,
+     "sms": 0,
+     "surum": null
+    }
+   }
+  }
+ ],
+ "yollar": []
+}

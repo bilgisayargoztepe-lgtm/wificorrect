@@ -491,13 +491,15 @@ def test_yonetim_listeler_sayfasi_ve_simdi_guncelle():
 
 
 def test_kur_sh_ve_birimler():
+    # Rust ikilisine geçişten sonra (asıl denetim merkez/src/kurulum_testler.rs)
     kok = os.path.dirname(HERE)
     kur = open(os.path.join(kok, "kur.sh"), encoding="utf-8").read()
-    assert "listeler.py" in kur and "wc-listeler.timer" in kur and "wc-listeler.service" in kur
+    assert "listeler.py" not in kur and "wc-listeler.timer" in kur and "wc-listeler.service" in kur
     zam = open(os.path.join(kok, "wc-listeler.timer"), encoding="utf-8").read()
     assert "04:30" in zam and "Persistent=true" in zam
     srv = open(os.path.join(kok, "wc-listeler.service"), encoding="utf-8").read()
     assert "User=wcpanel" in srv and "ProtectSystem=strict" in srv and "ReadWritePaths=/var/lib/wificorrect/merkez" in srv
+    assert "ExecStart=/usr/local/bin/wificorrect-merkez listeler" in srv
 
 
 if __name__ == "__main__":

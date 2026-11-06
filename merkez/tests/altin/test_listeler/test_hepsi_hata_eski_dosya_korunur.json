@@ -1,0 +1,46 @@
+{
+ "bicim": 3,
+ "dosya": "test_listeler",
+ "test": "test_hepsi_hata_eski_dosya_korunur",
+ "cevaplar": [],
+ "veritabanlari": [],
+ "dosyalar": [
+  {
+   "kaynak/": {
+    "dizin": true
+   },
+   "kaynak/kumar-1cee97163277.txt.gz": {
+    "metin": "c.com\n",
+    "gz": true
+   },
+   "kaynak/kumar-1e76245f6f33.txt.gz": {
+    "metin": "a.com\n",
+    "gz": true
+   },
+   "kumar.json": {
+    "json": {
+     "kategori": "kumar",
+     "sha256": "19e82478803b136d919c5ce36ecb545e4d90b8ef1082a6c3669860f79b8edb18",
+     "sayi": 2,
+     "zaman": "2026-09-21T17:16:40+03:00",
+     "kesildi": false,
+     "kaynaklar": [
+      {
+       "ad": "A",
+       "sayi": 1
+      },
+      {
+       "ad": "B",
+       "sayi": 1
+      }
+     ]
+    }
+   },
+   "kumar.txt.gz": {
+    "metin": "a.com\nc.com\n",
+    "gz": true
+   }
+  }
+ ],
+ "yollar": []
+}

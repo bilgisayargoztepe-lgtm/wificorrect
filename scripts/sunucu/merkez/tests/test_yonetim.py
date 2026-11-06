@@ -880,6 +880,27 @@ def test_liste_surum_sutunu_hedefle_farkli_sari():
         assert "—" in sat[n3] and 'class="uyarisi"' not in sat[n3]
 
 
+def test_giris_sayfasi_hareketler_kayitlar_ve_cikis():
+    """Giriş sayfası (oturumluyken ana sayfaya yönlenir), bütün hareketler, müşterinin hareketleri, müşterinin kayıtları
+    (sonda eğik çizgi olmadan) ve çıkış."""
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        app, v, _, c, _ = kur(tmp)
+        r = Y.al(app, "/giris", "")
+        assert r[0] == 200 and 'action="/giris"' in r[2].decode()
+        assert Y.al(app, "/giris", c)[1]["Location"] == "/"
+        n, _ = v.musteri_ekle("Bocafe")
+        v.hareket("admin", "203.0.113.5", "DENEME", n, "ayrıntı <1>")
+        s = Y.al(app, "/hareketler", c)[2].decode()
+        assert "DENEME" in s and "ayrıntı &lt;1&gt;" in s
+        s = Y.al(app, f"/m/{n}/hareketler", c)[2].decode()
+        assert f"Müşteri {n} · hareketler" in s and "DENEME" in s
+        r = Y.al(app, f"/m/{n}/kayitlar", c)
+        assert r[0] == 200 and f'action="/m/{n}/kayitlar/ara"' in r[2].decode()
+        f = Y.al(app, "/hesabim", c)
+        r = Y.gonder(app, "/cikis", c, {"csrf": Y.csrf(f)})
+        assert r[0] == 303 and r[1]["Location"] == "/giris" and r[1]["Set-Cookie"].startswith("wc_yonetim=; ")
+        assert Y.al(app, "/", c)[1]["Location"] == "/giris"
+
 if __name__ == "__main__":
     for _name, _fn in sorted(globals().items()):
         if _name.startswith("test_") and callable(_fn):

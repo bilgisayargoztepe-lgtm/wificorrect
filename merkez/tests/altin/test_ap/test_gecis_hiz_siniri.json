@@ -1,0 +1,837 @@
+{
+ "bicim": 3,
+ "dosya": "test_ap",
+ "test": "test_gecis_hiz_siniri",
+ "cevaplar": [
+  {
+   "istek": "GET /_ap-gecis",
+   "durum": 303,
+   "basliklar": [
+    [
+     "Location",
+     "https://ap.wificorrect.com/_ap-giris?t=<T1:43>"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": ""
+   }
+  },
+  {
+   "istek": "GET /_ap-gecis",
+   "durum": 303,
+   "basliklar": [
+    [
+     "Location",
+     "https://ap.wificorrect.com/_ap-giris?t=<T2:43>"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": ""
+   }
+  },
+  {
+   "istek": "GET /_ap-gecis",
+   "durum": 303,
+   "basliklar": [
+    [
+     "Location",
+     "https://ap.wificorrect.com/_ap-giris?t=<T3:43>"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": ""
+   }
+  },
+  {
+   "istek": "GET /_ap-gecis",
+   "durum": 303,
+   "basliklar": [
+    [
+     "Location",
+     "https://ap.wificorrect.com/_ap-giris?t=<T4:43>"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": ""
+   }
+  },
+  {
+   "istek": "GET /_ap-gecis",
+   "durum": 303,
+   "basliklar": [
+    [
+     "Location",
+     "https://ap.wificorrect.com/_ap-giris?t=<T5:43>"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": ""
+   }
+  },
+  {
+   "istek": "GET /_ap-gecis",
+   "durum": 303,
+   "basliklar": [
+    [
+     "Location",
+     "https://ap.wificorrect.com/_ap-giris?t=<T6:43>"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": ""
+   }
+  },
+  {
+   "istek": "GET /_ap-gecis",
+   "durum": 303,
+   "basliklar": [
+    [
+     "Location",
+     "https://ap.wificorrect.com/_ap-giris?t=<T7:43>"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": ""
+   }
+  },
+  {
+   "istek": "GET /_ap-gecis",
+   "durum": 303,
+   "basliklar": [
+    [
+     "Location",
+     "https://ap.wificorrect.com/_ap-giris?t=<T8:43>"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": ""
+   }
+  },
+  {
+   "istek": "GET /_ap-gecis",
+   "durum": 303,
+   "basliklar": [
+    [
+     "Location",
+     "https://ap.wificorrect.com/_ap-giris?t=<T9:43>"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": ""
+   }
+  },
+  {
+   "istek": "GET /_ap-gecis",
+   "durum": 303,
+   "basliklar": [
+    [
+     "Location",
+     "https://ap.wificorrect.com/_ap-giris?t=<T10:43>"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": ""
+   }
+  },
+  {
+   "istek": "GET /_ap-gecis",
+   "durum": 303,
+   "basliklar": [
+    [
+     "Location",
+     "https://ap.wificorrect.com/_ap-giris?t=<T11:43>"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": ""
+   }
+  },
+  {
+   "istek": "GET /_ap-gecis",
+   "durum": 303,
+   "basliklar": [
+    [
+     "Location",
+     "https://ap.wificorrect.com/_ap-giris?t=<T12:43>"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": ""
+   }
+  },
+  {
+   "istek": "GET /_ap-gecis",
+   "durum": 303,
+   "basliklar": [
+    [
+     "Location",
+     "https://ap.wificorrect.com/_ap-giris?t=<T13:43>"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": ""
+   }
+  },
+  {
+   "istek": "GET /_ap-gecis",
+   "durum": 303,
+   "basliklar": [
+    [
+     "Location",
+     "https://ap.wificorrect.com/_ap-giris?t=<T14:43>"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": ""
+   }
+  },
+  {
+   "istek": "GET /_ap-gecis",
+   "durum": 303,
+   "basliklar": [
+    [
+     "Location",
+     "https://ap.wificorrect.com/_ap-giris?t=<T15:43>"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": ""
+   }
+  },
+  {
+   "istek": "GET /_ap-gecis",
+   "durum": 303,
+   "basliklar": [
+    [
+     "Location",
+     "https://ap.wificorrect.com/_ap-giris?t=<T16:43>"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": ""
+   }
+  },
+  {
+   "istek": "GET /_ap-gecis",
+   "durum": 303,
+   "basliklar": [
+    [
+     "Location",
+     "https://ap.wificorrect.com/_ap-giris?t=<T17:43>"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": ""
+   }
+  },
+  {
+   "istek": "GET /_ap-gecis",
+   "durum": 303,
+   "basliklar": [
+    [
+     "Location",
+     "https://ap.wificorrect.com/_ap-giris?t=<T18:43>"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": ""
+   }
+  },
+  {
+   "istek": "GET /_ap-gecis",
+   "durum": 303,
+   "basliklar": [
+    [
+     "Location",
+     "https://ap.wificorrect.com/_ap-giris?t=<T19:43>"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": ""
+   }
+  },
+  {
+   "istek": "GET /_ap-gecis",
+   "durum": 303,
+   "basliklar": [
+    [
+     "Location",
+     "https://ap.wificorrect.com/_ap-giris?t=<T20:43>"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": ""
+   }
+  },
+  {
+   "istek": "GET /_ap-gecis",
+   "durum": 429,
+   "basliklar": [
+    [
+     "Content-Type",
+     "text/html; charset=utf-8"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ],
+    [
+     "X-Frame-Options",
+     "SAMEORIGIN"
+    ],
+    [
+     "Content-Security-Policy",
+     "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; frame-ancestors 'self'"
+    ]
+   ],
+   "govde": {
+    "metin": "<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Çok fazla deneme · WifiCorrect</title>{FAVICON}<style>{CSS}</style></head><body><header><a class=\"marka\" href=\"/\" aria-label=\"wificorrect_\">{LOGO_ACIK}</a></header><main><div class=\"kart\"><h1>Çok fazla deneme</h1><p>AP arayüzü kısa sürede çok kez açıldı. Bir dakika sonra yeniden deneyin.</p><p><a href=\"https://cihaz.wificorrect.com/\" target=\"_top\">Cihaz paneline git</a></p></div></main></body></html>"
+   }
+  },
+  {
+   "istek": "GET /_ap-gecis",
+   "durum": 303,
+   "basliklar": [
+    [
+     "Location",
+     "https://ap.wificorrect.com/_ap-giris?t=<T21:43>"
+    ],
+    [
+     "Cache-Control",
+     "no-store"
+    ]
+   ],
+   "govde": {
+    "metin": ""
+   }
+  }
+ ],
+ "veritabanlari": [
+  {
+   "ad": "m.db",
+   "tablolar": {
+    "ayar": [],
+    "bekleyen": [],
+    "cihaz": [
+     {
+      "admin_ozet": "",
+      "admin_parola": "",
+      "admin_tuz": "",
+      "admin_yineleme": 0,
+      "adres": "",
+      "anahtar_ozet": "4b3d539199668875d7f7b984e232922e427434cc4b74709eaed94a2dd9805cec",
+      "ayrilma": "",
+      "baglanma": "2026-09-21T17:13:20+03:00",
+      "durum": "bagli",
+      "id": 1,
+      "isletme_adi": "",
+      "isletme_turu": "",
+      "musteri": 5721885,
+      "otomatik": 0,
+      "son_eslesme": "",
+      "ssh_pub": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI c",
+      "surum": "",
+      "tunel_ip": "10.99.0.11",
+      "unvan": "",
+      "wg_pub": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+     }
+    ],
+    "eski_arsiv": [],
+    "hareket": [
+     {
+      "ayrinti": "rol=musteri",
+      "id": 1,
+      "ip": "203.0.113.5",
+      "kim": "5721885",
+      "musteri": 5721885,
+      "olay": "AP_GECIS",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     },
+     {
+      "ayrinti": "rol=musteri",
+      "id": 2,
+      "ip": "203.0.113.5",
+      "kim": "5721885",
+      "musteri": 5721885,
+      "olay": "AP_GECIS",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     },
+     {
+      "ayrinti": "rol=musteri",
+      "id": 3,
+      "ip": "203.0.113.5",
+      "kim": "5721885",
+      "musteri": 5721885,
+      "olay": "AP_GECIS",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     },
+     {
+      "ayrinti": "rol=musteri",
+      "id": 4,
+      "ip": "203.0.113.5",
+      "kim": "5721885",
+      "musteri": 5721885,
+      "olay": "AP_GECIS",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     },
+     {
+      "ayrinti": "rol=musteri",
+      "id": 5,
+      "ip": "203.0.113.5",
+      "kim": "5721885",
+      "musteri": 5721885,
+      "olay": "AP_GECIS",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     },
+     {
+      "ayrinti": "rol=musteri",
+      "id": 6,
+      "ip": "203.0.113.5",
+      "kim": "5721885",
+      "musteri": 5721885,
+      "olay": "AP_GECIS",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     },
+     {
+      "ayrinti": "rol=musteri",
+      "id": 7,
+      "ip": "203.0.113.5",
+      "kim": "5721885",
+      "musteri": 5721885,
+      "olay": "AP_GECIS",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     },
+     {
+      "ayrinti": "rol=musteri",
+      "id": 8,
+      "ip": "203.0.113.5",
+      "kim": "5721885",
+      "musteri": 5721885,
+      "olay": "AP_GECIS",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     },
+     {
+      "ayrinti": "rol=musteri",
+      "id": 9,
+      "ip": "203.0.113.5",
+      "kim": "5721885",
+      "musteri": 5721885,
+      "olay": "AP_GECIS",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     },
+     {
+      "ayrinti": "rol=musteri",
+      "id": 10,
+      "ip": "203.0.113.5",
+      "kim": "5721885",
+      "musteri": 5721885,
+      "olay": "AP_GECIS",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     },
+     {
+      "ayrinti": "rol=musteri",
+      "id": 11,
+      "ip": "203.0.113.5",
+      "kim": "5721885",
+      "musteri": 5721885,
+      "olay": "AP_GECIS",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     },
+     {
+      "ayrinti": "rol=musteri",
+      "id": 12,
+      "ip": "203.0.113.5",
+      "kim": "5721885",
+      "musteri": 5721885,
+      "olay": "AP_GECIS",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     },
+     {
+      "ayrinti": "rol=musteri",
+      "id": 13,
+      "ip": "203.0.113.5",
+      "kim": "5721885",
+      "musteri": 5721885,
+      "olay": "AP_GECIS",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     },
+     {
+      "ayrinti": "rol=musteri",
+      "id": 14,
+      "ip": "203.0.113.5",
+      "kim": "5721885",
+      "musteri": 5721885,
+      "olay": "AP_GECIS",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     },
+     {
+      "ayrinti": "rol=musteri",
+      "id": 15,
+      "ip": "203.0.113.5",
+      "kim": "5721885",
+      "musteri": 5721885,
+      "olay": "AP_GECIS",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     },
+     {
+      "ayrinti": "rol=musteri",
+      "id": 16,
+      "ip": "203.0.113.5",
+      "kim": "5721885",
+      "musteri": 5721885,
+      "olay": "AP_GECIS",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     },
+     {
+      "ayrinti": "rol=musteri",
+      "id": 17,
+      "ip": "203.0.113.5",
+      "kim": "5721885",
+      "musteri": 5721885,
+      "olay": "AP_GECIS",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     },
+     {
+      "ayrinti": "rol=musteri",
+      "id": 18,
+      "ip": "203.0.113.5",
+      "kim": "5721885",
+      "musteri": 5721885,
+      "olay": "AP_GECIS",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     },
+     {
+      "ayrinti": "rol=musteri",
+      "id": 19,
+      "ip": "203.0.113.5",
+      "kim": "5721885",
+      "musteri": 5721885,
+      "olay": "AP_GECIS",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     },
+     {
+      "ayrinti": "rol=musteri",
+      "id": 20,
+      "ip": "203.0.113.5",
+      "kim": "5721885",
+      "musteri": 5721885,
+      "olay": "AP_GECIS",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     },
+     {
+      "ayrinti": "rol=musteri",
+      "id": 21,
+      "ip": "203.0.113.5",
+      "kim": "5721885",
+      "musteri": 5721885,
+      "olay": "AP_GECIS",
+      "zaman": "2026-09-21T17:14:21+03:00"
+     }
+    ],
+    "musteri": [
+     {
+      "ap_parola": "6bnuKUG4dyZ7",
+      "askida": 0,
+      "bitis": "",
+      "guncelleme_hemen": 0.0,
+      "guncelleme_hemen_surum": "",
+      "guncelleme_kanali": "kararli",
+      "lisans_bitis": "2027-09-21",
+      "not_": "",
+      "numara": 5721885,
+      "olusturma": "2026-09-21T17:13:20+03:00",
+      "ozet": "e4b42aba6380c081c1e40ea833fbd8d6c017c31428ff9779ed2c6c68422dbf14",
+      "parola_acik": "musteri-parola-1",
+      "son_giris": "",
+      "tuz": "<T22:32>",
+      "uyelik": "aktif",
+      "yineleme": 120000
+     }
+    ],
+    "saglik": [],
+    "sms_sayac": [],
+    "sms_son": [],
+    "sorun": [],
+    "sqlite_sequence": [
+     {
+      "name": "cihaz",
+      "seq": 1
+     },
+     {
+      "name": "hareket",
+      "seq": 21
+     }
+    ],
+    "surum": []
+   }
+  }
+ ],
+ "dosyalar": [
+  {
+   "detay/": {
+    "dizin": true
+   },
+   "ist/": {
+    "dizin": true
+   }
+  }
+ ],
+ "yollar": [
+  [
+   "Cihaz",
+   "GET",
+   "/_ap-gecis",
+   null,
+   303,
+   "https://ap.wificorrect.com/_ap-giris?t=BLG5GaDfGmUiUtgTstyWAcDbshWF1rVYRCN5H3nPCEo"
+  ],
+  [
+   "Cihaz",
+   "GET",
+   "/_ap-gecis",
+   null,
+   303,
+   "https://ap.wificorrect.com/_ap-giris?t=hv0QehKyz1B-UbrcgDIhQ5sW99erVIvl_r5CWgey6RQ"
+  ],
+  [
+   "Cihaz",
+   "GET",
+   "/_ap-gecis",
+   null,
+   303,
+   "https://ap.wificorrect.com/_ap-giris?t=TIoXpvRvsg7D6GQ9nhsXJmHUsRdBaNQyPhYVbyENfuU"
+  ],
+  [
+   "Cihaz",
+   "GET",
+   "/_ap-gecis",
+   null,
+   303,
+   "https://ap.wificorrect.com/_ap-giris?t=6Y035rCuIl1AW1ZIUxpuZKczGDEDjjlr33vN9rQsITI"
+  ],
+  [
+   "Cihaz",
+   "GET",
+   "/_ap-gecis",
+   null,
+   303,
+   "https://ap.wificorrect.com/_ap-giris?t=NsFfE2PdonJ_ZWHhlS4xZYAosJP33nsbZ17UH4BHPFc"
+  ],
+  [
+   "Cihaz",
+   "GET",
+   "/_ap-gecis",
+   null,
+   303,
+   "https://ap.wificorrect.com/_ap-giris?t=1As9w_m3h9QbDwZaKeXHaL4E0_EjFlBTCgCGBORkWy0"
+  ],
+  [
+   "Cihaz",
+   "GET",
+   "/_ap-gecis",
+   null,
+   303,
+   "https://ap.wificorrect.com/_ap-giris?t=oCQEN5bzaJ12UFcARMkPVggWRZLKXK9-hRQUVJ2yFxo"
+  ],
+  [
+   "Cihaz",
+   "GET",
+   "/_ap-gecis",
+   null,
+   303,
+   "https://ap.wificorrect.com/_ap-giris?t=SnbrT8VeVdtmJFuG1y8ZA7Z3FKjrq_GsGt4LDgOY7Yo"
+  ],
+  [
+   "Cihaz",
+   "GET",
+   "/_ap-gecis",
+   null,
+   303,
+   "https://ap.wificorrect.com/_ap-giris?t=7orDWpTbWSq_UFQRX0G3H1_p-31pB53--pprIlujAt8"
+  ],
+  [
+   "Cihaz",
+   "GET",
+   "/_ap-gecis",
+   null,
+   303,
+   "https://ap.wificorrect.com/_ap-giris?t=O0pb922q2VPIUcEuNsiCjGfuD3Ax3xMN69t9dMemp5k"
+  ],
+  [
+   "Cihaz",
+   "GET",
+   "/_ap-gecis",
+   null,
+   303,
+   "https://ap.wificorrect.com/_ap-giris?t=Us7A1wGivjjd_2o9BjWY_VNPNqSv322z1C6wJWwkArI"
+  ],
+  [
+   "Cihaz",
+   "GET",
+   "/_ap-gecis",
+   null,
+   303,
+   "https://ap.wificorrect.com/_ap-giris?t=VdVAJwnk-Y5n_SR5qdUY9shllbiKcQUDV00OODbce2g"
+  ],
+  [
+   "Cihaz",
+   "GET",
+   "/_ap-gecis",
+   null,
+   303,
+   "https://ap.wificorrect.com/_ap-giris?t=SHkck4Ec8gqzQ8beLL0rX8CFxNDT_VRrnxhCAhpXF4w"
+  ],
+  [
+   "Cihaz",
+   "GET",
+   "/_ap-gecis",
+   null,
+   303,
+   "https://ap.wificorrect.com/_ap-giris?t=YVmiAhgBCvBgz_kTB9zLiqDCILYdswwjd5MF7QWKPbE"
+  ],
+  [
+   "Cihaz",
+   "GET",
+   "/_ap-gecis",
+   null,
+   303,
+   "https://ap.wificorrect.com/_ap-giris?t=jCz_WXYvPG-Joh6s_DW1WW1TKoktKmjj_mXs-HW3MgM"
+  ],
+  [
+   "Cihaz",
+   "GET",
+   "/_ap-gecis",
+   null,
+   303,
+   "https://ap.wificorrect.com/_ap-giris?t=IoSVfcOU0NslNd-69b3H9in1C-7noPOp-2teTHhnzPY"
+  ],
+  [
+   "Cihaz",
+   "GET",
+   "/_ap-gecis",
+   null,
+   303,
+   "https://ap.wificorrect.com/_ap-giris?t=MkRoXlFPF4uYn5DOArUqZ_1fR2UbAq_IjcVvbGmcdAU"
+  ],
+  [
+   "Cihaz",
+   "GET",
+   "/_ap-gecis",
+   null,
+   303,
+   "https://ap.wificorrect.com/_ap-giris?t=mbYc765nFrM4J4M12X5GN716olqZ1gmOqYov-W3lKCI"
+  ],
+  [
+   "Cihaz",
+   "GET",
+   "/_ap-gecis",
+   null,
+   303,
+   "https://ap.wificorrect.com/_ap-giris?t=nZ4wWsUgblT9El-ZQ4CauSGW4Tnd9U6M7tmYlDlTu-M"
+  ],
+  [
+   "Cihaz",
+   "GET",
+   "/_ap-gecis",
+   null,
+   303,
+   "https://ap.wificorrect.com/_ap-giris?t=JvGRAaw_ygTTKS6NB_pfW1RjXdUYSeFvUVmsPqBnR7Q"
+  ],
+  [
+   "Cihaz",
+   "GET",
+   "/_ap-gecis",
+   null,
+   429,
+   null
+  ],
+  [
+   "Cihaz",
+   "GET",
+   "/_ap-gecis",
+   null,
+   303,
+   "https://ap.wificorrect.com/_ap-giris?t=emlIuoic0gJXkQZiVPCkB6p6ujV9P8SJTbc7MDeVkJ4"
+  ]
+ ]
+}

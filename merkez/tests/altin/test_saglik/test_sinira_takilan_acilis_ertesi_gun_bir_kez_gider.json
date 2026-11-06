@@ -1,0 +1,256 @@
+{
+ "bicim": 3,
+ "dosya": "test_saglik",
+ "test": "test_sinira_takilan_acilis_ertesi_gun_bir_kez_gider",
+ "cevaplar": [],
+ "veritabanlari": [
+  {
+   "ad": "m.db",
+   "tablolar": {
+    "ayar": [
+     {
+      "anahtar": "uyari",
+      "deger": "{\"telefonlar\": [\"905334553132\"], \"acik\": true, \"gunluk_sinir\": 2}"
+     },
+     {
+      "anahtar": "sms",
+      "deger": "{\"mock\": false, \"usercode\": \"u\", \"password\": \"p\", \"msgheader\": \"H\", \"appkey\": \"\", \"tr_saglayici\": \"netgsm\", \"twilio\": {\"acik\": false, \"account_sid\": \"\", \"auth_token\": \"\", \"api_key_sid\": \"\", \"api_key_secret\": \"\", \"verify_sid\": \"\"}}"
+     },
+     {
+      "anahtar": "sinir_sms:2026-10-11",
+      "deger": "1"
+     },
+     {
+      "anahtar": "sms_sayac:2026-10-11",
+      "deger": "2"
+     },
+     {
+      "anahtar": "sms_sayac:2026-10-12",
+      "deger": "1"
+     },
+     {
+      "anahtar": "saglik_son_tur",
+      "deger": "2026-10-12T00:15:00+03:00"
+     }
+    ],
+    "bekleyen": [],
+    "cihaz": [
+     {
+      "admin_ozet": "",
+      "admin_parola": "",
+      "admin_tuz": "",
+      "admin_yineleme": 0,
+      "adres": "",
+      "anahtar_ozet": "4b3d539199668875d7f7b984e232922e427434cc4b74709eaed94a2dd9805cec",
+      "ayrilma": "",
+      "baglanma": "2026-10-11T20:15:00+03:00",
+      "durum": "bagli",
+      "id": 1,
+      "isletme_adi": "A",
+      "isletme_turu": "",
+      "musteri": 5721885,
+      "otomatik": 0,
+      "son_eslesme": "",
+      "ssh_pub": "ssh-ed25519 AAAA",
+      "surum": "",
+      "tunel_ip": "",
+      "unvan": "",
+      "wg_pub": "0000000000000000000000000000000000005721885="
+     },
+     {
+      "admin_ozet": "",
+      "admin_parola": "",
+      "admin_tuz": "",
+      "admin_yineleme": 0,
+      "adres": "",
+      "anahtar_ozet": "6a96efc47e751bb5248c5ce79318ba19786e573c9144da9823384ad139080b8e",
+      "ayrilma": "",
+      "baglanma": "2026-10-11T20:15:00+03:00",
+      "durum": "bagli",
+      "id": 2,
+      "isletme_adi": "B",
+      "isletme_turu": "",
+      "musteri": 8592499,
+      "otomatik": 0,
+      "son_eslesme": "",
+      "ssh_pub": "ssh-ed25519 AAAA",
+      "surum": "",
+      "tunel_ip": "",
+      "unvan": "",
+      "wg_pub": "0000000000000000000000000000000000008592499="
+     },
+     {
+      "admin_ozet": "",
+      "admin_parola": "",
+      "admin_tuz": "",
+      "admin_yineleme": 0,
+      "adres": "",
+      "anahtar_ozet": "ad124cf6935977307edf5d0b60ed37358cf3af60c617edc493dd8de0558d0829",
+      "ayrilma": "",
+      "baglanma": "2026-10-11T20:15:00+03:00",
+      "durum": "bagli",
+      "id": 3,
+      "isletme_adi": "Sağlam",
+      "isletme_turu": "",
+      "musteri": 1588777,
+      "otomatik": 0,
+      "son_eslesme": "",
+      "ssh_pub": "ssh-ed25519 AAAA",
+      "surum": "",
+      "tunel_ip": "",
+      "unvan": "",
+      "wg_pub": "0000000000000000000000000000000000001588777="
+     }
+    ],
+    "eski_arsiv": [],
+    "hareket": [
+     {
+      "ayrinti": "ulasilamiyor açılış: gonderildi",
+      "id": 1,
+      "ip": "-",
+      "kim": "saglik",
+      "musteri": 5721885,
+      "olay": "UYARI_SMS",
+      "zaman": "2026-10-11T20:25:00+03:00"
+     },
+     {
+      "ayrinti": "üst sınır: gonderildi",
+      "id": 2,
+      "ip": "-",
+      "kim": "saglik",
+      "musteri": null,
+      "olay": "UYARI_SMS",
+      "zaman": "2026-10-11T20:25:00+03:00"
+     },
+     {
+      "ayrinti": "ulasilamiyor açılış: gonderildi",
+      "id": 3,
+      "ip": "-",
+      "kim": "saglik",
+      "musteri": 8592499,
+      "olay": "UYARI_SMS",
+      "zaman": "2026-10-12T00:05:00+03:00"
+     }
+    ],
+    "musteri": [
+     {
+      "ap_parola": "KbHVXsnG6MGL",
+      "askida": 0,
+      "bitis": "",
+      "guncelleme_hemen": 0.0,
+      "guncelleme_hemen_surum": "",
+      "guncelleme_kanali": "kararli",
+      "lisans_bitis": "2027-10-11",
+      "not_": "",
+      "numara": 1588777,
+      "olusturma": "2026-10-11T20:15:00+03:00",
+      "ozet": "08013d71d4d76371d716f0abc77de85747f7ea2071f54cdea2f631ed8f81e3eb",
+      "parola_acik": "JRsuavQcsdW2",
+      "son_giris": "",
+      "tuz": "<T1:32>",
+      "uyelik": "aktif",
+      "yineleme": 120000
+     },
+     {
+      "ap_parola": "6vwWeTxWbXDf",
+      "askida": 0,
+      "bitis": "",
+      "guncelleme_hemen": 0.0,
+      "guncelleme_hemen_surum": "",
+      "guncelleme_kanali": "kararli",
+      "lisans_bitis": "2027-10-11",
+      "not_": "",
+      "numara": 5721885,
+      "olusturma": "2026-10-11T20:15:00+03:00",
+      "ozet": "fcd77d2f1464acefd0bf9649c59c9103b30bf9b4aa14a1930fdbc86ae817e02c",
+      "parola_acik": "6bnuKUG4dyZ7",
+      "son_giris": "",
+      "tuz": "<T2:32>",
+      "uyelik": "aktif",
+      "yineleme": 120000
+     },
+     {
+      "ap_parola": "eJAHEtbPVMuP",
+      "askida": 0,
+      "bitis": "",
+      "guncelleme_hemen": 0.0,
+      "guncelleme_hemen_surum": "",
+      "guncelleme_kanali": "kararli",
+      "lisans_bitis": "2027-10-11",
+      "not_": "",
+      "numara": 8592499,
+      "olusturma": "2026-10-11T20:15:00+03:00",
+      "ozet": "2699afc514475a0f0b09a91b38801e6642f4571a405c74c9573c89f6a09058e6",
+      "parola_acik": "HrMvjRVphQyd",
+      "son_giris": "",
+      "tuz": "<T3:32>",
+      "uyelik": "aktif",
+      "yineleme": 120000
+     }
+    ],
+    "saglik": [
+     {
+      "cihaz": 1,
+      "rapor": "{\"surum\": \"1.0\", \"acik_sn\": 100, \"servisler\": {\"portal\": true, \"panel\": true, \"kaydedici\": true, \"dnsmasq\": true, \"guvenlik\": true}, \"disk_yuzde\": 40, \"son_muhur\": \"2026-10-10\", \"kayit_boslugu_1s\": false, \"wan\": true, \"sms_sorunu\": false, \"bagli\": 3, \"hiz_hata\": false}",
+      "zaman": "2026-10-12T00:15:00+03:00"
+     },
+     {
+      "cihaz": 2,
+      "rapor": "{\"surum\": \"1.0\", \"acik_sn\": 100, \"servisler\": {\"portal\": true, \"panel\": true, \"kaydedici\": true, \"dnsmasq\": true, \"guvenlik\": true}, \"disk_yuzde\": 40, \"son_muhur\": \"2026-10-10\", \"kayit_boslugu_1s\": false, \"wan\": true, \"sms_sorunu\": false, \"bagli\": 3, \"hiz_hata\": false}",
+      "zaman": "2026-10-12T00:15:00+03:00"
+     },
+     {
+      "cihaz": 3,
+      "rapor": "{\"surum\": \"1.0\", \"acik_sn\": 100, \"servisler\": {\"portal\": true, \"panel\": true, \"kaydedici\": true, \"dnsmasq\": true, \"guvenlik\": true}, \"disk_yuzde\": 40, \"son_muhur\": \"2026-10-10\", \"kayit_boslugu_1s\": false, \"wan\": true, \"sms_sorunu\": false, \"bagli\": 3, \"hiz_hata\": false}",
+      "zaman": "2026-10-12T00:15:00+03:00"
+     }
+    ],
+    "sms_sayac": [],
+    "sms_son": [],
+    "sorun": [
+     {
+      "acilis": "2026-10-11T20:15:00+03:00",
+      "acilis_sms": "gonderildi",
+      "id": 1,
+      "kapanis": "",
+      "kapanis_sms": "",
+      "metin": "Cihaz ulaşılamıyor",
+      "musteri": 5721885,
+      "onem": "kritik",
+      "tur": "ulasilamiyor"
+     },
+     {
+      "acilis": "2026-10-11T20:15:00+03:00",
+      "acilis_sms": "gonderildi",
+      "id": 2,
+      "kapanis": "",
+      "kapanis_sms": "",
+      "metin": "Cihaz ulaşılamıyor",
+      "musteri": 8592499,
+      "onem": "kritik",
+      "tur": "ulasilamiyor"
+     }
+    ],
+    "sqlite_sequence": [
+     {
+      "name": "cihaz",
+      "seq": 3
+     },
+     {
+      "name": "sorun",
+      "seq": 2
+     },
+     {
+      "name": "hareket",
+      "seq": 3
+     }
+    ],
+    "surum": []
+   }
+  }
+ ],
+ "dosyalar": [
+  {}
+ ],
+ "yollar": []
+}

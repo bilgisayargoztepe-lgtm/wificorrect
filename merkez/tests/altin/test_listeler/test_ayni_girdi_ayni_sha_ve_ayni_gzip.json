@@ -1,0 +1,82 @@
+{
+ "bicim": 3,
+ "dosya": "test_listeler",
+ "test": "test_ayni_girdi_ayni_sha_ve_ayni_gzip",
+ "cevaplar": [],
+ "veritabanlari": [],
+ "dosyalar": [
+  {
+   "kaynak/": {
+    "dizin": true
+   },
+   "kaynak/kumar-1cee97163277.txt.gz": {
+    "metin": "c.com\n",
+    "gz": true
+   },
+   "kaynak/kumar-1e76245f6f33.txt.gz": {
+    "metin": "a.com\nb.com\n",
+    "gz": true
+   },
+   "kumar.json": {
+    "json": {
+     "kategori": "kumar",
+     "sha256": "cdf05cda07e8ae6144c019bcc3b4626d480536d8c04ebf3d19bc6823580a5117",
+     "sayi": 3,
+     "zaman": "2026-09-21T17:13:20+03:00",
+     "kesildi": false,
+     "kaynaklar": [
+      {
+       "ad": "A",
+       "sayi": 2
+      },
+      {
+       "ad": "B",
+       "sayi": 1
+      }
+     ]
+    }
+   },
+   "kumar.txt.gz": {
+    "metin": "a.com\nb.com\nc.com\n",
+    "gz": true
+   }
+  },
+  {
+   "kaynak/": {
+    "dizin": true
+   },
+   "kaynak/kumar-1cee97163277.txt.gz": {
+    "metin": "c.com\n",
+    "gz": true
+   },
+   "kaynak/kumar-1e76245f6f33.txt.gz": {
+    "metin": "a.com\nb.com\n",
+    "gz": true
+   },
+   "kumar.json": {
+    "json": {
+     "kategori": "kumar",
+     "sha256": "cdf05cda07e8ae6144c019bcc3b4626d480536d8c04ebf3d19bc6823580a5117",
+     "sayi": 3,
+     "zaman": "2026-09-21T17:21:40+03:00",
+     "kesildi": false,
+     "kaynaklar": [
+      {
+       "ad": "A",
+       "sayi": 2
+      },
+      {
+       "ad": "B",
+       "sayi": 1
+      }
+     ]
+    }
+   },
+   "kumar.txt.gz": {
+    "metin": "a.com\nb.com\nc.com\n",
+    "gz": true
+   }
+  }
+ ],
+ "yollar": []
+}

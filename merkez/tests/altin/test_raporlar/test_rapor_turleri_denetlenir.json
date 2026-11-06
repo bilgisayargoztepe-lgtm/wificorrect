@@ -1,0 +1,103 @@
+{
+ "bicim": 3,
+ "dosya": "test_raporlar",
+ "test": "test_rapor_turleri_denetlenir",
+ "cevaplar": [],
+ "veritabanlari": [],
+ "dosyalar": [
+  {
+   "rapor/": {
+    "dizin": true
+   },
+   "rapor/1234567/": {
+    "dizin": true
+   },
+   "rapor/1234567/ay-2026-09.json": {
+    "json": {
+     "bicim": 2,
+     "tur": "ay",
+     "donem": "2026-09",
+     "baslangic": "2026-09-01",
+     "bitis": "2026-09-30",
+     "uretim": "2026-09-21T12:31:07+03:00",
+     "kesin": "evet",
+     "imza": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+     "misafir": {
+      "farkli": "41",
+      "yeni": -3,
+      "donen": true,
+      "giris": 1.5,
+      "gunluk_ortalama": "x",
+      "en_yogun_gun": {
+       "gun": "<b>",
+       "farkli": 3
+      }
+     },
+     "saat": [
+      "a",
+      "a",
+      "a",
+      "a",
+      "a",
+      "a",
+      "a",
+      "a",
+      "a",
+      "a",
+      "a",
+      "a",
+      "a",
+      "a",
+      "a",
+      "a",
+      "a",
+      "a",
+      "a",
+      "a",
+      "a",
+      "a",
+      "a",
+      "a",
+      "a",
+      "a",
+      "a",
+      "a",
+      "a",
+      "a"
+     ],
+     "hafta_gunu": "x",
+     "gunler": [
+      {
+       "gun": "2026-09-01",
+       "durum": "<i>",
+       "neden": 5,
+       "farkli": -1
+      },
+      "bozuk",
+      {
+       "gun": "x"
+      }
+     ],
+     "kayit": [],
+     "kullanim": {
+      "gonderilen": "1",
+      "alanlar": [
+       {
+        "alan": 5,
+        "misafir": 3
+       },
+       "x",
+       {
+        "alan": "a.com",
+        "misafir": "9"
+       }
+      ]
+     },
+     "surum": "<script>",
+     "surum_sonra_degisti": false
+    }
+   }
+  }
+ ],
+ "yollar": []
+}

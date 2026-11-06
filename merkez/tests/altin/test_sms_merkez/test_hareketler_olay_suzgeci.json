@@ -1,0 +1,96 @@
+{
+ "bicim": 3,
+ "dosya": "test_sms_merkez",
+ "test": "test_hareketler_olay_suzgeci",
+ "cevaplar": [],
+ "veritabanlari": [
+  {
+   "ad": "m.db",
+   "tablolar": {
+    "ayar": [],
+    "bekleyen": [],
+    "cihaz": [],
+    "eski_arsiv": [],
+    "hareket": [
+     {
+      "ayrinti": "0",
+      "id": 1,
+      "ip": "-",
+      "kim": "x",
+      "musteri": 1234567,
+      "olay": "BASKA",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     },
+     {
+      "ayrinti": "1",
+      "id": 2,
+      "ip": "-",
+      "kim": "x",
+      "musteri": 1234567,
+      "olay": "GUNCELLEME_SONUC",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     },
+     {
+      "ayrinti": "2",
+      "id": 3,
+      "ip": "-",
+      "kim": "x",
+      "musteri": 1234567,
+      "olay": "BASKA",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     },
+     {
+      "ayrinti": "3",
+      "id": 4,
+      "ip": "-",
+      "kim": "x",
+      "musteri": 1234567,
+      "olay": "GUNCELLEME_SONUC",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     },
+     {
+      "ayrinti": "4",
+      "id": 5,
+      "ip": "-",
+      "kim": "x",
+      "musteri": 1234567,
+      "olay": "BASKA",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     },
+     {
+      "ayrinti": "baska-musteri",
+      "id": 6,
+      "ip": "-",
+      "kim": "x",
+      "musteri": 7654321,
+      "olay": "GUNCELLEME_SONUC",
+      "zaman": "2026-09-21T17:13:20+03:00"
+     }
+    ],
+    "musteri": [],
+    "saglik": [],
+    "sms_sayac": [],
+    "sms_son": [],
+    "sorun": [],
+    "sqlite_sequence": [
+     {
+      "name": "hareket",
+      "seq": 6
+     }
+    ],
+    "surum": []
+   }
+  }
+ ],
+ "dosyalar": [
+  {
+   "detay/": {
+    "dizin": true
+   },
+   "ist/": {
+    "dizin": true
+   }
+  }
+ ],
+ "yollar": []
+}
